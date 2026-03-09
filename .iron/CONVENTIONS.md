@@ -42,7 +42,7 @@ src/
   interfaces/
     backend/
     frontend/
-valk/
+iron/
 tests/
 ```
 
@@ -54,11 +54,11 @@ Every production repo should keep these files current:
   - repo boundary, neighboring repos, main state types, orchestrators, and examples.
 - `CONTRIBUTING.md`
   - what belongs in the repo, what does not, key files/functions, review checklist, and verification commands.
-- `valk/progress.md`
+- `iron/progress.md`
   - current commit message plus planned, in-progress, and finished work.
-- `valk/valkyrie_config.template.md`
-  - tracked, publish-safe template for the local Valkyrie config.
-- `valk/valkyrie_config.md`
+- `iron/iron_config.template.md`
+  - tracked, publish-safe template for the local iron config.
+- `iron/iron_config.md`
   - machine-local config copied from the template and ignored by git.
 
 When documenting architecture, explain:
@@ -80,12 +80,12 @@ When documenting architecture, explain:
 
 ## Valk Repo Metadata
 
-Every repo should have a `valk/` folder next to `src/`.
+Every repo should have a `iron/` folder next to `src/`.
 
-- Use `proto-conventions/valk/` as the template source.
-- Keep tracked files inside `valk/` publish-safe.
-- Track `valk/valkyrie_config.template.md` as the publish-safe template.
-- Keep the live local config at `valk/valkyrie_config.md` and ignore it in git.
+- Use `proto-conventions/iron/` as the template source.
+- Keep tracked files inside `iron/` publish-safe.
+- Track `iron/iron_config.template.md` as the publish-safe template.
+- Keep the live local config at `iron/iron_config.md` and ignore it in git.
 - Do not commit absolute local paths in tracked config files.
 
 ## Split-Repo Guidance
@@ -122,5 +122,5 @@ Before pushing:
 1. make sure tracked configs do not contain private local paths,
 2. remove generated binaries and local cache files from version control,
 3. keep `.gitignore` aligned with the actual build outputs,
-4. update `README.md`, `CONTRIBUTING.md`, and `valk/` templates together when conventions change,
+4. update `README.md`, `CONTRIBUTING.md`, and `iron/` templates together when conventions change,
 5. verify the repo still builds or tests through its documented commands.

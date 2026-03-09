@@ -4,4 +4,7 @@ nimbledeps
 build/
 src/libsodium/
 src/liboqs/
-valk/valkyrie_config.md
+iron/iron_config.md
+.iron/.local*
+!.iron/.local*.template
+

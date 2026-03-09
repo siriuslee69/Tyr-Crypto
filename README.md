@@ -89,7 +89,7 @@ This repository is **not guaranteed to be production ready**.
   - native dependency build helpers
 - `tests/`
   - vectors, regressions, and wrapper tests
-- `valk/`
+- `iron/`
   - repo coordination metadata
 
 ## Quick Start

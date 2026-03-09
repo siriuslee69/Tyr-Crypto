@@ -57,8 +57,8 @@ task build_openssl, "Build OpenSSL":
   exec "nim r tools/ensure_env.nim -- --submodules --builddirs"
   exec "nim r tools/build_openssl.nim"
 
-task autopush, "Add, commit, and push with message from valk/progress.md":
-  let path = "valk/progress.md"
+task autopush, "Add, commit, and push with message from iron/progress.md":
+  let path = "iron/progress.md"
   var msg = ""
   if fileExists(path):
     let content = readFile(path)
