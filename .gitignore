@@ -1,0 +1,7 @@
+nimble.develop
+nimbledeps
+*.exe
+build/
+src/libsodium/
+src/liboqs/
+valk/valkyrie_config.md

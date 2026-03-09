@@ -1,0 +1,19 @@
+[submodule "libsodium"]
+	path = submodules/libsodium
+	url = https://github.com/jedisct1/libsodium.git
+[submodule "liboqs"]
+	path = submodules/liboqs
+	url = https://github.com/open-quantum-safe/liboqs
+[submodule "openssl"]
+	path = submodules/openssl
+	url = https://github.com/openssl/openssl.git
+[submodule "cNimWrapper"]
+	path = submodules/cNimWrapper
+	url = https://github.com/siriuslee69/cNimWrapper.git
+[submodule "sigma_bench_and_eval"]
+	path = submodules/sigma_bench_and_eval
+	url = https://github.com/siriuslee69/Sigma-BenchAndEval.git
+	branch = main
+[submodule "simd_nexus"]
+	path = submodules/simd_nexus
+	url = https://github.com/siriuslee69/SIMD-Nexus.git
