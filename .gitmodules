@@ -1,12 +1,15 @@
 [submodule "libsodium"]
 	path = submodules/libsodium
 	url = https://github.com/jedisct1/libsodium.git
+	ignore = dirty
 [submodule "liboqs"]
 	path = submodules/liboqs
 	url = https://github.com/open-quantum-safe/liboqs
+	ignore = dirty
 [submodule "openssl"]
 	path = submodules/openssl
 	url = https://github.com/openssl/openssl.git
+	ignore = dirty
 [submodule "cNimWrapper"]
 	path = submodules/cNimWrapper
 	url = https://github.com/siriuslee69/cNimWrapper.git
