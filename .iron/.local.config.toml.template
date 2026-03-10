@@ -1,5 +1,4 @@
-# Local machine settings for this repository.
-# Copy to `.iron/.local.config.toml` and keep that file ignored in git.
+# This will contain configuration data for iron.
 
-root = "C:/ChangeMe/CodingMain"
-
+[config]
+val1 = 23
