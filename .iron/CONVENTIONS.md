@@ -1,4 +1,4 @@
-﻿# Proto Conventions
+# Proto-RepoTemplate Conventions
 
 The project should always be written in Nim. Please follow these guidelines and conventions.
 
@@ -156,7 +156,7 @@ x = myFunc(x)
 Prefer understanding, long-term maintainability, and modularity over efficiency.
 
 - The actual project belongs in `src`. If it is missing, create it.
-- Submodules can live outside `src` inside a `sumbodules`folder.
+- Expose submodules inside each repo under `submodules/`, but keep the actual local checkouts as sibling repos outside the parent repo whenever possible.
 - Every repo must include a `.iron/` folder next to `src/` for repo-coordination metadata and templates.
 - Every module (`.nim` file) must have a description at the top explaining what it does.
   - Prefer visual hints like arrows (`<- ->`), ASCII art boxes, and separators (`|`, `-`).
@@ -197,7 +197,7 @@ At the bottom of the README of a project, include a cleaner, more formatted vers
 Every repo must have a `.iron/` folder located next to `src/`.
 
 - Store repo-coordination configs and templates there.
-- Use `Proto-TemplateRepo/.iron/` as the template source.
+- Use `Proto-RepoTemplate/.iron/` as the template source.
 - The local submodule override file lives at `.iron/.local.gitmodules.toml` and should be ignored by git.
 
 ## Dependencies and External Projects
@@ -206,8 +206,8 @@ If you need an entirely different project as a dependency (because a library or 
 
 Prefer Nim and nimble only. No Python, bash, or PowerShell.
 
-Submodules always live in the devs folder. However, locally the submodules should not be cloned nor should they be modified. 
-The actual, local path for the submodules should be set via `.iron/.local.config.toml` inside a repo's `.iron/` folder.
+Submodule checkouts should live in the shared workspace root as sibling repos, not as second nested clones inside the parent repo.
+Use `.iron/.local.gitmodules.toml` to map each declared submodule path to the local sibling repo, and let iron create the local links automatically.
 
 ## C Bindings (cNimWrapper)
 
@@ -230,9 +230,9 @@ Use it where possible via generic function types, such that you can switch betwe
 
 Do not write pre-compile time import statements that prevent nimsuggest from checking functions.
 
-## progress.md
+## .iron/PROGRESS.md
 
-Inside each project, create `progress.md` inside iron (if it does not exist) and track:
+Inside each project, keep `.iron/PROGRESS.md` up to date and track:
 0. Current commit message (update after every change)
 1. Features to implement (total)
 2. Features already implemented
@@ -249,10 +249,10 @@ Create a `.nimble` file with tasks for:
 
 ## Configs
 
-Every project that is supposed to be run standalone should have a config.md file (with a json part inside it) which sets parameters for important functions.
-Every project that is supposed to be run by a user / client should additionally have a userconfig.md.
-Every project that is supposed to be run as a dependency should have a config bridge in json format.
-Such that project A can integrate project B via accessing the bridge config for B. That config should be called b_config.md then.
+Prefer `.toml` for config files across all repos.
+Every project that is supposed to run standalone should have a `config.toml` file for important runtime settings.
+Every project that is supposed to be run by a user/client may additionally have a `user.config.toml`.
+Every project that is supposed to be run as a dependency should expose a publish-safe TOML bridge config for integration.
 
 ## Compatibility
 
@@ -266,7 +266,7 @@ The compiling user should be prompted if there are missing dependencies on wheth
 
 1. Add a nimble task that auto-pushes with a commit message from `.iron/PROGRESS.md` (see `proto_conventions.nimble` in this repo).
 2. Add a `.gitignore` that excludes `builds` and `.exe` files.
-3. Add a submodules folder to each repo in which all the submodules go.
+3. Add a `submodules/` folder to each repo for linked submodule entry paths, but keep the actual local checkouts as sibling repos outside the parent repo.
 
 ## Repo Examples (App vs Library)
 
@@ -275,7 +275,7 @@ This repo includes one `src` folder for app repos and another for library repos.
 - There should be no frontend/backend separation for libraries.
 - If a repo has interface + libraries, its `src` folder should be split into `interfaces` and `lib`.
 
-You may follow the general structure of the rest of this Proto-TemplateRepo repo and the example files.
+You may follow the general structure of the rest of this Proto-RepoTemplate repo and the example files.
 
 ## Issue Playbook
 
@@ -284,4 +284,5 @@ Create an issue playbook at the bottom of the README.md which lists common issue
 ## Conventions
 
 Keep a copy of this `.iron/` folder and its contents in each repo.
-Make sure to change the path in `.iron/.local.config.toml` accordingly.
+Make sure `.iron/.local.config.toml` only contains machine-local values, and `.iron/.local.gitmodules.toml` only contains local submodule path overrides.
+
