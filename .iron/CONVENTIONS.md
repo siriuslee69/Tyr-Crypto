@@ -139,6 +139,10 @@ src/lib/level2/moduleTZ.nim <- depends at least on moduleXY
 ...
 ```
 
+In some libraries it might make sense to instead sort modules by role/name. 
+That is especially the case, if a repo is a collection of many tiny algorithms/parsers/helpers.
+In these cases, you can sort them like by module first instead of by dependency level.
+
 Every (`.nim` file) must have a description at the top explaining what it does.
 Prefer visual hints like arrows (`<- ->`), ASCII art boxes, and separators (`|`, `-`).
 
