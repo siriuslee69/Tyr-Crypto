@@ -2,6 +2,20 @@ import std/unittest
 import ../src/tyr_crypto/wrapper/pin_key
 import ../src/tyr_crypto/common
 
+suite "password pin derivation":
+  test "pattern derivation is deterministic and pin-sensitive":
+    var
+      salt: seq[uint8] = @[1'u8, 2, 3, 4, 5, 6, 7, 8]
+      d0: DerivedSecretBytes
+      d1: DerivedSecretBytes
+      d2: DerivedSecretBytes
+    d0 = derivePatternBytesFromPasswordPinWithSalt("pw", "1234", salt, 12)
+    d1 = derivePatternBytesFromPasswordPinWithSalt("pw", "1234", salt, 12)
+    d2 = derivePatternBytesFromPasswordPinWithSalt("pw", "9999", salt, 12)
+    check d0.bytes == d1.bytes
+    check d0.bytes != d2.bytes
+    check d0.bytes.len == 12
+
 when defined(hasLibsodium):
   import ../src/tyr_crypto/wrapper/crypto
   import ../src/tyr_crypto/bindings/libsodium

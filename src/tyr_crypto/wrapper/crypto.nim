@@ -10,6 +10,7 @@ when defined(hasLibsodium):
 type
   AlgoType* = enum
     chacha20,
+    xchacha20Poly1305,
     xchacha20Gimli,
     aesGimli,
     xchacha20AesGimli,
@@ -155,6 +156,86 @@ proc combinedTag(gimliTagValue, polyTagValue: openArray[uint8]): seq[uint8] =
     result[offset] = b
     inc offset
 
+proc xchacha20Poly1305Encrypt(key, nonce, plaintext: openArray[uint8]): CipherText =
+  when not defined(hasLibsodium):
+    discard key
+    discard nonce
+    discard plaintext
+    raiseUnavailable("libsodium", "hasLibsodium")
+    result = CipherText()
+  else:
+    ensureSodiumInitialised()
+    if key.len != int(crypto_aead_xchacha20poly1305_ietf_keybytes()):
+      raise newException(ValueError, "invalid xchacha20poly1305 key length")
+    if nonce.len != int(crypto_aead_xchacha20poly1305_ietf_npubbytes()):
+      raise newException(ValueError, "invalid xchacha20poly1305 nonce length")
+    var outBuf = newSeq[uint8](plaintext.len + poly1305TagLenDefault)
+    var outLen: culonglong = 0
+    let status = crypto_aead_xchacha20poly1305_ietf_encrypt(
+      if outBuf.len > 0: addr outBuf[0] else: nil,
+      addr outLen,
+      if plaintext.len > 0: unsafeAddr plaintext[0] else: nil,
+      culonglong(plaintext.len),
+      nil,
+      0,
+      nil,
+      if nonce.len > 0: unsafeAddr nonce[0] else: nil,
+      if key.len > 0: unsafeAddr key[0] else: nil
+    )
+    if status != 0:
+      raiseOperation("libsodium", "xchacha20poly1305 encryption failed")
+    outBuf.setLen(int(outLen))
+    let cipherLen = outBuf.len - poly1305TagLenDefault
+    result.ciphertext = newSeq[uint8](cipherLen)
+    result.hmac = newSeq[uint8](poly1305TagLenDefault)
+    for i in 0 ..< cipherLen:
+      result.ciphertext[i] = outBuf[i]
+    for i in 0 ..< poly1305TagLenDefault:
+      result.hmac[i] = outBuf[cipherLen + i]
+    result.hmacType = aeadTag
+
+proc xchacha20Poly1305Decrypt(key, nonce, ciphertext, tag: openArray[uint8]): Message =
+  when not defined(hasLibsodium):
+    discard key
+    discard nonce
+    discard ciphertext
+    discard tag
+    raiseUnavailable("libsodium", "hasLibsodium")
+    result = @[]
+  else:
+    ensureSodiumInitialised()
+    if key.len != int(crypto_aead_xchacha20poly1305_ietf_keybytes()):
+      raise newException(ValueError, "invalid xchacha20poly1305 key length")
+    if nonce.len != int(crypto_aead_xchacha20poly1305_ietf_npubbytes()):
+      raise newException(ValueError, "invalid xchacha20poly1305 nonce length")
+    if tag.len != poly1305TagLenDefault:
+      raise newException(ValueError, "invalid xchacha20poly1305 tag length")
+    var inBuf = newSeq[uint8](ciphertext.len + tag.len)
+    var offset = 0
+    for b in ciphertext:
+      inBuf[offset] = b
+      inc offset
+    for b in tag:
+      inBuf[offset] = b
+      inc offset
+    var outBuf = newSeq[uint8](ciphertext.len)
+    var outLen: culonglong = 0
+    let status = crypto_aead_xchacha20poly1305_ietf_decrypt(
+      if outBuf.len > 0: addr outBuf[0] else: nil,
+      addr outLen,
+      nil,
+      if inBuf.len > 0: unsafeAddr inBuf[0] else: nil,
+      culonglong(inBuf.len),
+      nil,
+      0,
+      if nonce.len > 0: unsafeAddr nonce[0] else: nil,
+      if key.len > 0: unsafeAddr key[0] else: nil
+    )
+    if status != 0:
+      raiseOperation("libsodium", "xchacha20poly1305 decryption failed")
+    outBuf.setLen(int(outLen))
+    result = outBuf
+
 proc encrypt*(m: Message, s: EncryptionState): CipherText =
   case s.algoType
   of chacha20:
@@ -166,6 +247,9 @@ proc encrypt*(m: Message, s: EncryptionState): CipherText =
     let cipher = xchacha20Xor(key, s.nonce, m)
     let tag = blake3Tag(key, s.nonce, cipher)
     CipherText(ciphertext: cipher, hmac: tag, hmacType: blake3)
+  of xchacha20Poly1305:
+    let key = requireSymmetricKey(s, "xchacha20poly1305")
+    xchacha20Poly1305Encrypt(key, s.nonce, m)
   of xchacha20Gimli:
     let keyX = requireSymmetricKeyAt(s, "xchacha20gimli", 0)
     let keyG = requireSymmetricKeyAt(s, "xchacha20gimli", 1)
@@ -271,6 +355,9 @@ proc decrypt*(c: CipherText, s: EncryptionState): Message =
     if not constantTimeEqual(expected, c.hmac):
       raise newException(ValueError, "chacha20 authentication tag mismatch")
     xchacha20Xor(key, s.nonce, c.ciphertext)
+  of xchacha20Poly1305:
+    let key = requireSymmetricKey(s, "xchacha20poly1305")
+    xchacha20Poly1305Decrypt(key, s.nonce, c.ciphertext, c.hmac)
   of xchacha20Gimli:
     let keyX = requireSymmetricKeyAt(s, "xchacha20gimli", 0)
     let keyG = requireSymmetricKeyAt(s, "xchacha20gimli", 1)

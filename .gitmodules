@@ -12,7 +12,8 @@
 	ignore = dirty
 [submodule "cNimWrapper"]
 	path = submodules/cNimWrapper
-	url = https://github.com/siriuslee69/cNimWrapper.git
+	url = https://github.com/siriuslee69/cNimWrapper-Bindr.git
+	branch = main
 [submodule "sigma_bench_and_eval"]
 	path = submodules/sigma_bench_and_eval
 	url = https://github.com/siriuslee69/Sigma-BenchAndEval.git

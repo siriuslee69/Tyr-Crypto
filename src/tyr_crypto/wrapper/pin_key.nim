@@ -6,6 +6,7 @@
 
 import ../common
 import ../wrapper/crypto as cryptoWrap
+import ../custom_crypto/blake3
 
 type
   ## Secret: secure container for user-provided secrets.
@@ -61,10 +62,57 @@ type
     x25519Seed*: seq[uint8]
     kdf*: ArgonKdfParams
 
+  ## DerivedSecretBytes: generic derived byte material plus KDF metadata.
+  DerivedSecretBytes* = object
+    bytes*: seq[uint8]
+    kdf*: ArgonKdfParams
+
+const
+  derivedSecretLenDefault = 32
+  kdfContextPasswordPinSecret* = "pw-pin-secret-v1"
+  kdfContextPatternFragment* = "pattern-fragment-v1"
+
+proc copyBytes(input: openArray[uint8]): seq[uint8] =
+  result = newSeq[uint8](input.len)
+  for i, b in input:
+    result[i] = b
+
+proc stringToBytes(s: string): seq[uint8] =
+  result = newSeq[uint8](s.len)
+  for i, ch in s:
+    result[i] = uint8(ch)
+
+proc zeroizeCompat(data: var seq[uint8]) =
+  var
+    i: int = 0
+  while i < data.len:
+    data[i] = 0
+    i = i + 1
+  data.setLen(0)
+
+proc appendUint32Le(buf: var seq[uint8], v: uint32) =
+  var
+    i: int = 0
+    x: uint32 = v
+  while i < 4:
+    buf.add(uint8(x and 255'u32))
+    x = x shr 8
+    i = i + 1
+
+proc buildPasswordPinInput(ps, pins: openArray[uint8]): seq[uint8] =
+  var
+    buf: seq[uint8] = @[]
+  buf = stringToBytes("joint-password-pin-v1")
+  appendUint32Le(buf, uint32(ps.len))
+  buf.add(ps)
+  appendUint32Le(buf, uint32(pins.len))
+  buf.add(pins)
+  result = blake3Hash(buf)
+
 when defined(hasLibsodium):
   import std/sysrand
   import ../bindings/libsodium
-  import ../custom_crypto/[blake3, xchacha20]
+  import ../custom_crypto/xchacha20
 
   const
     masterKeyLen = 32
@@ -91,16 +139,6 @@ when defined(hasLibsodium):
 
   proc zeroizeSeq(data: var seq[uint8]) =
     secureZeroizeSeq(data)
-
-  proc copyBytes(input: openArray[uint8]): seq[uint8] =
-    result = newSeq[uint8](input.len)
-    for i, b in input:
-      result[i] = b
-
-  proc stringToBytes(s: string): seq[uint8] =
-    result = newSeq[uint8](s.len)
-    for i, ch in s:
-      result[i] = uint8(ch)
 
   proc algoKeyCount(a: cryptoWrap.AlgoType): int =
     ## a: algorithm for which to compute key count.
@@ -396,6 +434,38 @@ when defined(hasLibsodium):
     defer:
       zeroizeSeq(ps)
     result = deriveHybridKexTripleSeedFromBytes(ps)
+
+  proc derivePasswordPinSecretFromBytesWithSalt*(ps, pins, ss: openArray[uint8],
+      cs: string = kdfContextPasswordPinSecret, ol: culonglong = 0'u64,
+      ml: csize_t = 0, l: int = derivedSecretLenDefault): DerivedSecretBytes =
+    var
+      joint: seq[uint8] = @[]
+      derived: tuple[bs: seq[uint8], k: ArgonKdfParams]
+    joint = buildPasswordPinInput(ps, pins)
+    defer:
+      zeroizeSeq(joint)
+    derived = deriveArgonBytes(joint, cs, ss, ol, ml, l)
+    result.bytes = derived.bs
+    result.kdf = derived.k
+
+  proc derivePasswordPinSecretFromStringWithSalt*(p: string, pin: string,
+      ss: openArray[uint8], cs: string = kdfContextPasswordPinSecret,
+      ol: culonglong = 0'u64, ml: csize_t = 0,
+      l: int = derivedSecretLenDefault): DerivedSecretBytes =
+    var
+      ps: seq[uint8] = @[]
+      pins: seq[uint8] = @[]
+    ps = stringToBytes(p)
+    pins = stringToBytes(pin)
+    defer:
+      zeroizeSeq(ps)
+      zeroizeSeq(pins)
+    result = derivePasswordPinSecretFromBytesWithSalt(ps, pins, ss, cs, ol, ml, l)
+
+  proc derivePatternBytesFromPasswordPinWithSalt*(p: string, pin: string,
+      ss: openArray[uint8], l: int = 16): DerivedSecretBytes =
+    result = derivePasswordPinSecretFromStringWithSalt(p, pin, ss,
+      kdfContextPatternFragment, 0'u64, 0, l)
 
   proc initSecretFromBytes*(input: openArray[uint8]): Secret =
     result.data = copyBytes(input)
@@ -731,6 +801,45 @@ when defined(hasLibsodium):
     result.hmac = sealed[tagStart ..< sealed.len]
 
 else:
+  proc derivePasswordPinSecretFromBytesWithSalt*(ps, pins, ss: openArray[uint8],
+      cs: string = kdfContextPasswordPinSecret, ol: culonglong = 0'u64,
+      ml: csize_t = 0, l: int = derivedSecretLenDefault): DerivedSecretBytes =
+    var
+      joint: seq[uint8] = @[]
+      buf: seq[uint8] = @[]
+    joint = buildPasswordPinInput(ps, pins)
+    defer:
+      zeroizeCompat(joint)
+      zeroizeCompat(buf)
+    buf = stringToBytes(cs)
+    appendUint32Le(buf, uint32(ss.len))
+    buf.add(ss)
+    appendUint32Le(buf, uint32(joint.len))
+    buf.add(joint)
+    result.bytes = blake3Hash(buf, l)
+    result.kdf.argon2Salt = copyBytes(ss)
+    result.kdf.argon2OpsLimit = ol
+    result.kdf.argon2MemLimit = ml
+
+  proc derivePasswordPinSecretFromStringWithSalt*(p: string, pin: string,
+      ss: openArray[uint8], cs: string = kdfContextPasswordPinSecret,
+      ol: culonglong = 0'u64, ml: csize_t = 0,
+      l: int = derivedSecretLenDefault): DerivedSecretBytes =
+    var
+      ps: seq[uint8] = @[]
+      pins: seq[uint8] = @[]
+    ps = stringToBytes(p)
+    pins = stringToBytes(pin)
+    defer:
+      zeroizeCompat(ps)
+      zeroizeCompat(pins)
+    result = derivePasswordPinSecretFromBytesWithSalt(ps, pins, ss, cs, ol, ml, l)
+
+  proc derivePatternBytesFromPasswordPinWithSalt*(p: string, pin: string,
+      ss: openArray[uint8], l: int = 16): DerivedSecretBytes =
+    result = derivePasswordPinSecretFromStringWithSalt(p, pin, ss,
+      kdfContextPatternFragment, 0'u64, 0, l)
+
   proc initSecretFromBytes*(input: openArray[uint8]): Secret =
     raiseUnavailable("libsodium", "hasLibsodium")
     Secret()
