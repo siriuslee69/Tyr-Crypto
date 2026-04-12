@@ -1,5 +1,5 @@
 import std/unittest
-import ../src/tyr_crypto/custom_crypto/otp
+import ../src/protocols/custom_crypto/otp
 import ./helpers
 
 suite "otp custom crypto":

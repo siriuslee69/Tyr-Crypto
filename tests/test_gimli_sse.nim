@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/tyr_crypto/custom_crypto/gimli
+import ../src/protocols/custom_crypto/gimli
 
 suite "gimli sse":
   test "SSE permutation matches reference":

@@ -1,6 +1,6 @@
 import std/[os, strutils]
-import ../src/tyr_crypto/wrapper/pin_key
-import ../src/tyr_crypto/common
+import ../src/protocols/wrapper/password_support
+import ../src/protocols/common
 import ./helpers
 
 when defined(hasLibsodium):

@@ -1,5 +1,5 @@
 import std/unittest
-import ../src/tyr_crypto/random
+import ../src/protocols/custom_crypto/random
 
 suite "entropy-mixed crypto random":
   test "returns requested length without extra entropy":

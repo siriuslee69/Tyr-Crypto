@@ -5,7 +5,7 @@
 
 import std/[monotimes, unittest]
 
-import ../src/tyr_crypto/custom_crypto/[blake3, gimli, gimli_sponge, xchacha20,
+import ../src/protocols/custom_crypto/[blake3, gimli, gimli_sponge, xchacha20,
   xchacha20_simd, aes_ctr]
 import submodules/sigma_bench_and_eval/benchmarks
 

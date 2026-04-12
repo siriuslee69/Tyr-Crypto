@@ -24,24 +24,29 @@ This repo exists to provide reusable crypto primitives, wrappers, and build help
 ## Read These Files First
 
 - `README.md`
-- `src/tyr_crypto/wrapper/crypto.nim`
-- `src/tyr_crypto/wrapper/pin_key.nim`
-- `src/tyr_crypto/chunkyCrypto/level2/file_ops.nim`
-- `src/tyr_crypto/registry.nim`
+- `src/protocols/wrapper/basic_api.nim`
+- `src/protocols/wrapper/password_support.nim`
+- `src/protocols/wrapper/wasm/level2/json_api.nim`
+- `src/protocols/wrapper/wasm/exports.nim`
+- `bindings/js/tyr_crypto.mjs`
+- `src/protocols/chunky_crypto/level2/file_ops.nim`
+- `.iron/meta/registry.nim`
 - `tests/test_all.nim`
 
 ## High-Risk Areas
 
-- `src/tyr_crypto/wrapper/crypto.nim`
-  - public symmetric API surface
-- `src/tyr_crypto/wrapper/pin_key.nim`
+- `src/protocols/wrapper/basic_api.nim`
+  - primitive enum-driven dispatch plus single-algorithm typed material layer
+- `src/protocols/wrapper/password_support.nim`
   - password/PIN derivation and key wrapping
-- `src/tyr_crypto/chunkyCrypto/level2/file_ops.nim`
+- `src/protocols/chunky_crypto/level2/file_ops.nim`
   - file format, disk I/O, threading behavior
-- `src/tyr_crypto/custom_crypto/`
+- `src/protocols/custom_crypto/`
   - custom primitives and SIMD paths
-- `src/tyr_crypto/bindings/`
+- `src/protocols/bindings/`
   - native ABI assumptions and failure handling
+- `src/protocols/wrapper/wasm/`
+  - public JSON ABI and JS/TS contract for the wasm build
 
 ## Rules for Changes
 
@@ -51,6 +56,7 @@ This repo exists to provide reusable crypto primitives, wrappers, and build help
 - Preserve Windows and Linux friendliness where practical.
 - If a change affects how callers should use the repo, update `README.md`.
 - If a change affects maintainers or reviewers, update this file too.
+- If you change the wasm JSON field names or response format, update `bindings/js/tyr_crypto.mjs`, `bindings/js/tyr_crypto.d.ts`, and the README usage example in the same pass.
 
 ## Review Checklist
 
@@ -66,12 +72,14 @@ This repo exists to provide reusable crypto primitives, wrappers, and build help
 
 ```bash
 nimble test
-nim check src/tyr_crypto/registry.nim
+nimble test_wasm
+nim check .iron/meta/registry.nim
 ```
 
 Run additional commands when relevant:
 
 ```bash
+nimble build_wasm
 nimble test_all
 nimble test_all_threads_on
 nimble test_all_threads_off

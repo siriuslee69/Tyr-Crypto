@@ -1,6 +1,6 @@
 import std/unittest
-import ../src/tyr_crypto/custom_crypto/xchacha20
-import ../src/tyr_crypto/custom_crypto/xchacha20_simd
+import ../src/protocols/custom_crypto/xchacha20
+import ../src/protocols/custom_crypto/xchacha20_simd
 import ./helpers
 
 suite "xchacha20 simd":

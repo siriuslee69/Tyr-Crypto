@@ -2,8 +2,8 @@ import os
 import osproc
 
 const
-  opensslHeader* = "submodules/openssl/include/submodules/openssl/sha.h"
-  libsodiumHeader* = "submodules/libsodium/src/submodules/libsodium/include/sodium/crypto_hash_sha256.h"
+  opensslHeader* = "submodules/openssl/include/openssl/sha.h"
+  libsodiumHeader* = "submodules/libsodium/src/libsodium/include/sodium/crypto_hash_sha256.h"
   liboqsHeader* = "submodules/liboqs/src/common/sha2/sha2.h"
 
 let

@@ -2,6 +2,7 @@ nimble.develop
 nimbledeps
 *.exe
 build/
+bindings/js/dist/
 src/libsodium/
 src/liboqs/
 iron/iron_config.md

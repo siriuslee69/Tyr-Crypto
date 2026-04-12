@@ -4,10 +4,17 @@ when withDir(thisDir(), system.fileExists("nimble.paths")):
 # end Nimble config
 import std/[os, strutils]
 
-switch("path", "src")
+let repoRoot = thisDir()
 
-if dirExists("submodules/simd_nexus/src"):
-  switch("path", "submodules/simd_nexus/src")
+proc addPathIfExists(pathArg: string) =
+  if dirExists(pathArg):
+    switch("path", pathArg.replace('\\', '/'))
+
+addPathIfExists(joinPath(repoRoot, "src"))
+addPathIfExists(joinPath(repoRoot, ".iron", "meta"))
+addPathIfExists(joinPath(repoRoot, "submodules", "simd_nexus", "src"))
+addPathIfExists(joinPath(repoRoot, "..", "SIMD-Nexus", "src"))
+addPathIfExists(joinPath(repoRoot, "..", "Fylgia-Utils", "src"))
 
 let nimblePkgs = joinPath(getHomeDir(), ".nimble", "pkgs2")
 if dirExists(nimblePkgs):

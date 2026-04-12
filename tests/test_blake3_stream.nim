@@ -1,5 +1,5 @@
 import std/[os, unittest]
-import ../src/tyr_crypto/custom_crypto/blake3
+import ../src/protocols/custom_crypto/blake3
 
 suite "BLAKE3 streaming":
   test "stream matches one-shot":

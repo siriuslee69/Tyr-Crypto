@@ -1,27 +1,29 @@
 import std/unittest
-import ../src/tyr_crypto/[registry, algorithms]
+import registry
+import ../src/protocols/wrapper/helpers/algorithms
 
 suite "registry helpers":
-  test "mail encryption backends are defined":
-    check algo(meaCurve25519XChaCha20Poly1305).len >= 1
-    check algo(meaRSAOAEPWithAESGCM).len >= 1
-    check algo(meaKyber768XChaCha20Poly1305).len == 2
-
-  test "cipher suite backends include metadata":
-    let info = cipherSuiteBackends(csAes256Gcm)
+  test "cipher backends include metadata":
+    let info = cipherBackends(scaAesCtr)
     check info.len >= 1
     for entry in info:
       check entry.provider.len > 0
-      check entry.requiresFlag.len > 0
-    check cipherSuiteBackends(csAesGimli).len == 1
-    check cipherSuiteBackends(csXChaCha20AesGimliPoly1305).len == 1
+    check cipherBackends(scaXChaCha20).len == 1
+    check cipherBackends(scaGimliStream).len == 1
 
-  test "key exchange mapping covers PQ algorithms":
-    check keyExchangeBackends(kemKyber768).len == 1
-    check keyExchangeBackends(kemX25519KyberHybrid).len == 2
-    check keyExchangeBackends(kemX25519McElieceHybrid).len == 2
+  test "mac backends include metadata":
+    check macBackends(maBlake3).len == 1
+    check macBackends(maGimli).len == 1
+    check macBackends(maPoly1305).len == 1
+    check macBackends(maSha3).len == 1
+
+  test "kem metadata covers PQ algorithms":
+    check kemBackends(kaX25519).len == 1
+    check kemBackends(kaKyber0).len == 1
+    check kemBackends(kaKyber1).len == 1
+    check kemBackends(kaMcEliece2).len == 1
+    check kemBackends(kaBike0).len == 1
 
   test "signature backend metadata exists":
-    for alg in [saEd25519, saDilithium2, saFalcon512]:
+    for alg in [saEd25519, saDilithium0, saFalcon512]:
       check signatureBackends(alg).len >= 1
-    check signatureBackends(saEd25519Falcon512Hybrid).len == 2

@@ -17,7 +17,10 @@ proc buildPaths*(a: string): tuple[repoDir: string, buildDir: string, buildSubDi
   ## a: crypto repo base directory
   ## Builds liboqs repo and build paths.
   var
-    repoDir: string = joinPath(a, "liboqs")
+    repoDir: string = if dirExists(joinPath(a, "submodules", "liboqs")):
+        joinPath(a, "submodules", "liboqs")
+      else:
+        joinPath(parentDir(a), "liboqs")
     buildDir: string = joinPath(a, "build", "liboqs")
     buildSubDir: string = joinPath(buildDir, "build")
     installDir: string = joinPath(buildDir, "install")
@@ -65,6 +68,35 @@ proc hasLib*(a: string): bool =
     inc i
   result = false
 
+proc isPositiveResponse*(a: string): bool =
+  var
+    t: string = a.strip().toLowerAscii()
+  result = t in ["y", "yes", "1", "true"]
+
+proc promptOverwrite*(a: string): bool =
+  var
+    overwriteEnv: string = getEnv("LIBOQS_OVERWRITE_BUILD")
+    response: string = ""
+  if isPositiveResponse(overwriteEnv):
+    return true
+  if overwriteEnv.strip().len > 0:
+    return false
+  stdout.write("Existing liboqs build found at " & a & ". Overwrite with a new build? [y/N]: ")
+  stdout.flushFile()
+  try:
+    response = stdin.readLine()
+  except EOFError:
+    echo ""
+    return false
+  result = isPositiveResponse(response)
+
+proc removeExistingBuild*(a: tuple[repoDir: string, buildDir: string, buildSubDir: string,
+    installDir: string, libDir: string, binDir: string]) =
+  if dirExists(a.buildSubDir):
+    removeDir(a.buildSubDir)
+  if dirExists(a.installDir):
+    removeDir(a.installDir)
+
 proc main*() =
   ## Builds liboqs using CMake and installs into the build folder.
   var
@@ -84,8 +116,10 @@ proc main*() =
     echo "Repo not found: " & paths.repoDir
     quit(1)
   if hasLib(paths.installDir):
-    echo "liboqs already built: " & paths.installDir
-    return
+    if not promptOverwrite(paths.installDir):
+      echo "liboqs already built: " & paths.installDir
+      return
+    removeExistingBuild(paths)
   createDir(paths.buildDir)
   createDir(paths.buildSubDir)
   createDir(paths.installDir)

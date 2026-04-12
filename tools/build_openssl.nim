@@ -17,7 +17,10 @@ proc buildPaths*(a: string): tuple[repoDir: string, buildDir: string, sourceDir:
   ## a: crypto repo base directory
   ## Builds OpenSSL repo and build paths.
   var
-    repoDir: string = joinPath(a, "openssl")
+    repoDir: string = if dirExists(joinPath(a, "submodules", "openssl")):
+        joinPath(a, "submodules", "openssl")
+      else:
+        joinPath(parentDir(a), "openssl")
     buildDir: string = joinPath(a, "build", "openssl")
     sourceDir: string = joinPath(buildDir, "src")
     installDir: string = joinPath(buildDir, "install")

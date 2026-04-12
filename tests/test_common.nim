@@ -1,5 +1,5 @@
 import std/[unittest, strutils]
-import ../src/tyr_crypto/common
+import ../src/protocols/common
 
 suite "common helpers":
   test "raiseUnavailable provides descriptive error":

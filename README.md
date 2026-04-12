@@ -17,7 +17,7 @@ This repository is **not guaranteed to be production ready**.
 - pure-Nim helper primitives used by the workspace
 - password/PIN-based key derivation and wrapping helpers
 - chunked file encryption and hashing helpers
-- backend metadata and algorithm registry helpers
+- backend metadata helpers stored under `.iron/meta/`
 - build helpers for optional native dependencies
 
 ## What This Repo Does Not Own
@@ -30,35 +30,42 @@ This repository is **not guaranteed to be production ready**.
 
 ## Main State Types
 
-- `EncryptionState`
-  - wrapper-level symmetric encryption state in `src/tyr_crypto/wrapper/crypto.nim`
-- `CipherText`
-  - wrapper ciphertext plus authentication material
+- `SymAuthState`
+  - enum-driven authenticated symmetric state in `src/protocols/wrapper/suite_api.nim`
+- `SymAuthCipher`
+  - ciphertext plus detached authentication material from `suite_api`
 - `Key`
-  - password/PIN-derived wrapping state in `src/tyr_crypto/wrapper/pin_key.nim`
+  - password/PIN-derived wrapping state implemented in `src/protocols/wrapper/password_support.nim` and exposed through the base/top-level API
 - `DerivedEncryptionKeys`
   - derived symmetric state plus KDF metadata
 - `ChunkyOptions` and `ChunkyManifest`
   - chunked file processing config and output manifest
 - `SignatureKeypair`
-  - wrapper-level signing keypair for classical, PQ, and hybrid signature modes
-
+  - signing keypair for classical, PQ, and composed signature modes
 ## Main Orchestrators
 
-- `encrypt` / `decrypt`
-  - high-level wrapper entrypoints for symmetric message encryption
+- `hash` / `verify` / `sign` / `seal` / `open` / `encrypt` / `decrypt`
+  - typed single-algorithm entrypoints exposed by `basic_api`
+- `symEnc` / `symDec`
+  - clean enum-driven pure symmetric dispatch surface
+- `hmacCreate` / `hmacAuth`
+  - clean enum-driven custom HMAC dispatch surface
+- `symAuthEnc` / `symAuthDec`
+  - clean enum-driven authenticated symmetric dispatch surface
+- `asymEnc` / `asymDec`
+  - clean enum-driven asymmetric/KEM dispatch surface
+- `asymSign` / `asymVerify`
+  - clean enum-driven signature dispatch surface
+- `crypoRand`
+  - clean enum-driven random-byte dispatch surface
 - `deriveSymmetricKeysFromBytesWithSalt` / `deriveSymmetricKeysFromString`
-  - password-to-wrapper-state derivation
+  - password-to-auth-state derivation
 - `deriveMasterKey`, `wrapMasterKeyWithPin`, `unwrapMasterKeyWithPin`
   - password/PIN key lifecycle
 - `encryptFileChunks`, `decryptFileChunks`, `hashFileChunks`
   - large-file chunk processing
-- `createHybridKexOffer`, `respondHybridKexOffer`, `finalizeHybridKex`
-  - hybrid PQ/classical KEX helpers
-- `createKyberX25519KexOffer`, `createMcElieceX25519KexOffer`
-  - duo hybrid KEX helpers with enum-selected PQ variants
 - `signatureKeypair`, `signMessage`, `verifyMessage`
-  - unified signature API for Ed25519, PQ signatures, and hybrid signatures
+  - internal single-signature support used by the base API
 
 ## Loop Entrypoints
 
@@ -71,22 +78,28 @@ This repository is **not guaranteed to be production ready**.
 
 ## Layout
 
-- `src/tyr_crypto/common.nim`
+- `src/protocols/common.nim`
   - shared error types and helper templates
-- `src/tyr_crypto/random.nim`
+- `src/protocols/custom_crypto/random.nim`
   - OS randomness with optional extra entropy mixing
-- `src/tyr_crypto/registry.nim`
+- `src/protocols/wrapper/basic_api.nim`
+  - primitive enum-driven API for symmetric, HMAC, asymmetric, signature, random, and typed single-material dispatch
+- `.iron/meta/registry.nim`
   - metadata for supported algorithms and providers
-- `src/tyr_crypto/wrapper/`
-  - high-level encryption, PIN/KDF, signatures, and hybrid KEX APIs
-- `src/tyr_crypto/custom_crypto/`
+- `src/protocols/wrapper/`
+  - basic API, password/PIN support, signature support, wasm support
+- `src/protocols/custom_crypto/`
   - pure-Nim and SIMD-oriented crypto helpers
-- `src/tyr_crypto/chunkyCrypto/`
+- `src/protocols/chunky_crypto/`
   - chunked file encryption and hashing
-- `src/tyr_crypto/bindings/`
+- `src/protocols/bindings/`
   - optional native bindings
+- `src/protocols/wrapper/wasm/`
+  - JSON-based wasm bridge exported through a small C ABI
+- `bindings/js/`
+  - JS loader and TS declarations for the wasm build output
 - `tools/`
-  - native dependency build helpers
+  - native dependency and wasm build helpers
 - `tests/`
   - vectors, regressions, and wrapper tests
 - `iron/`
@@ -98,7 +111,7 @@ This repository is **not guaranteed to be production ready**.
 
 ```bash
 nimble test
-nim check src/tyr_crypto/registry.nim
+nim check .iron/meta/registry.nim
 ```
 
 ### Enable optional backends
@@ -119,6 +132,28 @@ nimble build_openssl
 
 These tasks expect the relevant submodules and a working native build toolchain. On Windows that usually means an MSYS2-style environment plus standard C/C++ build tools.
 
+### JS/TS + WebAssembly bindings
+
+```bash
+nimble test_wasm
+nimble build_wasm
+```
+
+The wasm path is `Nim -> C -> Emscripten -> .wasm`. The Nim implementation stays in this repo; the JS/TS side only loads the generated module and marshals typed arrays across a small JSON + base64 ABI.
+
+`nimble build_wasm` compiles `src/protocols/wrapper/wasm/exports.nim` to C and then links it with `emcc`, producing browser/Node-friendly assets under `bindings/js/dist/` plus the checked-in loader files in `bindings/js/`.
+
+The current wasm surface exposes:
+
+- `capabilities`
+- `basic.encrypt` / `basic.decrypt`
+- `blake3Hash`
+- `blake3KeyedHash`
+- `gimliHash`
+- `sha3Hash`
+
+The default wasm build is aimed at the pure-Nim surfaces. Algorithms that depend on `libsodium` or `nimcrypto` remain listed in `capabilities()`, but they only become callable when you pass the matching Nim flags and provide wasm-compatible native libraries to Emscripten.
+
 ### Full native-backed test run
 
 ```bash
@@ -134,44 +169,38 @@ If you are using submodule-local native builds instead of system-installed libra
 
 ## Examples
 
-### 1. Symmetric wrapper API
+### 0. Typed Symmetric API
 
 ```nim
-import tyr_crypto/wrapper/crypto
+import tyr_crypto
 
-let state = EncryptionState(
-  algoType: chacha20,
-  keys: @[Key(key: newSeqWith(32, 0x11'u8), keyType: isSym)],
-  nonce: newSeqWith(24, 0x22'u8)
-)
-
-let msg = @[byte 1, 2, 3, 4]
-let cipher = encrypt(msg, state)
-let plain = decrypt(cipher, state)
-doAssert plain == msg
+var
+  m: xchacha20cipherM
+  msg = @[byte 1, 2, 3, 4]
+for i in 0 ..< 32:
+  m.key[i] = 0x11'u8
+for i in 0 ..< 24:
+  m.nonce[i] = 0x22'u8
+let cipher = encrypt(msg, m)
+doAssert decrypt(cipher, m) == msg
 ```
 
-### 2. Password-derived state
+### 1. Typed Hash API
 
 ```nim
-import tyr_crypto/wrapper/pin_key
-import tyr_crypto/wrapper/crypto
+import tyr_crypto
 
-when defined(hasLibsodium):
-  let derived = deriveSymmetricKeysFromString(xchacha20Gimli, "correct horse", @[], 0'u16)
-  let cipher = encrypt(@[byte 7, 8, 9], derived.state)
-  doAssert decrypt(cipher, derived.state) == @[byte 7, 8, 9]
+let digest = hash(@[byte 7, 8, 9], blake3HashM())
+doAssert digest.len == 32
 ```
 
 ### 3. Chunked file encryption
 
 ```nim
-import tyr_crypto/chunkyCrypto
-import tyr_crypto/wrapper/pin_key
-import tyr_crypto/wrapper/crypto
+import tyr_crypto
 
 when defined(hasLibsodium):
-  let derived = deriveSymmetricKeysFromString(xchacha20AesGimli, "file-passphrase", @[], 64'u16)
+  let derived = deriveSymmetricKeysFromString(csXChaCha20AesGimli, "file-passphrase", @[], 64'u16)
   var opt = initChunkyOptions()
   opt.chunkBytes = 64 * 1024
   opt.bufferBytes = 4096
@@ -180,41 +209,46 @@ when defined(hasLibsodium):
   decryptFileChunks(manifest, "chunks", "output.bin", derived.state, opt)
 ```
 
-### 4. Enum-driven hybrid KEX
+### 4. Multi KEM API
 
 ```nim
 import tyr_crypto
 
 when defined(hasLibsodium) and defined(hasLibOqs):
-  let duo = createMcElieceX25519KexOffer(mvClassicMcEliece6960119)
-  let (duoResp, duoSharedB) = respondMcElieceX25519KexOffer(duo.offer)
-  let duoSharedA = finalizeMcElieceX25519Kex(duo, duoResp)
-  doAssert duoSharedA == duoSharedB
-
-  let triple = createHybridKexOffer(kvKyber1024, mvClassicMcEliece8192128)
-  let (tripleResp, tripleSharedB) = respondHybridKexOffer(triple.offer)
-  let tripleSharedA = finalizeHybridKex(triple, tripleResp)
-  doAssert tripleSharedA == tripleSharedB
+  let rx = asymKeypair(kaX25519)
+  let rk = asymKeypair(kaKyber1)
+  let rm = asymKeypair(kaMcEliece2)
+  let combo = multiAsymEnc(
+    mksX25519Kyber1McEliece2,
+    @[rx.publicKey, rk.publicKey, rm.publicKey]
+  )
+  let shared = multiAsymDec(
+    mksX25519Kyber1McEliece2,
+    @[rx.secretKey, rk.secretKey, rm.secretKey],
+    combo
+  )
+  doAssert shared == combo.sharedSecret
 ```
 
-### 5. Hybrid KEX with caller-provided entropy
+### 5. Multi KEM with caller-provided entropy
 
 ```nim
 import tyr_crypto
 
 when defined(hasLibsodium) and defined(hasLibOqs):
-  let userEntropy = "mouse-jitter|keypress-latency|request=42"
-
-  let state = createKyberX25519KexOfferWithEntropy(
-    kvKyber768,
-    userEntropy
+  let rx = asymKeypair(kaX25519)
+  let rk = asymKeypair(kaKyber0)
+  let combo = multiAsymEnc(
+    mksX25519Kyber0,
+    @[rx.publicKey, rk.publicKey],
+    @[toBytes("mouse-jitter|request=42"), toBytes("server-timing|request=42")]
   )
-  let (resp, sharedB) = respondKyberX25519KexOfferWithEntropy(
-    state.offer,
-    "server-timing|request=42"
+  let shared = multiAsymDec(
+    mksX25519Kyber0,
+    @[rx.secretKey, rk.secretKey],
+    combo
   )
-  let sharedA = finalizeKyberX25519Kex(state, resp)
-  doAssert sharedA == sharedB
+  doAssert shared == combo.sharedSecret
 ```
 
 These helpers feed liboqs KEM operations from a scoped hybrid RNG path that mixes:
@@ -223,16 +257,45 @@ These helpers feed liboqs KEM operations from a scoped hybrid RNG path that mixe
 - caller-supplied bytes such as user interaction or local event timing
 - local process/timing context used as extra diversification
 
-### 6. Hybrid signatures
+### 6. Multi Signatures
 
 ```nim
 import tyr_crypto
 
 when defined(hasLibsodium) and defined(hasLibOqs):
-  let kp = signatureKeypair(saEd25519Falcon512Hybrid)
+  let kp = multiAsymKeypair(mssEd25519Falcon0)
   let msg = @[byte 1, 2, 3, 4]
-  let sig = signMessage(saEd25519Falcon512Hybrid, msg, kp.secretKey)
-  doAssert verifyMessage(saEd25519Falcon512Hybrid, msg, sig, kp.publicKey)
+  let sig = multiAsymSign(mssEd25519Falcon0, msg, kp.secretKeys)
+  doAssert multiAsymVerify(mssEd25519Falcon0, msg, sig, kp.publicKeys)
+```
+
+### 7. JS/TS wasm binding
+
+```js
+import { loadTyrCrypto } from "./bindings/js/tyr_crypto.mjs";
+
+const tyr = await loadTyrCrypto();
+
+const key = new Uint8Array(32);
+key[0] = 7;
+
+const nonce = new Uint8Array(24);
+nonce[0] = 9;
+
+const cipher = tyr.encrypt({
+  algo: "chacha20",
+  keys: [key],
+  nonce,
+  message: new Uint8Array([1, 2, 3, 4]),
+});
+
+const plain = tyr.decrypt({
+  algo: "chacha20",
+  keys: [key],
+  nonce,
+  ciphertext: cipher.ciphertext,
+  hmac: cipher.hmac,
+});
 ```
 
 ## Custom Wrapper Compositions
@@ -252,18 +315,14 @@ when defined(hasLibsodium) and defined(hasLibOqs):
 
 These wrapper names are repo-specific constructions, not standardized AEAD names. Treat the ciphertext and tag layout as implementation-specific and version-sensitive.
 
-## Hybrid Wrapper Surfaces
+## Multi API Surfaces
 
-- `createKyberX25519KexOffer*` / `respondKyberX25519KexOffer*`
-  - `Kyber + X25519`
-- `createMcElieceX25519KexOffer*` / `respondMcElieceX25519KexOffer*`
-  - `Classic McEliece + X25519`
-- `createHybridKexOffer*` / `respondHybridKexOffer*`
-  - `Kyber + Classic McEliece + X25519`
-- `*WithEntropy` KEX helpers
-  - mix OS randomness, caller-provided entropy bytes, and local timing/process context through a scoped liboqs RNG callback
-- `saEd25519Falcon512Hybrid` / `saEd25519Falcon1024Hybrid`
-  - generate and verify both the Ed25519 and Falcon halves
+- `multiAsymEnc*` / `multiAsymDec*`
+  - composed KEM flows such as `X25519 + Kyber` or `X25519 + Kyber + McEliece`
+- `multiAsymSign*` / `multiAsymVerify*`
+  - composed signature flows such as `Ed25519 + Falcon`
+- `multiSymAuthEnc*` / `multiSymAuthDec*`
+  - composed authenticated symmetric flows built from the basic API
 
 ## Current Crypto Surfaces
 
@@ -274,14 +333,23 @@ These wrapper names are repo-specific constructions, not standardized AEAD names
   - `xchacha20AesGimli`
   - `xchacha20AesGimliPoly1305`
   - `aes256`
-- Hybrid KEX modes
-  - `Kyber + X25519` with `kvKyber768` or `kvKyber1024`
-  - `Classic McEliece + X25519` with `mvClassicMcEliece6688128`, `mvClassicMcEliece6960119`, or `mvClassicMcEliece8192128`
-  - `Kyber + Classic McEliece + X25519` with enum-selected Kyber and McEliece variants
-- Hybrid signature modes
-  - `saEd25519Falcon512Hybrid`
-  - `saEd25519Falcon1024Hybrid`
-  - Hybrid signatures require both the classical and PQ halves to verify
+- Basic KEM modes
+  - `kaX25519`
+  - `kaKyber0`, `kaKyber1`
+  - `kaMcEliece0`, `kaMcEliece1`, `kaMcEliece2`
+  - `kaFrodo0`, `kaNtruPrime0`, `kaBike0`
+- Multi KEM modes
+  - `mksX25519Kyber0`
+  - `mksX25519Kyber1`
+  - `mksX25519McEliece0`
+  - `mksX25519McEliece1`
+  - `mksX25519Kyber1McEliece2`
+- Multi signature modes
+  - `mssEd25519Falcon0`
+  - `mssEd25519Falcon1`
+- `mssEd25519Dilithium0`
+- `mssFalcon0Dilithium0`
+- `mssFalcon1Dilithium1`
 
 ## Native and Disk Boundaries
 
@@ -324,6 +392,8 @@ These wrapper names are repo-specific constructions, not standardized AEAD names
 
 ```bash
 nimble test
+nimble test_wasm
+nimble build_wasm
 nimble test_all
 nimble test_all_threads_on
 nimble test_all_threads_off
@@ -342,6 +412,10 @@ nimble perf_sigma
   - This is intentional for now. The previous ORC/ARC threaded hash path hit ownership corruption with seq payloads, so correctness won over parallelism.
 - Builder tasks fail on Windows
   - Check that the submodule exists and that the native toolchain expected by the upstream project is installed.
+- `emcc` is missing or `nimble build_wasm` fails immediately
+  - Install and activate an Emscripten SDK environment first. The wasm build is not using Nim's JS backend; it expects `emcc` on `PATH`.
+- A wasm algorithm shows `compiledIn: false` in `capabilities()`
+  - Expected unless the wasm build was compiled with the matching `-d:has*` flag and a wasm-compatible backend library.
 - OTP output does not match external TOTP apps
   - Expected. The `otp` module is custom and not a drop-in RFC 4226/6238 implementation.
 
@@ -353,7 +427,7 @@ Read [CONTRIBUTING.md](./CONTRIBUTING.md) before changing behavior. Security rep
 
 - Keep functions short and compose helpers instead of nesting deeply.
 - Declare `var`/`let` blocks near the top of the proc.
-- Preserve the level-based module layout under `src/tyr_crypto/`.
+- Preserve the level-based module layout under `src/protocols/`.
 - Prefer explicit runtime errors over silent fallback behavior.
 - Add or update tests whenever crypto behavior, file formats, or backend wiring changes.
 - Update docs when public behavior or repo structure changes.

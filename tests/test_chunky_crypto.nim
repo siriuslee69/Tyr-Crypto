@@ -1,9 +1,10 @@
 import std/unittest
 import std/os
 
-import ../src/tyr_crypto/chunkyCrypto
-import ../src/tyr_crypto/wrapper/crypto
-import ../src/tyr_crypto/chunkyCrypto/level1/nonce_ops
+import ../src/tyr_crypto
+import ../src/protocols/wrapper/algorithms
+import ../src/protocols/wrapper/suite_api
+import ../src/protocols/chunky_crypto/level1/nonce_ops
 import ./helpers
 
 proc writeBytes(p: string, bs: seq[uint8]) =
@@ -34,17 +35,11 @@ proc removeTree(p: string) =
   if dirExists(p):
     removeDir(p)
 
-proc buildState(keyX, keyA, keyG, nonce: seq[uint8]): EncryptionState =
-  var s: EncryptionState
-  s.algoType = xchacha20AesGimli
-  s.keys = @[
-    Key(key: keyX, keyType: isSym),
-    Key(key: keyA, keyType: isSym),
-    Key(key: keyG, keyType: isSym)
-  ]
-  s.nonce = nonce
-  s.tagLen = 64'u16
-  result = s
+proc buildState(keyX, keyA, keyG, nonce: seq[uint8]): SymAuthState =
+  result = initSymAuthState(csXChaCha20AesGimli, @[keyX, keyA, keyG], nonce, 64'u16)
+
+proc buildAesGimliState(keyA, keyG, nonce: seq[uint8]): SymAuthState =
+  result = initSymAuthState(csAesGimli, @[keyA, keyG], nonce, 64'u16)
 
 suite "chunky crypto":
   test "encrypt/decrypt roundtrip":
@@ -112,6 +107,35 @@ suite "chunky crypto":
       close(f)
     expect IOError:
       decryptFileChunks(manifest, chunkDir, outputPath, state, opt)
+
+  test "aes gimli chunk mode roundtrip":
+    let tmpDir = joinPath(getTempDir(), "tyr_chunky_crypto_aes_gimli_" & $getCurrentProcessId())
+    if dirExists(tmpDir):
+      removeTree(tmpDir)
+    createDir(tmpDir)
+    defer:
+      removeTree(tmpDir)
+    let inputPath = joinPath(tmpDir, "input.bin")
+    let chunkDir = joinPath(tmpDir, "chunks")
+    let outputPath = joinPath(tmpDir, "output.bin")
+    var data = newSeq[uint8](64 * 1024)
+    for i in 0 ..< data.len:
+      data[i] = uint8((i * 19) mod 251)
+    writeBytes(inputPath, data)
+
+    let keyA = hexToBytes("1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100")
+    let keyG = hexToBytes("00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff")
+    let nonce = hexToBytes("000102030405060708090a0b0c0d0e0f1011121314151617")
+    let state = buildAesGimliState(keyA, keyG, nonce)
+    var opt = initChunkyOptions()
+    opt.chunkBytes = 16 * 1024
+    opt.bufferBytes = 2048
+    opt.outputDir = chunkDir
+    opt.algo = caAesGimli
+    let manifest = encryptFileChunks(inputPath, chunkDir, state, opt)
+    decryptFileChunks(manifest, chunkDir, outputPath, state, opt)
+    let outBytes = readBytes(outputPath)
+    check outBytes == data
 
   test "nonce derivation differs":
     let base = hexToBytes("000102030405060708090a0b0c0d0e0f1011121314151617")

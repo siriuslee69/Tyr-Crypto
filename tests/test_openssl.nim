@@ -1,6 +1,6 @@
 import std/unittest
-import ../src/tyr_crypto/common
-import ../src/tyr_crypto/bindings/openssl
+import ../src/protocols/common
+import ../src/protocols/bindings/openssl
 
 when defined(hasOpenSSL3):
   import ./helpers

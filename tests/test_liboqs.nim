@@ -1,6 +1,6 @@
 import std/unittest
-import ../src/tyr_crypto/common
-import ../src/tyr_crypto/bindings/liboqs
+import ../src/protocols/common
+import ../src/protocols/bindings/liboqs
 
 when defined(hasLibOqs):
   import ./helpers
@@ -73,17 +73,17 @@ suite "liboqs bindings":
           oqsAlgClassicMcEliece6688128,
           oqsAlgClassicMcEliece6960119f,
           oqsAlgClassicMcEliece8192128f,
-          oqsAlgNtruPrimeSntrup653,
-          oqsAlgBIKEL2
+          oqsAlgNtruPrime0,
+          oqsAlgBike0
         ]:
           exerciseKem(alg)
 
-    test "Dilithium2 signature sign/verify":
+    test "Dilithium0 signature sign/verify":
       let available = ensureLibOqsAvailable()
       if available:
-        let sig = OQS_SIG_new(oqsSigDilithium2)
+        let sig = OQS_SIG_new(oqsSigDilithium0)
         if sig == nil:
-          echo "liboqs Dilithium2 implementation unavailable; skipping signature test."
+          echo "liboqs Dilithium0 implementation unavailable; skipping signature test."
         else:
           defer:
             OQS_SIG_free(sig)
@@ -102,8 +102,8 @@ suite "liboqs bindings":
           requireSuccess(OQS_SIG_sign(sig, addr signature[0], addr sigLen, addr msg[0], csize_t(msg.len), addr sk[0]), "OQS_SIG_sign")
           signature.setLen(int sigLen)
 
-          echo "liboqs Dilithium2 key sizes: pk=" & $pk.len & " bytes, sk=" & $sk.len & " bytes"
-          echo "liboqs Dilithium2 signature size: " & $signature.len & " bytes"
+          echo "liboqs Dilithium0 key sizes: pk=" & $pk.len & " bytes, sk=" & $sk.len & " bytes"
+          echo "liboqs Dilithium0 signature size: " & $signature.len & " bytes"
           echo "liboqs signature: ", toHex(signature)
           requireSuccess(OQS_SIG_verify(sig, addr msg[0], csize_t(msg.len), addr signature[0], csize_t(signature.len), addr pk[0]), "OQS_SIG_verify")
   else:

@@ -1,5 +1,5 @@
 import std/unittest
-import ../src/tyr_crypto/custom_crypto/gimli
+import ../src/protocols/custom_crypto/gimli
 
 suite "gimli vectors":
   test "c-ref test vector matches":

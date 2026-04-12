@@ -1,6 +1,6 @@
 import std/unittest
-import ../src/tyr_crypto/common
-import ../src/tyr_crypto/bindings/libsodium
+import ../src/protocols/common
+import ../src/protocols/bindings/libsodium
 
 when defined(hasLibsodium):
   import ./helpers

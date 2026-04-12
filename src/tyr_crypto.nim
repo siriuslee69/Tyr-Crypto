@@ -2,24 +2,24 @@
 ## Crypto Bindings <- public module facade
 ## ----------------------------------------
 
-import tyr_crypto/registry
-import tyr_crypto/algorithms
-import tyr_crypto/random
-import tyr_crypto/wrapper/crypto
-import tyr_crypto/custom_crypto/otp
-import tyr_crypto/chunkyCrypto
-import tyr_crypto/wrapper/hybrid_kex_triple
-import tyr_crypto/wrapper/hybrid_kex_duo
-import tyr_crypto/wrapper/pin_key
-import tyr_crypto/wrapper/signatures
+import ./protocols/wrapper/helpers/algorithms
+import ./protocols/custom_crypto/random
+import ./protocols/custom_crypto/blake3
+import ./protocols/custom_crypto/gimli_sponge
+import ./protocols/custom_crypto/sha3
+import ./protocols/custom_crypto/poly1305
+import ./protocols/wrapper/basic_api
+import ./protocols/custom_crypto/otp
+import ./protocols/custom_crypto/hmac
+import ./protocols/wrapper/helpers/signature_support
 
-export registry
 export algorithms
 export random
-export crypto
+export blake3
+export gimli_sponge
+export sha3
+export poly1305
+export basic_api
 export otp
-export chunkyCrypto
-export hybrid_kex_triple
-export hybrid_kex_duo
-export pin_key
-export signatures
+export hmac
+export signature_support

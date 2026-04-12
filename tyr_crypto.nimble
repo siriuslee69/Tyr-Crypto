@@ -12,32 +12,45 @@ srcDir        = "src"
 bin           = @[]
 requires "nim >= 1.6.0", "owlkettle >= 3.0.0", "illwill >= 0.4.0", "nimsimd >= 0.4.0"
 
+proc repoNimbleDir(): string =
+  result = joinPath(getCurrentDir(), ".nimble_cache")
+
+proc repoNimcacheDir(name: string): string =
+  result = joinPath(getCurrentDir(), "build", name)
+
+proc withRepoCaches(cmd: string): string =
+  putEnv("NIMBLE_DIR", repoNimbleDir().replace('\\', '/'))
+  result = cmd
+
 task check, "Run nim check on core modules":
-  exec "nim check src/tyr_crypto/registry.nim"
+  exec withRepoCaches("nim check .iron/meta/registry.nim")
 
 task test, "Run the crypto bindings test suite":
-  exec "nim c -r tests/test_all.nim"
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test").replace('\\', '/') & " -r tests/test_all.nim")
 
 task test_all, "Run the full crypto bindings test suite with libsodium, liboqs, and OpenSSL":
-  exec "nim c -d:hasLiboqs -d:hasLibsodium -d:hasOpenSSL3 -r tests/test_all.nim"
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_all").replace('\\', '/') & " -d:hasLiboqs -d:hasLibsodium -d:hasOpenSSL3 -r tests/test_all.nim")
 
 task test_all_threads_on, "Run test_all with threads enabled":
-  exec "nim c --gc:orc --threads:on -d:hasLiboqs -d:hasLibsodium -d:hasOpenSSL3 -r tests/test_all.nim"
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_all_threads_on").replace('\\', '/') & " --gc:orc --threads:on -d:hasLiboqs -d:hasLibsodium -d:hasOpenSSL3 -r tests/test_all.nim")
 
 task test_all_threads_off, "Run test_all with threads disabled":
-  exec "nim c --gc:orc --threads:off -d:hasLiboqs -d:hasLibsodium -d:hasOpenSSL3 -r tests/test_all.nim"
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_all_threads_off").replace('\\', '/') & " --gc:orc --threads:off -d:hasLiboqs -d:hasLibsodium -d:hasOpenSSL3 -r tests/test_all.nim")
 
 task test_gimli, "Run Gimli SSE tests":
-  exec "nim c -r tests/test_gimli_sse.nim"
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_gimli").replace('\\', '/') & " -r tests/test_gimli_sse.nim")
 
 task test_gimli_avx, "Run Gimli AVX tests":
-  exec "nim c --passC:\"-mavx2\" --passL:\"-mavx2\" -d:avx2 -r tests/test_gimli_sse.nim"
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_gimli_avx").replace('\\', '/') & " --passC:\"-mavx2\" --passL:\"-mavx2\" -d:avx2 -r tests/test_gimli_sse.nim")
 
 task test_blake3_simd, "Run Blake3 SIMD tests":
-  exec "nim c --passC:\"-mavx2\" --passL:\"-mavx2\" -d:avx2 -r tests/test_blake3_simd.nim"
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_blake3_simd").replace('\\', '/') & " --passC:\"-mavx2\" --passL:\"-mavx2\" -d:avx2 -r tests/test_blake3_simd.nim")
+
+task test_wasm, "Run wasm bridge regression tests":
+  exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_wasm_test").replace('\\', '/') & " tests/test_wasm_bridge.nim")
 
 task test_pin, "Run interactive pin + key unwrap test.":
-  exec "nim c -d:hasLibsodium -r tests/test_pin_key_interactive.nim"
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_pin").replace('\\', '/') & " -d:hasLibsodium -r tests/test_pin_key_interactive.nim")
 
 task perf_sigma, "Benchmark custom crypto with Sigma helpers":
   exec "nim c --threads:on --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/fylgia/src -d:release -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf.nim"
@@ -57,10 +70,24 @@ task build_openssl, "Build OpenSSL":
   exec "nim r tools/ensure_env.nim -- --submodules --builddirs"
   exec "nim r tools/build_openssl.nim"
 
-task autopush, "Add, commit, and push with message from iron/progress.md":
-  let path = "iron/progress.md"
+task build_wasm, "Build JS/TS wasm bindings with Emscripten":
+  exec "nim r --nimcache:build/nimcache_build_wasm tools/build_wasm.nim"
+
+task build_wasm_debug, "Build debug JS/TS wasm bindings with Emscripten":
+  exec "nim r --nimcache:build/nimcache_build_wasm tools/build_wasm.nim -- --debug"
+
+task autopush, "Add, commit, and push with message from .iron/PROGRESS.md":
+  let candidatePaths = @[".iron/PROGRESS.md", ".iron/progress.md", "iron/progress.md"]
+  var path = ""
   var msg = ""
-  if fileExists(path):
+  var i = 0
+  var l = candidatePaths.len
+  while i < l:
+    if fileExists(candidatePaths[i]):
+      path = candidatePaths[i]
+      break
+    inc i
+  if path.len > 0:
     let content = readFile(path)
     for line in content.splitLines:
       if line.startsWith("Commit Message:"):
@@ -69,7 +96,7 @@ task autopush, "Add, commit, and push with message from iron/progress.md":
   if msg.len == 0:
     msg = "No specific commit message given."
   exec "git add -A ."
-  exec "git commit -m \" " & msg & "\""
+  exec "git commit -m \"" & msg & "\""
   exec "git push"
 
 task find, "Use local clones for submodules in parent folder":

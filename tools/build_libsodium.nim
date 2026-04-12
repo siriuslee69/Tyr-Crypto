@@ -21,7 +21,10 @@ proc buildPaths*(a: string): tuple[repoDir: string, buildDir: string, installDir
   ## a: crypto repo base directory
   ## Builds libsodium repo and build paths.
   var
-    repoDir: string = joinPath(a, "libsodium")
+    repoDir: string = if dirExists(joinPath(a, "submodules", "libsodium")):
+        joinPath(a, "submodules", "libsodium")
+      else:
+        joinPath(parentDir(a), "libsodium")
     buildDir: string = joinPath(a, "build", "libsodium")
     installDir: string = joinPath(buildDir, "install")
     libDir: string = joinPath(installDir, "lib")

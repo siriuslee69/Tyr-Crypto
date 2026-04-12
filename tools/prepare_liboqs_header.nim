@@ -17,7 +17,10 @@ proc buildPaths*(a: string): tuple[repoDir: string, buildDir: string, opsPath: s
   ## a: crypto repo base directory
   ## Builds liboqs repo, build, and header paths for combined headers.
   var
-    repoDir: string = joinPath(a, "liboqs")
+    repoDir: string = if dirExists(joinPath(a, "submodules", "liboqs")):
+        joinPath(a, "submodules", "liboqs")
+      else:
+        joinPath(parentDir(a), "liboqs")
     buildDir: string = joinPath(a, "build", "liboqs")
     opsPath: string = joinPath(repoDir, "src", "common", "sha2", "sha2_ops.h")
     shaPath: string = joinPath(repoDir, "src", "common", "sha2", "sha2.h")
