@@ -27,6 +27,10 @@ suite "quick api":
     check layoutOf(akEd448Sign).outputBytes == 114
     check layoutOf(akSphincsHaraka128fSimpleSign).keyLayouts[0].size == 64
     check layoutOf(akSphincsHaraka128fSimpleSign).outputBytes == 17088
+    check layoutOf(akMcEliece0TyrSend).keyLayouts[0].size == 1044992
+    check layoutOf(akMcEliece0TyrOpen).keyLayouts[0].size == 13932
+    check layoutOf(akMcEliece1TyrSend).keyLayouts[0].size == 1047319
+    check layoutOf(akMcEliece2TyrOpen).keyLayouts[0].size == 14120
     check layoutOf(akNtruPrime0Send).keyLayouts[0].size == 1158
     check layoutOf(akNtruPrime0Open).keyLayouts[0].size == 1763
     check layoutOf(akBike0Send).keyLayouts[0].size == 1541

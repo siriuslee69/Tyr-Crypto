@@ -17,6 +17,7 @@ type
 
 const
   sha3DomainSuffix = 0x06'u8
+  shakeDomainSuffix = 0x1f'u8
   keccakLaneBytes = 8
   keccakRoundConstants: array[24, uint64] = [
     0x0000000000000001'u64, 0x0000000000008082'u64,
@@ -113,7 +114,8 @@ proc absorbBlock(S: var Sha3State, A: openArray[byte], o, rateBytes: int) =
     S[lane] = S[lane] xor load64Le(A, o + lane * keccakLaneBytes)
     lane = lane + 1
 
-proc absorbFinalBlock(S: var Sha3State, A: openArray[byte], o, rateBytes: int) =
+proc absorbFinalBlockWithDomain(S: var Sha3State, A: openArray[byte], o, rateBytes: int,
+    domain: byte) =
   var
     blk: seq[byte] = @[]
     take: int = 0
@@ -126,27 +128,40 @@ proc absorbFinalBlock(S: var Sha3State, A: openArray[byte], o, rateBytes: int) =
   while i < take:
     blk[i] = A[o + i]
     i = i + 1
-  blk[take] = blk[take] xor sha3DomainSuffix
+  blk[take] = blk[take] xor domain
   blk[rateBytes - 1] = blk[rateBytes - 1] xor 0x80'u8
   absorbBlock(S, blk, 0, rateBytes)
 
-proc squeezeBlock(S: Sha3State, outLen: int): seq[byte] =
+proc keccakF1600Ref*(S: var Sha3State)
+
+proc squeezeBytes(S0: Sha3State, outLen, rateBytes: int): seq[byte] =
   var
+    S = S0
     i: int = 0
     laneBytes: array[8, byte]
     produced: int = 0
     take: int = 0
+    blockBytes: int = 0
   result = newSeq[byte](outLen)
-  i = 0
   while produced < outLen:
-    store64Le(laneBytes, 0, S[i])
-    take = outLen - produced
-    if take > 8:
-      take = 8
-    for j in 0 ..< take:
-      result[produced + j] = laneBytes[j]
-    produced = produced + take
-    i = i + 1
+    blockBytes = rateBytes
+    if blockBytes > outLen - produced:
+      blockBytes = outLen - produced
+    i = 0
+    while i * keccakLaneBytes < blockBytes:
+      store64Le(laneBytes, 0, S[i])
+      take = blockBytes - i * keccakLaneBytes
+      if take > keccakLaneBytes:
+        take = keccakLaneBytes
+      for j in 0 ..< take:
+        result[produced + i * keccakLaneBytes + j] = laneBytes[j]
+      i = i + 1
+    produced = produced + blockBytes
+    if produced < outLen:
+      keccakF1600Ref(S)
+
+proc absorbFinalBlock(S: var Sha3State, A: openArray[byte], o, rateBytes: int) =
+  absorbFinalBlockWithDomain(S, A, o, rateBytes, sha3DomainSuffix)
 
 proc keccakF1600Ref*(S: var Sha3State) =
   ## Apply the scalar Keccak-f[1600] permutation to a 25-lane state.
@@ -208,7 +223,23 @@ proc sha3Digest*(A: openArray[byte], v: Sha3Variant): seq[byte] =
     offset = offset + rateBytes
   absorbFinalBlock(S, A, offset, rateBytes)
   keccakF1600Ref(S)
-  result = squeezeBlock(S, sha3DigestBytes(v))
+  result = squeezeBytes(S, sha3DigestBytes(v), rateBytes)
+
+proc shake256*(A: openArray[byte], outLen: int): seq[byte] =
+  ## SHAKE256 XOF over `A` with arbitrary `outLen`.
+  var
+    S: Sha3State
+    rateBytes = 136
+    offset: int = 0
+  if outLen < 0:
+    raise newException(ValueError, "shake256 output length must be >= 0")
+  while offset + rateBytes <= A.len:
+    absorbBlock(S, A, offset, rateBytes)
+    keccakF1600Ref(S)
+    offset = offset + rateBytes
+  absorbFinalBlockWithDomain(S, A, offset, rateBytes, shakeDomainSuffix)
+  keccakF1600Ref(S)
+  result = squeezeBytes(S, outLen, rateBytes)
 
 proc sha3_224*(A: openArray[byte]): seq[byte] =
   ## Hash `A` with SHA3-224.

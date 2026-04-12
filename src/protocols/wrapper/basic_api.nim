@@ -12,6 +12,7 @@ import ../bindings/libsodium
 import ../custom_crypto/[xchacha20, aes_ctr, hmac]
 import ../custom_crypto/blake3
 import ../custom_crypto/gimli_sponge
+import ../custom_crypto/mceliece as customMcEliece
 import ./helpers/signature_support as wrapSign
 
 const
@@ -71,6 +72,12 @@ type
     akMcEliece1Open,
     akMcEliece2Send,
     akMcEliece2Open,
+    akMcEliece0TyrSend,
+    akMcEliece0TyrOpen,
+    akMcEliece1TyrSend,
+    akMcEliece1TyrOpen,
+    akMcEliece2TyrSend,
+    akMcEliece2TyrOpen,
     akFrodo0Send,
     akFrodo0Open,
     akNtruPrime0Send,
@@ -273,6 +280,24 @@ type
   ## Material for McEliece tier-2 decapsulation.
   mceliece2OpenM* = object
     receiverSecretKey*: array[14120, byte]
+  ## Material for the pure-Nim Tyr McEliece tier-0 encapsulation path.
+  mceliece0TyrSendM* = object
+    receiverPublicKey*: array[1044992, byte]
+  ## Material for the pure-Nim Tyr McEliece tier-0 decapsulation path.
+  mceliece0TyrOpenM* = object
+    receiverSecretKey*: array[13932, byte]
+  ## Material for the pure-Nim Tyr McEliece tier-1 encapsulation path.
+  mceliece1TyrSendM* = object
+    receiverPublicKey*: array[1047319, byte]
+  ## Material for the pure-Nim Tyr McEliece tier-1 decapsulation path.
+  mceliece1TyrOpenM* = object
+    receiverSecretKey*: array[13948, byte]
+  ## Material for the pure-Nim Tyr McEliece tier-2 encapsulation path.
+  mceliece2TyrSendM* = object
+    receiverPublicKey*: array[1357824, byte]
+  ## Material for the pure-Nim Tyr McEliece tier-2 decapsulation path.
+  mceliece2TyrOpenM* = object
+    receiverSecretKey*: array[14120, byte]
   ## Material for Frodo tier-0 encapsulation.
   frodo0SendM* = object
     receiverPublicKey*: array[15632, byte]
@@ -361,6 +386,12 @@ const algorithmLayouts*: array[AlgorithmKind, AlgorithmLayout] = [
   buildLayout(akMcEliece1Open, okKemOpen, 32, kkSecretKey -> 13948),
   buildLayout(akMcEliece2Send, okKemSend, 32, kkPublicKey -> 1357824),
   buildLayout(akMcEliece2Open, okKemOpen, 32, kkSecretKey -> 14120),
+  buildLayout(akMcEliece0TyrSend, okKemSend, 32, kkPublicKey -> 1044992),
+  buildLayout(akMcEliece0TyrOpen, okKemOpen, 32, kkSecretKey -> 13932),
+  buildLayout(akMcEliece1TyrSend, okKemSend, 32, kkPublicKey -> 1047319),
+  buildLayout(akMcEliece1TyrOpen, okKemOpen, 32, kkSecretKey -> 13948),
+  buildLayout(akMcEliece2TyrSend, okKemSend, 32, kkPublicKey -> 1357824),
+  buildLayout(akMcEliece2TyrOpen, okKemOpen, 32, kkSecretKey -> 14120),
   buildLayout(akFrodo0Send, okKemSend, 24, kkPublicKey -> 15632),
   buildLayout(akFrodo0Open, okKemOpen, 24, kkSecretKey -> 31296),
   buildLayout(akNtruPrime0Send, okKemSend, 32, kkPublicKey -> 1158),
@@ -418,6 +449,12 @@ proc algorithmOf*(T: typedesc[mceliece1SendM]): AlgorithmKind = akMcEliece1Send
 proc algorithmOf*(T: typedesc[mceliece1OpenM]): AlgorithmKind = akMcEliece1Open
 proc algorithmOf*(T: typedesc[mceliece2SendM]): AlgorithmKind = akMcEliece2Send
 proc algorithmOf*(T: typedesc[mceliece2OpenM]): AlgorithmKind = akMcEliece2Open
+proc algorithmOf*(T: typedesc[mceliece0TyrSendM]): AlgorithmKind = akMcEliece0TyrSend
+proc algorithmOf*(T: typedesc[mceliece0TyrOpenM]): AlgorithmKind = akMcEliece0TyrOpen
+proc algorithmOf*(T: typedesc[mceliece1TyrSendM]): AlgorithmKind = akMcEliece1TyrSend
+proc algorithmOf*(T: typedesc[mceliece1TyrOpenM]): AlgorithmKind = akMcEliece1TyrOpen
+proc algorithmOf*(T: typedesc[mceliece2TyrSendM]): AlgorithmKind = akMcEliece2TyrSend
+proc algorithmOf*(T: typedesc[mceliece2TyrOpenM]): AlgorithmKind = akMcEliece2TyrOpen
 proc algorithmOf*(T: typedesc[frodo0SendM]): AlgorithmKind = akFrodo0Send
 proc algorithmOf*(T: typedesc[frodo0OpenM]): AlgorithmKind = akFrodo0Open
 proc algorithmOf*(T: typedesc[ntruprime0SendM]): AlgorithmKind = akNtruPrime0Send
@@ -718,6 +755,36 @@ proc asymKeypair*(alg: SignatureAlgorithm): AsymKeypair =
   result.publicKey = kp0.publicKey
   result.secretKey = kp0.secretKey
 
+proc asymKeypair*(T: typedesc[mceliece0TyrSendM]): AsymKeypair =
+  ## Build a pure-Nim Tyr McEliece tier-0 keypair.
+  var kp = customMcEliece.mcelieceTyrKeypair(customMcEliece.mceliece6688128f)
+  result.publicKey = kp.publicKey
+  result.secretKey = kp.secretKey
+
+proc asymKeypair*(T: typedesc[mceliece0TyrOpenM]): AsymKeypair =
+  ## Build a pure-Nim Tyr McEliece tier-0 keypair.
+  result = asymKeypair(mceliece0TyrSendM)
+
+proc asymKeypair*(T: typedesc[mceliece1TyrSendM]): AsymKeypair =
+  ## Build a pure-Nim Tyr McEliece tier-1 keypair.
+  var kp = customMcEliece.mcelieceTyrKeypair(customMcEliece.mceliece6960119f)
+  result.publicKey = kp.publicKey
+  result.secretKey = kp.secretKey
+
+proc asymKeypair*(T: typedesc[mceliece1TyrOpenM]): AsymKeypair =
+  ## Build a pure-Nim Tyr McEliece tier-1 keypair.
+  result = asymKeypair(mceliece1TyrSendM)
+
+proc asymKeypair*(T: typedesc[mceliece2TyrSendM]): AsymKeypair =
+  ## Build a pure-Nim Tyr McEliece tier-2 keypair.
+  var kp = customMcEliece.mcelieceTyrKeypair(customMcEliece.mceliece8192128f)
+  result.publicKey = kp.publicKey
+  result.secretKey = kp.secretKey
+
+proc asymKeypair*(T: typedesc[mceliece2TyrOpenM]): AsymKeypair =
+  ## Build a pure-Nim Tyr McEliece tier-2 keypair.
+  result = asymKeypair(mceliece2TyrSendM)
+
 proc symEnc*(alg: StreamCipherAlgorithm, key, nonce, msg: seq[uint8]): seq[uint8] =
   ## Encrypt or stream-XOR `msg` with the selected primitive cipher.
   case alg
@@ -986,6 +1053,45 @@ proc seal*(m: mceliece2SendM): AsymCipher =
 
 proc open*(env: AsymCipher, m: mceliece2OpenM): seq[byte] =
   result = asymDec(kaMcEliece2, toSeqBytes(m.receiverSecretKey), env)
+
+proc seal*(m: mceliece0TyrSendM): AsymCipher =
+  ## Encapsulate with the pure-Nim Tyr McEliece tier-0 backend.
+  var env = customMcEliece.mcelieceTyrEncaps(customMcEliece.mceliece6688128f,
+    toSeqBytes(m.receiverPublicKey))
+  result.ciphertext = env.ciphertext
+  result.senderPublicKey = @[]
+  result.sharedSecret = env.sharedSecret
+
+proc open*(env: AsymCipher, m: mceliece0TyrOpenM): seq[byte] =
+  ## Decapsulate with the pure-Nim Tyr McEliece tier-0 backend.
+  result = customMcEliece.mcelieceTyrDecaps(customMcEliece.mceliece6688128f,
+    toSeqBytes(m.receiverSecretKey), env.ciphertext)
+
+proc seal*(m: mceliece1TyrSendM): AsymCipher =
+  ## Encapsulate with the pure-Nim Tyr McEliece tier-1 backend.
+  var env = customMcEliece.mcelieceTyrEncaps(customMcEliece.mceliece6960119f,
+    toSeqBytes(m.receiverPublicKey))
+  result.ciphertext = env.ciphertext
+  result.senderPublicKey = @[]
+  result.sharedSecret = env.sharedSecret
+
+proc open*(env: AsymCipher, m: mceliece1TyrOpenM): seq[byte] =
+  ## Decapsulate with the pure-Nim Tyr McEliece tier-1 backend.
+  result = customMcEliece.mcelieceTyrDecaps(customMcEliece.mceliece6960119f,
+    toSeqBytes(m.receiverSecretKey), env.ciphertext)
+
+proc seal*(m: mceliece2TyrSendM): AsymCipher =
+  ## Encapsulate with the pure-Nim Tyr McEliece tier-2 backend.
+  var env = customMcEliece.mcelieceTyrEncaps(customMcEliece.mceliece8192128f,
+    toSeqBytes(m.receiverPublicKey))
+  result.ciphertext = env.ciphertext
+  result.senderPublicKey = @[]
+  result.sharedSecret = env.sharedSecret
+
+proc open*(env: AsymCipher, m: mceliece2TyrOpenM): seq[byte] =
+  ## Decapsulate with the pure-Nim Tyr McEliece tier-2 backend.
+  result = customMcEliece.mcelieceTyrDecaps(customMcEliece.mceliece8192128f,
+    toSeqBytes(m.receiverSecretKey), env.ciphertext)
 
 proc seal*(m: frodo0SendM): AsymCipher =
   result = asymEnc(kaFrodo0, toSeqBytes(m.receiverPublicKey))
