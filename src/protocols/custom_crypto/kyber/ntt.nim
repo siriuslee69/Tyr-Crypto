@@ -85,6 +85,41 @@ when defined(avx2):
     packStoreI32x8ToI16x8(aPtr, sumVec)
     packStoreI32x8ToI16x8(bPtr, diffVec)
 
+  proc invNttButterflyInterleavedChunk8(aPtr, bPtr, cPtr, dPtr: ptr int16,
+      zetaLower0, zetaLower1, zetaUpper: int16) {.inline.} =
+    var
+      aVec: navx.M256i = loadI16x8AsI32x8(aPtr)
+      bVec: navx.M256i = loadI16x8AsI32x8(bPtr)
+      cVec: navx.M256i = loadI16x8AsI32x8(cPtr)
+      dVec: navx.M256i = loadI16x8AsI32x8(dPtr)
+      zetaLower0Vec: navx.M256i = navx.mm256_set1_epi32(int32(zetaLower0))
+      zetaLower1Vec: navx.M256i = navx.mm256_set1_epi32(int32(zetaLower1))
+      zetaUpperVec: navx.M256i = navx.mm256_set1_epi32(int32(zetaUpper))
+      lowerSum0: navx.M256i
+      lowerSum1: navx.M256i
+      lowerDiff0: navx.M256i
+      lowerDiff1: navx.M256i
+      upperSum0: navx.M256i
+      upperSum1: navx.M256i
+      upperDiff0: navx.M256i
+      upperDiff1: navx.M256i
+    lowerSum0 = barrettReduceVec8(navx2.mm256_add_epi32(aVec, bVec))
+    lowerSum1 = barrettReduceVec8(navx2.mm256_add_epi32(cVec, dVec))
+    lowerDiff0 = navx2.mm256_sub_epi32(bVec, aVec)
+    lowerDiff1 = navx2.mm256_sub_epi32(dVec, cVec)
+    lowerDiff0 = montgomeryReduceVec8(navx2.mm256_mullo_epi32(lowerDiff0, zetaLower0Vec))
+    lowerDiff1 = montgomeryReduceVec8(navx2.mm256_mullo_epi32(lowerDiff1, zetaLower1Vec))
+    upperSum0 = barrettReduceVec8(navx2.mm256_add_epi32(lowerSum0, lowerSum1))
+    upperSum1 = navx2.mm256_sub_epi32(lowerSum1, lowerSum0)
+    upperDiff0 = barrettReduceVec8(navx2.mm256_add_epi32(lowerDiff0, lowerDiff1))
+    upperDiff1 = navx2.mm256_sub_epi32(lowerDiff1, lowerDiff0)
+    upperSum1 = montgomeryReduceVec8(navx2.mm256_mullo_epi32(upperSum1, zetaUpperVec))
+    upperDiff1 = montgomeryReduceVec8(navx2.mm256_mullo_epi32(upperDiff1, zetaUpperVec))
+    packStoreI32x8ToI16x8(aPtr, upperSum0)
+    packStoreI32x8ToI16x8(bPtr, upperDiff0)
+    packStoreI32x8ToI16x8(cPtr, upperSum1)
+    packStoreI32x8ToI16x8(dPtr, upperDiff1)
+
 proc ntt*(R: var array[kyberN, int16]) {.inline.} =
   ## Forward NTT from standard order to bit-reversed order.
   var
@@ -195,23 +230,46 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
           j = j + 1
         start = j + len
       len = len shl 1
-    while len <= 128:
-      start = 0
-      while start < kyberN:
-        zeta = zetas[k]
-        k = k - 1
-        j = start
-        while j + 8 <= start + len:
-          invNttButterflyChunk8(unsafeAddr R[j], unsafeAddr R[j + len], zeta)
-          j = j + 8
-        while j < start + len:
-          t = R[j]
-          R[j] = barrettReduce(t + R[j + len])
-          R[j + len] = R[j + len] - t
-          R[j + len] = fqMul(zeta, R[j + len])
-          j = j + 1
-        start = j + len
-      len = len shl 1
+    start = 0
+    while start < kyberN:
+      let blockIdx = start shr 5
+      let zetaUpper = zetas[15 - blockIdx]
+      let zetaLower0 = zetas[31 - 2 * blockIdx]
+      let zetaLower1 = zetas[30 - 2 * blockIdx]
+      invNttButterflyInterleavedChunk8(
+        unsafeAddr R[start],
+        unsafeAddr R[start + 8],
+        unsafeAddr R[start + 16],
+        unsafeAddr R[start + 24],
+        zetaLower0, zetaLower1, zetaUpper)
+      start = start + 32
+    start = 0
+    while start < kyberN:
+      let blockIdx = start shr 7
+      let zetaUpper = zetas[3 - blockIdx]
+      let zetaLower0 = zetas[7 - 2 * blockIdx]
+      let zetaLower1 = zetas[6 - 2 * blockIdx]
+      j = start
+      while j < start + 32:
+        invNttButterflyInterleavedChunk8(
+          unsafeAddr R[j],
+          unsafeAddr R[j + 32],
+          unsafeAddr R[j + 64],
+          unsafeAddr R[j + 96],
+          zetaLower0, zetaLower1, zetaUpper)
+        j = j + 8
+      start = start + 128
+    zeta = zetas[1]
+    j = 0
+    while j + 8 <= 128:
+      invNttButterflyChunk8(unsafeAddr R[j], unsafeAddr R[j + 128], zeta)
+      j = j + 8
+    while j < 128:
+      t = R[j]
+      R[j] = barrettReduce(t + R[j + 128])
+      R[j + 128] = R[j + 128] - t
+      R[j + 128] = fqMul(zeta, R[j + 128])
+      j = j + 1
   else:
     j = 0
     while j < kyberN:
