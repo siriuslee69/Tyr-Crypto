@@ -5,6 +5,10 @@
 import ./params
 import ./reduce
 
+when defined(avx2):
+  import nimsimd/avx as navx
+  import nimsimd/avx2 as navx2
+
 {.push boundChecks: off.}
 
 const zetas*: array[128, int16] = [
@@ -29,6 +33,27 @@ const zetas*: array[128, int16] = [
 proc fqMul(a, b: int16): int16 {.inline.} =
   result = montgomeryReduce(int32(a) * int32(b))
 
+when defined(avx2):
+  proc nttButterflyChunk8(aPtr, bPtr: ptr int16, zeta: int16) {.inline.} =
+    var
+      aVec: navx.M256i = loadI16x8AsI32x8(aPtr)
+      bVec: navx.M256i = loadI16x8AsI32x8(bPtr)
+      zetaVec: navx.M256i = navx.mm256_set1_epi32(int32(zeta))
+      tVec: navx.M256i = montgomeryReduceVec8(navx2.mm256_mullo_epi32(bVec, zetaVec))
+    packStoreI32x8ToI16x8(aPtr, navx2.mm256_add_epi32(aVec, tVec))
+    packStoreI32x8ToI16x8(bPtr, navx2.mm256_sub_epi32(aVec, tVec))
+
+  proc invNttButterflyChunk8(aPtr, bPtr: ptr int16, zeta: int16) {.inline.} =
+    var
+      aVec: navx.M256i = loadI16x8AsI32x8(aPtr)
+      bVec: navx.M256i = loadI16x8AsI32x8(bPtr)
+      zetaVec: navx.M256i = navx.mm256_set1_epi32(int32(zeta))
+      sumVec: navx.M256i = barrettReduceVec8(navx2.mm256_add_epi32(aVec, bVec))
+      diffVec: navx.M256i = navx2.mm256_sub_epi32(bVec, aVec)
+    diffVec = montgomeryReduceVec8(navx2.mm256_mullo_epi32(diffVec, zetaVec))
+    packStoreI32x8ToI16x8(aPtr, sumVec)
+    packStoreI32x8ToI16x8(bPtr, diffVec)
+
 proc ntt*(R: var array[kyberN, int16]) {.inline.} =
   ## Forward NTT from standard order to bit-reversed order.
   var
@@ -39,6 +64,23 @@ proc ntt*(R: var array[kyberN, int16]) {.inline.} =
     t: int16 = 0
     zeta: int16 = 0
   len = 128
+  when defined(avx2):
+    while len >= 8:
+      start = 0
+      while start < kyberN:
+        zeta = zetas[k]
+        k = k + 1
+        j = start
+        while j + 8 <= start + len:
+          nttButterflyChunk8(unsafeAddr R[j], unsafeAddr R[j + len], zeta)
+          j = j + 8
+        while j < start + len:
+          t = fqMul(zeta, R[j + len])
+          R[j + len] = R[j] - t
+          R[j] = R[j] + t
+          j = j + 1
+        start = j + len
+      len = len shr 1
   while len >= 2:
     start = 0
     while start < kyberN:
@@ -63,25 +105,66 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
     t: int16 = 0
     zeta: int16 = 0
   const f = 1441'i16 ## mont^2 / 128
-  len = 2
-  while len <= 128:
-    start = 0
-    while start < kyberN:
-      zeta = zetas[k]
-      k = k - 1
-      j = start
-      while j < start + len:
-        t = R[j]
-        R[j] = barrettReduce(t + R[j + len])
-        R[j + len] = R[j + len] - t
-        R[j + len] = fqMul(zeta, R[j + len])
-        j = j + 1
-      start = j + len
-    len = len shl 1
-  j = 0
-  while j < kyberN:
-    R[j] = fqMul(R[j], f)
-    j = j + 1
+  when defined(avx2):
+    len = 2
+    while len <= 4:
+      start = 0
+      while start < kyberN:
+        zeta = zetas[k]
+        k = k - 1
+        j = start
+        while j < start + len:
+          t = R[j]
+          R[j] = barrettReduce(t + R[j + len])
+          R[j + len] = R[j + len] - t
+          R[j + len] = fqMul(zeta, R[j + len])
+          j = j + 1
+        start = j + len
+      len = len shl 1
+    while len <= 128:
+      start = 0
+      while start < kyberN:
+        zeta = zetas[k]
+        k = k - 1
+        j = start
+        while j + 8 <= start + len:
+          invNttButterflyChunk8(unsafeAddr R[j], unsafeAddr R[j + len], zeta)
+          j = j + 8
+        while j < start + len:
+          t = R[j]
+          R[j] = barrettReduce(t + R[j + len])
+          R[j + len] = R[j + len] - t
+          R[j + len] = fqMul(zeta, R[j + len])
+          j = j + 1
+        start = j + len
+      len = len shl 1
+    j = 0
+    while j + 8 <= kyberN:
+      montgomeryMulChunk8(unsafeAddr R[j], unsafeAddr R[j], f)
+      j = j + 8
+    while j < kyberN:
+      R[j] = fqMul(R[j], f)
+      j = j + 1
+  else:
+    len = 2
+    while len <= 128:
+      start = 0
+      while start < kyberN:
+        zeta = zetas[k]
+        k = k - 1
+        j = start
+        while j < start + len:
+          t = R[j]
+          R[j] = barrettReduce(t + R[j + len])
+          R[j + len] = R[j + len] - t
+          R[j + len] = fqMul(zeta, R[j + len])
+          j = j + 1
+        start = j + len
+      len = len shl 1
+    j = 0
+    while j < kyberN:
+      R[j] = fqMul(R[j], f)
+      j = j + 1
 
 proc baseMul*(R: var array[2, int16], A, B: array[2, int16], zeta: int16) {.inline.} =
   ## Multiply two degree-1 polynomials in Z_q[X]/(X^2 - zeta).

@@ -343,19 +343,37 @@ proc polyToMont*(r: var Poly) {.inline.} =
   var
     i: int = 0
   const f = int16((1'u64 shl 32) mod uint64(kyberQ))
-  i = 0
-  while i < kyberN:
-    r.coeffs[i] = montgomeryReduce(int32(r.coeffs[i]) * int32(f))
-    i = i + 1
+  when defined(avx2):
+    i = 0
+    while i + 8 <= kyberN:
+      montgomeryMulChunk8(unsafeAddr r.coeffs[i], unsafeAddr r.coeffs[i], f)
+      i = i + 8
+    while i < kyberN:
+      r.coeffs[i] = montgomeryReduce(int32(r.coeffs[i]) * int32(f))
+      i = i + 1
+  else:
+    i = 0
+    while i < kyberN:
+      r.coeffs[i] = montgomeryReduce(int32(r.coeffs[i]) * int32(f))
+      i = i + 1
 
 proc polyReduce*(r: var Poly) {.inline.} =
   ## Apply Barrett reduction to all coefficients.
   var
     i: int = 0
-  i = 0
-  while i < kyberN:
-    r.coeffs[i] = barrettReduce(r.coeffs[i])
-    i = i + 1
+  when defined(avx2):
+    i = 0
+    while i + 8 <= kyberN:
+      barrettReduceChunk8(unsafeAddr r.coeffs[i])
+      i = i + 8
+    while i < kyberN:
+      r.coeffs[i] = barrettReduce(r.coeffs[i])
+      i = i + 1
+  else:
+    i = 0
+    while i < kyberN:
+      r.coeffs[i] = barrettReduce(r.coeffs[i])
+      i = i + 1
 
 proc polyAdd*(r: var Poly, a, b: Poly) {.inline.} =
   ## Add two polynomials without immediate modular reduction.
