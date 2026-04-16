@@ -141,7 +141,7 @@ proc kyberTyrTryDecaps(v: KyberVariant, sk, ct: openArray[byte]): tuple[sharedSe
   result.ok = fail == 0
   secureClearBytes(buf)
   secureClearBytes(kr)
-  clearBytes(cmp)
+  secureClearBytes(cmp)
   clearBytes(hct)
 
 proc kyberTyrDecaps*(v: KyberVariant, sk, ct: openArray[byte]): seq[byte] =
