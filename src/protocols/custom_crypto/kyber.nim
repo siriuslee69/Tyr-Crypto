@@ -15,6 +15,11 @@ import ./kyber/polyvec
 import ./kyber/indcpa
 import ./kyber/operations
 
+## Compatibility facade note:
+## This currently re-exports the full Kyber internals to keep KAT, profiling,
+## and optimization work easy. Trim this export surface once the polished
+## public API is finalized.
+
 export params
 export types
 export util

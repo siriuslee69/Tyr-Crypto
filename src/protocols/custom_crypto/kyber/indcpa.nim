@@ -244,7 +244,8 @@ proc indcpaKeypairInto*(p: KyberParams, pk, sk: var openArray[byte], seed: openA
   polyvecReduce(p, pkpv)
   packSkInto(sk, p, skpv)
   packPkInto(pk, p, pkpv, buf.toOpenArray(0, kyberSymBytes - 1))
-  clearBytes(buf)
+  clearPod(skpv)
+  secureClearBytes(buf)
 
 proc indcpaKeypair*(p: KyberParams, seed: seq[byte] = @[]): tuple[pk, sk: seq[byte]] =
   ## Generate the underlying CPA-secure Kyber keypair.
@@ -258,7 +259,7 @@ proc indcpaKeypair*(p: KyberParams, seed: seq[byte] = @[]): tuple[pk, sk: seq[by
     if seed.len == 0:
       seedIn = cryptoRandomBytes(kyberSymBytes)
       indcpaKeypairInto(p, result.pk, result.sk, seedIn)
-      clearBytes(seedIn)
+      secureClearBytes(seedIn)
     else:
       indcpaKeypairInto(p, result.pk, result.sk, seed)
 
@@ -329,6 +330,7 @@ proc indcpaEncInto*(p: KyberParams, ct: var openArray[byte], m, pk, coins: openA
   polyvecReduce(p, b)
   polyReduce(v)
   packCiphertextInto(ct, p, b, v)
+  clearPod(k)
 
 proc indcpaEnc*(p: KyberParams, m, pk, coins: openArray[byte]): seq[byte] =
   ## Encrypt one Kyber message with the underlying CPA-secure primitive.
@@ -355,10 +357,12 @@ proc indcpaDecInto*(p: KyberParams, m: var openArray[byte], ct, sk: openArray[by
   polyvecNtt(p, b)
   polyvecMulCacheCompute(p, bCache, b)
   polyvecBaseMulAccMontgomeryCached(p, mp, skpv, b, bCache)
+  clearPod(skpv)
   polyInvNttToMont(mp)
   polySub(mp, v, mp)
   polyReduce(mp)
   polyToMsgInto(m, mp)
+  clearPod(mp)
 
 proc indcpaDec*(p: KyberParams, ct, sk: openArray[byte]): seq[byte] =
   ## Decrypt one Kyber CPA ciphertext into its 32-byte message.

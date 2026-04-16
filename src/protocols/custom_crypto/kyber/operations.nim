@@ -22,10 +22,13 @@ type
     ciphertext*: seq[byte]
     sharedSecret*: seq[byte]
 
+## Testing/reproducibility surface. Keep public during KAT and optimization
+## work; tighten or remove this from the public API once Kyber stabilizes.
 proc kyberTyrKeypairFromParts*(v: KyberVariant, indcpaSeed, zSeed: openArray[byte]): KyberTyrKeypair
 
 proc kyberTyrKeypairDerand*(v: KyberVariant, seedMaterial: openArray[byte]): KyberTyrKeypair =
   ## Generate a pure-Nim Kyber keypair from explicit 64-byte keypair material.
+  ## Testing/reproducibility surface to narrow later.
   result = kyberTyrKeypairFromParts(v,
     seedMaterial.toOpenArray(0, 31),
     seedMaterial.toOpenArray(32, 63))
@@ -62,11 +65,11 @@ proc kyberTyrKeypair*(v: KyberVariant, seed: seq[byte] = @[]): KyberTyrKeypair =
   if seed.len == 0:
     seedMaterial = cryptoRandomBytes(64)
     fillArray(seedMaterialBuf, seedMaterial)
-    clearBytes(seedMaterial)
+    secureClearBytes(seedMaterial)
   else:
     hashGInto(seedMaterialBuf, seed)
   result = kyberTyrKeypairDerand(v, seedMaterialBuf)
-  clearBytes(seedMaterialBuf)
+  secureClearBytes(seedMaterialBuf)
 
 proc kyberTyrEncaps*(v: KyberVariant, pk: openArray[byte], seed: seq[byte] = @[]): KyberTyrCipher =
   ## Encapsulate against a pure-Nim Kyber public key.
@@ -85,7 +88,7 @@ proc kyberTyrEncaps*(v: KyberVariant, pk: openArray[byte], seed: seq[byte] = @[]
   if seed.len == 0:
     entropy = cryptoRandomBytes(kyberSymBytes)
     fillArray(entropyBuf, entropy)
-    clearBytes(entropy)
+    secureClearBytes(entropy)
   else:
     fillArray(entropyBuf, seed)
   hashHInto(buf.toOpenArray(0, kyberSymBytes - 1), entropyBuf)
@@ -100,9 +103,9 @@ proc kyberTyrEncaps*(v: KyberVariant, pk: openArray[byte], seed: seq[byte] = @[]
   copyBytes(kr, kyberSymBytes, ctHash)
   result.sharedSecret = newSeq[byte](p.sharedSecretBytes)
   kdfInto(result.sharedSecret, kr)
-  clearBytes(entropyBuf)
-  clearBytes(buf)
-  clearBytes(kr)
+  secureClearBytes(entropyBuf)
+  secureClearBytes(buf)
+  secureClearBytes(kr)
   clearBytes(pkHash)
   clearBytes(ctHash)
 
@@ -136,8 +139,8 @@ proc kyberTyrTryDecaps(v: KyberVariant, sk, ct: openArray[byte]): tuple[sharedSe
   result.sharedSecret = newSeq[byte](p.sharedSecretBytes)
   kdfInto(result.sharedSecret, kr)
   result.ok = fail == 0
-  clearBytes(buf)
-  clearBytes(kr)
+  secureClearBytes(buf)
+  secureClearBytes(kr)
   clearBytes(cmp)
   clearBytes(hct)
 

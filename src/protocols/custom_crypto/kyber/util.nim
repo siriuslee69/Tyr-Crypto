@@ -2,6 +2,8 @@
 ## Kyber Utilities <- little-endian helpers and byte-sequence helpers
 ## -----------------------------------------------------------------
 
+import std/[typetraits, volatile]
+
 {.push boundChecks: off.}
 
 proc load24Le*(A: openArray[byte], o: int = 0): uint32 {.inline.} =
@@ -58,21 +60,52 @@ proc copyBytes*(dst: var openArray[byte], o: int, src: openArray[byte]) =
 
 proc clearBytes*(S: var seq[byte]) =
   ## Zero a byte sequence in place.
-  var
-    i: int = 0
-  i = 0
-  while i < S.len:
-    S[i] = 0'u8
-    i = i + 1
+  if S.len == 0:
+    return
+  zeroMem(addr S[0], S.len)
 
 proc clearBytes*[N: static[int]](A: var array[N, byte]) =
   ## Zero a fixed byte array in place.
+  when N > 0:
+    zeroMem(addr A[0], N)
+
+proc secureZeroMem*(p: pointer, l: int) =
+  ## Volatile zeroization for secret-bearing POD scratch.
   var
     i: int = 0
+    B: ptr UncheckedArray[byte]
+  if p.isNil or l <= 0:
+    return
+  B = cast[ptr UncheckedArray[byte]](p)
   i = 0
-  while i < N:
-    A[i] = 0'u8
+  while i < l:
+    volatileStore(addr B[i], 0'u8)
     i = i + 1
+
+proc secureClearBytes*(S: var seq[byte]) =
+  ## Volatile zeroization for secret byte sequences.
+  if S.len == 0:
+    return
+  secureZeroMem(addr S[0], S.len)
+
+proc secureClearBytes*[N: static[int]](A: var array[N, byte]) =
+  ## Volatile zeroization for secret fixed-size byte arrays.
+  when N > 0:
+    secureZeroMem(addr A[0], N)
+
+proc clearPod*[T](x: var T) =
+  ## Fast bulk zeroization for POD-style scratch.
+  static:
+    doAssert supportsCopyMem(T), "clearPod requires a POD-style type"
+  when sizeof(T) > 0:
+    zeroMem(addr x, sizeof(T))
+
+proc secureClearPod*[T](x: var T) =
+  ## Volatile zeroization for POD-style stack scratch only.
+  static:
+    doAssert supportsCopyMem(T), "secureClearPod requires a POD-style type"
+  when sizeof(T) > 0:
+    secureZeroMem(addr x, sizeof(T))
 
 proc fillArray*[N: static[int]](dst: var array[N, byte], src: openArray[byte]) =
   ## Copy bytes into a fixed-size array.
