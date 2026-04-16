@@ -11,6 +11,7 @@ import ./sort
 when defined(avx2):
   {.passC: "-mavx2".}
   import simd_nexus/simd/base_operations
+  import ./transpose
 
 proc ctMaskEqualU64(a, b: uint64): uint64 {.inline.} =
   var x = a xor b
@@ -73,6 +74,49 @@ proc batchInvertNonZero(vals: var seq[GF], prefix: var seq[GF], n: int) {.inline
     invAcc = gfMul(invAcc, cur)
     i = i - 1
   vals[0] = invAcc
+
+when defined(avx2):
+  proc fillMatrixTransposedAvx(p: McElieceParams; L: openArray[GF];
+      inv: var seq[GF]; mat: var seq[byte]; fullRowBytes: int) =
+    var
+      inRows: array[64, uint64]
+      outRows: array[64, uint64]
+      tailBytes: array[8, byte]
+    let blockCount = p.sysN div 64
+    let rem = p.sysN mod 64
+
+    for i in 0 ..< p.sysT:
+      let matBase = i * p.gfBits * fullRowBytes
+
+      var chunkIdx = 0
+      while chunkIdx < blockCount:
+        let base = chunkIdx * 64
+        for lane in 0 ..< 64:
+          inRows[lane] = uint64(inv[base + lane])
+        transpose64x64(outRows, inRows)
+        let byteOffset = base shr 3
+        for k in 0 ..< p.gfBits:
+          store64At(mat, matBase + (k * fullRowBytes) + byteOffset, outRows[k])
+        for lane in 0 ..< 64:
+          inv[base + lane] = gfMul(inv[base + lane], L[base + lane])
+        chunkIdx = chunkIdx + 1
+
+      if rem != 0:
+        let base = blockCount * 64
+        for lane in 0 ..< rem:
+          inRows[lane] = uint64(inv[base + lane])
+        for lane in rem ..< 64:
+          inRows[lane] = 0'u64
+        transpose64x64(outRows, inRows)
+        let byteOffset = base shr 3
+        let storeBytes = rem shr 3
+        for k in 0 ..< p.gfBits:
+          store8(tailBytes.toOpenArray(0, 7), outRows[k])
+          let rowOffset = matBase + (k * fullRowBytes) + byteOffset
+          for bIdx in 0 ..< storeBytes:
+            mat[rowOffset + bIdx] = tailBytes[bIdx]
+        for lane in 0 ..< rem:
+          inv[base + lane] = gfMul(inv[base + lane], L[base + lane])
 
 proc xorRowMasked(mat: var seq[byte], dstStart, srcStart, fullRowBytes: int,
     mask: byte) {.inline.} =
@@ -210,24 +254,27 @@ proc pkGen*(p: McElieceParams, g: openArray[GF], perm: openArray[uint32],
   rootEval(p, g, L, inv)
   batchInvertNonZero(inv, invPrefix, p.sysN)
 
-  for i in 0 ..< p.sysT:
-    j = 0
-    while j < p.sysN:
-      k = 0
-      while k < p.gfBits:
-        b = byte((inv[j + 7] shr k) and 1'u16)
-        b = (b shl 1) or byte((inv[j + 6] shr k) and 1'u16)
-        b = (b shl 1) or byte((inv[j + 5] shr k) and 1'u16)
-        b = (b shl 1) or byte((inv[j + 4] shr k) and 1'u16)
-        b = (b shl 1) or byte((inv[j + 3] shr k) and 1'u16)
-        b = (b shl 1) or byte((inv[j + 2] shr k) and 1'u16)
-        b = (b shl 1) or byte((inv[j + 1] shr k) and 1'u16)
-        b = (b shl 1) or byte((inv[j + 0] shr k) and 1'u16)
-        mat[((i * p.gfBits + k) * fullRowBytes) + (j div 8)] = b
-        k = k + 1
-      j = j + 8
-    for j in 0 ..< p.sysN:
-      inv[j] = gfMul(inv[j], L[j])
+  when defined(avx2):
+    fillMatrixTransposedAvx(p, L, inv, mat, fullRowBytes)
+  else:
+    for i in 0 ..< p.sysT:
+      j = 0
+      while j < p.sysN:
+        k = 0
+        while k < p.gfBits:
+          b = byte((inv[j + 7] shr k) and 1'u16)
+          b = (b shl 1) or byte((inv[j + 6] shr k) and 1'u16)
+          b = (b shl 1) or byte((inv[j + 5] shr k) and 1'u16)
+          b = (b shl 1) or byte((inv[j + 4] shr k) and 1'u16)
+          b = (b shl 1) or byte((inv[j + 3] shr k) and 1'u16)
+          b = (b shl 1) or byte((inv[j + 2] shr k) and 1'u16)
+          b = (b shl 1) or byte((inv[j + 1] shr k) and 1'u16)
+          b = (b shl 1) or byte((inv[j + 0] shr k) and 1'u16)
+          mat[((i * p.gfBits + k) * fullRowBytes) + (j div 8)] = b
+          k = k + 1
+        j = j + 8
+      for j in 0 ..< p.sysN:
+        inv[j] = gfMul(inv[j], L[j])
 
   for i in 0 ..< (p.pkNRows + 7) div 8:
     for j in 0 ..< 8:
