@@ -8,6 +8,11 @@ import ./poly
 import ./ntt
 import ./reduce
 
+when defined(avx2):
+  import nimsimd/sse2 as nsse2
+  import nimsimd/avx as navx
+  import nimsimd/avx2 as navx2
+
 {.push boundChecks: off.}
 
 type
@@ -15,6 +20,39 @@ type
   PolyMulCache* = array[kyberN div 2, int16]
   ## Cached twiddle-scaled odd coefficients for one Kyber vector.
   PolyVecMulCache* = array[kyberMaxK, PolyMulCache]
+
+when defined(avx2):
+  proc baseMulCachedTermsChunk8(aPtr, bPtr, cachePtr: ptr int16, acc0, acc1: var navx.M256i) {.inline.} =
+    var
+      aVec: navx.M256i = navx2.mm256_loadu_si256(cast[pointer](aPtr))
+      bVec: navx.M256i = navx2.mm256_loadu_si256(cast[pointer](bPtr))
+      cacheVec: navx.M256i = loadI16x8AsI32x8(cachePtr)
+      evenMask: navx.M256i = navx.mm256_set1_epi32(0x0000ffff'i32)
+      evenCacheVec: navx.M256i
+      oddEvenVec: navx.M256i
+    evenCacheVec = navx2.mm256_and_si256(bVec, evenMask)
+    evenCacheVec = navx2.mm256_or_si256(evenCacheVec, navx2.mm256_slli_epi32(cacheVec, 16))
+    oddEvenVec = navx2.mm256_or_si256(navx2.mm256_srli_epi32(bVec, 16),
+      navx2.mm256_slli_epi32(bVec, 16))
+    acc0 = navx2.mm256_add_epi32(acc0, navx2.mm256_madd_epi16(aVec, evenCacheVec))
+    acc1 = navx2.mm256_add_epi32(acc1, navx2.mm256_madd_epi16(aVec, oddEvenVec))
+
+  proc storeBaseMulAccReducedChunk8(dstLo, dstHi: ptr int16, evenTerms, oddTerms: navx.M256i) {.inline.} =
+    var
+      evenReduced: navx.M256i = montgomeryReduceVec8(evenTerms)
+      oddReduced: navx.M256i = montgomeryReduceVec8(oddTerms)
+      evenLo: nsse2.M128i = navx.mm256_castsi256_si128(evenReduced)
+      evenHi: nsse2.M128i = navx2.mm256_extracti128_si256(evenReduced, 1)
+      oddLo: nsse2.M128i = navx.mm256_castsi256_si128(oddReduced)
+      oddHi: nsse2.M128i = navx2.mm256_extracti128_si256(oddReduced, 1)
+      packedEvenLo: nsse2.M128i = nsse2.mm_packs_epi32(evenLo, evenLo)
+      packedOddLo: nsse2.M128i = nsse2.mm_packs_epi32(oddLo, oddLo)
+      packedEvenHi: nsse2.M128i = nsse2.mm_packs_epi32(evenHi, evenHi)
+      packedOddHi: nsse2.M128i = nsse2.mm_packs_epi32(oddHi, oddHi)
+      interleavedLo: nsse2.M128i = nsse2.mm_unpacklo_epi16(packedEvenLo, packedOddLo)
+      interleavedHi: nsse2.M128i = nsse2.mm_unpacklo_epi16(packedEvenHi, packedOddHi)
+    nsse2.mm_storeu_si128(cast[pointer](dstLo), interleavedLo)
+    nsse2.mm_storeu_si128(cast[pointer](dstHi), interleavedHi)
 
 proc polyvecCompressInto*(dst: var openArray[byte], p: KyberParams, a: PolyVec) =
   ## Compress and serialize a Kyber polynomial vector into a caller-provided buffer.
@@ -312,9 +350,23 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
     i: int = 0
     t0: int32 = 0
     t1: int32 = 0
+  when defined(avx2):
+    var
+      acc0: navx.M256i
+      acc1: navx.M256i
   i = 0
   case p.k
   of 2:
+    when defined(avx2):
+      while i + 8 <= kyberN div 2:
+        acc0 = navx2.mm256_setzero_si256()
+        acc1 = navx2.mm256_setzero_si256()
+        baseMulCachedTermsChunk8(unsafeAddr a.vec[0].coeffs[2 * i], unsafeAddr b.vec[0].coeffs[2 * i],
+          unsafeAddr bCache[0][i], acc0, acc1)
+        baseMulCachedTermsChunk8(unsafeAddr a.vec[1].coeffs[2 * i], unsafeAddr b.vec[1].coeffs[2 * i],
+          unsafeAddr bCache[1][i], acc0, acc1)
+        storeBaseMulAccReducedChunk8(unsafeAddr r.coeffs[2 * i], unsafeAddr r.coeffs[2 * i + 8], acc0, acc1)
+        i = i + 8
     while i < kyberN div 2:
       t0 =
         int32(a.vec[0].coeffs[2 * i + 1]) * int32(bCache[0][i]) +
@@ -330,6 +382,18 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
       r.coeffs[2 * i + 1] = montgomeryReduce(t1)
       i = i + 1
   of 3:
+    when defined(avx2):
+      while i + 8 <= kyberN div 2:
+        acc0 = navx2.mm256_setzero_si256()
+        acc1 = navx2.mm256_setzero_si256()
+        baseMulCachedTermsChunk8(unsafeAddr a.vec[0].coeffs[2 * i], unsafeAddr b.vec[0].coeffs[2 * i],
+          unsafeAddr bCache[0][i], acc0, acc1)
+        baseMulCachedTermsChunk8(unsafeAddr a.vec[1].coeffs[2 * i], unsafeAddr b.vec[1].coeffs[2 * i],
+          unsafeAddr bCache[1][i], acc0, acc1)
+        baseMulCachedTermsChunk8(unsafeAddr a.vec[2].coeffs[2 * i], unsafeAddr b.vec[2].coeffs[2 * i],
+          unsafeAddr bCache[2][i], acc0, acc1)
+        storeBaseMulAccReducedChunk8(unsafeAddr r.coeffs[2 * i], unsafeAddr r.coeffs[2 * i + 8], acc0, acc1)
+        i = i + 8
     while i < kyberN div 2:
       t0 =
         int32(a.vec[0].coeffs[2 * i + 1]) * int32(bCache[0][i]) +
@@ -349,6 +413,20 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
       r.coeffs[2 * i + 1] = montgomeryReduce(t1)
       i = i + 1
   of 4:
+    when defined(avx2):
+      while i + 8 <= kyberN div 2:
+        acc0 = navx2.mm256_setzero_si256()
+        acc1 = navx2.mm256_setzero_si256()
+        baseMulCachedTermsChunk8(unsafeAddr a.vec[0].coeffs[2 * i], unsafeAddr b.vec[0].coeffs[2 * i],
+          unsafeAddr bCache[0][i], acc0, acc1)
+        baseMulCachedTermsChunk8(unsafeAddr a.vec[1].coeffs[2 * i], unsafeAddr b.vec[1].coeffs[2 * i],
+          unsafeAddr bCache[1][i], acc0, acc1)
+        baseMulCachedTermsChunk8(unsafeAddr a.vec[2].coeffs[2 * i], unsafeAddr b.vec[2].coeffs[2 * i],
+          unsafeAddr bCache[2][i], acc0, acc1)
+        baseMulCachedTermsChunk8(unsafeAddr a.vec[3].coeffs[2 * i], unsafeAddr b.vec[3].coeffs[2 * i],
+          unsafeAddr bCache[3][i], acc0, acc1)
+        storeBaseMulAccReducedChunk8(unsafeAddr r.coeffs[2 * i], unsafeAddr r.coeffs[2 * i + 8], acc0, acc1)
+        i = i + 8
     while i < kyberN div 2:
       t0 =
         int32(a.vec[0].coeffs[2 * i + 1]) * int32(bCache[0][i]) +
