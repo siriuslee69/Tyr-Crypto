@@ -19,6 +19,8 @@ when not declared(Sha3State):
 
 const
   sha3SimdDomainSuffix = 0x06'u8
+  ## Shared with Kyber's batched SHAKE-based matrix/noise generation.
+  shakeSimdDomainSuffix = 0x1f'u8
   sha3SimdLaneBytes = 8
   keccakRoundConstantsSimd: array[24, uint64] = [
     0x0000000000000001'u64, 0x0000000000008082'u64,
@@ -126,6 +128,22 @@ proc absorbFinalBlock(S: var Sha3State, A: openArray[byte], o, rateBytes: int) =
     blk[i] = A[o + i]
     i = i + 1
   blk[take] = blk[take] xor sha3SimdDomainSuffix
+  blk[rateBytes - 1] = blk[rateBytes - 1] xor 0x80'u8
+  absorbBlock(S, blk, 0, rateBytes)
+
+proc absorbFinalBlockFixed(S: var Sha3State, A: openArray[byte], o, rateBytes: int, domain: byte) =
+  var
+    blk: array[168, byte]
+    take: int = 0
+    i: int = 0
+  take = A.len - o
+  if take < 0:
+    take = 0
+  i = 0
+  while i < take:
+    blk[i] = A[o + i]
+    i = i + 1
+  blk[take] = blk[take] xor domain
   blk[rateBytes - 1] = blk[rateBytes - 1] xor 0x80'u8
   absorbBlock(S, blk, 0, rateBytes)
 
@@ -241,6 +259,89 @@ proc sha3HashSse2x*(msgs: array[2, seq[byte]], outLen: int = 32): array[2, seq[b
     result[lane] = squeezeBlock(states[lane], sha3DigestBytesSimd(variant))
     lane = lane + 1
 
+proc shake128AbsorbOnceSse2x*[INBYTES: static[int]](states: var array[2, Sha3State],
+    msgs: array[2, array[INBYTES, byte]]) =
+  ## Absorb two short equal-length messages into SHAKE128 states and permute them once in parallel.
+  var
+    lane: int = 0
+  lane = 0
+  while lane < 2:
+    absorbFinalBlockFixed(states[lane], msgs[lane], 0, 168, shakeSimdDomainSuffix)
+    lane = lane + 1
+  keccakF1600Sse2x(states)
+
+proc shake128SqueezeBlocksSse2x*[OUTBYTES: static[int]](states: var array[2, Sha3State],
+    dst: var array[2, array[OUTBYTES, byte]]) =
+  ## Squeeze a whole number of SHAKE128 blocks from two states in parallel.
+  var
+    produced: int = 0
+    lane: int = 0
+  if OUTBYTES mod 168 != 0:
+    raise newException(ValueError, "SHAKE128 SIMD block squeeze requires whole blocks")
+  while produced < OUTBYTES:
+    lane = 0
+    while lane < 2:
+      store64Le(dst[lane], produced + 0, states[lane][0])
+      store64Le(dst[lane], produced + 8, states[lane][1])
+      store64Le(dst[lane], produced + 16, states[lane][2])
+      store64Le(dst[lane], produced + 24, states[lane][3])
+      store64Le(dst[lane], produced + 32, states[lane][4])
+      store64Le(dst[lane], produced + 40, states[lane][5])
+      store64Le(dst[lane], produced + 48, states[lane][6])
+      store64Le(dst[lane], produced + 56, states[lane][7])
+      store64Le(dst[lane], produced + 64, states[lane][8])
+      store64Le(dst[lane], produced + 72, states[lane][9])
+      store64Le(dst[lane], produced + 80, states[lane][10])
+      store64Le(dst[lane], produced + 88, states[lane][11])
+      store64Le(dst[lane], produced + 96, states[lane][12])
+      store64Le(dst[lane], produced + 104, states[lane][13])
+      store64Le(dst[lane], produced + 112, states[lane][14])
+      store64Le(dst[lane], produced + 120, states[lane][15])
+      store64Le(dst[lane], produced + 128, states[lane][16])
+      store64Le(dst[lane], produced + 136, states[lane][17])
+      store64Le(dst[lane], produced + 144, states[lane][18])
+      store64Le(dst[lane], produced + 152, states[lane][19])
+      store64Le(dst[lane], produced + 160, states[lane][20])
+      lane = lane + 1
+    produced = produced + 168
+    keccakF1600Sse2x(states)
+
+proc shake256Sse2xInto*[OUTBYTES: static[int], INBYTES: static[int]](
+    dst: var array[2, array[OUTBYTES, byte]], msgs: array[2, array[INBYTES, byte]]) =
+  ## SHAKE256 over two short equal-length inputs in parallel.
+  var
+    states: array[2, Sha3State]
+    produced: int = 0
+    lane: int = 0
+    blockBytes: int = 0
+    i: int = 0
+    take: int = 0
+    laneBytes: array[8, byte]
+  lane = 0
+  while lane < 2:
+    absorbFinalBlockFixed(states[lane], msgs[lane], 0, 136, shakeSimdDomainSuffix)
+    lane = lane + 1
+  keccakF1600Sse2x(states)
+  while produced < OUTBYTES:
+    blockBytes = 136
+    if blockBytes > OUTBYTES - produced:
+      blockBytes = OUTBYTES - produced
+    lane = 0
+    while lane < 2:
+      i = 0
+      while i * sha3SimdLaneBytes < blockBytes:
+        store64Le(laneBytes, 0, states[lane][i])
+        take = blockBytes - i * sha3SimdLaneBytes
+        if take > sha3SimdLaneBytes:
+          take = sha3SimdLaneBytes
+        for j in 0 ..< take:
+          dst[lane][produced + i * sha3SimdLaneBytes + j] = laneBytes[j]
+        i = i + 1
+      lane = lane + 1
+    produced = produced + blockBytes
+    if produced < OUTBYTES:
+      keccakF1600Sse2x(states)
+
 when defined(avx2):
   proc packState4(ss: array[4, Sha3State]): array[25, u64x4] =
     var
@@ -343,3 +444,86 @@ when defined(avx2):
     while lane < 4:
       result[lane] = squeezeBlock(states[lane], sha3DigestBytesSimd(variant))
       lane = lane + 1
+
+  proc shake128AbsorbOnceAvx4x*[INBYTES: static[int]](states: var array[4, Sha3State],
+      msgs: array[4, array[INBYTES, byte]]) =
+    ## Absorb four short equal-length messages into SHAKE128 states and permute them once in parallel.
+    var
+      lane: int = 0
+    lane = 0
+    while lane < 4:
+      absorbFinalBlockFixed(states[lane], msgs[lane], 0, 168, shakeSimdDomainSuffix)
+      lane = lane + 1
+    keccakF1600Avx4x(states)
+
+  proc shake128SqueezeBlocksAvx4x*[OUTBYTES: static[int]](states: var array[4, Sha3State],
+      dst: var array[4, array[OUTBYTES, byte]]) =
+    ## Squeeze a whole number of SHAKE128 blocks from four states in parallel.
+    var
+      produced: int = 0
+      lane: int = 0
+    if OUTBYTES mod 168 != 0:
+      raise newException(ValueError, "SHAKE128 SIMD block squeeze requires whole blocks")
+    while produced < OUTBYTES:
+      lane = 0
+      while lane < 4:
+        store64Le(dst[lane], produced + 0, states[lane][0])
+        store64Le(dst[lane], produced + 8, states[lane][1])
+        store64Le(dst[lane], produced + 16, states[lane][2])
+        store64Le(dst[lane], produced + 24, states[lane][3])
+        store64Le(dst[lane], produced + 32, states[lane][4])
+        store64Le(dst[lane], produced + 40, states[lane][5])
+        store64Le(dst[lane], produced + 48, states[lane][6])
+        store64Le(dst[lane], produced + 56, states[lane][7])
+        store64Le(dst[lane], produced + 64, states[lane][8])
+        store64Le(dst[lane], produced + 72, states[lane][9])
+        store64Le(dst[lane], produced + 80, states[lane][10])
+        store64Le(dst[lane], produced + 88, states[lane][11])
+        store64Le(dst[lane], produced + 96, states[lane][12])
+        store64Le(dst[lane], produced + 104, states[lane][13])
+        store64Le(dst[lane], produced + 112, states[lane][14])
+        store64Le(dst[lane], produced + 120, states[lane][15])
+        store64Le(dst[lane], produced + 128, states[lane][16])
+        store64Le(dst[lane], produced + 136, states[lane][17])
+        store64Le(dst[lane], produced + 144, states[lane][18])
+        store64Le(dst[lane], produced + 152, states[lane][19])
+        store64Le(dst[lane], produced + 160, states[lane][20])
+        lane = lane + 1
+      produced = produced + 168
+      keccakF1600Avx4x(states)
+
+  proc shake256Avx4xInto*[OUTBYTES: static[int], INBYTES: static[int]](
+      dst: var array[4, array[OUTBYTES, byte]], msgs: array[4, array[INBYTES, byte]]) =
+    ## SHAKE256 over four short equal-length inputs in parallel.
+    var
+      states: array[4, Sha3State]
+      produced: int = 0
+      lane: int = 0
+      blockBytes: int = 0
+      i: int = 0
+      take: int = 0
+      laneBytes: array[8, byte]
+    lane = 0
+    while lane < 4:
+      absorbFinalBlockFixed(states[lane], msgs[lane], 0, 136, shakeSimdDomainSuffix)
+      lane = lane + 1
+    keccakF1600Avx4x(states)
+    while produced < OUTBYTES:
+      blockBytes = 136
+      if blockBytes > OUTBYTES - produced:
+        blockBytes = OUTBYTES - produced
+      lane = 0
+      while lane < 4:
+        i = 0
+        while i * sha3SimdLaneBytes < blockBytes:
+          store64Le(laneBytes, 0, states[lane][i])
+          take = blockBytes - i * sha3SimdLaneBytes
+          if take > sha3SimdLaneBytes:
+            take = sha3SimdLaneBytes
+          for j in 0 ..< take:
+            dst[lane][produced + i * sha3SimdLaneBytes + j] = laneBytes[j]
+          i = i + 1
+        lane = lane + 1
+      produced = produced + blockBytes
+      if produced < OUTBYTES:
+        keccakF1600Avx4x(states)

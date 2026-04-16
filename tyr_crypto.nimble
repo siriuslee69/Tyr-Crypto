@@ -53,7 +53,30 @@ task test_pin, "Run interactive pin + key unwrap test.":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_pin").replace('\\', '/') & " -d:hasLibsodium -r tests/test_pin_key_interactive.nim")
 
 task perf_sigma, "Benchmark custom crypto with Sigma helpers":
-  exec "nim c --threads:on --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/fylgia/src -d:release -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf.nim"
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf.nim")
+
+task perf_sigma_pq, "Benchmark Tyr PQ backends against liboqs with Sigma helpers":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_pq").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_pq.nim")
+
+task perf_sigma_kyber, "Benchmark Tyr Kyber against liboqs with Sigma helpers":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_kyber").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_kyber_only.nim")
+
+task perf_sigma_pq_aesni, "Benchmark Tyr PQ backends against liboqs with Sigma helpers and AES-NI enabled":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_pq_aesni").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_pq.nim")
+
+task perf_sigma_frodo_portable, "Benchmark Tyr Frodo against the portable Frodo-focused liboqs build":
+  putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_frodo_portable"))
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_frodo_portable").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_frodo_profile.nim")
+
+task perf_sigma_frodo_ossl, "Benchmark Tyr Frodo against the OpenSSL-backed Frodo-focused liboqs build":
+  putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_frodo_ossl"))
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_frodo_ossl").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_frodo_profile.nim")
+
+task perf_otter_pq, "Profile Tyr PQ functions with Otter timing instrumentation":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_otter_pq").replace('\\', '/') & " --path:src --path:../Otter-RepoEvaluation/src -d:release -d:otterTiming -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_otter_perf_pq.nim")
+
+task perf_otter_kyber, "Profile Tyr Kyber functions with Otter timing instrumentation":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_otter_kyber").replace('\\', '/') & " --path:src --path:../Otter-RepoEvaluation/src -d:release -d:otterTiming -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_otter_perf_kyber_only.nim")
 
 
 task build_libsodium, "Build libsodium and prepare combined headers":
@@ -62,6 +85,34 @@ task build_libsodium, "Build libsodium and prepare combined headers":
   exec "nim r tools/prepare_libsodium_header.nim"
 
 task build_liboqs, "Build liboqs and prepare combined headers":
+  exec "nim r tools/ensure_env.nim -- --submodules --builddirs"
+  exec "nim r tools/build_liboqs.nim"
+  exec "nim r tools/prepare_liboqs_header.nim"
+
+task build_liboqs_frodo_portable, "Build a portable Frodo-focused liboqs profile with OpenSSL disabled":
+  putEnv("LIBOQS_PROFILE_NAME", "frodo_portable")
+  putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_frodo_portable"))
+  putEnv("LIBOQS_USE_OPENSSL", "OFF")
+  putEnv("LIBOQS_USE_AES_OPENSSL", "OFF")
+  putEnv("LIBOQS_USE_SHA2_OPENSSL", "OFF")
+  putEnv("LIBOQS_USE_SHA3_OPENSSL", "OFF")
+  putEnv("LIBOQS_DIST_BUILD", "OFF")
+  putEnv("LIBOQS_OPT_TARGET", "generic")
+  putEnv("LIBOQS_MINIMAL_BUILD", "KEM_frodokem_976_aes")
+  exec "nim r tools/ensure_env.nim -- --submodules --builddirs"
+  exec "nim r tools/build_liboqs.nim"
+  exec "nim r tools/prepare_liboqs_header.nim"
+
+task build_liboqs_frodo_ossl, "Build an OpenSSL-backed Frodo-focused liboqs profile":
+  putEnv("LIBOQS_PROFILE_NAME", "frodo_ossl")
+  putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_frodo_ossl"))
+  putEnv("LIBOQS_USE_OPENSSL", "ON")
+  putEnv("LIBOQS_USE_AES_OPENSSL", "ON")
+  putEnv("LIBOQS_USE_SHA2_OPENSSL", "ON")
+  putEnv("LIBOQS_USE_SHA3_OPENSSL", "OFF")
+  putEnv("LIBOQS_DIST_BUILD", "ON")
+  putEnv("LIBOQS_OPT_TARGET", "auto")
+  putEnv("LIBOQS_MINIMAL_BUILD", "KEM_frodokem_976_aes")
   exec "nim r tools/ensure_env.nim -- --submodules --builddirs"
   exec "nim r tools/build_liboqs.nim"
   exec "nim r tools/prepare_liboqs_header.nim"
