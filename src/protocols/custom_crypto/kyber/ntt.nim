@@ -43,6 +43,37 @@ when defined(avx2):
     packStoreI32x8ToI16x8(aPtr, navx2.mm256_add_epi32(aVec, tVec))
     packStoreI32x8ToI16x8(bPtr, navx2.mm256_sub_epi32(aVec, tVec))
 
+  proc nttButterflyInterleavedChunk8(aPtr, bPtr, cPtr, dPtr: ptr int16,
+      zetaUpper, zetaLower0, zetaLower1: int16) {.inline.} =
+    var
+      aVec: navx.M256i = loadI16x8AsI32x8(aPtr)
+      bVec: navx.M256i = loadI16x8AsI32x8(bPtr)
+      cVec: navx.M256i = loadI16x8AsI32x8(cPtr)
+      dVec: navx.M256i = loadI16x8AsI32x8(dPtr)
+      zetaUpperVec: navx.M256i = navx.mm256_set1_epi32(int32(zetaUpper))
+      zetaLower0Vec: navx.M256i = navx.mm256_set1_epi32(int32(zetaLower0))
+      zetaLower1Vec: navx.M256i = navx.mm256_set1_epi32(int32(zetaLower1))
+      upper0: navx.M256i
+      upper1: navx.M256i
+      lo0: navx.M256i
+      hi0: navx.M256i
+      lo1: navx.M256i
+      hi1: navx.M256i
+      lower0: navx.M256i
+      lower1: navx.M256i
+    upper0 = montgomeryReduceVec8(navx2.mm256_mullo_epi32(cVec, zetaUpperVec))
+    upper1 = montgomeryReduceVec8(navx2.mm256_mullo_epi32(dVec, zetaUpperVec))
+    lo0 = navx2.mm256_add_epi32(aVec, upper0)
+    hi0 = navx2.mm256_sub_epi32(aVec, upper0)
+    lo1 = navx2.mm256_add_epi32(bVec, upper1)
+    hi1 = navx2.mm256_sub_epi32(bVec, upper1)
+    lower0 = montgomeryReduceVec8(navx2.mm256_mullo_epi32(lo1, zetaLower0Vec))
+    lower1 = montgomeryReduceVec8(navx2.mm256_mullo_epi32(hi1, zetaLower1Vec))
+    packStoreI32x8ToI16x8(aPtr, navx2.mm256_add_epi32(lo0, lower0))
+    packStoreI32x8ToI16x8(bPtr, navx2.mm256_sub_epi32(lo0, lower0))
+    packStoreI32x8ToI16x8(cPtr, navx2.mm256_add_epi32(hi0, lower1))
+    packStoreI32x8ToI16x8(dPtr, navx2.mm256_sub_epi32(hi0, lower1))
+
   proc invNttButterflyChunk8(aPtr, bPtr: ptr int16, zeta: int16) {.inline.} =
     var
       aVec: navx.M256i = loadI16x8AsI32x8(aPtr)
@@ -65,22 +96,58 @@ proc ntt*(R: var array[kyberN, int16]) {.inline.} =
     zeta: int16 = 0
   len = 128
   when defined(avx2):
-    while len >= 8:
-      start = 0
-      while start < kyberN:
-        zeta = zetas[k]
-        k = k + 1
-        j = start
-        while j + 8 <= start + len:
-          nttButterflyChunk8(unsafeAddr R[j], unsafeAddr R[j + len], zeta)
-          j = j + 8
-        while j < start + len:
-          t = fqMul(zeta, R[j + len])
-          R[j + len] = R[j] - t
-          R[j] = R[j] + t
-          j = j + 1
-        start = j + len
-      len = len shr 1
+    zeta = zetas[1]
+    let zeta64Lo = zetas[2]
+    let zeta64Hi = zetas[3]
+    j = 0
+    while j < 64:
+      nttButterflyInterleavedChunk8(
+        unsafeAddr R[j],
+        unsafeAddr R[j + 64],
+        unsafeAddr R[j + 128],
+        unsafeAddr R[j + 192],
+        zeta, zeta64Lo, zeta64Hi)
+      j = j + 8
+
+    var
+      k32: int = 4
+      k16: int = 8
+    start = 0
+    while start < kyberN:
+      zeta = zetas[k32]
+      k32 = k32 + 1
+      let zeta16Lo = zetas[k16]
+      k16 = k16 + 1
+      let zeta16Hi = zetas[k16]
+      k16 = k16 + 1
+      j = start
+      while j < start + 16:
+        nttButterflyInterleavedChunk8(
+          unsafeAddr R[j],
+          unsafeAddr R[j + 16],
+          unsafeAddr R[j + 32],
+          unsafeAddr R[j + 48],
+          zeta, zeta16Lo, zeta16Hi)
+        j = j + 8
+      start = start + 64
+
+    k = 16
+    len = 8
+    start = 0
+    while start < kyberN:
+      zeta = zetas[k]
+      k = k + 1
+      j = start
+      while j + 8 <= start + len:
+        nttButterflyChunk8(unsafeAddr R[j], unsafeAddr R[j + len], zeta)
+        j = j + 8
+      while j < start + len:
+        t = fqMul(zeta, R[j + len])
+        R[j + len] = R[j] - t
+        R[j] = R[j] + t
+        j = j + 1
+      start = j + len
+    len = 4
   while len >= 2:
     start = 0
     while start < kyberN:
