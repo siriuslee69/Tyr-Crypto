@@ -2,7 +2,9 @@
 ## SHA3 <- scalar Keccak-f[1600] hashing with fixed variants
 ## ---------------------------------------------------------
 
-import std/[bitops, dynlib, os, strutils]
+import std/bitops
+when defined(tyrSha3OpenSslTestOnly):
+  import std/[dynlib, os, strutils]
 import ../../helpers/otter_support
 
 type
@@ -22,12 +24,6 @@ const
   shake128RateBytes* = 168
   shake256RateBytes* = 136
   keccakLaneBytes = 8
-  opensslShakeLibNames = when defined(windows):
-                           @["libcrypto-3-x64.dll"]
-                         elif defined(macosx):
-                           @["libcrypto.3.dylib", "libcrypto.dylib"]
-                         else:
-                           @["libcrypto.so.3", "libcrypto.so"]
   keccakRoundConstants: array[24, uint64] = [
     0x0000000000000001'u64, 0x0000000000008082'u64,
     0x800000000000808a'u64, 0x8000000080008000'u64,
@@ -50,219 +46,233 @@ const
     18'i32, 2'i32, 61'i32, 56'i32, 14'i32
   ]
 
-type
-  EVP_MD = object
-  EVP_MD_CTX = object
+when defined(tyrSha3OpenSslTestOnly):
+  ## TEST-ONLY: this optional SHAKE256 fast path exists purely for benchmarking
+  ## and A/B checks against external providers. Do not enable it in production.
+  static:
+    echo "[Tyr-Crypto] -d:tyrSha3OpenSslTestOnly enables libcrypto-backed SHAKE256 for testing only. Never use this in production."
 
-  EvpShake256Proc = proc (): ptr EVP_MD {.cdecl.}
-  EvpMdCtxNewProc = proc (): ptr EVP_MD_CTX {.cdecl.}
-  EvpMdCtxFreeProc = proc (ctx: ptr EVP_MD_CTX) {.cdecl.}
-  EvpDigestInitExProc = proc (ctx: ptr EVP_MD_CTX, typ: ptr EVP_MD,
-    engine: pointer): cint {.cdecl.}
-  EvpDigestUpdateProc = proc (ctx: ptr EVP_MD_CTX, data: pointer,
-    len: csize_t): cint {.cdecl.}
-  EvpDigestFinalXofProc = proc (ctx: ptr EVP_MD_CTX, md: ptr uint8,
-    len: csize_t): cint {.cdecl.}
+  const
+    opensslShakeLibNames = when defined(windows):
+                             @["libcrypto-3-x64.dll"]
+                           elif defined(macosx):
+                             @["libcrypto.3.dylib", "libcrypto.dylib"]
+                           else:
+                             @["libcrypto.so.3", "libcrypto.so"]
 
-var
-  opensslShakeHandle: LibHandle
-  opensslShakeChecked: bool = false
-  opensslShakeReady: bool = false
-  osslShake256: EvpShake256Proc
-  osslMdCtxNew: EvpMdCtxNewProc
-  osslMdCtxFree: EvpMdCtxFreeProc
-  osslDigestInitEx: EvpDigestInitExProc
-  osslDigestUpdate: EvpDigestUpdateProc
-  osslDigestFinalXof: EvpDigestFinalXofProc
+  type
+    EVP_MD = object
+    EVP_MD_CTX = object
 
-proc appendOpenSslCandidates(candidates: var seq[string], dirPath: string) =
+    EvpShake256Proc = proc (): ptr EVP_MD {.cdecl.}
+    EvpMdCtxNewProc = proc (): ptr EVP_MD_CTX {.cdecl.}
+    EvpMdCtxFreeProc = proc (ctx: ptr EVP_MD_CTX) {.cdecl.}
+    EvpDigestInitExProc = proc (ctx: ptr EVP_MD_CTX, typ: ptr EVP_MD,
+      engine: pointer): cint {.cdecl.}
+    EvpDigestUpdateProc = proc (ctx: ptr EVP_MD_CTX, data: pointer,
+      len: csize_t): cint {.cdecl.}
+    EvpDigestFinalXofProc = proc (ctx: ptr EVP_MD_CTX, md: ptr uint8,
+      len: csize_t): cint {.cdecl.}
+
   var
-    trimmed = dirPath.strip()
-    name: string = ""
-  if trimmed.len == 0:
-    return
-  for name in opensslShakeLibNames:
-    candidates.add(joinPath(trimmed, name))
+    opensslShakeHandle: LibHandle
+    opensslShakeChecked: bool = false
+    opensslShakeReady: bool = false
+    osslShake256: EvpShake256Proc
+    osslMdCtxNew: EvpMdCtxNewProc
+    osslMdCtxFree: EvpMdCtxFreeProc
+    osslDigestInitEx: EvpDigestInitExProc
+    osslDigestUpdate: EvpDigestUpdateProc
+    osslDigestFinalXof: EvpDigestFinalXofProc
 
-proc collectOpenSslCandidates(): seq[string] =
-  var
-    envDirs = getEnv("OPENSSL_LIB_DIRS").strip()
-    pathDirs = getEnv("PATH").split(PathSep)
-    dirPath: string = ""
-    moduleDir = splitFile(currentSourcePath()).dir
-    repoRoot = absolutePath(joinPath(moduleDir, "..", "..", "..", ".."))
-    commonWindowsDirs = [
-      r"C:\Program Files\Git\mingw64\bin",
-      r"C:\msys64\mingw64\bin",
-      r"C:\msys64\clang64\bin"
-    ]
-    name: string = ""
-  for name in opensslShakeLibNames:
-    result.add(name)
-  if envDirs.len > 0:
-    for dirPath in envDirs.split({';', ':'}):
+  proc appendOpenSslCandidates(candidates: var seq[string], dirPath: string) =
+    var
+      trimmed = dirPath.strip()
+      name: string = ""
+    if trimmed.len == 0:
+      return
+    for name in opensslShakeLibNames:
+      candidates.add(joinPath(trimmed, name))
+
+  proc collectOpenSslCandidates(): seq[string] =
+    var
+      envDirs = getEnv("OPENSSL_LIB_DIRS").strip()
+      pathDirs = getEnv("PATH").split(PathSep)
+      dirPath: string = ""
+      moduleDir = splitFile(currentSourcePath()).dir
+      repoRoot = absolutePath(joinPath(moduleDir, "..", "..", "..", ".."))
+      commonWindowsDirs = [
+        r"C:\Program Files\Git\mingw64\bin",
+        r"C:\msys64\mingw64\bin",
+        r"C:\msys64\clang64\bin"
+      ]
+      name: string = ""
+    for name in opensslShakeLibNames:
+      result.add(name)
+    if envDirs.len > 0:
+      for dirPath in envDirs.split({';', ':'}):
+        appendOpenSslCandidates(result, dirPath)
+    appendOpenSslCandidates(result, joinPath(repoRoot, "build", "openssl", "lib"))
+    appendOpenSslCandidates(result, joinPath(repoRoot, "build", "openssl", "install", "lib"))
+    for dirPath in pathDirs:
       appendOpenSslCandidates(result, dirPath)
-  appendOpenSslCandidates(result, joinPath(repoRoot, "build", "openssl", "lib"))
-  appendOpenSslCandidates(result, joinPath(repoRoot, "build", "openssl", "install", "lib"))
-  for dirPath in pathDirs:
-    appendOpenSslCandidates(result, dirPath)
-  when defined(windows):
-    for dirPath in commonWindowsDirs:
-      appendOpenSslCandidates(result, dirPath)
+    when defined(windows):
+      for dirPath in commonWindowsDirs:
+        appendOpenSslCandidates(result, dirPath)
 
-proc unloadOpenSslShake() =
-  if opensslShakeHandle != nil:
-    unloadLib(opensslShakeHandle)
-    opensslShakeHandle = nil
-  opensslShakeReady = false
-
-proc loadOpenSslSymbol[T](symName: string, target: var T): bool =
-  let addrSym = symAddr(opensslShakeHandle, symName)
-  if addrSym.isNil:
-    unloadOpenSslShake()
-    return false
-  target = cast[T](addrSym)
-  true
-
-proc ensureOpenSslShakeLoaded(): bool =
-  var
-    candidate: string = ""
-  if opensslShakeChecked:
-    return opensslShakeReady
-  opensslShakeChecked = true
-  for candidate in collectOpenSslCandidates():
-    opensslShakeHandle = loadLib(candidate)
+  proc unloadOpenSslShake() =
     if opensslShakeHandle != nil:
-      break
-  if opensslShakeHandle == nil:
-    return false
-  if not loadOpenSslSymbol("EVP_shake256", osslShake256):
-    return false
-  if not loadOpenSslSymbol("EVP_MD_CTX_new", osslMdCtxNew):
-    return false
-  if not loadOpenSslSymbol("EVP_MD_CTX_free", osslMdCtxFree):
-    return false
-  if not loadOpenSslSymbol("EVP_DigestInit_ex", osslDigestInitEx):
-    return false
-  if not loadOpenSslSymbol("EVP_DigestUpdate", osslDigestUpdate):
-    return false
-  if not loadOpenSslSymbol("EVP_DigestFinalXOF", osslDigestFinalXof):
-    return false
-  opensslShakeReady = true
-  true
+      unloadLib(opensslShakeHandle)
+      opensslShakeHandle = nil
+    opensslShakeReady = false
 
-proc shake256OpenSslInto(dst: var openArray[byte], A: openArray[byte]): bool =
-  var
-    ctx: ptr EVP_MD_CTX
-  if not ensureOpenSslShakeLoaded():
-    return false
-  ctx = osslMdCtxNew()
-  if ctx == nil:
-    return false
-  defer:
-    osslMdCtxFree(ctx)
-  if osslDigestInitEx(ctx, osslShake256(), nil) != 1:
-    return false
-  if A.len > 0 and osslDigestUpdate(ctx, unsafeAddr A[0], csize_t(A.len)) != 1:
-    return false
-  if dst.len > 0 and osslDigestFinalXof(ctx, unsafeAddr dst[0], csize_t(dst.len)) != 1:
-    return false
-  result = true
-
-proc shake256OpenSslInto(dst: var openArray[byte], A0, A1: openArray[byte]): bool =
-  var
-    ctx: ptr EVP_MD_CTX
-  if not ensureOpenSslShakeLoaded():
-    return false
-  ctx = osslMdCtxNew()
-  if ctx == nil:
-    return false
-  defer:
-    osslMdCtxFree(ctx)
-  if osslDigestInitEx(ctx, osslShake256(), nil) != 1:
-    return false
-  if A0.len > 0 and osslDigestUpdate(ctx, unsafeAddr A0[0], csize_t(A0.len)) != 1:
-    return false
-  if A1.len > 0 and osslDigestUpdate(ctx, unsafeAddr A1[0], csize_t(A1.len)) != 1:
-    return false
-  if dst.len > 0 and osslDigestFinalXof(ctx, unsafeAddr dst[0], csize_t(dst.len)) != 1:
-    return false
-  result = true
-
-proc shake256OpenSslInto(dst: var openArray[byte], A0, A1, A2: openArray[byte]): bool =
-  var
-    ctx: ptr EVP_MD_CTX
-  if not ensureOpenSslShakeLoaded():
-    return false
-  ctx = osslMdCtxNew()
-  if ctx == nil:
-    return false
-  defer:
-    osslMdCtxFree(ctx)
-  if osslDigestInitEx(ctx, osslShake256(), nil) != 1:
-    return false
-  if A0.len > 0 and osslDigestUpdate(ctx, unsafeAddr A0[0], csize_t(A0.len)) != 1:
-    return false
-  if A1.len > 0 and osslDigestUpdate(ctx, unsafeAddr A1[0], csize_t(A1.len)) != 1:
-    return false
-  if A2.len > 0 and osslDigestUpdate(ctx, unsafeAddr A2[0], csize_t(A2.len)) != 1:
-    return false
-  if dst.len > 0 and osslDigestFinalXof(ctx, unsafeAddr dst[0], csize_t(dst.len)) != 1:
-    return false
-  result = true
-
-proc shake256OpenSslChunksInto(dst: var openArray[byte], A0, A1, A2: openArray[byte]): bool =
-  var
-    ctx: ptr EVP_MD_CTX
-  if not ensureOpenSslShakeLoaded():
-    return false
-  ctx = osslMdCtxNew()
-  if ctx == nil:
-    return false
-  defer:
-    osslMdCtxFree(ctx)
-  if osslDigestInitEx(ctx, osslShake256(), nil) != 1:
-    return false
-  if A0.len > 0 and osslDigestUpdate(ctx, unsafeAddr A0[0], csize_t(A0.len)) != 1:
-    return false
-  if A1.len > 0 and osslDigestUpdate(ctx, unsafeAddr A1[0], csize_t(A1.len)) != 1:
-    return false
-  if A2.len > 0 and osslDigestUpdate(ctx, unsafeAddr A2[0], csize_t(A2.len)) != 1:
-    return false
-  if dst.len > 0 and osslDigestFinalXof(ctx, unsafeAddr dst[0], csize_t(dst.len)) != 1:
-    return false
-  result = true
-
-proc shake256OpenSslWordsLeInto(dst: var openArray[uint16], A: openArray[byte]): bool =
-  var
-    ctx: ptr EVP_MD_CTX
-    tmp: seq[byte] = @[]
-    i: int = 0
-  if not ensureOpenSslShakeLoaded():
-    return false
-  ctx = osslMdCtxNew()
-  if ctx == nil:
-    return false
-  defer:
-    osslMdCtxFree(ctx)
-  if osslDigestInitEx(ctx, osslShake256(), nil) != 1:
-    return false
-  if A.len > 0 and osslDigestUpdate(ctx, unsafeAddr A[0], csize_t(A.len)) != 1:
-    return false
-  when cpuEndian == littleEndian:
-    if dst.len > 0 and osslDigestFinalXof(ctx, cast[ptr uint8](unsafeAddr dst[0]),
-        csize_t(dst.len * sizeof(uint16))) != 1:
+  proc loadOpenSslSymbol[T](symName: string, target: var T): bool =
+    let addrSym = symAddr(opensslShakeHandle, symName)
+    if addrSym.isNil:
+      unloadOpenSslShake()
       return false
-  else:
-    if dst.len > 0:
-      tmp = newSeq[byte](dst.len * 2)
-      if osslDigestFinalXof(ctx, unsafeAddr tmp[0], csize_t(tmp.len)) != 1:
+    target = cast[T](addrSym)
+    true
+
+  proc ensureOpenSslShakeLoaded(): bool =
+    var
+      candidate: string = ""
+    if opensslShakeChecked:
+      return opensslShakeReady
+    opensslShakeChecked = true
+    for candidate in collectOpenSslCandidates():
+      opensslShakeHandle = loadLib(candidate)
+      if opensslShakeHandle != nil:
+        break
+    if opensslShakeHandle == nil:
+      return false
+    if not loadOpenSslSymbol("EVP_shake256", osslShake256):
+      return false
+    if not loadOpenSslSymbol("EVP_MD_CTX_new", osslMdCtxNew):
+      return false
+    if not loadOpenSslSymbol("EVP_MD_CTX_free", osslMdCtxFree):
+      return false
+    if not loadOpenSslSymbol("EVP_DigestInit_ex", osslDigestInitEx):
+      return false
+    if not loadOpenSslSymbol("EVP_DigestUpdate", osslDigestUpdate):
+      return false
+    if not loadOpenSslSymbol("EVP_DigestFinalXOF", osslDigestFinalXof):
+      return false
+    opensslShakeReady = true
+    true
+
+  proc shake256OpenSslInto(dst: var openArray[byte], A: openArray[byte]): bool =
+    var
+      ctx: ptr EVP_MD_CTX
+    if not ensureOpenSslShakeLoaded():
+      return false
+    ctx = osslMdCtxNew()
+    if ctx == nil:
+      return false
+    defer:
+      osslMdCtxFree(ctx)
+    if osslDigestInitEx(ctx, osslShake256(), nil) != 1:
+      return false
+    if A.len > 0 and osslDigestUpdate(ctx, unsafeAddr A[0], csize_t(A.len)) != 1:
+      return false
+    if dst.len > 0 and osslDigestFinalXof(ctx, unsafeAddr dst[0], csize_t(dst.len)) != 1:
+      return false
+    result = true
+
+  proc shake256OpenSslInto(dst: var openArray[byte], A0, A1: openArray[byte]): bool =
+    var
+      ctx: ptr EVP_MD_CTX
+    if not ensureOpenSslShakeLoaded():
+      return false
+    ctx = osslMdCtxNew()
+    if ctx == nil:
+      return false
+    defer:
+      osslMdCtxFree(ctx)
+    if osslDigestInitEx(ctx, osslShake256(), nil) != 1:
+      return false
+    if A0.len > 0 and osslDigestUpdate(ctx, unsafeAddr A0[0], csize_t(A0.len)) != 1:
+      return false
+    if A1.len > 0 and osslDigestUpdate(ctx, unsafeAddr A1[0], csize_t(A1.len)) != 1:
+      return false
+    if dst.len > 0 and osslDigestFinalXof(ctx, unsafeAddr dst[0], csize_t(dst.len)) != 1:
+      return false
+    result = true
+
+  proc shake256OpenSslInto(dst: var openArray[byte], A0, A1, A2: openArray[byte]): bool =
+    var
+      ctx: ptr EVP_MD_CTX
+    if not ensureOpenSslShakeLoaded():
+      return false
+    ctx = osslMdCtxNew()
+    if ctx == nil:
+      return false
+    defer:
+      osslMdCtxFree(ctx)
+    if osslDigestInitEx(ctx, osslShake256(), nil) != 1:
+      return false
+    if A0.len > 0 and osslDigestUpdate(ctx, unsafeAddr A0[0], csize_t(A0.len)) != 1:
+      return false
+    if A1.len > 0 and osslDigestUpdate(ctx, unsafeAddr A1[0], csize_t(A1.len)) != 1:
+      return false
+    if A2.len > 0 and osslDigestUpdate(ctx, unsafeAddr A2[0], csize_t(A2.len)) != 1:
+      return false
+    if dst.len > 0 and osslDigestFinalXof(ctx, unsafeAddr dst[0], csize_t(dst.len)) != 1:
+      return false
+    result = true
+
+  proc shake256OpenSslChunksInto(dst: var openArray[byte], A0, A1, A2: openArray[byte]): bool =
+    var
+      ctx: ptr EVP_MD_CTX
+    if not ensureOpenSslShakeLoaded():
+      return false
+    ctx = osslMdCtxNew()
+    if ctx == nil:
+      return false
+    defer:
+      osslMdCtxFree(ctx)
+    if osslDigestInitEx(ctx, osslShake256(), nil) != 1:
+      return false
+    if A0.len > 0 and osslDigestUpdate(ctx, unsafeAddr A0[0], csize_t(A0.len)) != 1:
+      return false
+    if A1.len > 0 and osslDigestUpdate(ctx, unsafeAddr A1[0], csize_t(A1.len)) != 1:
+      return false
+    if A2.len > 0 and osslDigestUpdate(ctx, unsafeAddr A2[0], csize_t(A2.len)) != 1:
+      return false
+    if dst.len > 0 and osslDigestFinalXof(ctx, unsafeAddr dst[0], csize_t(dst.len)) != 1:
+      return false
+    result = true
+
+  proc shake256OpenSslWordsLeInto(dst: var openArray[uint16], A: openArray[byte]): bool =
+    var
+      ctx: ptr EVP_MD_CTX
+      tmp: seq[byte] = @[]
+      i: int = 0
+    if not ensureOpenSslShakeLoaded():
+      return false
+    ctx = osslMdCtxNew()
+    if ctx == nil:
+      return false
+    defer:
+      osslMdCtxFree(ctx)
+    if osslDigestInitEx(ctx, osslShake256(), nil) != 1:
+      return false
+    if A.len > 0 and osslDigestUpdate(ctx, unsafeAddr A[0], csize_t(A.len)) != 1:
+      return false
+    when cpuEndian == littleEndian:
+      if dst.len > 0 and osslDigestFinalXof(ctx, cast[ptr uint8](unsafeAddr dst[0]),
+          csize_t(dst.len * sizeof(uint16))) != 1:
         return false
-      i = 0
-      while i < dst.len:
-        dst[i] = uint16(tmp[i * 2]) or (uint16(tmp[i * 2 + 1]) shl 8)
-        i = i + 1
-  result = true
+    else:
+      if dst.len > 0:
+        tmp = newSeq[byte](dst.len * 2)
+        if osslDigestFinalXof(ctx, unsafeAddr tmp[0], csize_t(tmp.len)) != 1:
+          return false
+        i = 0
+        while i < dst.len:
+          dst[i] = uint16(tmp[i * 2]) or (uint16(tmp[i * 2 + 1]) shl 8)
+          i = i + 1
+    result = true
 
 proc sha3DigestBytes*(v: Sha3Variant): int =
   ## Return the digest length in bytes for a fixed SHA3 variant.
@@ -304,9 +314,9 @@ proc sha3VariantFromOutLen*(outLen: int): Sha3Variant =
       "sha3 output length must be one of 28, 32, 48, or 64")
 
 ## Fixed-rate Keccak helpers only index caller-validated buffers and fixed-size
-## stack scratch, so we disable bounds checks in this hot region to reduce the
-## scalar SHA3/SHAKE overhead seen by Kyber and the other PQ backends.
-{.push boundChecks: off.}
+## stack scratch, so we disable bounds/overflow checks in this hot region to
+## reduce the scalar SHA3/SHAKE overhead seen by the PQ backends.
+{.push boundChecks: off, overflowChecks: off.}
 
 proc laneIdx(x, y: int): int {.inline.} =
   result = x + y * 5
@@ -322,7 +332,7 @@ proc load64Le(A: openArray[byte], o: int): uint64 {.inline.} =
     (uint64(A[o + 6]) shl 48) or
     (uint64(A[o + 7]) shl 56)
 
-proc store64Le(A: var openArray[byte], o: int, v: uint64) {.inline.} =
+proc store64Le(A: var openArray[byte], o: int, v: uint64) {.inline, raises: [].} =
   A[o] = byte(v and 0xff'u64)
   A[o + 1] = byte((v shr 8) and 0xff'u64)
   A[o + 2] = byte((v shr 16) and 0xff'u64)
@@ -332,7 +342,7 @@ proc store64Le(A: var openArray[byte], o: int, v: uint64) {.inline.} =
   A[o + 6] = byte((v shr 48) and 0xff'u64)
   A[o + 7] = byte((v shr 56) and 0xff'u64)
 
-proc absorbBlock(S: var Sha3State, A: openArray[byte], o, rateBytes: int) =
+proc absorbBlock(S: var Sha3State, A: openArray[byte], o, rateBytes: int) {.inline, raises: [].} =
   var
     lane: int = 0
     laneCount: int = 0
@@ -343,7 +353,7 @@ proc absorbBlock(S: var Sha3State, A: openArray[byte], o, rateBytes: int) =
     lane = lane + 1
 
 proc absorbFinalBlockWithDomain(S: var Sha3State, A: openArray[byte], o, rateBytes: int,
-    domain: byte) =
+    domain: byte) {.inline, raises: [].} =
   var
     blk: array[168, byte]
     take: int = 0
@@ -359,14 +369,14 @@ proc absorbFinalBlockWithDomain(S: var Sha3State, A: openArray[byte], o, rateByt
   blk[rateBytes - 1] = blk[rateBytes - 1] xor 0x80'u8
   absorbBlock(S, blk, 0, rateBytes)
 
-proc keccakF1600Ref*(S: var Sha3State)
+proc keccakF1600Ref*(S: var Sha3State) {.raises: [].}
 proc shake256Into*(dst: var openArray[byte], A: openArray[byte])
 proc shake256Into*(dst: var openArray[byte], A0, A1: openArray[byte])
 proc shake256Into*(dst: var openArray[byte], A0, A1, A2: openArray[byte])
 proc shake256WordsLeInto*(dst: var openArray[uint16], A: openArray[byte])
 proc shake128Into*(dst: var openArray[byte], A: openArray[byte])
 
-proc squeezeBytesState(S: var Sha3State, dst: var openArray[byte], rateBytes: int) =
+proc squeezeBytesState(S: var Sha3State, dst: var openArray[byte], rateBytes: int) {.inline, raises: [].} =
   var
     i: int = 0
     laneBytes {.noinit.}: array[8, byte]
@@ -390,7 +400,7 @@ proc squeezeBytesState(S: var Sha3State, dst: var openArray[byte], rateBytes: in
     if produced < dst.len:
       keccakF1600Ref(S)
 
-proc squeezeBytesInto(S0: Sha3State, dst: var openArray[byte], rateBytes: int) =
+proc squeezeBytesInto(S0: Sha3State, dst: var openArray[byte], rateBytes: int) {.inline, raises: [].} =
   var
     S {.noinit.} = S0
   squeezeBytesState(S, dst, rateBytes)
@@ -434,7 +444,7 @@ proc absorbFinalBlock(S: var Sha3State, A: openArray[byte], o, rateBytes: int) =
   absorbFinalBlockWithDomain(S, A, o, rateBytes, sha3DomainSuffix)
 
 proc absorbPartState(S: var Sha3State, tail: var array[168, byte], tailLen: var int,
-    A: openArray[byte], rateBytes: int) =
+    A: openArray[byte], rateBytes: int) {.inline, raises: [].} =
   var
     offset: int = 0
     take: int = 0
@@ -463,7 +473,7 @@ proc absorbPartState(S: var Sha3State, tail: var array[168, byte], tailLen: var 
     offset = offset + 1
 
 proc absorbFinalPartsWithDomain(S: var Sha3State, rateBytes: int, domain: byte,
-    A: openArray[byte]) =
+    A: openArray[byte]) {.inline, raises: [].} =
   var
     tail: array[168, byte]
     tailLen: int = 0
@@ -478,7 +488,7 @@ proc absorbFinalPartsWithDomain(S: var Sha3State, rateBytes: int, domain: byte,
   absorbBlock(S, tail, 0, rateBytes)
 
 proc absorbFinalPartsWithDomain(S: var Sha3State, rateBytes: int, domain: byte,
-    A0, A1: openArray[byte]) =
+    A0, A1: openArray[byte]) {.inline, raises: [].} =
   var
     tail: array[168, byte]
     tailLen: int = 0
@@ -494,7 +504,7 @@ proc absorbFinalPartsWithDomain(S: var Sha3State, rateBytes: int, domain: byte,
   absorbBlock(S, tail, 0, rateBytes)
 
 proc absorbFinalPartsWithDomain(S: var Sha3State, rateBytes: int, domain: byte,
-    A0, A1, A2: openArray[byte]) =
+    A0, A1, A2: openArray[byte]) {.inline, raises: [].} =
   var
     tail: array[168, byte]
     tailLen: int = 0
@@ -510,9 +520,41 @@ proc absorbFinalPartsWithDomain(S: var Sha3State, rateBytes: int, domain: byte,
   tail[rateBytes - 1] = tail[rateBytes - 1] xor 0x80'u8
   absorbBlock(S, tail, 0, rateBytes)
 
-proc keccakF1600Ref*(S: var Sha3State) =
+proc keccakF1600Ref*(S: var Sha3State) {.raises: [].} =
   ## Apply the scalar Keccak-f[1600] permutation to a 25-lane state.
+  template chiRow(x0, x1, x2, x3, x4, y0, y1, y2, y3, y4: untyped) =
+    x0 = y0 xor ((not y1) and y2)
+    x1 = y1 xor ((not y2) and y3)
+    x2 = y2 xor ((not y3) and y4)
+    x3 = y3 xor ((not y4) and y0)
+    x4 = y4 xor ((not y0) and y1)
+
   var
+    a0: uint64 = S[0]
+    a1: uint64 = S[1]
+    a2: uint64 = S[2]
+    a3: uint64 = S[3]
+    a4: uint64 = S[4]
+    a5: uint64 = S[5]
+    a6: uint64 = S[6]
+    a7: uint64 = S[7]
+    a8: uint64 = S[8]
+    a9: uint64 = S[9]
+    a10: uint64 = S[10]
+    a11: uint64 = S[11]
+    a12: uint64 = S[12]
+    a13: uint64 = S[13]
+    a14: uint64 = S[14]
+    a15: uint64 = S[15]
+    a16: uint64 = S[16]
+    a17: uint64 = S[17]
+    a18: uint64 = S[18]
+    a19: uint64 = S[19]
+    a20: uint64 = S[20]
+    a21: uint64 = S[21]
+    a22: uint64 = S[22]
+    a23: uint64 = S[23]
+    a24: uint64 = S[24]
     c0: uint64 = 0
     c1: uint64 = 0
     c2: uint64 = 0
@@ -551,11 +593,11 @@ proc keccakF1600Ref*(S: var Sha3State) =
     round: int = 0
   round = 0
   while round < keccakRoundConstants.len:
-    c0 = S[0] xor S[5] xor S[10] xor S[15] xor S[20]
-    c1 = S[1] xor S[6] xor S[11] xor S[16] xor S[21]
-    c2 = S[2] xor S[7] xor S[12] xor S[17] xor S[22]
-    c3 = S[3] xor S[8] xor S[13] xor S[18] xor S[23]
-    c4 = S[4] xor S[9] xor S[14] xor S[19] xor S[24]
+    c0 = a0 xor a5 xor a10 xor a15 xor a20
+    c1 = a1 xor a6 xor a11 xor a16 xor a21
+    c2 = a2 xor a7 xor a12 xor a17 xor a22
+    c3 = a3 xor a8 xor a13 xor a18 xor a23
+    c4 = a4 xor a9 xor a14 xor a19 xor a24
 
     d0 = c4 xor rotateLeftBits(c1, 1)
     d1 = c0 xor rotateLeftBits(c2, 1)
@@ -563,86 +605,92 @@ proc keccakF1600Ref*(S: var Sha3State) =
     d3 = c2 xor rotateLeftBits(c4, 1)
     d4 = c3 xor rotateLeftBits(c0, 1)
 
-    S[0] = S[0] xor d0
-    S[5] = S[5] xor d0
-    S[10] = S[10] xor d0
-    S[15] = S[15] xor d0
-    S[20] = S[20] xor d0
-    S[1] = S[1] xor d1
-    S[6] = S[6] xor d1
-    S[11] = S[11] xor d1
-    S[16] = S[16] xor d1
-    S[21] = S[21] xor d1
-    S[2] = S[2] xor d2
-    S[7] = S[7] xor d2
-    S[12] = S[12] xor d2
-    S[17] = S[17] xor d2
-    S[22] = S[22] xor d2
-    S[3] = S[3] xor d3
-    S[8] = S[8] xor d3
-    S[13] = S[13] xor d3
-    S[18] = S[18] xor d3
-    S[23] = S[23] xor d3
-    S[4] = S[4] xor d4
-    S[9] = S[9] xor d4
-    S[14] = S[14] xor d4
-    S[19] = S[19] xor d4
-    S[24] = S[24] xor d4
+    a0 = a0 xor d0
+    a5 = a5 xor d0
+    a10 = a10 xor d0
+    a15 = a15 xor d0
+    a20 = a20 xor d0
+    a1 = a1 xor d1
+    a6 = a6 xor d1
+    a11 = a11 xor d1
+    a16 = a16 xor d1
+    a21 = a21 xor d1
+    a2 = a2 xor d2
+    a7 = a7 xor d2
+    a12 = a12 xor d2
+    a17 = a17 xor d2
+    a22 = a22 xor d2
+    a3 = a3 xor d3
+    a8 = a8 xor d3
+    a13 = a13 xor d3
+    a18 = a18 xor d3
+    a23 = a23 xor d3
+    a4 = a4 xor d4
+    a9 = a9 xor d4
+    a14 = a14 xor d4
+    a19 = a19 xor d4
+    a24 = a24 xor d4
 
-    b0 = S[0]
-    b10 = rotateLeftBits(S[1], 1)
-    b20 = rotateLeftBits(S[2], 62)
-    b5 = rotateLeftBits(S[3], 28)
-    b15 = rotateLeftBits(S[4], 27)
-    b16 = rotateLeftBits(S[5], 36)
-    b1 = rotateLeftBits(S[6], 44)
-    b11 = rotateLeftBits(S[7], 6)
-    b21 = rotateLeftBits(S[8], 55)
-    b6 = rotateLeftBits(S[9], 20)
-    b7 = rotateLeftBits(S[10], 3)
-    b17 = rotateLeftBits(S[11], 10)
-    b2 = rotateLeftBits(S[12], 43)
-    b12 = rotateLeftBits(S[13], 25)
-    b22 = rotateLeftBits(S[14], 39)
-    b23 = rotateLeftBits(S[15], 41)
-    b8 = rotateLeftBits(S[16], 45)
-    b18 = rotateLeftBits(S[17], 15)
-    b3 = rotateLeftBits(S[18], 21)
-    b13 = rotateLeftBits(S[19], 8)
-    b14 = rotateLeftBits(S[20], 18)
-    b24 = rotateLeftBits(S[21], 2)
-    b9 = rotateLeftBits(S[22], 61)
-    b19 = rotateLeftBits(S[23], 56)
-    b4 = rotateLeftBits(S[24], 14)
+    b0 = a0
+    b10 = rotateLeftBits(a1, 1)
+    b20 = rotateLeftBits(a2, 62)
+    b5 = rotateLeftBits(a3, 28)
+    b15 = rotateLeftBits(a4, 27)
+    b16 = rotateLeftBits(a5, 36)
+    b1 = rotateLeftBits(a6, 44)
+    b11 = rotateLeftBits(a7, 6)
+    b21 = rotateLeftBits(a8, 55)
+    b6 = rotateLeftBits(a9, 20)
+    b7 = rotateLeftBits(a10, 3)
+    b17 = rotateLeftBits(a11, 10)
+    b2 = rotateLeftBits(a12, 43)
+    b12 = rotateLeftBits(a13, 25)
+    b22 = rotateLeftBits(a14, 39)
+    b23 = rotateLeftBits(a15, 41)
+    b8 = rotateLeftBits(a16, 45)
+    b18 = rotateLeftBits(a17, 15)
+    b3 = rotateLeftBits(a18, 21)
+    b13 = rotateLeftBits(a19, 8)
+    b14 = rotateLeftBits(a20, 18)
+    b24 = rotateLeftBits(a21, 2)
+    b9 = rotateLeftBits(a22, 61)
+    b19 = rotateLeftBits(a23, 56)
+    b4 = rotateLeftBits(a24, 14)
 
-    S[0] = b0 xor ((not b1) and b2)
-    S[1] = b1 xor ((not b2) and b3)
-    S[2] = b2 xor ((not b3) and b4)
-    S[3] = b3 xor ((not b4) and b0)
-    S[4] = b4 xor ((not b0) and b1)
-    S[5] = b5 xor ((not b6) and b7)
-    S[6] = b6 xor ((not b7) and b8)
-    S[7] = b7 xor ((not b8) and b9)
-    S[8] = b8 xor ((not b9) and b5)
-    S[9] = b9 xor ((not b5) and b6)
-    S[10] = b10 xor ((not b11) and b12)
-    S[11] = b11 xor ((not b12) and b13)
-    S[12] = b12 xor ((not b13) and b14)
-    S[13] = b13 xor ((not b14) and b10)
-    S[14] = b14 xor ((not b10) and b11)
-    S[15] = b15 xor ((not b16) and b17)
-    S[16] = b16 xor ((not b17) and b18)
-    S[17] = b17 xor ((not b18) and b19)
-    S[18] = b18 xor ((not b19) and b15)
-    S[19] = b19 xor ((not b15) and b16)
-    S[20] = b20 xor ((not b21) and b22)
-    S[21] = b21 xor ((not b22) and b23)
-    S[22] = b22 xor ((not b23) and b24)
-    S[23] = b23 xor ((not b24) and b20)
-    S[24] = b24 xor ((not b20) and b21)
+    chiRow(a0, a1, a2, a3, a4, b0, b1, b2, b3, b4)
+    chiRow(a5, a6, a7, a8, a9, b5, b6, b7, b8, b9)
+    chiRow(a10, a11, a12, a13, a14, b10, b11, b12, b13, b14)
+    chiRow(a15, a16, a17, a18, a19, b15, b16, b17, b18, b19)
+    chiRow(a20, a21, a22, a23, a24, b20, b21, b22, b23, b24)
 
-    S[0] = S[0] xor keccakRoundConstants[round]
+    a0 = a0 xor keccakRoundConstants[round]
     round = round + 1
+
+  S[0] = a0
+  S[1] = a1
+  S[2] = a2
+  S[3] = a3
+  S[4] = a4
+  S[5] = a5
+  S[6] = a6
+  S[7] = a7
+  S[8] = a8
+  S[9] = a9
+  S[10] = a10
+  S[11] = a11
+  S[12] = a12
+  S[13] = a13
+  S[14] = a14
+  S[15] = a15
+  S[16] = a16
+  S[17] = a17
+  S[18] = a18
+  S[19] = a19
+  S[20] = a20
+  S[21] = a21
+  S[22] = a22
+  S[23] = a23
+  S[24] = a24
 
 proc sha3DigestInto*(dst: var openArray[byte], A: openArray[byte], v: Sha3Variant) =
   ## Shared fixed-length SHA3 helper for callers that already own the output buffer.
@@ -667,22 +715,67 @@ proc sha3Digest*(A: openArray[byte], v: Sha3Variant): seq[byte] =
   result = newSeq[byte](sha3DigestBytes(v))
   sha3DigestInto(result, A, v)
 
-proc shake128AbsorbOnce*(S: var Sha3State, A: openArray[byte]) =
+proc shake128AbsorbOnce*(S: var Sha3State, A: openArray[byte]) {.inline, raises: [].} =
   ## Shared SHAKE128 absorb helper so Kyber can stream squeezes without rebuilding input buffers.
   absorbFinalPartsWithDomain(S, shake128RateBytes, shakeDomainSuffix, A)
   keccakF1600Ref(S)
 
-proc shake256AbsorbOnce*(S: var Sha3State, A: openArray[byte]) =
+proc shake256AbsorbOnce*(S: var Sha3State, A: openArray[byte]) {.inline, raises: [].} =
   ## Shared SHAKE256 absorb helper so Dilithium can stream squeezes without rebuilding input buffers.
   absorbFinalPartsWithDomain(S, shake256RateBytes, shakeDomainSuffix, A)
   keccakF1600Ref(S)
 
-proc shake128SqueezeBlocksInto*(S: var Sha3State, dst: var openArray[byte]) =
-  ## Continue squeezing full SHAKE128 blocks from an already absorbed state.
+template shake256OneBlockAlignedInto*(dst, msg: untyped) =
+  ## Specialized SHAKE256 path for one-block, 8-byte-aligned inputs.
+  ## SPHINCS hits this shape constantly for `pub_seed || addr || input`.
+  block:
+    static:
+      doAssert msg.len > 0
+      doAssert msg.len < shake256RateBytes
+      doAssert (msg.len mod 8) == 0
+    var
+      S: Sha3State
+    when msg.len == 64:
+      S[0] = load64Le(msg, 0)
+      S[1] = load64Le(msg, 8)
+      S[2] = load64Le(msg, 16)
+      S[3] = load64Le(msg, 24)
+      S[4] = load64Le(msg, 32)
+      S[5] = load64Le(msg, 40)
+      S[6] = load64Le(msg, 48)
+      S[7] = load64Le(msg, 56)
+      S[8] = uint64(shakeDomainSuffix)
+    elif msg.len == 80:
+      S[0] = load64Le(msg, 0)
+      S[1] = load64Le(msg, 8)
+      S[2] = load64Le(msg, 16)
+      S[3] = load64Le(msg, 24)
+      S[4] = load64Le(msg, 32)
+      S[5] = load64Le(msg, 40)
+      S[6] = load64Le(msg, 48)
+      S[7] = load64Le(msg, 56)
+      S[8] = load64Le(msg, 64)
+      S[9] = load64Le(msg, 72)
+      S[10] = uint64(shakeDomainSuffix)
+    else:
+      var lane: int = 0
+      while lane * keccakLaneBytes < msg.len:
+        S[lane] = load64Le(msg, lane * keccakLaneBytes)
+        lane = lane + 1
+      S[msg.len div keccakLaneBytes] = S[msg.len div keccakLaneBytes] xor uint64(shakeDomainSuffix)
+    S[(shake256RateBytes - 1) div keccakLaneBytes] =
+      S[(shake256RateBytes - 1) div keccakLaneBytes] xor
+      (0x80'u64 shl (8 * ((shake256RateBytes - 1) mod keccakLaneBytes)))
+    keccakF1600Ref(S)
+    if dst.len == 16:
+      store64Le(dst, 0, S[0])
+      store64Le(dst, 8, S[1])
+    else:
+      squeezeBytesInto(S, dst, shake256RateBytes)
+
+proc shake128SqueezeBlocksIntoUnchecked*(S: var Sha3State, dst: var openArray[byte]) {.inline, raises: [].} =
   var
     produced: int = 0
-  if dst.len mod shake128RateBytes != 0:
-    raise newException(ValueError, "shake128 block squeeze requires a whole number of blocks")
   while produced < dst.len:
     store64Le(dst, produced + 0, S[0])
     store64Le(dst, produced + 8, S[1])
@@ -708,12 +801,15 @@ proc shake128SqueezeBlocksInto*(S: var Sha3State, dst: var openArray[byte]) =
     produced = produced + shake128RateBytes
     keccakF1600Ref(S)
 
-proc shake256SqueezeBlocksInto*(S: var Sha3State, dst: var openArray[byte]) =
-  ## Continue squeezing full SHAKE256 blocks from an already absorbed state.
+proc shake128SqueezeBlocksInto*(S: var Sha3State, dst: var openArray[byte]) =
+  ## Continue squeezing full SHAKE128 blocks from an already absorbed state.
+  if dst.len mod shake128RateBytes != 0:
+    raise newException(ValueError, "shake128 block squeeze requires a whole number of blocks")
+  shake128SqueezeBlocksIntoUnchecked(S, dst)
+
+proc shake256SqueezeBlocksIntoUnchecked*(S: var Sha3State, dst: var openArray[byte]) {.inline, raises: [].} =
   var
     produced: int = 0
-  if dst.len mod shake256RateBytes != 0:
-    raise newException(ValueError, "shake256 block squeeze requires a whole number of blocks")
   while produced < dst.len:
     store64Le(dst, produced + 0, S[0])
     store64Le(dst, produced + 8, S[1])
@@ -734,6 +830,12 @@ proc shake256SqueezeBlocksInto*(S: var Sha3State, dst: var openArray[byte]) =
     store64Le(dst, produced + 128, S[16])
     produced = produced + shake256RateBytes
     keccakF1600Ref(S)
+
+proc shake256SqueezeBlocksInto*(S: var Sha3State, dst: var openArray[byte]) =
+  ## Continue squeezing full SHAKE256 blocks from an already absorbed state.
+  if dst.len mod shake256RateBytes != 0:
+    raise newException(ValueError, "shake256 block squeeze requires a whole number of blocks")
+  shake256SqueezeBlocksIntoUnchecked(S, dst)
 
 proc shake256*(A: openArray[byte], outLen: int): seq[byte] =
   ## SHAKE256 XOF over `A` with arbitrary `outLen`.
@@ -780,8 +882,9 @@ proc shake256ChunksInto*(dst: var openArray[byte], A0, A1, A2: openArray[byte]) 
       absorbBlock(S, finalBlock, 0, shake256RateBytes)
       keccakF1600Ref(S)
 
-    if shake256OpenSslChunksInto(dst, A0, A1, A2):
-      return
+    when defined(tyrSha3OpenSslTestOnly):
+      if shake256OpenSslChunksInto(dst, A0, A1, A2):
+        return
     absorbPartialChunk(A0)
     absorbPartialChunk(A1)
     absorbPartialChunk(A2)
@@ -793,8 +896,9 @@ proc shake256Into*(dst: var openArray[byte], A: openArray[byte]) =
   otterSpan("sha3.shake256Into"):
     var
       S: Sha3State
-    if shake256OpenSslInto(dst, A):
-      return
+    when defined(tyrSha3OpenSslTestOnly):
+      if shake256OpenSslInto(dst, A):
+        return
     shake256AbsorbOnce(S, A)
     squeezeBytesInto(S, dst, shake256RateBytes)
 
@@ -815,8 +919,9 @@ proc shake256WordsLeInto*(dst: var openArray[uint16], A: openArray[byte]) =
       S: Sha3State
       rateBytes = shake256RateBytes
       offset: int = 0
-    if shake256OpenSslWordsLeInto(dst, A):
-      return
+    when defined(tyrSha3OpenSslTestOnly):
+      if shake256OpenSslWordsLeInto(dst, A):
+        return
     while offset + rateBytes <= A.len:
       absorbBlock(S, A, offset, rateBytes)
       keccakF1600Ref(S)
