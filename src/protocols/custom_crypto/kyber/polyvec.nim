@@ -387,7 +387,6 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
       r.coeffs[2 * i + 0] = montgomeryReduce(t0)
       r.coeffs[2 * i + 1] = montgomeryReduce(t1)
       i = i + 1
-  polyReduce(r)
 
 proc polyvecReduce*(p: KyberParams, r: var PolyVec) {.inline.} =
   ## Apply Barrett reduction to all coefficients of all vector elements.

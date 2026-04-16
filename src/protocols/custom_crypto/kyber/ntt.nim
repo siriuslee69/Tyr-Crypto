@@ -106,6 +106,13 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
     zeta: int16 = 0
   const f = 1441'i16 ## mont^2 / 128
   when defined(avx2):
+    j = 0
+    while j + 8 <= kyberN:
+      montgomeryMulChunk8(unsafeAddr R[j], unsafeAddr R[j], f)
+      j = j + 8
+    while j < kyberN:
+      R[j] = fqMul(R[j], f)
+      j = j + 1
     len = 2
     while len <= 4:
       start = 0
@@ -138,14 +145,11 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
           j = j + 1
         start = j + len
       len = len shl 1
+  else:
     j = 0
-    while j + 8 <= kyberN:
-      montgomeryMulChunk8(unsafeAddr R[j], unsafeAddr R[j], f)
-      j = j + 8
     while j < kyberN:
       R[j] = fqMul(R[j], f)
       j = j + 1
-  else:
     len = 2
     while len <= 128:
       start = 0
@@ -161,10 +165,6 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
           j = j + 1
         start = j + len
       len = len shl 1
-    j = 0
-    while j < kyberN:
-      R[j] = fqMul(R[j], f)
-      j = j + 1
 
 proc baseMul*(R: var array[2, int16], A, B: array[2, int16], zeta: int16) {.inline.} =
   ## Multiply two degree-1 polynomials in Z_q[X]/(X^2 - zeta).
