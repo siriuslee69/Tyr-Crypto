@@ -106,8 +106,9 @@ proc kyberTyrEncaps*(v: KyberVariant, pk: openArray[byte], seed: seq[byte] = @[]
   clearBytes(pkHash)
   clearBytes(ctHash)
 
-proc kyberTyrTryDecaps*(v: KyberVariant, sk, ct: openArray[byte]): tuple[sharedSecret: seq[byte], ok: bool] =
-  ## Decapsulate a Kyber ciphertext and also report whether re-encryption matched.
+proc kyberTyrTryDecaps(v: KyberVariant, sk, ct: openArray[byte]): tuple[sharedSecret: seq[byte], ok: bool] =
+  ## Internal decapsulation helper that keeps the re-encryption check private
+  ## so callers cannot accidentally expose a validity oracle.
   var
     p: KyberParams = params(v)
     buf: array[2 * kyberSymBytes, byte]
@@ -141,5 +142,6 @@ proc kyberTyrTryDecaps*(v: KyberVariant, sk, ct: openArray[byte]): tuple[sharedS
   clearBytes(hct)
 
 proc kyberTyrDecaps*(v: KyberVariant, sk, ct: openArray[byte]): seq[byte] =
-  ## Decapsulate a Kyber ciphertext and return the derived shared secret.
+  ## Decapsulate a Kyber ciphertext and return the derived shared secret
+  ## without exposing the internal re-encryption check result.
   result = kyberTyrTryDecaps(v, sk, ct).sharedSecret
