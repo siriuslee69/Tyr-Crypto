@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tyr-Crypto Algorithm Notes</title>
+  <link rel="stylesheet" href="./shared.css">
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)'], ['$', '$']],
+        displayMath: [['\\[', '\\]'], ['$$', '$$']]
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+  <script defer src="./shared.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-kicker">Tyr-Crypto</div>
+        <h1>Algorithm Notes</h1>
+        <p>Top-down implementation notes, tuning rationale, security constraints, and worked examples.</p>
+      </div>
+
+      <nav class="nav-list" aria-label="Algorithm Pages">
+        <button class="nav-link is-active" data-page="overview">Overview</button>
+        <button class="nav-link" data-page="kyber">Kyber / ML-KEM</button>
+        <button class="nav-link" data-page="dilithium">Dilithium / ML-DSA</button>
+        <button class="nav-link" data-page="bike">BIKE</button>
+        <button class="nav-link" data-page="frodo">Frodo</button>
+        <button class="nav-link" data-page="mceliece">Classic McEliece</button>
+        <button class="nav-link" data-page="sphincs">SPHINCS+</button>
+      </nav>
+
+      <section class="sidebar-note">
+        <h2>Reading Pattern</h2>
+        <ol>
+          <li>Start with the system view.</li>
+          <li>Follow the module map.</li>
+          <li>Inspect the hot path decisions.</li>
+          <li>Work through the small math examples.</li>
+        </ol>
+      </section>
+    </aside>
+
+    <main class="content-shell">
+      <header class="content-header">
+        <div>
+          <div class="eyebrow" id="page-kicker">Documentation Shell</div>
+          <h2 id="page-title">Overview</h2>
+        </div>
+        <div class="status-pill" id="page-status">Local HTML + MathJax</div>
+      </header>
+
+      <section id="doc-content" class="doc-content" aria-live="polite">
+        <article class="doc-page">
+          <section class="hero-card">
+            <p class="eyebrow">What this shell is for</p>
+            <h3>One loader, many algorithm notes</h3>
+            <p>
+              This root page loads standalone algorithm documents from the corresponding
+              subfolders under <code>docs/</code>. The idea is that every algorithm can keep
+              its own detailed writeup, while the shell provides a common navigation layout,
+              typography, and LaTeX rendering surface.
+            </p>
+          </section>
+
+          <section class="grid-two">
+            <div class="info-card">
+              <h3>Written now</h3>
+              <ul>
+                <li>Kyber / ML-KEM</li>
+                <li>Dilithium / ML-DSA</li>
+                <li>Frodo</li>
+                <li>SPHINCS+</li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h3>Expected follow-up</h3>
+              <ul>
+                <li>BIKE</li>
+                <li>Classic McEliece</li>
+              </ul>
+            </div>
+          </section>
+
+          <section>
+            <h3>Conventions used by these pages</h3>
+            <ul>
+              <li>Start high-level, then descend into modules, then into hot loops.</li>
+              <li>Separate speed work, security work, and rollback decisions explicitly.</li>
+              <li>Use small numeric examples that a reader can recompute by hand.</li>
+              <li>Keep paper references tied to the exact implementation choices they influenced.</li>
+            </ul>
+          </section>
+        </article>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

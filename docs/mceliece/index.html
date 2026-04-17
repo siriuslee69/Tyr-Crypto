@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Classic McEliece Notes</title>
+  <link rel="stylesheet" href="../shared.css">
+  <link rel="stylesheet" href="./mceliece.css">
+  <script>
+    window.MathJax = window.MathJax || {
+      tex: {
+        inlineMath: [['\\(', '\\)'], ['$', '$']],
+        displayMath: [['\\[', '\\]'], ['$$', '$$']]
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+  <script defer src="./mceliece.js"></script>
+</head>
+<body data-doc-title="Classic McEliece" data-doc-kicker="Top-down implementation notes">
+  <style>
+    .mce-toc {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.9rem;
+      margin: 1rem 0 1.4rem;
+    }
+
+    .mce-flow {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.9rem;
+      margin: 1rem 0 1.35rem;
+    }
+
+    .mce-flow-card,
+    .mce-mini-card,
+    .mce-formula-card {
+      padding: 1rem 1.05rem;
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(241, 236, 226, 0.9));
+    }
+
+    .mce-mini-grid,
+    .mce-formula-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.95rem;
+      margin: 1rem 0 1.3rem;
+    }
+
+    .mce-tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin: 0.8rem 0 0;
+    }
+
+    .mce-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.32rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(31, 107, 114, 0.09);
+      color: var(--ink-0);
+      font: 700 0.76rem/1.15 "Trebuchet MS", "Segoe UI", sans-serif;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .mce-key-layout {
+      margin: 1rem 0;
+      padding: 0.95rem 1rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--line);
+      background: #101922;
+      color: #edf2f5;
+      overflow-x: auto;
+    }
+
+    .mce-key-layout strong {
+      color: #fff;
+    }
+
+    .mce-note {
+      color: var(--ink-2);
+      font-size: 0.93rem;
+    }
+
+    .mce-accent {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .mce-tight th,
+    .mce-tight td {
+      padding-top: 0.58rem;
+      padding-bottom: 0.58rem;
+    }
+
+    .mce-example-title {
+      margin-top: 0;
+    }
+
+    .mce-section-link {
+      text-decoration: none;
+    }
+
+    .mce-section-link:hover,
+    .mce-section-link:focus-visible {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 960px) {
+      .mce-toc,
+      .mce-flow,
+      .mce-mini-grid,
+      .mce-formula-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+
+  <article class="doc-page">
+    <section class="hero-card">
+      <p class="eyebrow">Classic McEliece In Tyr</p>
+      <h1>From the big picture down to the hot loops</h1>
+      <p>
+        Tyr's McEliece backend is a parameterized, mostly pure-Nim implementation of the
+        <strong>Classic McEliece Niederreiter KEM</strong>, focused on the
+        <code>6688128f</code>, <code>6960119f</code>, and <code>8192128f</code> fast variants.
+        The implementation starts from the usual code-based story:
+        choose a hidden binary Goppa code, publish a systematic parity-check matrix,
+        encrypt by producing a sparse error vector, and decrypt by reconstructing that error
+        from the syndrome.
+      </p>
+      <p>
+        The interesting engineering work is not in the slogan. It is in the details:
+        parameter-specific reduction polynomials, non-byte-aligned row packing,
+        constant-time sorting and Benes control bits, AVX2-assisted key generation,
+        and making the decapsulation path stay branchless while still being fast.
+      </p>
+      <div class="mce-tag-row">
+        <span class="mce-tag">Code-based KEM</span>
+        <span class="mce-tag">GF(2^13)</span>
+        <span class="mce-tag">Niederreiter form</span>
+        <span class="mce-tag">Keygen-heavy</span>
+        <span class="mce-tag">AVX2 in pkGen</span>
+        <span class="mce-tag">MathJax-ready</span>
+      </div>
+    </section>
+
+    <section class="metric-strip">
+      <div class="metric">
+        <strong>3 variants</strong>
+        <span><code>6688128f</code>, <code>6960119f</code>, <code>8192128f</code></span>
+      </div>
+      <div class="metric">
+        <strong>Main hotspot</strong>
+        <span>Historically <code>controlbits</code>, especially <code>int32SortRaw</code></span>
+      </div>
+      <div class="metric">
+        <strong>Recent range</strong>
+        <span>AVX2 Tyr stayed around <code>0.62x-0.66x</code> of local AVX2-enabled <code>liboqs</code></span>
+      </div>
+    </section>
+
+    <section class="callout">
+      <strong>Reading order:</strong>
+      Start with the system view, then the three hand-computable examples, then the module map.
+      After that, the file-by-file sections explain exactly where the implementation needed tuning,
+      where it resisted tuning, and where security hardening changed the code shape.
+    </section>
+
+    <section>
+      <h2 id="toc">Table Of Contents</h2>
+      <div class="mce-toc toc-list">
+        <a class="mce-section-link" href="#system-view">1. System view</a>
+        <a class="mce-section-link" href="#toy-examples">2. Small worked examples</a>
+        <a class="mce-section-link" href="#variant-table">3. Variant table</a>
+        <a class="mce-section-link" href="#module-map">4. Module map</a>
+        <a class="mce-section-link" href="#module-details">5. Module details</a>
+        <a class="mce-section-link" href="#optimization-story">6. Optimization story</a>
+        <a class="mce-section-link" href="#security-notes">7. Security and hardening</a>
+        <a class="mce-section-link" href="#limits">8. What still resists optimization</a>
+      </div>
+    </section>
+
+    <section id="system-view">
+      <h2>1. System View</h2>
+      <p>
+        At a high level, the code implements the Niederreiter flavor of Classic McEliece.
+        Instead of encrypting a message directly, encapsulation samples a sparse error vector
+        \(e\) of Hamming weight \(t\), computes a syndrome \(c\), and hashes a preimage that
+        contains \(e\) and \(c\). Decapsulation reconstructs the same error vector from the
+        secret Goppa structure and hashes the matching preimage.
+      </p>
+
+      <div class="mce-flow">
+        <div class="mce-flow-card">
+          <p class="eyebrow">Key Generation</p>
+          <h3>Hide structure, publish a systematic matrix</h3>
+          <p>
+            Build an irreducible Goppa polynomial \(g(x)\), a secret support \(L\), and a
+            permutation \(\pi\). From those, derive a large parity-check matrix, row-reduce it
+            into systematic form, and serialize the public tail.
+          </p>
+        </div>
+        <div class="mce-flow-card">
+          <p class="eyebrow">Encapsulation</p>
+          <h3>Sample a sparse error and compute its syndrome</h3>
+          <p>
+            Choose a random bit vector \(e \in \{0,1\}^n\) with exactly \(t\) ones,
+            then compute \(c = H e^T\) using the packed public key.
+            The shared secret is \(K = \text{SHAKE256}(1 \parallel e \parallel c)\).
+          </p>
+        </div>
+        <div class="mce-flow-card">
+          <p class="eyebrow">Decapsulation</p>
+          <h3>Use the hidden code to recover the same error</h3>
+          <p>
+            Rebuild the support via the Benes network, compute the syndrome sequence,
+            recover the locator polynomial with Berlekamp-Massey, evaluate roots,
+            and reconstruct the packed error vector. A masked select then chooses the
+            correct preimage without branching on the validity bit.
+          </p>
+        </div>
+      </div>
+
+      <div class="mce-formula-grid">
+        <div class="mce-formula-card">
+          <h3>Public side</h3>
+          <p>
+            Tyr stores the public key as the packed systematic tail of the parity-check matrix:
+          </p>
+          <p>
+            \[
+            H_{\text{sys}} = \left[I \mid T\right]
+            \]
+          </p>
+          <p>
+            Only the \(T\) part is serialized. That is why the row-packing code in
+            <code>pk_gen.nim</code> matters so much.
+          </p>
+        </div>
+        <div class="mce-formula-card">
+          <h3>Secret side</h3>
+          <p>
+            The secret key layout in this implementation is:
+          </p>
+          <div class="mce-key-layout">
+            <strong>secretKey</strong> =
+            <code>seed[32] || pivots[8] || irr || controlBits || s</code>
+          </div>
+          <p>
+            Here <code>irr</code> is the irreducible Goppa polynomial, <code>controlBits</code>
+            drive the Benes network, and <code>s</code> is the fallback secret portion used by
+            the decapsulation preimage logic.
+          </p>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>Important implementation fact:</strong>
+        Tyr's current SIMD work is concentrated in <code>pk_gen.nim</code>.
+        The AVX2 path helps key generation, especially matrix fill and row xor.
+        It is not a broad "everything is vectorized" port of the full upstream
+        <code>vec/avx</code> implementation.
+      </div>
+    </section>
+
+    <section id="toy-examples">
+      <h2>2. Small Worked Examples</h2>
+      <p>
+        Real Classic McEliece uses \(n\) in the thousands and arithmetic in \(GF(2^{13})\).
+        That is not something people do by hand. The point of the examples below is to keep the
+        algebra recognizable, not to replicate full production sizes.
+      </p>
+
+      <div class="example-box">
+        <h3 class="mce-example-title">Example A: a toy syndrome over \(GF(2)\)</h3>
+        <p>
+          Take the tiny parity-check matrix
+        </p>
+        <p>
+          \[
+          H =
+          \begin{bmatrix}
+          1 & 0 & 1 & 1 \\
+          0 & 1 & 1 & 1
+          \end{bmatrix}
+          \]
+        </p>
+        <p>
+          and the error vector
+        </p>
+        <p>
+          \[
+          e =
+          \begin{bmatrix}
+          0 \\ 1 \\ 0 \\ 1
+          \end{bmatrix}.
+          \]
+        </p>
+        <p>
+          Then
+        </p>
+        <p>
+          \[
+          c = H e^T =
+          \begin{bmatrix}
+          1 \cdot 0 + 0 \cdot 1 + 1 \cdot 0 + 1 \cdot 1 \\
+          0 \cdot 0 + 1 \cdot 1 + 1 \cdot 0 + 1 \cdot 1
+          \end{bmatrix}
+          \bmod 2
+          =
+          \begin{bmatrix}
+          1 \\ 0
+          \end{bmatrix}.
+          \]
+        </p>
+        <p>
+          Tyr's <code>encrypt.nim</code> does exactly this kind of operation, just on the packed
+          systematic matrix tail and on error vectors of weight \(t\).
+        </p>
+      </div>
+
+      <div class="example-box">
+        <h3 class="mce-example-title">Example B: finite-field multiplication by hand</h3>
+        <p>
+          To see how polynomial arithmetic works, use a smaller field:
+          \(GF(2^4) = GF(2)[x]/(x^4 + x + 1)\).
+          Multiply
+          \[
+          a(x) = x^3 + x + 1,\qquad b(x) = x^2 + 1.
+          \]
+        </p>
+        <p>
+          First expand:
+        </p>
+        <p>
+          \[
+          a(x)b(x) = (x^3 + x + 1)(x^2 + 1) = x^5 + x^3 + x + 1
+          \]
+          because the two \(x^2\) terms cancel in characteristic two.
+        </p>
+        <p>
+          Now reduce \(x^5\) modulo \(x^4 + x + 1\):
+          \[
+          x^4 \equiv x + 1 \quad \Rightarrow \quad x^5 \equiv x(x+1)=x^2+x.
+          \]
+          So the final result is
+          \[
+          x^3 + x^2 + 1.
+          \]
+        </p>
+        <p>
+          Tyr's <code>gf.nim</code> does the same style of multiply-and-reduce operation, but in
+          \(GF(2^{13})\). One subtle point was that <code>6960119f</code> does
+          <span class="mce-accent">not</span> use the same reduction pattern as
+          <code>6688128f</code> and <code>8192128f</code>.
+          That variant-specific difference had to be parameterized correctly.
+        </p>
+      </div>
+
+      <div class="example-box">
+        <h3 class="mce-example-title">Example C: what a control-bit layer does</h3>
+        <p>
+          The verification helper in <code>controlbits.nim</code> repeatedly applies layers of
+          conditional swaps. For a tiny stride-1 layer on 8 positions, suppose the input is
+        </p>
+        <p>
+          \[
+          p = [0,1,2,3,4,5,6,7]
+          \]
+        </p>
+        <p>
+          and the layer control bits are
+          \[
+          [1,0,1,0].
+          \]
+        </p>
+        <p>
+          That means:
+        </p>
+        <ul>
+          <li>swap positions \((0,1)\)</li>
+          <li>keep \((2,3)\) unchanged</li>
+          <li>swap \((4,5)\)</li>
+          <li>keep \((6,7)\) unchanged</li>
+        </ul>
+        <p>
+          so the output becomes
+        </p>
+        <p>
+          \[
+          [1,0,2,3,5,4,6,7].
+          \]
+        </p>
+        <p>
+          Real Benes networks use many such stages, recursively arranged. The control-bit problem
+          is to synthesize all those layer decisions so that the whole network realizes the target
+          permutation \(\pi\).
+        </p>
+      </div>
+
+      <div class="callout">
+        <strong>Decode-side syndrome sequence:</strong>
+        the explicit formula most closely mirrored by <code>synd.nim</code> is
+        \[
+        S_j = \sum_{i=0}^{n-1} e_i \cdot \frac{L_i^j}{g(L_i)^2}.
+        \]
+        The code computes this by masking each contribution with the bit
+        \(e_i \in \{0,1\}\), then repeatedly multiplying by \(L_i\).
+      </div>
+    </section>
+
+    <section id="variant-table">
+      <h2>3. Variant Table</h2>
+      <p>
+        The parameter table lives in <code>params.nim</code>. Tyr currently targets only the
+        <code>f</code> variants, where the <code>f</code> means <strong>fast</strong>.
+        These trade the regular variants' structure for faster computation, especially in the
+        support and polynomial arithmetic paths.
+      </p>
+
+      <table class="module-table perf-table mce-tight">
+        <thead>
+          <tr>
+            <th>Variant</th>
+            <th>\(m\)</th>
+            <th>\(n\)</th>
+            <th>\(t\)</th>
+            <th>Rows \(t \cdot m\)</th>
+            <th>Systematic tail columns \(n - tm\)</th>
+            <th>Reduction terms</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>6688128f</code></td>
+            <td>13</td>
+            <td>6688</td>
+            <td>128</td>
+            <td>1664</td>
+            <td>5024</td>
+            <td>\([7,2,1,0]\)</td>
+          </tr>
+          <tr>
+            <td><code>6960119f</code></td>
+            <td>13</td>
+            <td>6960</td>
+            <td>119</td>
+            <td>1547</td>
+            <td>5413</td>
+            <td>\([8,0]\)</td>
+          </tr>
+          <tr>
+            <td><code>8192128f</code></td>
+            <td>13</td>
+            <td>8192</td>
+            <td>128</td>
+            <td>1664</td>
+            <td>6528</td>
+            <td>\([7,2,1,0]\)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="mce-note">
+        The second row is the awkward one. Since \(1547 \bmod 8 \neq 0\), the public-key packing
+        logic for <code>6960119f</code> has a non-byte-aligned tail. That detail drove one of the
+        most important compatibility fixes against upstream behavior.
+      </p>
+    </section>
+
+    <section id="module-map">
+      <h2>4. Module Map</h2>
+      <table class="module-table">
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Role</th>
+            <th>What matters here</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>params.nim</code></td>
+            <td>Variant table</td>
+            <td>Defines \(n\), \(t\), row sizes, reduction terms, and serialization lengths.</td>
+          </tr>
+          <tr>
+            <td><code>util.nim</code></td>
+            <td>Bit, mask, endian, wipe helpers</td>
+            <td>Contains <code>load/store</code> helpers, constant-time masks, and <code>clearSensitiveWords</code>.</td>
+          </tr>
+          <tr>
+            <td><code>gf.nim</code></td>
+            <td>\(GF(2^{13})\) arithmetic</td>
+            <td>Field multiply, inverse, and variant-specific polynomial multiply/reduction.</td>
+          </tr>
+          <tr>
+            <td><code>sk_gen.nim</code></td>
+            <td>Irreducible polynomial generation</td>
+            <td>Gaussian elimination over field elements to derive the minimal polynomial.</td>
+          </tr>
+          <tr>
+            <td><code>root.nim</code></td>
+            <td>Polynomial evaluation</td>
+            <td>Evaluates \(f(L_i)\) over the support.</td>
+          </tr>
+          <tr>
+            <td><code>sort.nim</code></td>
+            <td>Constant-time sorting networks</td>
+            <td>Both the <code>uint64</code> and <code>int32</code> sorters turned out to be performance critical.</td>
+          </tr>
+          <tr>
+            <td><code>transpose.nim</code></td>
+            <td>Bit-matrix transpose</td>
+            <td>Used heavily by bitsliced/Benes and AVX2-assisted matrix fill paths.</td>
+          </tr>
+          <tr>
+            <td><code>pk_gen.nim</code></td>
+            <td>Public-key generation</td>
+            <td>Biggest overall speed lever: matrix build, elimination, packing, and AVX2 row xor.</td>
+          </tr>
+          <tr>
+            <td><code>controlbits.nim</code></td>
+            <td>Benes control-bit synthesis</td>
+            <td>Keygen hotspot; now split into smaller helpers for profiling and optimization.</td>
+          </tr>
+          <tr>
+            <td><code>benes.nim</code> + <code>support.nim</code></td>
+            <td>Support generation</td>
+            <td>Apply the Benes network to rebuild the secret support \(L\).</td>
+          </tr>
+          <tr>
+            <td><code>synd.nim</code></td>
+            <td>Syndrome sequence</td>
+            <td>Builds the \(2t\)-length sequence used by Berlekamp-Massey.</td>
+          </tr>
+          <tr>
+            <td><code>bm.nim</code></td>
+            <td>Berlekamp-Massey</td>
+            <td>Recovers the locator polynomial without secret-dependent branching.</td>
+          </tr>
+          <tr>
+            <td><code>encrypt.nim</code></td>
+            <td>Error-vector sampling and public syndrome</td>
+            <td>Samples weight-\(t\) errors and computes the public-key syndrome.</td>
+          </tr>
+          <tr>
+            <td><code>decrypt.nim</code></td>
+            <td>Error recovery</td>
+            <td>Runs support generation, syndrome, BM, root evaluation, and branchless validity masking.</td>
+          </tr>
+          <tr>
+            <td><code>operations.nim</code></td>
+            <td>Public KEM API</td>
+            <td>Serializes key layout, builds preimages, and selects decap output with a mask.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="module-details">
+      <h2>5. Module Details</h2>
+
+      <h3>5.1 <code>params.nim</code>: the implementation starts with the parameter table</h3>
+      <p>
+        The cleanest improvement here was also one of the most important correctness fixes:
+        the code stopped pretending that all three variants share the same reduction polynomial.
+        That is false. In particular, <code>6960119f</code> must reduce with
+        <code>[8,0]</code>, not with the <code>[7,2,1,0]</code> pattern used by the other two.
+      </p>
+      <p>
+        This module also exposes all derived lengths used elsewhere:
+        row bytes, syndrome bytes, irreducible polynomial bytes, control-bit bytes,
+        and the dimensions of the systematic public-key tail. Without that single source of truth,
+        the row-packing code becomes fragile very quickly.
+      </p>
+
+      <h3>5.2 <code>util.nim</code>: bit operations, masks, and safe wiping</h3>
+      <p>
+        This file is intentionally small. It supplies little-endian load/store helpers,
+        bit reversal, constant-time zero/nonzero masks, and now the
+        <code>clearSensitiveWords</code> helper, which uses volatile stores for POD buffers.
+      </p>
+      <p>
+        The zeroization work is not cosmetic. Key generation and decapsulation allocate large
+        scratch buffers that contain support elements, locator polynomials, packed matrices,
+        permutation material, and transient seeds. Those are now wiped on scope exit in the
+        modules that allocate them.
+      </p>
+
+      <h3>5.3 <code>gf.nim</code> and <code>sk_gen.nim</code>: field arithmetic and irreducibility</h3>
+      <p>
+        The field layer implements branch-free arithmetic in \(GF(2^{13})\). The point is not
+        merely to multiply elements; it is to do so without table lookups indexed by secrets and
+        without variant mixups. The polynomial multiply helper <code>GFmul</code> is parameterized
+        by the selected variant, so the same code can handle both
+        \[
+        x^t + x^7 + x^2 + x + 1
+        \]
+        and
+        \[
+        x^t + x^8 + 1
+        \]
+        style reductions.
+      </p>
+      <p>
+        <code>sk_gen.nim</code> then builds the minimal polynomial of the sampled field elements
+        with Gaussian elimination. If the matrix is singular, key generation retries with fresh
+        seed material. That retry is a keygen-only event, not a decapsulation oracle surface.
+      </p>
+
+      <h3>5.4 <code>root.nim</code>, <code>synd.nim</code>, and <code>bm.nim</code>: the decode math core</h3>
+      <p>
+        These three files together are the mathematical center of decapsulation:
+      </p>
+      <ul>
+        <li><code>root.nim</code> evaluates polynomials over the support.</li>
+        <li><code>synd.nim</code> builds the \(2t\)-term syndrome sequence.</li>
+        <li><code>bm.nim</code> runs Berlekamp-Massey to recover the error-locator polynomial.</li>
+      </ul>
+      <p>
+        The important engineering constraint here is constant-time behavior.
+        Berlekamp-Massey in particular is written with masked updates rather than
+        "if discrepancy then update" style branching.
+      </p>
+
+      <h3>5.5 <code>sort.nim</code>: the unexpectedly important part</h3>
+      <p>
+        The file looks modest, but it ended up being one of the main performance levers.
+        Tyr has constant-time bitonic-style sorters for both <code>uint64</code> and
+        <code>int32</code>. The <code>uint64</code> sort is used in public-key generation
+        to order permutation words; the <code>int32</code> sort is used repeatedly inside
+        control-bit synthesis.
+      </p>
+      <p>
+        A surprising compiler insight came out of this file:
+        the monolithic Nim sorter compiled into much worse code than a chopped version using
+        small inline helpers such as <code>Top</code>, <code>LeadPass</code>,
+        <code>Cascade</code>, and <code>TailPass</code>.
+        That restructuring brought the Nim <code>uint64</code> sorter close to the C helper,
+        and doing the same to <code>int32SortRaw</code> largely rescued pure-Nim
+        <code>controlbits</code> performance.
+      </p>
+
+      <h3>5.6 <code>controlbits.nim</code>: the Benes synthesis bottleneck</h3>
+      <p>
+        This file synthesizes the control bits for the Benes network from the target permutation.
+        It still keeps two relevant paths:
+      </p>
+      <ul>
+        <li>a local C helper path mirroring the upstream clean algorithm</li>
+        <li>a pure-Nim unchecked path used for profiling and comparison</li>
+      </ul>
+      <p>
+        Historically this was the biggest keygen hotspot. The first instinct was to split the
+        recursion into smaller helpers. That made the code easier to instrument but barely moved
+        runtime. Profiling with Otter then showed the real issue:
+        <code>cbRecursion</code> was hot inclusively, but the heaviest leaf routine was
+        <code>int32SortRaw</code>. Optimizing the sorter mattered much more than reshaping the
+        recursion itself.
+      </p>
+      <p>
+        Another useful negative result came from this file: splitting <code>cbCompactLarge</code>
+        did <strong>not</strong> produce a meaningful gain. That is worth recording because it
+        prevents repeated work later.
+      </p>
+
+      <h3>5.7 <code>benes.nim</code> and <code>support.nim</code>: rebuild the hidden support</h3>
+      <p>
+        The Benes layer is what turns abstract control bits into an actual support permutation.
+        <code>supportGen</code> starts from bit-reversed field indices, lays them out bit-slice by
+        bit-slice, and runs each slice through the Benes network. The output support \(L\) is then
+        reconstructed field element by field element.
+      </p>
+      <p>
+        This code is heavy on fixed-structure data movement and transposes. It is performance
+        sensitive, but it is also the kind of code where constant-time behavior is easier to keep
+        because the network structure is fixed once the control bits are chosen.
+      </p>
+
+      <h3>5.8 <code>pk_gen.nim</code>: where most large speedups came from</h3>
+      <p>
+        Public-key generation is the broadest hotspot because it does many expensive things at once:
+        evaluates the Goppa polynomial on the support, batch-inverts all those values, builds the
+        packed matrix, applies masked Gaussian elimination, moves columns near the end, and finally
+        packs the systematic tail into serialized public-key bytes.
+      </p>
+      <p>
+        The important changes here were:
+      </p>
+      <ul>
+        <li>using word-wise row xor rather than byte-by-byte xor in the elimination path</li>
+        <li>adding an AVX2 row-xor hot path with <code>loadu/storeu</code></li>
+        <li>packing 64 values at a time with <code>transpose64x64</code> in the AVX2 matrix fill path</li>
+        <li>fixing non-byte-aligned row packing for <code>6960119f</code></li>
+        <li>narrowing unaligned 64-bit loads into a safe <code>copyMem</code> fallback instead of broad typed aliasing</li>
+      </ul>
+      <p>
+        That last point matters for more than speed. Unaligned typed <code>uint64*</code>
+        dereferences are tolerated by x86 hardware but are still UB-shaped enough to be an optimizer
+        hazard. The current version keeps the aligned fast path and uses the fallback only where the
+        buffer really is unaligned.
+      </p>
+
+      <h3>5.9 <code>encrypt.nim</code>: sparse error generation and packed syndrome evaluation</h3>
+      <p>
+        Encapsulation begins by generating a random weight-\(t\) error vector. The error indices are
+        sampled, deduplicated, and packed into bytes. Then the code computes the public syndrome
+        directly from the packed public-key rows.
+      </p>
+      <p>
+        One useful optimization here was to avoid rebuilding a full temporary row buffer for every
+        public-key row during syndrome computation. Instead, parity is accumulated directly from the
+        stored packed rows. That helped encapsulation, although key generation still dominates the
+        total runtime much more than encapsulation does.
+      </p>
+
+      <h3>5.10 <code>decrypt.nim</code> and <code>operations.nim</code>: constant-time decapsulation</h3>
+      <p>
+        Decapsulation is where timing discipline matters most. Earlier versions had clearly unsafe
+        control flow:
+      </p>
+      <ul>
+        <li>early returns when the recovered error weight differed from \(t\)</li>
+        <li>breaking on the first syndrome mismatch</li>
+        <li>branching on the decapsulation validity bit when building the preimage</li>
+      </ul>
+      <p>
+        Those patterns were removed. The current code accumulates a branchless <code>okMask</code>
+        and uses that mask to build the preimage for
+        \[
+        K = \text{SHAKE256}(b \parallel e' \parallel c)
+        \]
+        without a secret-dependent branch. That change matters much more than a small speed delta.
+      </p>
+    </section>
+
+    <section id="optimization-story">
+      <h2>6. Optimization Story</h2>
+      <p>
+        The optimization work on Tyr's McEliece implementation was deliberately incremental:
+        isolate a hotspot, change one thing, measure, keep or revert. That matters because this
+        code has several places where "obvious" changes either did nothing or regressed.
+      </p>
+
+      <table class="perf-table">
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>Problem</th>
+            <th>Change</th>
+            <th>Outcome</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>params</code> + <code>gf</code></td>
+            <td><code>6960119f</code> needed different reduction behavior</td>
+            <td>Parameterize reduction terms instead of sharing one hardcoded pattern</td>
+            <td>Correctness fix and parity with upstream behavior</td>
+          </tr>
+          <tr>
+            <td><code>pk_gen</code></td>
+            <td>Byte-wise elimination was too slow</td>
+            <td>Use word-wise xor, plus AVX2 row xor where available</td>
+            <td>Large keygen speedup</td>
+          </tr>
+          <tr>
+            <td><code>pk_gen</code></td>
+            <td>Matrix fill was scalar and cache-heavy</td>
+            <td>Pack 64 values at a time using <code>transpose64x64</code></td>
+            <td>Good AVX2-side gain</td>
+          </tr>
+          <tr>
+            <td><code>pk_gen</code></td>
+            <td><code>6960119f</code> row tail is not byte aligned</td>
+            <td>Port the upstream row-packing logic for the non-aligned case</td>
+            <td>Correct public-key serialization</td>
+          </tr>
+          <tr>
+            <td><code>sort</code></td>
+            <td>Monolithic Nim sorter generated poor code</td>
+            <td>Split into small inline passes</td>
+            <td>Very large microbench improvement</td>
+          </tr>
+          <tr>
+            <td><code>controlbits</code></td>
+            <td>Recursion looked hot but was not the true leaf bottleneck</td>
+            <td>Profile with Otter, then optimize <code>int32SortRaw</code></td>
+            <td>Pure-Nim controlbits moved near the C helper</td>
+          </tr>
+          <tr>
+            <td><code>controlbits</code></td>
+            <td><code>cbCompactLarge</code> looked promising</td>
+            <td>Split and benchmark</td>
+            <td>No meaningful gain; reverted</td>
+          </tr>
+          <tr>
+            <td><code>encrypt</code></td>
+            <td>Unnecessary temporary row rebuilds</td>
+            <td>Compute syndrome parity directly from packed rows</td>
+            <td>Encapsulation became leaner, but not the main global win</td>
+          </tr>
+          <tr>
+            <td><code>controlbits</code> / <code>sort</code></td>
+            <td>Local C helpers existed, Nim ports lagged</td>
+            <td>Port and compare one helper at a time</td>
+            <td>Useful measurement discipline and better Nim implementations</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="mce-mini-grid">
+        <div class="mce-mini-card">
+          <h3>Funny but true</h3>
+          <p>
+            One of the most useful findings was that <strong>controlbits itself was not the whole
+            problem</strong>. The real issue was the still-unoptimized <code>int32</code> sorter
+            inside it. Once that sorter got the same chopped inline treatment as the
+            <code>uint64</code> version, the pure-Nim controlbits path became dramatically more
+            competitive.
+          </p>
+        </div>
+        <div class="mce-mini-card">
+          <h3>What did not pan out</h3>
+          <p>
+            Splitting the controlbits recursion for codegen reasons helped readability and made
+            instrumentation easier, but it did not deliver a comparable runtime win. That is a good
+            reminder that inclusive hotspot percentages are not the same thing as true leaf causes.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="security-notes">
+      <h2>7. Security And Hardening Notes</h2>
+
+      <h3>7.1 Secret-dependent branching that had to go</h3>
+      <p>
+        The most important cleanup was on the decapsulation path. Returning early on wrong weight,
+        breaking on the first mismatch, or branching on the final validity bit would all create
+        unnecessary timing structure. The current implementation instead:
+      </p>
+      <ul>
+        <li>accumulates a branchless validity mask during decode</li>
+        <li>uses masked preimage selection in <code>operations.nim</code></li>
+        <li>keeps decapsulation behavior uniform enough to avoid a trivial timing oracle</li>
+      </ul>
+
+      <h3>7.2 SIMD attack surface review</h3>
+      <p>
+        The AVX2 path was audited mainly in <code>pk_gen.nim</code>. Two conclusions matter:
+      </p>
+      <ul>
+        <li>no clear secret/message-dependent branching was found in the AVX2 intrinsics path itself</li>
+        <li>the SIMD work currently lives in key generation, not in attacker-driven decapsulation</li>
+      </ul>
+      <p>
+        That does not make it "done forever", but it does reduce the exposure compared with a
+        vectorized decap path. The more immediate issue found there was the unaligned typed
+        <code>uint64</code> access pattern, which was tightened into an aligned fast path plus a
+        narrow copy fallback.
+      </p>
+
+      <h3>7.3 Zeroization</h3>
+      <p>
+        Wiping transient secret buffers was added across the implementation, especially in:
+      </p>
+      <ul>
+        <li><code>pk_gen.nim</code> for matrix and inversion scratch state</li>
+        <li><code>operations.nim</code> for seed material, permutation state, and preimages</li>
+        <li><code>decrypt.nim</code> for support, locator, syndrome, and comparison buffers</li>
+        <li><code>encrypt.nim</code> for temporary error-generation buffers</li>
+        <li><code>benes.nim</code>, <code>bm.nim</code>, and <code>sk_gen.nim</code> for internal scratch arrays</li>
+      </ul>
+      <p>
+        The goal was to zero memory early enough to matter while keeping the hot paths reasonable.
+        Tyr now does this with <code>clearSensitiveWords</code>, which uses volatile stores on POD
+        buffers. That is a practical compromise: much better than leaving large scratch arrays live,
+        without rewriting every helper into a custom allocator.
+      </p>
+
+      <div class="callout">
+        <strong>Constant-time caveat:</strong>
+        measuring wall-clock time or instruction counts can reveal leaks, but it cannot prove
+        constant-time behavior on its own. The work here removed clear source-level secret branches
+        and tightened memory handling. That is necessary, not the same thing as a full leakage proof.
+      </div>
+    </section>
+
+    <section id="limits">
+      <h2>8. What Still Resists Optimization</h2>
+      <div class="grid-two">
+        <div class="info-card">
+          <h3>Still hard</h3>
+          <ul>
+            <li>fully matching the upstream <code>vec/avx</code> design rather than only parts of it</li>
+            <li>pushing the Benes/control-bit machinery much further without giving up safety or readability</li>
+            <li>making the pure-Nim controlbits path the obvious default in every build shape</li>
+            <li>getting more speed without reintroducing secret-dependent control flow</li>
+          </ul>
+        </div>
+        <div class="info-card">
+          <h3>Current practical state</h3>
+          <ul>
+            <li>scalar Tyr is around parity with the local official AVX2-enabled <code>liboqs</code> build</li>
+            <li>AVX2 Tyr has recently stayed comfortably better than <code>1.0x</code> against that same comparison</li>
+            <li>the biggest remaining wins are more likely to come from deeper vector work than from tiny scalar cleanup</li>
+            <li>security hardening did not destroy AVX2 competitiveness, which is the right tradeoff</li>
+          </ul>
+        </div>
+      </div>
+
+      <blockquote>
+        The McEliece code in Tyr is a good example of why performance work should stay empirical.
+        The biggest wins came from places that looked mundane at first glance:
+        row packing, row xor, and constant-time sort codegen.
+      </blockquote>
+    </section>
+
+    <section class="source-box">
+      <h2>Closing Summary</h2>
+      <p>
+        If you remember only one picture, remember this one:
+        <strong>McEliece in Tyr is mostly a story about moving structured binary data around
+        correctly and quickly, while keeping the secret-dependent parts branchless.</strong>
+      </p>
+      <p>
+        The high-level cryptography is classical code-based KEM design.
+        The implementation story is where the engineering lives:
+        parameter tables, field arithmetic, matrix packing, Benes control bits,
+        AVX2-assisted keygen, targeted zeroization, and careful decapsulation masking.
+      </p>
+      <p class="mce-note">
+        This page is written to stand alone inside <code>docs/mceliece</code>. A later pass can
+        integrate local CSS/JS more tightly into the shared docs loader if needed.
+      </p>
+    </section>
+  </article>
+</body>
+</html>

@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SPHINCS+ Notes</title>
+  <link rel="stylesheet" href="../shared.css">
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)'], ['$', '$']],
+        displayMath: [['\\[', '\\]'], ['$$', '$$']]
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body data-doc-title="SPHINCS+" data-doc-kicker="Top-Down Implementation Notes">
+  <article class="doc-page">
+    <section class="hero-card">
+      <p class="eyebrow">High-Level View</p>
+      <h1>SPHINCS+ in Tyr-Crypto</h1>
+      <p>
+        The Tyr SPHINCS+ backend is a pure-Nim implementation of
+        <code>SPHINCS+-SHAKE-128f-simple</code>. The work followed a strict order:
+        first line the scalar control flow up with the liboqs / PQClean clean implementation,
+        then optimize the shared SHAKE core because SPHINCS+ is hash-dominated, then add SIMD
+        only where the end-to-end benchmark improved without changing the observable safety shape.
+      </p>
+      <p>
+        The resulting design is intentionally conservative. We kept the algorithm structure close
+        to the standard and to the liboqs reference, used fixed-size arrays instead of heap-heavy
+        sequence traffic on hot paths, and introduced constant-time masking only where secret-driven
+        branch or store patterns had to be removed. We did <em>not</em> fork a separate SPHINCS-only
+        Keccak backend, and we did <em>not</em> adopt more radical signer remappings that would have
+        broken deterministic compatibility with the current verification model.
+      </p>
+    </section>
+
+    <section class="metric-strip">
+      <div class="metric">
+        <strong>Reference-first tuning</strong>
+        The scalar layout was pulled closer to liboqs / PQClean before deeper Nim-specific work.
+      </div>
+      <div class="metric">
+        <strong>Hash-first acceleration</strong>
+        The most profitable wins came from fixed-shape SHAKE256 specialization, not from tree logic alone.
+      </div>
+      <div class="metric">
+        <strong>Selective hardening</strong>
+        Constant-time masking and secure wipes were added where secret-bearing state justified the cost.
+      </div>
+    </section>
+
+    <section>
+      <h2>Table of Contents</h2>
+      <ol class="toc-list">
+        <li><a href="#system-view">System View</a></li>
+        <li><a href="#variant">Implemented Variant and Signature Layout</a></li>
+        <li><a href="#module-map">Module Map</a></li>
+        <li><a href="#hot-path">Hot Path by Operation</a></li>
+        <li><a href="#design-decisions">Design Decisions, Optimizations, and Non-Adopted Paths</a></li>
+        <li><a href="#security">Security, Constant-Time Behavior, and Zeroization</a></li>
+        <li><a href="#examples">Worked Examples</a></li>
+        <li><a href="#sources">Papers and Implementation References</a></li>
+      </ol>
+    </section>
+
+    <section id="system-view">
+      <h2>System View</h2>
+      <p>
+        At the top level, SPHINCS+ is a stack of three ideas:
+      </p>
+      <ol>
+        <li>hash the message into a FORS digest plus a hypertree position,</li>
+        <li>sign that digest with FORS to get one root,</li>
+        <li>authenticate that root upward through a hypertree of WOTS+ signatures and Merkle paths.</li>
+      </ol>
+      <div class="callout">
+        <strong>Mental model:</strong> SPHINCS+ is not "one big tree". It is
+        <strong>FORS for message compression</strong> plus a
+        <strong>hypertree of many tiny WOTS+ / Merkle steps</strong>, all driven by a large number
+        of short fixed-shape hashes.
+      </div>
+      <p>
+        That last point explains most of the implementation strategy. The dominant cost is not
+        complicated branching. The dominant cost is repeatedly hashing buffers of known sizes. This is
+        why the most important optimization pass ended up in the shared SHA3/SHAKE module rather than
+        in a SPHINCS-specific control function.
+      </p>
+      <p>
+        The signature structure is
+      </p>
+      <div class="example-box">
+        <p>
+          \[
+            \sigma = R \,\|\, \mathrm{SIG}_{\mathrm{FORS}}
+            \,\|\, \prod_{i=0}^{d-1}
+            \left(
+              \mathrm{SIG}^{(i)}_{\mathrm{WOTS}}
+              \,\|\, \mathrm{AUTH}^{(i)}
+            \right)
+          \]
+        </p>
+        <p>
+          where \(R\) is the message randomizer, \(\mathrm{SIG}_{\mathrm{FORS}}\) signs the message digest
+          portion, and each WOTS+ plus auth-path pair authenticates one root to the next tree layer.
+        </p>
+      </div>
+    </section>
+
+    <section id="variant">
+      <h2>Implemented Variant and Signature Layout</h2>
+      <p>
+        The current local backend implements exactly one parameter set:
+        <code>SPHINCS+-SHAKE-128f-simple</code>. That choice was deliberate:
+        it matched the liboqs comparison target used during the optimization pass, and it avoided
+        overgeneralizing the code before the hot path was understood.
+      </p>
+      <table class="module-table">
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Value</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>\(n\)</td>
+            <td>16</td>
+            <td>Byte width of core hash outputs and secret/public seed components.</td>
+          </tr>
+          <tr>
+            <td>\(h\)</td>
+            <td>66</td>
+            <td>Total hypertree height.</td>
+          </tr>
+          <tr>
+            <td>\(d\)</td>
+            <td>22</td>
+            <td>Number of subtree layers, so each subtree has height \(h / d = 3\).</td>
+          </tr>
+          <tr>
+            <td>\(k\)</td>
+            <td>33</td>
+            <td>Number of FORS trees.</td>
+          </tr>
+          <tr>
+            <td>\(a\)</td>
+            <td>6</td>
+            <td>Height of each FORS tree.</td>
+          </tr>
+          <tr>
+            <td>\(w\)</td>
+            <td>16</td>
+            <td>WOTS+ Winternitz base.</td>
+          </tr>
+          <tr>
+            <td>\(\mathrm{len}\)</td>
+            <td>35</td>
+            <td>WOTS+ chain count: 32 message digits plus 3 checksum digits.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The final signature size is
+      </p>
+      <div class="example-box">
+        <p>
+          \[
+            |\sigma| = n + \mathrm{FORS}_{\mathrm{bytes}} + d \cdot \mathrm{WOTS}_{\mathrm{bytes}} + h \cdot n
+          \]
+        </p>
+        <p>
+          \[
+            = 16 + 3696 + 22 \cdot 560 + 66 \cdot 16 = 17088 \text{ bytes}
+          \]
+        </p>
+      </div>
+      <p>
+        In Tyr this parameter record lives in <code>params.nim</code>, and the implementation stays
+        mostly on fixed arrays because these values are compile-time known.
+      </p>
+    </section>
+
+    <section id="module-map">
+      <h2>Module Map</h2>
+      <table class="module-table">
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Main Role</th>
+            <th>Why It Matters</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>params.nim</code></td>
+            <td>Fixed constants for the implemented SHAKE-128f-simple variant.</td>
+            <td>These values drive array sizes, specialization, and signature layout.</td>
+          </tr>
+          <tr>
+            <td><code>address.nim</code></td>
+            <td>Builds the 32-byte SPHINCS address words.</td>
+            <td>Address domain separation is what keeps WOTS, FORS, tree, and PRF calls distinct.</td>
+          </tr>
+          <tr>
+            <td><code>context.nim</code></td>
+            <td>Stores <code>pubSeed</code> and <code>skSeed</code> for one operation.</td>
+            <td>The secure wipe story starts here because this is direct secret-bearing state.</td>
+          </tr>
+          <tr>
+            <td><code>hash.nim</code></td>
+            <td><code>thash</code>, <code>prfAddr</code>, message randomization, and message hashing.</td>
+            <td>This is the bridge from SPHINCS logic into the shared SHAKE256 implementation.</td>
+          </tr>
+          <tr>
+            <td><code>merkle_utils.nim</code></td>
+            <td>TreeHash and root reconstruction helpers.</td>
+            <td>Auth-path selection and tree climbing live here.</td>
+          </tr>
+          <tr>
+            <td><code>fors.nim</code></td>
+            <td>FORS signing and public-key reconstruction.</td>
+            <td>Compresses the message digest into one root that feeds the hypertree.</td>
+          </tr>
+          <tr>
+            <td><code>wots.nim</code></td>
+            <td>WOTS+ chain logic and WOTS public-key reconstruction.</td>
+            <td>One of the hottest repeated building blocks in sign and verify.</td>
+          </tr>
+          <tr>
+            <td><code>merkle.nim</code></td>
+            <td>WOTS leaf generation and subtree authentication.</td>
+            <td>Contains the signer-side secret-dependent surfaces that were later hardened.</td>
+          </tr>
+          <tr>
+            <td><code>operations.nim</code></td>
+            <td>Keypair, sign, and verify orchestration.</td>
+            <td>This file defines the public high-level API and the validation boundary.</td>
+          </tr>
+          <tr>
+            <td><code>sha3/sha3.nim</code>, <code>sha3/sha3_simd.nim</code></td>
+            <td>Shared Keccak / SHAKE256 scalar and SIMD core.</td>
+            <td>SPHINCS performance is dominated by this shared hash backend.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="hot-path">
+      <h2>Hot Path by Operation</h2>
+
+      <h3>Key Generation</h3>
+      <ol>
+        <li>Take a 48-byte seed and split it into <code>SK.seed</code>, <code>SK.prf</code>, and <code>PK.seed</code>.</li>
+        <li>Build a signing context from <code>SK.seed</code> and <code>PK.seed</code>.</li>
+        <li>Generate the top Merkle root.</li>
+        <li>Assemble <code>SK = SK.seed || SK.prf || PK.seed || root</code> and <code>PK = PK.seed || root</code>.</li>
+      </ol>
+      <p>
+        Key generation is mostly "run the signer support machinery once to compute the public root".
+        That is why several security fixes in the signer path also matter to keygen cleanup.
+      </p>
+
+      <h3>Signing</h3>
+      <ol>
+        <li>Compute the per-message randomizer \(R\) from <code>SK.prf</code>, <code>optrand</code>, and the message.</li>
+        <li>Hash \(R\), the public key, and the message to get:
+          <ul>
+            <li>a FORS digest,</li>
+            <li>a 63-bit tree index,</li>
+            <li>a 3-bit leaf index.</li>
+          </ul>
+        </li>
+        <li>Use FORS to sign the digest and derive one root.</li>
+        <li>For each of the 22 subtree layers, WOTS-sign the current root and append the auth path.</li>
+      </ol>
+      <p>
+        The hot loops here are WOTS chain generation, auth-path construction, and the many short hash calls
+        inside both. This is why the final sign speed depended strongly on one-block SHAKE fast paths and
+        safe batching for WOTS leaf generation.
+      </p>
+
+      <h3>Verification</h3>
+      <ol>
+        <li>Recompute the same digest, tree index, and leaf index from \((R, PK, M)\).</li>
+        <li>Rebuild the FORS public key from the signature.</li>
+        <li>For each subtree layer, rebuild the WOTS public key from the signature, hash it into a leaf, and climb one auth path.</li>
+        <li>Compare the final reconstructed root against the public key root.</li>
+      </ol>
+      <p>
+        Verification branches only on public inputs. That matters for the security story: it means SIMD
+        scheduling on verify can remain branchy as long as the branch condition depends only on public
+        signature data.
+      </p>
+    </section>
+
+    <section id="design-decisions">
+      <h2>Design Decisions, Optimizations, and Non-Adopted Paths</h2>
+
+      <h3>1. Match liboqs / PQClean first</h3>
+      <p>
+        The scalar Tyr path was first brought closer to the liboqs / PQClean clean implementation:
+        fixed stack buffers, similar address flow, and similar top-level control order.
+        This reduced "Nim noise" before deeper optimization began.
+      </p>
+      <div class="callout">
+        <strong>Design rule:</strong> if the pure-Nim control flow solves the same subproblem in a
+        different order from the clean reference, performance debugging becomes guesswork. The 1:1 fit
+        stage came first for that reason.
+      </div>
+
+      <h3>2. Hash specialization mattered more than tree cleverness</h3>
+      <p>
+        The highest-impact optimization was not a new tree traversal. It was a faster path for the
+        repeated short SHAKE256 calls used by <code>thash</code> and <code>prfAddr</code>.
+      </p>
+      <ul>
+        <li>The dominant SPHINCS inputs fit in one SHAKE256 rate block.</li>
+        <li>That enabled a fixed-shape absorb-plus-permute fast path in the shared Keccak backend.</li>
+        <li>The SPHINCS wrapper in <code>hash.nim</code> then routes the hot one-block and two-block cases into that path.</li>
+      </ul>
+      <p>
+        We did <em>not</em> create a separate SPHINCS-only SHAKE algorithm. We kept one shared
+        SHA3/SHAKE implementation and specialized the hot entry points instead. That preserves
+        auditability and test coverage across users of the shared hash module.
+      </p>
+
+      <h3>3. SIMD stayed only where the batch shape was real</h3>
+      <p>
+        AVX2 helped when four lanes truly represented four independent SPHINCS hashes with the same step:
+      </p>
+      <ul>
+        <li><code>prfAddrBatch4</code> for parallel secret-node generation,</li>
+        <li><code>thash1Batch4</code> for one-block node hashing,</li>
+        <li>safe verify-side WOTS batching only when all active lanes are at the same public chain step.</li>
+      </ul>
+      <p>
+        SIMD did <em>not</em> stay enabled everywhere. Early versions that looked attractive in a microbenchmark
+        but lost to scalar end-to-end were rolled back.
+      </p>
+
+      <h3>4. Nim-specific cleanup mattered</h3>
+      <ul>
+        <li>Hot buffers were kept on fixed arrays.</li>
+        <li>Sequence churn was avoided on the signer hot path.</li>
+        <li>Casts were kept mostly at SIMD pack boundaries rather than spread through the tree logic.</li>
+        <li>Memory copies were reduced by using caller-owned buffers and exact-size stack temporaries.</li>
+      </ul>
+      <p>
+        This was the right place to use Nim-specific optimization effort. It improved speed without
+        changing the cryptographic structure.
+      </p>
+
+      <h3>5. Why some ideas were not implemented</h3>
+      <table class="perf-table">
+        <thead>
+          <tr>
+            <th>Idea</th>
+            <th>Why it was not kept or not adopted</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>A separate SPHINCS-only Keccak backend</td>
+            <td>The shared SHA3/SHAKE backend already serves the required fast paths, and forking it would duplicate audit burden.</td>
+          </tr>
+          <tr>
+            <td>Broader cast-heavy buffer reinterpretation</td>
+            <td>The speed gain was not strong enough to justify hiding layout assumptions in more places.</td>
+          </tr>
+          <tr>
+            <td>Full adoption of the SLH-DSA-like side-channel resistant signer from Fluhrer</td>
+            <td>Inference from the paper: it changes the signer mapping and comes with a noticeable slowdown, while the current goal was compatibility with the existing verification and deterministic test flow.</td>
+          </tr>
+          <tr>
+            <td>Hardware-style SLH-DSA padding accelerators</td>
+            <td>The idea is valid, but the main paper here targets dedicated hardware rather than the current portable Nim software backend.</td>
+          </tr>
+          <tr>
+            <td>Additional SPHINCS variants beyond SHAKE-128f-simple</td>
+            <td>The current pass optimized the exact liboqs comparison target first instead of spreading effort over unoptimized variants.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        One platform-specific constraint also mattered: on this Windows machine, the upstream liboqs
+        SPHINCS AVX2 build was not directly available for a true local AVX2-vs-AVX2 comparison. That did
+        not block Tyr's own AVX2 work, but it did limit direct apples-to-apples upstream measurement.
+      </p>
+    </section>
+
+    <section id="security">
+      <h2>Security, Constant-Time Behavior, and Zeroization</h2>
+
+      <h3>Constant-time and side-channel decisions</h3>
+      <p>
+        SPHINCS+ does <em>not</em> have the same signing-failure oracle problem as rejection-based lattice
+        signatures, because signing does not repeatedly reject secret-dependent candidates until one is accepted.
+        The main side-channel question here is different:
+        <strong>do secret-derived values change branches, lane activity, or memory write positions?</strong>
+      </p>
+      <p>
+        The final Tyr hardening addressed the signer-side cases that mattered:
+      </p>
+      <ul>
+        <li>WOTS signature element capture in <code>merkle.nim</code> is now masked instead of branching on the selected chain target.</li>
+        <li>Auth-path selection in <code>merkle_utils.nim</code> is now masked instead of conditionally copying the matching sibling.</li>
+        <li>The helper pair <code>ctMaskEqU32</code> and <code>ctCopyBytesMasked</code> implements those branchless selections.</li>
+        <li>No secret-indexed lookup tables were introduced in the SPHINCS layer or in the shared Keccak backend.</li>
+      </ul>
+      <div class="callout">
+        <strong>Important nuance:</strong> some branches still exist in verification and root-rebuild code,
+        but those branches are driven by public signature or tree-position data, not by hidden signer state.
+      </div>
+      <p>
+        The final public API also avoids an unnecessary oracle surface: verification returns a final boolean
+        instead of exposing stage-by-stage failure reasons. That is not a constant-time issue by itself, but
+        it avoids turning internal reconstruction state into externally visible protocol behavior.
+      </p>
+
+      <h3>Memory zeroization</h3>
+      <p>
+        The zeroization policy is intentionally split in two:
+      </p>
+      <ul>
+        <li><code>zeroMem</code>-based clearing for regular POD scratch and intermediate public-ish state.</li>
+        <li><code>std/volatile.volatileStore</code>-based clearing only for direct secret-bearing state where the optimizer must not elide the wipe.</li>
+      </ul>
+      <p>
+        This split exists because broad volatile wiping on every hot-path buffer was too expensive. The current
+        implementation therefore wipes only the high-value secrets with volatile stores and uses cheaper clearing
+        for the rest.
+      </p>
+      <table class="module-table">
+        <thead>
+          <tr>
+            <th>Where</th>
+            <th>What gets cleared</th>
+            <th>How</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>context.nim</code></td>
+            <td><code>SphincsCtx</code> holding <code>skSeed</code> and <code>pubSeed</code></td>
+            <td><code>clearSensitivePlainData</code> using <code>volatileStore</code></td>
+          </tr>
+          <tr>
+            <td><code>operations.nim</code></td>
+            <td>temporary seed material copied during key generation</td>
+            <td><code>clearSensitiveBytes</code></td>
+          </tr>
+          <tr>
+            <td><code>merkle.nim</code></td>
+            <td>secret WOTS chain nodes created from <code>prfAddr</code></td>
+            <td><code>clearSensitivePlainData</code></td>
+          </tr>
+          <tr>
+            <td><code>fors.nim</code></td>
+            <td><code>skPart</code>, the direct FORS secret leaf material</td>
+            <td><code>clearSensitivePlainData</code></td>
+          </tr>
+          <tr>
+            <td>multiple modules</td>
+            <td>digest buffers, roots, step arrays, and other plain scratch</td>
+            <td><code>clearPlainData</code> / <code>clearBytes</code> via <code>zeroMem</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Validation-boundary hardening</h3>
+      <p>
+        The signing entrypoint now validates secret-key length <em>before</em> dereferencing it.
+        This matters because a short-key crash is not just a correctness problem; in release builds it can
+        become an out-of-bounds read surface. The current public signer rejects malformed keys at the API
+        boundary instead of faulting inside context initialization.
+      </p>
+    </section>
+
+    <section id="examples">
+      <h2>Worked Examples</h2>
+
+      <h3>Example 1: digest split for SHAKE-128f-simple</h3>
+      <p>
+        For this variant, the message hash output is split into:
+      </p>
+      <div class="example-box">
+        <p>
+          \[
+            \mathrm{dgstBytes} =
+            \mathrm{forsMsgBytes} + \mathrm{treeBytes} + \mathrm{leafBytes}
+            = 25 + 8 + 1 = 34
+          \]
+        </p>
+        <p>
+          The first 25 bytes feed FORS, the next 8 bytes encode 63 tree bits, and the last byte contributes
+          the 3 leaf bits used inside one subtree.
+        </p>
+      </div>
+
+      <h3>Example 2: WOTS+ base-\(w\) digits</h3>
+      <p>
+        With \(w = 16\), every byte becomes two base-16 digits. As a toy example:
+      </p>
+      <div class="example-box">
+        <p>
+          \[
+            \texttt{0xAB 0x3F}
+            \longrightarrow
+            (10, 11, 3, 15)
+          \]
+        </p>
+        <p>
+          In a small toy checksum over those four digits,
+          \[
+            c = \sum (15 - d_i) = (5 + 4 + 12 + 0) = 21
+          \]
+          The real implementation does this over 32 message digits and then appends 3 checksum digits,
+          giving the 35 WOTS+ chain lengths used in this parameter set.
+        </p>
+      </div>
+
+      <h3>Example 3: auth path inside one 3-level subtree</h3>
+      <p>
+        Each of the 22 hypertree layers has subtree height 3. Suppose the current leaf index inside one
+        subtree is \(5 = 101_2\).
+      </p>
+      <div class="example-box">
+        <p>
+          Level 0 sibling: \(4\) <br>
+          Level 1 sibling: \(3\) <br>
+          Level 2 sibling: \(0\)
+        </p>
+        <p>
+          The signer includes those three sibling nodes as the auth path. Verification rebuilds the path by
+          hashing left/right pairs in the order implied by the public index bits.
+        </p>
+      </div>
+
+      <h3>Example 4: why hash specialization helped</h3>
+      <p>
+        The hot one-block <code>thash</code> call is:
+      </p>
+      <div class="example-box">
+        <p>
+          \[
+            \mathrm{thash}(X) = \mathrm{SHAKE256}(PK.seed \,\|\, ADRS \,\|\, X)
+          \]
+        </p>
+        <p>
+          For this variant,
+          \[
+            |PK.seed| + |ADRS| + |X| = 16 + 32 + 16 = 64 \text{ bytes}
+          \]
+          which fits in one SHAKE256 rate block. That is why a fixed one-block absorb path was worth adding:
+          the common SPHINCS case does not need the more general absorb machinery.
+        </p>
+      </div>
+    </section>
+
+    <section id="sources">
+      <h2>Papers and Implementation References</h2>
+
+      <div class="source-box">
+        <h3>Specifications and security references</h3>
+        <ul>
+          <li>
+            SPHINCS+ Round 3.1 specification:
+            <a href="https://sphincs.org/data/sphincs%2B-r3.1-specification.pdf">sphincs.org/data/sphincs+-r3.1-specification.pdf</a>
+          </li>
+          <li>
+            NIST FIPS 205, Stateless Hash-Based Digital Signature Standard:
+            <a href="https://doi.org/10.6028/NIST.FIPS.205">doi.org/10.6028/NIST.FIPS.205</a>
+          </li>
+          <li>
+            Tight proof reference:
+            <a href="https://eprint.iacr.org/2024/910">A Tight Security Proof for SPHINCS+, Formally Verified</a>
+          </li>
+        </ul>
+      </div>
+
+      <div class="source-box">
+        <h3>Implementation references used during the pass</h3>
+        <ul>
+          <li>
+            liboqs:
+            <a href="https://github.com/open-quantum-safe/liboqs">github.com/open-quantum-safe/liboqs</a>
+          </li>
+          <li>
+            PQClean clean SPHINCS+-shake-128f-simple tree:
+            <a href="https://github.com/PQClean/PQClean">github.com/PQClean/PQClean</a>
+          </li>
+          <li>
+            Local implementation modules:
+            <code>src/protocols/custom_crypto/sphincs/*.nim</code> and
+            <code>src/protocols/custom_crypto/sha3/*.nim</code>
+          </li>
+        </ul>
+        <p>
+          The Tyr scalar structure was intentionally fitted closer to the clean liboqs / PQClean flow before
+          more aggressive tuning. That gave a trustworthy baseline for both correctness and performance work.
+        </p>
+      </div>
+
+      <div class="source-box">
+        <h3>Optimization and side-channel papers that informed the implementation</h3>
+        <ul>
+          <li>
+            <a href="https://eprint.iacr.org/2023/636">Multi-Armed SPHINCS+</a>
+            reinforced the idea that SPHINCS is highly parallelizable, especially around independent chains.
+          </li>
+          <li>
+            <a href="https://eprint.iacr.org/2022/1726">Optimization for SPHINCS+ using Intel Secure Hash Algorithm Extensions</a>
+            reinforced that the hash core is the right target for software acceleration.
+          </li>
+          <li>
+            <a href="https://eprint.iacr.org/2024/367">Accelerating SLH-DSA by Two Orders of Magnitude with a Single Hash Unit</a>
+            reinforced the value of padding-format and iterative-hash specialization, even though its main implementation target is hardware.
+          </li>
+          <li>
+            <a href="https://eprint.iacr.org/2024/500">Side Channel Resistant Sphincs+</a>
+            informed the side-channel review. Inference: it was not adopted directly because it changes the signer mapping and carries a measurable slowdown.
+          </li>
+        </ul>
+      </div>
+
+      <div class="callout">
+        <strong>Implementation summary:</strong> the final Tyr SPHINCS backend is best described as
+        "spec-faithful and liboqs-aligned first, then hash-specialized, then selectively SIMD-accelerated,
+        then selectively hardened." That order was important. It kept the code auditable while still moving
+        the hot path substantially closer to the reference implementation's shape.
+      </div>
+    </section>
+  </article>
+</body>
+</html>

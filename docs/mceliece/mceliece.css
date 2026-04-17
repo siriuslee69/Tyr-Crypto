@@ -1,0 +1,107 @@
+.mce-toc {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin: 1rem 0 1.4rem;
+}
+
+.mce-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin: 1rem 0 1.35rem;
+}
+
+.mce-flow-card,
+.mce-mini-card,
+.mce-formula-card {
+  padding: 1rem 1.05rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(241, 236, 226, 0.9));
+}
+
+.mce-mini-grid,
+.mce-formula-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.95rem;
+  margin: 1rem 0 1.3rem;
+}
+
+.mce-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0.8rem 0 0;
+}
+
+.mce-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.32rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(31, 107, 114, 0.09);
+  color: var(--ink-0);
+  font: 700 0.76rem/1.15 "Trebuchet MS", "Segoe UI", sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mce-key-layout {
+  margin: 1rem 0;
+  padding: 0.95rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: #101922;
+  color: #edf2f5;
+  overflow-x: auto;
+}
+
+.mce-key-layout strong {
+  color: #fff;
+}
+
+.mce-note {
+  color: var(--ink-2);
+  font-size: 0.93rem;
+}
+
+.mce-accent {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.mce-tight th,
+.mce-tight td {
+  padding-top: 0.58rem;
+  padding-bottom: 0.58rem;
+}
+
+.mce-example-title {
+  margin-top: 0;
+}
+
+.mce-section-link {
+  text-decoration: none;
+}
+
+.mce-section-link:hover,
+.mce-section-link:focus-visible {
+  text-decoration: underline;
+}
+
+.mce-section-link.is-active {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+@media (max-width: 960px) {
+  .mce-toc,
+  .mce-flow,
+  .mce-mini-grid,
+  .mce-formula-grid {
+    grid-template-columns: 1fr;
+  }
+}

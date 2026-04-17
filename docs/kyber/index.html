@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kyber / ML-KEM Notes</title>
+  <link rel="stylesheet" href="../shared.css">
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)'], ['$', '$']],
+        displayMath: [['\\[', '\\]'], ['$$', '$$']]
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body data-doc-title="Kyber / ML-KEM" data-doc-kicker="Top-Down Implementation Notes">
+  <article class="doc-page">
+    <section class="hero-card">
+      <p class="eyebrow">High-Level View</p>
+      <h1>Kyber in Tyr-Crypto</h1>
+      <p>
+        The Tyr Kyber implementation is a pure-Nim ML-KEM backend. The optimization work followed a
+        strict order: first line the control flow up with liboqs / PQClean, then remove Nim-specific
+        overhead such as sequence churn and pass-by-value scratch, then add SIMD only where the
+        end-to-end benchmark actually improved.
+      </p>
+      <p>
+        The main design rule was simple: do not trade away auditability for a tiny local speedup.
+        A good optimization here reduces copies, shortens fixed hot loops, or moves dispatch out of
+        inner loops. A bad optimization hides the data flow behind broad casts, secret-indexed tables,
+        or complicated control flow.
+      </p>
+    </section>
+
+    <section class="metric-strip">
+      <div class="metric">
+        <strong>Reference-first tuning</strong>
+        The Nim path was brought closer to liboqs before deeper micro-optimization.
+      </div>
+      <div class="metric">
+        <strong>Fixed-size state</strong>
+        Hot buffers were kept on fixed arrays and caller-owned scratch where possible.
+      </div>
+      <div class="metric">
+        <strong>Selective hardening</strong>
+        Constant-time compare and selective secure wiping stayed part of the design.
+      </div>
+    </section>
+
+    <section>
+      <h2>Table of Contents</h2>
+      <ol class="toc-list">
+        <li><a href="#system-view">System View</a></li>
+        <li><a href="#module-map">Module Map</a></li>
+        <li><a href="#hot-path">Hot Path by Operation</a></li>
+        <li><a href="#tuning">Performance Problems and Fixes</a></li>
+        <li><a href="#security">Security and Side-Channel Decisions</a></li>
+        <li><a href="#examples">Worked Math Examples</a></li>
+        <li><a href="#sources">Papers and Implementation References</a></li>
+      </ol>
+    </section>
+
+    <section id="system-view">
+      <h2>System View</h2>
+      <p>
+        At the top level, Kyber is three pipelines sharing one polynomial engine:
+      </p>
+      <ol>
+        <li>Key generation samples secret vectors, expands the public matrix, multiplies in the NTT domain, and packs keys.</li>
+        <li>Encapsulation derives message and coins, samples ephemeral vectors, performs matrix-vector arithmetic, and packs ciphertext plus shared secret.</li>
+        <li>Decapsulation unpacks, decrypts the IND-CPA layer, re-encrypts, compares branchlessly, and selects the final secret.</li>
+      </ol>
+      <div class="callout">
+        <strong>Mental model:</strong> Kyber performance is mostly the cost of moving between three
+        representations: packed bytes, coefficient-domain polynomials, and NTT-domain polynomials.
+        The winning optimizations reduced the number of times those representations had to be rebuilt.
+      </div>
+      <p>
+        That is why the final implementation work was not just "make the NTT faster". It also
+        involved closer pack/unpack placement, caller-owned SHAKE output buffers, fixed-size scratch,
+        and more direct alignment with the liboqs dataflow.
+      </p>
+    </section>
+
+    <section id="module-map">
+      <h2>Module Map</h2>
+      <table class="module-table">
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Main Role</th>
+            <th>Why It Matters</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>params.nim</code>, <code>types.nim</code></td>
+            <td>Variant selection, constants, fixed-size records.</td>
+            <td>Known sizes allow the rest of the implementation to stay on arrays instead of heap objects.</td>
+          </tr>
+          <tr>
+            <td><code>reduce.nim</code></td>
+            <td>Montgomery and Barrett reduction.</td>
+            <td>Every multiplication and many normalization steps pass through this code.</td>
+          </tr>
+          <tr>
+            <td><code>ntt.nim</code></td>
+            <td>Forward and inverse NTT butterflies.</td>
+            <td>Small stage-order improvements here translate into large end-to-end gains.</td>
+          </tr>
+          <tr>
+            <td><code>poly.nim</code></td>
+            <td>Single-polynomial arithmetic, message conversion, and noise helpers.</td>
+            <td>Contains many small fixed loops that become expensive because they are repeated everywhere.</td>
+          </tr>
+          <tr>
+            <td><code>polyvec.nim</code></td>
+            <td>Vector arithmetic and matrix-vector multiply-accumulate.</td>
+            <td>This is the real arithmetic hot zone for keygen and encapsulation.</td>
+          </tr>
+          <tr>
+            <td><code>cbd.nim</code>, <code>symmetric.nim</code></td>
+            <td>Noise derivation and XOF plumbing.</td>
+            <td>Poor buffer handling here silently taxes every high-level operation.</td>
+          </tr>
+          <tr>
+            <td><code>indcpa.nim</code></td>
+            <td>IND-CPA keygen, encrypt, decrypt orchestration.</td>
+            <td>This is where arithmetic, packing, and XOF use all meet.</td>
+          </tr>
+          <tr>
+            <td><code>operations.nim</code></td>
+            <td>ML-KEM public API and decapsulation selection logic.</td>
+            <td>Security-sensitive compare and final shared-secret selection happen here.</td>
+          </tr>
+          <tr>
+            <td><code>verify.nim</code>, <code>util.nim</code></td>
+            <td>Constant-time compare / move and clearing helpers.</td>
+            <td>These modules decide whether the optimized arithmetic remains safe to expose.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="hot-path">
+      <h2>Hot Path by Operation</h2>
+
+      <h3>Key Generation</h3>
+      <ol>
+        <li>Expand the public matrix \(A\) from the seed \(\rho\).</li>
+        <li>Sample secret vectors \(s\) and error vectors \(e\).</li>
+        <li>Transform operands into the NTT domain.</li>
+        <li>Compute \(t = A \cdot s + e\).</li>
+        <li>Reduce, normalize, and pack the public and secret keys.</li>
+      </ol>
+      <p>
+        The expensive parts here are matrix generation, NTT conversion, and vector multiply-accumulate.
+        The final Tyr tuning pass improved all three mainly by reducing temporary copies and by making the
+        accumulation path look much more like the liboqs reference structure.
+      </p>
+
+      <h3>Encapsulation</h3>
+      <ol>
+        <li>Hash input material into message and coins.</li>
+        <li>Expand the public matrix and sample the ephemeral vector \(r\).</li>
+        <li>Transform into the NTT domain.</li>
+        <li>Compute \(u = A^T r + e_1\) and \(v = t^T r + e_2 + m\).</li>
+        <li>Compress and pack the ciphertext, then derive the shared secret.</li>
+      </ol>
+      <p>
+        Encapsulation cares both about arithmetic cost and about packing cost. Several wins came from
+        keeping buffers caller-owned and from not bouncing between packed and unpacked form more often
+        than the algorithm requires.
+      </p>
+
+      <h3>Decapsulation</h3>
+      <ol>
+        <li>Unpack ciphertext and secret key material.</li>
+        <li>Run IND-CPA decryption to recover the embedded message.</li>
+        <li>Re-encrypt and compare in constant time.</li>
+        <li>Use a branchless conditional move to select the final shared secret.</li>
+      </ol>
+      <p>
+        This is where speed and hardening meet directly. The compare and final secret selection remain
+        branch-free, and the public "try decaps and return success" style surface was hidden again so
+        the API cannot become a decapsulation oracle by accident.
+      </p>
+    </section>
+
+    <section id="tuning">
+      <h2>Performance Problems and Fixes</h2>
+
+      <h3>1. The first useful optimization was structural alignment</h3>
+      <p>
+        The earliest profitable pass was not a clever arithmetic trick. It was moving the Nim
+        implementation closer to the liboqs / PQClean flow:
+      </p>
+      <ul>
+        <li>pack and unpack close to the actual use sites,</li>
+        <li>caller-owned scratch for SHAKE output and temporary arithmetic state,</li>
+        <li>matrix-vector accumulation laid out in the same broad order as the reference C.</li>
+      </ul>
+      <p>
+        Once the two implementations solve the same subproblem in roughly the same order, the remaining
+        gap becomes understandable. Without that step, "optimization" often becomes random motion.
+      </p>
+
+      <h3>2. Nim overhead had to be removed before SIMD mattered</h3>
+      <ul>
+        <li>Fixed arrays replaced avoidable sequence traffic.</li>
+        <li>Pass-by-value scratch was replaced with borrowed mutable buffers.</li>
+        <li>SHAKE helpers were rewritten around caller-owned output buffers.</li>
+        <li>Zeroing was split into regular clear and secure clear so only secret-bearing exits pay the full cost.</li>
+      </ul>
+      <div class="callout">
+        <strong>Design rule:</strong> a fixed-size buffer with explicit ownership usually beats a
+        cast-heavy shortcut. It is faster enough, safer to audit, and does not hide layout assumptions.
+      </div>
+
+      <h3>3. NTT stage work was cleaned before being interleaved</h3>
+      <p>
+        Forward and inverse NTT stages gained speed from interleaving and from earlier normalization.
+        The point was not to invent a new transform. The point was to shorten loop scaffolding and keep
+        coefficient state in a form that reduces follow-up work.
+      </p>
+      <ul>
+        <li>Forward NTT stages were partially interleaved.</li>
+        <li>Inverse NTT normalization was moved earlier where it removed redundant follow-up work.</li>
+        <li>A redundant post-basemul reduction path was dropped once the new stage order made it unnecessary.</li>
+      </ul>
+
+      <h3>4. Cached basemul was kept only in a linear-access form</h3>
+      <p>
+        "Cached basemul" sounds dangerous if it means secret-indexed tables. That is not what was kept.
+        The accepted version stores intermediate arithmetic state in fixed scratch slots while visiting
+        coefficients in a fixed order. No secret decides which table row or cache line gets touched.
+      </p>
+      <ul>
+        <li>Good cache: fixed-order arithmetic scratch that mirrors the scalar computation.</li>
+        <li>Bad cache: secret-dependent lookup into one of many precomputed result tables.</li>
+      </ul>
+
+      <h3>5. SIMD only stayed where the benchmark justified it</h3>
+      <p>
+        The successful SIMD pieces were the ones that replaced real arithmetic hot loops:
+      </p>
+      <ul>
+        <li>vectorized cached basemul in <code>polyvec.nim</code>,</li>
+        <li>selected AVX2 arithmetic inside the NTT and reduction path,</li>
+        <li>shared SIMD Keccak helpers only where the batching model helped the full operation.</li>
+      </ul>
+      <p>
+        The broad x4 SHAKE experiment was rolled back because it looked attractive in isolation but
+        made end-to-end Kyber slower. That rollback discipline mattered just as much as the kept wins.
+      </p>
+
+      <h3>6. Security hardening stayed selective</h3>
+      <p>
+        Several hardening steps were kept because they solved a real problem without destroying the
+        benchmark picture:
+      </p>
+      <ul>
+        <li>branchless compare and conditional move remain the decapsulation core,</li>
+        <li>the public decapsulation-validity oracle was hidden again,</li>
+        <li>the OpenSSL SHAKE shortcut was gated behind a compile-time testing flag,</li>
+        <li>secure zeroing was added only at strategic exits, not inside arithmetic loops.</li>
+      </ul>
+
+      <h3>7. Summary of the tuning logic</h3>
+      <table class="perf-table">
+        <thead>
+          <tr>
+            <th>Problem</th>
+            <th>Accepted Solution</th>
+            <th>Why It Stayed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Reference mismatch</td>
+            <td>Move the Nim orchestration closer to liboqs first.</td>
+            <td>It made later profiling and comparison much more meaningful.</td>
+          </tr>
+          <tr>
+            <td>Sequence churn</td>
+            <td>Replace with fixed arrays and caller-owned scratch.</td>
+            <td>Less overhead and much better ownership clarity.</td>
+          </tr>
+          <tr>
+            <td>Loop-heavy NTT scaffolding</td>
+            <td>Interleave stages and normalize earlier.</td>
+            <td>Lower loop overhead without changing the math.</td>
+          </tr>
+          <tr>
+            <td>Suspicious basemul cache shape</td>
+            <td>Keep only fixed-order arithmetic scratch.</td>
+            <td>Preserves speed while avoiding secret-driven lookups.</td>
+          </tr>
+          <tr>
+            <td>Tempting but weak SIMD ideas</td>
+            <td>Rollback any SIMD path that loses end-to-end.</td>
+            <td>The final target is whole-algorithm speed, not isolated microbenchmarks.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="security">
+      <h2>Security and Side-Channel Decisions</h2>
+      <p>
+        The security pass focused on side channels that are easy to create during optimization:
+      </p>
+      <ul>
+        <li>secret-dependent branching,</li>
+        <li>secret-dependent table lookup or cache selection,</li>
+        <li>public API surfaces that leak decapsulation validity,</li>
+        <li>leaving secret-bearing temporary state live longer than necessary.</li>
+      </ul>
+      <p>
+        The compare and final secret selection remain branch-free. The accepted cached basemul path uses
+        linear access only. Secret-bearing buffers are wiped at strategic exits with secure clears, while
+        public or short-lived scratch uses regular clears so the implementation does not turn into a wipe loop.
+      </p>
+      <div class="callout">
+        <strong>Important distinction:</strong> the word "cache" by itself does not tell you whether a
+        construction is dangerous. The dangerous version is "pick one prebuilt table from many based on
+        secret data". The kept version here is just fixed-order arithmetic scratch.
+      </div>
+      <p>
+        A second security design choice was to keep the fast OpenSSL-backed SHAKE256 path disabled by
+        default and behind an explicit compile-time testing flag. That preserves the benchmark tool when
+        needed, while keeping the default custom-crypto path self-contained.
+      </p>
+    </section>
+
+    <section id="examples">
+      <h2>Worked Math Examples</h2>
+
+      <div class="example-box">
+        <h3>Example 1: One NTT butterfly</h3>
+        <p>
+          Take modulus \(q = 3329\), inputs \(a = 100\), \(b = 200\), and twiddle \(\zeta = 17\).
+          A simple butterfly step computes
+        </p>
+        <p>
+          \[
+            t = \zeta \cdot b = 17 \cdot 200 = 3400 \equiv 71 \pmod{3329}
+          \]
+        </p>
+        <p>
+          Then the outputs are
+        </p>
+        <p>
+          \[
+            a' = a + t = 171,\qquad
+            b' = a - t = 29
+          \]
+        </p>
+        <p>
+          This is the basic shape repeated across the transform: multiply one side by a twiddle,
+          then add and subtract in the ring.
+        </p>
+      </div>
+
+      <div class="example-box">
+        <h3>Example 2: Rejection sampling from three bytes</h3>
+        <p>
+          Kyber often packs two 12-bit candidates out of three bytes. Take
+        </p>
+        <p>
+          \[
+            b_0 = \texttt{0x34},\qquad
+            b_1 = \texttt{0x12},\qquad
+            b_2 = \texttt{0xAB}
+          \]
+        </p>
+        <p>
+          Then
+        </p>
+        <p>
+          \[
+            d_1 = b_0 + 256 \cdot (b_1 \bmod 16) = 52 + 256 \cdot 2 = 564
+          \]
+        </p>
+        <p>
+          and
+        </p>
+        <p>
+          \[
+            d_2 = \left\lfloor \frac{b_1}{16} \right\rfloor + 16 \cdot b_2 = 1 + 16 \cdot 171 = 2737
+          \]
+        </p>
+        <p>
+          Because both are below \(q = 3329\), both are accepted as coefficients.
+        </p>
+      </div>
+
+      <div class="example-box">
+        <h3>Example 3: Why fixed-order cached basemul is safe</h3>
+        <p>
+          Suppose two coefficient pairs are represented as
+        </p>
+        <p>
+          \[
+            u = (3, 5),\qquad v = (7, 11)
+          \]
+        </p>
+        <p>
+          A tiny fixed-order accumulation computes
+        </p>
+        <p>
+          \[
+            s = 3 \cdot 7 + 5 \cdot 11 = 21 + 55 = 76
+          \]
+        </p>
+        <p>
+          The important implementation point is not the value \(76\). It is that the scratch holding
+          the intermediate products is visited in the same order every time. The code never selects
+          "table 3 instead of table 5" based on a secret.
+        </p>
+      </div>
+    </section>
+
+    <section id="sources">
+      <h2>Papers and Implementation References</h2>
+
+      <div class="source-box">
+        <h3>Standards and base scheme references</h3>
+        <ul>
+          <li><a href="https://csrc.nist.gov/pubs/fips/203/final">FIPS 203: Module-Lattice-Based Key-Encapsulation Mechanism Standard</a></li>
+          <li><a href="https://eprint.iacr.org/2017/634">CRYSTALS-Kyber original design paper / ePrint 2017/634</a></li>
+        </ul>
+      </div>
+
+      <div class="source-box">
+        <h3>Optimization papers that informed the work</h3>
+        <ul>
+          <li><a href="https://eprint.iacr.org/2021/986">Neon NTT and asymmetric multiplication / mulcache-style ideas</a></li>
+          <li><a href="https://eprint.iacr.org/2022/112">Kyber arithmetic and signed Barrett style optimization ideas</a></li>
+          <li><a href="https://eprint.iacr.org/2018/039">Vectorized NTT implementation work</a></li>
+          <li><a href="https://eprint.iacr.org/2023/1962">Broader NTT implementation survey and design space</a></li>
+          <li><a href="https://jcst.ict.ac.cn/article/doi/10.1007/s11390-024-3517-6">Hybrid and interleaved NTT design discussion</a></li>
+        </ul>
+      </div>
+
+      <div class="source-box">
+        <h3>Implementation references used for 1:1 comparison</h3>
+        <ul>
+          <li>liboqs / PQClean reference-style Kyber and ML-KEM dataflow</li>
+          <li>The Tyr-Crypto modules <code>indcpa.nim</code>, <code>poly.nim</code>, <code>polyvec.nim</code>, <code>ntt.nim</code>, and <code>operations.nim</code></li>
+          <li>Measured Sigma and Otter benches after each accepted change</li>
+        </ul>
+      </div>
+    </section>
+  </article>
+</body>
+</html>

@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FrodoKEM Notes</title>
+  <link rel="stylesheet" href="../shared.css">
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)'], ['$', '$']],
+        displayMath: [['\\[', '\\]'], ['$$', '$$']]
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body data-doc-title="Frodo" data-doc-kicker="Top-Down Implementation Notes">
+  <article class="doc-page">
+    <section class="hero-card">
+      <p class="eyebrow">High-Level View</p>
+      <h1>Frodo in Tyr-Crypto</h1>
+      <p>
+        Tyr's Frodo backend is a pure-Nim implementation of the <strong>Round 3
+        FrodoKEM-976-AES</strong> KEM. The guiding idea is the original Frodo design:
+        stay with generic LWE instead of ring structure, accept a larger matrix,
+        and make the implementation explicit and auditable.
+      </p>
+      <p>
+        That design choice shapes everything in the code. Frodo does not spend most
+        of its time in an NTT. It spends most of its time generating slices of a large
+        public matrix \(A \in \mathbb{Z}_q^{n \times n}\) from <code>seed_A</code>,
+        multiplying those slices by skinny secret matrices, and packing the results.
+        The most important optimization work therefore aligned Tyr's streaming matrix
+        path with the liboqs / OpenSSL structure rather than inventing a different
+        algorithm.
+      </p>
+    </section>
+
+    <section class="metric-strip">
+      <div class="metric">
+        <strong>Generic LWE</strong>
+        The hot path is explicit matrix generation plus matrix multiply, not ring arithmetic.
+      </div>
+      <div class="metric">
+        <strong>One implemented variant</strong>
+        The current code tracks <code>frodo976aes</code> only, because that is the tested and benchmarked target.
+      </div>
+      <div class="metric">
+        <strong>Selective hardening</strong>
+        Constant-time compare and masked decapsulation selection stayed in the design; public-only matrix generation was allowed to use faster AES plumbing.
+      </div>
+    </section>
+
+    <section>
+      <h2>Table of Contents</h2>
+      <ol class="toc-list">
+        <li><a href="#system-view">System View</a></li>
+        <li><a href="#module-map">Module Map</a></li>
+        <li><a href="#hot-path">Hot Path by Operation</a></li>
+        <li><a href="#implementation">Implementation Decisions and Tradeoffs</a></li>
+        <li><a href="#security">Security, Zeroization, and Side-Channel Notes</a></li>
+        <li><a href="#examples">Worked Math Examples</a></li>
+        <li><a href="#sources">Papers and Implementation References</a></li>
+      </ol>
+    </section>
+
+    <section id="system-view">
+      <h2>System View</h2>
+      <p>
+        At the top level, FrodoKEM-976-AES in this repo is three fixed pipelines:
+      </p>
+      <ol>
+        <li><strong>Key generation</strong>: derive <code>seed_A</code>, sample \(S\) and \(E\), compute \(B = A S + E\), then pack the public and secret keys.</li>
+        <li><strong>Encapsulation</strong>: sample \(\mu\), derive ephemeral noise, compute \(B' = S' A + E'\) and \(V = S' B + E''\), then form \(C = V + \text{encode}(\mu)\).</li>
+        <li><strong>Decapsulation</strong>: recompute \(W = C - B' S\), decode \(\mu'\), rebuild the expected ciphertext branchlessly, and select the final shared-secret preimage with a mask instead of a branch.</li>
+      </ol>
+      <div class="callout">
+        <strong>Mental model:</strong> Frodo performance is mostly the cost of
+        moving through four representations in a fixed order:
+        seed material, matrix slices, word matrices, and packed byte strings.
+        The winning work reduced matrix-generation overhead and kept those
+        transformations close to the exact call sites that need them.
+      </div>
+      <p>
+        For this variant, the fixed parameters are
+        \[
+        n = 976, \quad \bar{n} = 8, \quad q = 2^{16}, \quad B = 3.
+        \]
+        That means \(A\) is large, but all secret and ciphertext-side matrices are narrow.
+        Tyr takes advantage of that shape by streaming four public rows at a time for
+        \(A S + E\) and eight public columns at a time for \(S' A + E'\).
+      </p>
+
+      <div class="grid-two">
+        <div class="info-card">
+          <h3>Public objects</h3>
+          <ul>
+            <li><code>seed_A</code> and the derived public matrix \(A\)</li>
+            <li>the packed public key \(pk = (seed_A, \text{pack}(B))\)</li>
+            <li>the ciphertext \(ct = (\text{pack}(B'), \text{pack}(C))\)</li>
+          </ul>
+          <p>
+            Because \(A\) is public-derived, the matrix-generation path is allowed
+            to use the faster public-data AES helpers.
+          </p>
+        </div>
+        <div class="info-card">
+          <h3>Secret objects</h3>
+          <ul>
+            <li>the keypair seed prefix \(s\) stored at the front of <code>sk</code></li>
+            <li>the secret matrix \(S\)</li>
+            <li>sampled error matrices and decoded \(\mu'\)</li>
+            <li>the final preimage selected during decapsulation</li>
+          </ul>
+          <p>
+            These are the values that drive constant-time compare/select logic
+            and the explicit clear loops at the end of keygen, encaps, and decaps.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="module-map">
+      <h2>Module Map</h2>
+      <table class="module-table">
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Main Role</th>
+            <th>Why It Matters</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>frodo/params.nim</code></td>
+            <td>Defines <code>frodo976aes</code> and its fixed constants.</td>
+            <td>The rest of the implementation assumes these exact dimensions and bit widths, which is why the hot loops can stay fixed-shape.</td>
+          </tr>
+          <tr>
+            <td><code>frodo/util.nim</code></td>
+            <td>Endian helpers, pack/unpack, constant-time compare/select, and clear loops.</td>
+            <td>This is where serialized Frodo objects turn into word arrays and where decapsulation masking happens.</td>
+          </tr>
+          <tr>
+            <td><code>frodo/noise.nim</code></td>
+            <td>Maps raw pseudo-random words through the Frodo CDF noise sampler.</td>
+            <td>The sampler touches secret material, so its loop structure matters for both speed and leakage shape.</td>
+          </tr>
+          <tr>
+            <td><code>frodo/operations.nim</code></td>
+            <td>All matrix kernels plus keypair, encapsulation, and decapsulation orchestration.</td>
+            <td>This is the algorithm core and the main performance hotspot.</td>
+          </tr>
+          <tr>
+            <td><code>frodo.nim</code></td>
+            <td>Facade that re-exports the Frodo submodules.</td>
+            <td>Lets the rest of the codebase treat the Frodo folder as one algorithm unit.</td>
+          </tr>
+          <tr>
+            <td><code>aes/aes_core.nim</code></td>
+            <td>Public-matrix AES backends: scalar public fast path, AES-NI, and OpenSSL ECB context path.</td>
+            <td>The matrix \(A\) is generated by AES-128-ECB, so this dependency directly controls Frodo throughput.</td>
+          </tr>
+          <tr>
+            <td><code>sha3/sha3.nim</code></td>
+            <td>SHAKE-based seed expansion, hashing, and word-filling helpers.</td>
+            <td>Key derivation, sampling input generation, and final shared-secret hashing all pass through this code.</td>
+          </tr>
+          <tr>
+            <td><code>tests/test_frodo_tyr.nim</code>, <code>tests/test_frodo_kat.nim</code></td>
+            <td>Roundtrip, interop, and KAT alignment with liboqs.</td>
+            <td>These tests define what "same construction" means in practice for this repo.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="hot-path">
+      <h2>Hot Path by Operation</h2>
+
+      <h3>Key Generation</h3>
+      <ol>
+        <li>Split 64 bytes of explicit or generated randomness into the fallback secret prefix, seed material for <code>seed_A</code>, and seed material for \(S\) and \(E\).</li>
+        <li>Expand <code>seed_A</code> with SHAKE.</li>
+        <li>Expand pseudo-random words for \(S\) and \(E\), then map them through the CDF sampler.</li>
+        <li>Compute \(B = A S + E \pmod q\) with the streaming <code>mulAddAsPlusEStream</code> path.</li>
+        <li>Serialize <code>pk = seed_A || pack(B)</code> and <code>sk = s || pk || S || H(pk)</code>.</li>
+      </ol>
+      <p>
+        The expensive part is step 4. Tyr does not materialize the full \(976 \times 976\)
+        matrix in the production path. It generates four rows at a time from
+        <code>seed_A</code>, multiplies them against the eight secret columns, and discards
+        the row block once the contribution has been accumulated.
+      </p>
+
+      <h3>Encapsulation</h3>
+      <ol>
+        <li>Hash \(H(pk)\) together with \(\mu\) to derive ephemeral seed material and a candidate shared-secret suffix.</li>
+        <li>Expand and sample \(S'\), \(E'\), and \(E''\).</li>
+        <li>Compute \(B' = S' A + E'\) with the streaming <code>mulAddSaPlusEStream</code> path.</li>
+        <li>Unpack \(B\) from the public key, then compute \(V = S' B + E''\).</li>
+        <li>Encode \(\mu\), add it to \(V\), pack the ciphertext, and hash \((ct || k')\) into the final shared secret.</li>
+      </ol>
+      <p>
+        Encapsulation has two different multiplication shapes:
+        \[
+        B' = S' A + E', \qquad V = S' B + E''.
+        \]
+        The first one is expensive because it still has to generate slices of \(A\);
+        the second is cheaper because \(B\) is only \(976 \times 8\), not \(976 \times 976\).
+      </p>
+
+      <h3>Decapsulation</h3>
+      <ol>
+        <li>Unpack \(B'\) and \(C\) from the ciphertext and recover \(S\) from the secret key.</li>
+        <li>Compute \(W = C - B' S\), then decode \(\mu'\).</li>
+        <li>Recreate the same ephemeral seed derivation the sender should have used.</li>
+        <li>Recompute \(B''\) and \(C''\) from \(\mu'\) and compare both to the received ciphertext.</li>
+        <li>Use a constant-time selector to choose either the recomputed key material or the secret fallback prefix from <code>sk</code>, then hash \((ct || selected)\).</li>
+      </ol>
+      <p>
+        That last step is the Fujisaki-Okamoto style hardening point. Tyr does not
+        return "valid / invalid" and then a secret. It always returns a shared secret
+        and keeps the validity bit inside masked selection logic.
+      </p>
+    </section>
+
+    <section id="implementation">
+      <h2>Implementation Decisions and Tradeoffs</h2>
+
+      <h3>1. Only <code>frodo976aes</code> is implemented right now</h3>
+      <p>
+        <code>frodo/params.nim</code> defines only one variant:
+        <code>frodo976aes</code>. That was deliberate. This repo's local tests,
+        KAT comparison, and benchmark work all centered on that variant, so the first
+        goal was to make one path correct, benchmarkable, and competitive before
+        multiplying the maintenance surface with the other AES and SHAKE families.
+      </p>
+
+      <h3>2. The production path streams \(A\) instead of materializing it</h3>
+      <p>
+        A full \(976 \times 976\) matrix of 16-bit words is about 1.9 MB. That is not
+        impossible to allocate, but it is wasteful for the hot path because each operation
+        only needs a small slice at a time. Tyr keeps the fully materialized
+        <code>generateMatrixA</code> helper mainly as a straightforward reference shape,
+        while keygen and encaps use the streaming row and column kernels.
+      </p>
+      <div class="callout">
+        <strong>Why this matters:</strong> the algorithm is not just "matrix multiply".
+        It is "generate matrix slice, consume matrix slice, move on". Keeping the same
+        streaming structure as the reference implementation makes both performance tuning
+        and correctness auditing easier.
+      </div>
+
+      <h3>3. The matrix generator was aligned with liboqs / OpenSSL</h3>
+      <p>
+        The recent Frodo work in Tyr did not change the mathematics. It changed the
+        implementation shape of the public-matrix generator:
+      </p>
+      <ul>
+        <li>prefer a persistent OpenSSL <code>EVP_aes_128_ecb</code> context for bulk public-matrix generation,</li>
+        <li>fall back to the local AES-NI bulk path when needed,</li>
+        <li>fall back again to the scalar public fast path when SIMD or OpenSSL is unavailable,</li>
+        <li>generate four rows at a time for \(A S + E\) and eight columns at a time for \(S' A + E'\),</li>
+        <li>use aligned transposed scratch where the AVX2 path wants column-major access.</li>
+      </ul>
+      <p>
+        This is why <code>mulAddAsPlusEStream</code> and <code>mulAddSaPlusEStream</code>
+        look the way they do today. The point was to bring Tyr closer to the layout that
+        liboqs already proved fast, not to create a completely different kernel family.
+      </p>
+
+      <h3>4. Fast AES table code is allowed only for public data</h3>
+      <p>
+        The scalar helper names are explicit about this:
+        <code>initPublicFast</code> and <code>encryptBlockPublicFast</code>.
+        Their job is public-matrix expansion from <code>seed_A</code>, and
+        <code>seed_A</code> is public by construction. That is why the code accepts a
+        faster public-only AES path here instead of forcing every matrix byte through
+        the secret-handling AES discipline used for private material in other contexts.
+      </p>
+      <p>
+        In other words: this was not a silent weakening. It was a scoped decision
+        tied to the fact that \(A\) is public-derived.
+      </p>
+
+      <h3>5. Some things were intentionally not implemented</h3>
+      <div class="grid-two">
+        <div class="info-card">
+          <h3>Not implemented yet</h3>
+          <ul>
+            <li>the other Round 3 Frodo parameter sets such as <code>frodo640aes</code> and <code>frodo1344aes</code></li>
+            <li>the SHAKE-based Frodo variants</li>
+            <li>full higher-order masking of the decapsulation path</li>
+            <li>a formal secure-wipe primitive with volatile semantics for all secret buffers</li>
+          </ul>
+        </div>
+        <div class="info-card">
+          <h3>Why not</h3>
+          <ul>
+            <li>the repo's benchmark and interop target was <code>frodo976aes</code></li>
+            <li>the fastest alignment work was on the AES public-matrix path, so the SHAKE family would duplicate the main tuning effort</li>
+            <li>masked Frodo is a different engineering problem and needs stronger leakage validation than this repo currently carries</li>
+            <li>plain clear loops are useful hygiene, but moving to a guaranteed optimizer-resistant wipe should be treated as a cross-repo hardening task, not a Frodo-only patch</li>
+          </ul>
+        </div>
+      </div>
+      <p>
+        A second deliberate omission is a decapsulation API that exposes a success bit.
+        The code always returns a shared secret. That keeps the failure condition inside
+        the masked preimage selection logic instead of turning it into an obvious oracle surface.
+      </p>
+
+      <h3>6. KAT compatibility and liboqs parity were treated as implementation requirements</h3>
+      <p>
+        The Frodo tests do more than "it roundtrips". The KAT path rebuilds the deterministic
+        transcript and checks that Tyr matches the liboqs FrodoKEM-976-AES corpus. That matters
+        because a code path can be fast and still quietly stop being the same construction.
+      </p>
+    </section>
+
+    <section id="security">
+      <h2>Security, Zeroization, and Side-Channel Notes</h2>
+
+      <h3>1. Constant-time decapsulation compare and selection</h3>
+      <p>
+        The core decapsulation hardening lives in <code>frodo/util.nim</code> and the end
+        of <code>frodo/operations.nim</code>:
+      </p>
+      <ul>
+        <li><code>ctVerifyWords</code> accumulates a word-wise XOR difference over the whole buffer and compresses it to <code>0</code> or <code>-1</code> without early exit.</li>
+        <li><code>ctSelectBytes</code> copies one candidate secret when the selector is <code>0</code> and the fallback secret otherwise, using a byte mask instead of a branch.</li>
+        <li><code>frodoTyrDecaps</code> always recomputes both expected ciphertext components before selection, instead of returning early on the first mismatch.</li>
+      </ul>
+      <p>
+        In symbols, decapsulation computes a validity mask and then does
+        \[
+        \text{selected} =
+        \begin{cases}
+          k' & \text{if } (B', C) = (B'', C'') \\
+          s  & \text{otherwise}
+        \end{cases}
+        \]
+        but the implementation realizes that choice with a mask, not a branch.
+      </p>
+
+      <h3>2. The sampler uses a fixed scan over the CDF table</h3>
+      <p>
+        <code>frodoSampleN</code> does not stop early when it finds the noise bucket.
+        It always walks the same CDF table and accumulates the result with arithmetic.
+        That is the right shape for a secret-bearing sampler:
+      </p>
+      <ul>
+        <li>no secret-dependent exit from the loop,</li>
+        <li>no secret-dependent lookup into a wide distribution table,</li>
+        <li>sign handling done with arithmetic masking rather than a branch.</li>
+      </ul>
+
+      <h3>3. Public matrix generation is fast because it is public</h3>
+      <p>
+        The matrix generator is performance-critical, but it is not secret-critical in
+        the same way. The inputs are <code>seed_A</code>, row indices, and column indices,
+        all public. That is why the implementation is comfortable preferring:
+      </p>
+      <ul>
+        <li>OpenSSL ECB context reuse,</li>
+        <li>AES-NI bulk encryption,</li>
+        <li>and a scalar public fast AES fallback.</li>
+      </ul>
+      <p>
+        This is a good example of scoping the hardening budget correctly. Constant-time
+        discipline matters most on secret-bearing samplers, comparisons, and preimage selection.
+        It does not need to slow down public-only matrix expansion unnecessarily.
+      </p>
+
+      <h3>4. Where transient memory is zeroed</h3>
+      <p>
+        Frodo uses <code>clearBytes</code> and <code>clearWords</code> for explicit transient cleanup.
+        The main wipe sites are:
+      </p>
+      <table class="perf-table">
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Buffers cleared</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Key generation</td>
+            <td><code>seedSEWords</code>, <code>bWords</code>, <code>pkSeedA</code>, <code>pkh</code>, plus the caller randomness copy <code>material</code></td>
+            <td>These contain secret \(S\), secret noise, seed material, or hashed key state that does not need to live after serialization.</td>
+          </tr>
+          <tr>
+            <td>Encapsulation</td>
+            <td><code>pkh</code>, <code>pkSeedA</code>, <code>g2Out</code>, <code>fin</code>, <code>noiseWords</code>, <code>bpWords</code>, <code>bWords</code>, <code>vWords</code>, <code>cWords</code>, plus the local <code>mu</code> copy</td>
+            <td>These include ephemeral secret noise, candidate secret material, and the final transcript preimage.</td>
+          </tr>
+          <tr>
+            <td>Decapsulation</td>
+            <td><code>muPrime</code>, <code>decSeedA</code>, <code>g2Out</code>, <code>fin</code>, <code>selected</code>, <code>bpWords</code>, <code>cWords</code>, <code>sWords</code>, <code>wWords</code>, <code>noiseWords</code>, <code>bbpWords</code>, <code>bWords</code>, <code>ccWords</code></td>
+            <td>This is the most sensitive path because it reconstructs both secret state and the masked final preimage.</td>
+          </tr>
+          <tr>
+            <td>OpenSSL public AES context</td>
+            <td><code>Aes128OpenSslCtx</code> is cleared by freeing the <code>EVP_CIPHER_CTX</code></td>
+            <td>The matrix generator context is public, but it is still good lifecycle hygiene to free it promptly.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>Important caveat:</strong> <code>clearBytes</code> and
+        <code>clearWords</code> are plain write loops over Nim sequences. That is good
+        practical cleanup, but it is not the same thing as a formally guaranteed
+        optimizer-resistant secure wipe such as a dedicated volatile cleanse primitive.
+      </div>
+
+      <h3>5. Oracle leaks avoided by design</h3>
+      <ul>
+        <li>Decapsulation does not expose a success/failure return separate from the shared secret.</li>
+        <li>The compare is whole-buffer and branchless, not "stop at first mismatch".</li>
+        <li>The final preimage selection uses a mask, not an <code>if</code>.</li>
+        <li>The reconstructed ciphertext is always computed before selection, so the attacker cannot distinguish a cheap reject path from a full accept path.</li>
+      </ul>
+      <p>
+        That does not prove full constant-time behavior on every machine. It does remove the
+        obvious source-level decapsulation oracle patterns that tend to appear first:
+        early reject branches, short-circuit compares, and secret-dependent final selection.
+      </p>
+    </section>
+
+    <section id="examples">
+      <h2>Worked Math Examples</h2>
+
+      <div class="example-box">
+        <h3>Example 1: the matrix multiply shape Frodo actually uses</h3>
+        <p>
+          Ignore real sizes for a moment and work over \(q = 16\). Let
+        </p>
+        <p>
+          \[
+          A =
+          \begin{bmatrix}
+          1 & 2 & 3 & 4 \\
+          5 & 6 & 7 & 8 \\
+          9 & 1 & 2 & 3 \\
+          4 & 5 & 6 & 7
+          \end{bmatrix},
+          \quad
+          S =
+          \begin{bmatrix}
+          1 & 0 \\
+          0 & 1 \\
+          1 & 1 \\
+          0 & 1
+          \end{bmatrix},
+          \quad
+          E =
+          \begin{bmatrix}
+          1 & 0 \\
+          0 & 1 \\
+          1 & 1 \\
+          0 & 0
+          \end{bmatrix}.
+          \]
+        </p>
+        <p>
+          Then
+          \[
+          B = A S + E \pmod{16}.
+          \]
+          The first row of \(A S\) is
+          \[
+          [1,2,3,4]
+          \begin{bmatrix}
+          1 & 0 \\
+          0 & 1 \\
+          1 & 1 \\
+          0 & 1
+          \end{bmatrix}
+          =
+          [4, 9].
+          \]
+          After adding the first error row \([1, 0]\), the first output row becomes
+          \([5, 9]\).
+        </p>
+        <p>
+          Tyr's optimized keygen path does not build all of \(A\) at once to do this.
+          It generates a small row block from <code>seed_A</code>, performs exactly this
+          kind of dot-product accumulation for the current block, and then moves on.
+        </p>
+      </div>
+
+      <div class="example-box">
+        <h3>Example 2: why the encoded message is added near the top bits</h3>
+        <p>
+          For <code>frodo976aes</code>, the extracted message width is \(B = 3\) bits and
+          \(q = 2^{16}\). Encoding lifts a 3-bit chunk into the high bits of a 16-bit word:
+          \[
+          \text{encode}(m) = m \cdot 2^{16-3} = m \cdot 2^{13}.
+          \]
+        </p>
+        <p>
+          If one 3-bit chunk is \(m = 5 = 101_2\), then
+          \[
+          \text{encode}(5) = 5 \cdot 8192 = 40960.
+          \]
+          Later, decoding rounds the noisy word back down by shifting right by 13 bits
+          after adding the usual midpoint bias. That is why <code>keyEncode</code> and
+          <code>keyDecode</code> only need a few shifts and masks rather than a larger table.
+        </p>
+      </div>
+
+      <div class="example-box">
+        <h3>Example 3: masked decapsulation selection</h3>
+        <p>
+          Suppose decapsulation has recomputed candidate key bytes \(k'\) and has fallback
+          secret bytes \(s\) stored in the secret key. Let the selector be:
+        </p>
+        <p>
+          \[
+          \text{selector} =
+          \begin{cases}
+            0   & \text{ciphertext matches} \\
+            -1  & \text{ciphertext mismatch}
+          \end{cases}
+          \]
+        </p>
+        <p>
+          Then byte selection is implemented as
+          \[
+          \text{out}_i = (\neg mask \land k'_i) \lor (mask \land s_i),
+          \]
+          where <code>mask</code> is the selector reinterpreted as a byte mask.
+          If <code>mask = 0x00</code>, the output is \(k'\). If
+          <code>mask = 0xFF</code>, the output is \(s\). No branch is needed.
+        </p>
+      </div>
+    </section>
+
+    <section id="sources" class="source-box">
+      <h2>Papers and Implementation References</h2>
+      <p>
+        The current Tyr Frodo code is best described as
+        <strong>Round 3 FrodoKEM-976-AES mathematics plus liboqs-aligned implementation structure</strong>.
+        These were the main sources used to shape it:
+      </p>
+      <ul>
+        <li>
+          <strong>FrodoKEM team, Round 3 specification.</strong>
+          This is the direct source for the parameter set, key layout, message encoding, sampling, and keygen / encaps / decaps equations used here.
+          <br>
+          <a href="https://frodokem.org/files/FrodoKEM-specification-20210604.pdf">FrodoKEM Round 3 specification PDF</a>
+        </li>
+        <li>
+          <strong>Joppe Bos et al., "Frodo: Take off the ring! Practical, quantum-secure key exchange from LWE".</strong>
+          This is the original design motivation for using standard LWE rather than ring structure.
+          It explains the "large matrix, explicit arithmetic, conservative design" philosophy that still defines the implementation.
+          <br>
+          <a href="https://eprint.iacr.org/2016/659">IACR ePrint 2016/659</a>
+        </li>
+        <li>
+          <strong>liboqs FrodoKEM implementation.</strong>
+          This is the practical implementation reference Tyr was aligned against for performance:
+          streaming row and column kernels, AES-backed matrix generation, and the OpenSSL ECB context shape.
+          <br>
+          <a href="https://github.com/open-quantum-safe/liboqs/tree/main/src/kem/frodokem">liboqs FrodoKEM source</a>
+        </li>
+      </ul>
+      <p>
+        The implementation was made in that order:
+      </p>
+      <ol>
+        <li>match the Round 3 FrodoKEM-976-AES algorithm and object layout exactly enough to pass deterministic tests and interoperate with liboqs,</li>
+        <li>keep the public-matrix generator on-demand instead of materializing the full matrix in the hot path,</li>
+        <li>align the AES-backed matrix kernels with the liboqs / OpenSSL structure,</li>
+        <li>keep the decapsulation compare and final selection constant-time,</li>
+        <li>wipe transient secret buffers at the end of each top-level operation.</li>
+      </ol>
+      <p>
+        It is also important to say what this page is <em>not</em> claiming:
+        the repo does not currently implement the later post-NIST Frodo proposal line,
+        a full masked Frodo, or every parameter set from the broader Frodo family.
+        It documents the code that is actually here now: Round 3 <code>frodo976aes</code>,
+        optimized and hardened within that scope.
+      </p>
+    </section>
+  </article>
+</body>
+</html>

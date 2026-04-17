@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dilithium / ML-DSA Notes</title>
+  <link rel="stylesheet" href="../shared.css">
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)'], ['$', '$']],
+        displayMath: [['\\[', '\\]'], ['$$', '$$']]
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body data-doc-title="Dilithium / ML-DSA" data-doc-kicker="Top-Down Implementation Notes">
+  <article class="doc-page">
+    <section class="hero-card">
+      <p class="eyebrow">High-Level View</p>
+      <h1>Dilithium in Tyr-Crypto</h1>
+      <p>
+        The Tyr Dilithium implementation is a pure-Nim ML-DSA backend organized around four main
+        concerns: parameters, arithmetic, polynomial and vector kernels, and the keypair-sign-verify
+        orchestrator. The optimization story differs from Kyber because sign and verify improved
+        relatively early, while keypair stayed more difficult due to the secret-vector samplers and the
+        matrix-expansion path.
+      </p>
+      <p>
+        The dominant design tension was the \(\eta\)-sampler. The fastest naive versions had the wrong
+        leakage shape: either the loop count, the SIMD lane completion behavior, or the destination
+        write position depended directly on secret-derived acceptance progress. The accepted work
+        therefore hardened the sampler shape first, then recovered performance in controlled stages.
+      </p>
+    </section>
+
+    <section class="metric-strip">
+      <div class="metric">
+        <strong>Sampler-first hardening</strong>
+        Secret eta sampling was treated as the first security problem, not an afterthought.
+      </div>
+      <div class="metric">
+        <strong>Fixed-width SIMD kernels</strong>
+        AVX2 helped most once the vector width matched the fixed Dilithium parameter sets.
+      </div>
+      <div class="metric">
+        <strong>Rollback discipline</strong>
+        Several theoretically cleaner variants were removed after they lost to the benchmark.
+      </div>
+    </section>
+
+    <section>
+      <h2>Table of Contents</h2>
+      <ol class="toc-list">
+        <li><a href="#system-view">System View</a></li>
+        <li><a href="#module-map">Module Map</a></li>
+        <li><a href="#hot-path">Hot Path by Operation</a></li>
+        <li><a href="#tuning">Performance Problems, Solutions, and Rollbacks</a></li>
+        <li><a href="#security">Security and Side-Channel Decisions</a></li>
+        <li><a href="#examples">Worked Math Examples</a></li>
+        <li><a href="#sources">Papers and Implementation References</a></li>
+      </ol>
+    </section>
+
+    <section id="system-view">
+      <h2>System View</h2>
+      <p>
+        Dilithium has three different hot-path personalities:
+      </p>
+      <ol>
+        <li><strong>Keypair</strong>: sample \(s_1\) and \(s_2\), expand matrix rows from \(\rho\), multiply in the NTT domain, and pack key material.</li>
+        <li><strong>Sign</strong>: sample ephemeral state, compute matrix-vector terms, decompose and hint, then hash the transcript.</li>
+        <li><strong>Verify</strong>: unpack, rebuild the challenge polynomial, recompute the matrix-vector term, apply hints, pack \(w_1\), and hash-compare.</li>
+      </ol>
+      <div class="callout">
+        <strong>Mental model:</strong> Dilithium is a pipeline of repeated fixed-shape lattice kernels
+        surrounded by many small post-processing loops. Some of the best gains came from removing
+        repeated dispatch inside those small loops once the big kernels were already in good shape.
+      </div>
+      <p>
+        That is why the final work was split across two layers: first the large samplers and
+        matrix-vector kernels, then the smaller repeatedly-called helpers such as
+        <code>decompose</code>, <code>useHint</code>, and fixed-width accumulation wrappers.
+      </p>
+    </section>
+
+    <section id="module-map">
+      <h2>Module Map</h2>
+      <table class="module-table">
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Main Role</th>
+            <th>Why It Became Performance-Critical</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>params.nim</code></td>
+            <td>Variant records for ML-DSA-44, 65, and 87.</td>
+            <td>The fixed \(k\), \(l\), \(\eta\), \(\gamma_1\), and \(\gamma_2\) values define the specialization strategy.</td>
+          </tr>
+          <tr>
+            <td><code>arith.nim</code></td>
+            <td>Reduction, decomposition, hint logic, and NTT kernels.</td>
+            <td>The verify path depends heavily on keeping this logic branch-light and variant-specific.</td>
+          </tr>
+          <tr>
+            <td><code>poly.nim</code></td>
+            <td>Polynomial and vector kernels, samplers, packing helpers, SIMD paths.</td>
+            <td>This is the true hot zone: eta sampling, gamma sampling, matrix expansion, and pointwise accumulate.</td>
+          </tr>
+          <tr>
+            <td><code>operations.nim</code></td>
+            <td>Keypair, sign, and verify orchestration.</td>
+            <td>Controls how often the hot kernels run and whether specialized subpaths can be used safely.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="hot-path">
+      <h2>Hot Path by Operation</h2>
+
+      <h3>Keypair</h3>
+      <ol>
+        <li>Derive seeds and expand matrix rows from \(\rho\).</li>
+        <li>Sample the secret vectors \(s_1\) and \(s_2\) from the eta distribution.</li>
+        <li>Transform where needed into the NTT domain.</li>
+        <li>Compute the public matrix-vector product and add error state.</li>
+        <li>Pack the public and secret keys.</li>
+      </ol>
+      <p>
+        Keypair stayed the hardest operation to close against liboqs because the eta sampler is both
+        a performance hotspot and a side-channel hotspot.
+      </p>
+
+      <h3>Sign</h3>
+      <ol>
+        <li>Expand the matrix and sample ephemeral state.</li>
+        <li>Compute matrix-vector terms in the NTT domain.</li>
+        <li>Decompose coefficients, compute hints, and build the challenge relation.</li>
+        <li>Pack the signature and hash the transcript.</li>
+      </ol>
+      <p>
+        Sign benefited strongly from fixed-width AVX2 accumulation because Dilithium only uses a few
+        specific vector widths, not an arbitrary dynamic width.
+      </p>
+
+      <h3>Verify</h3>
+      <ol>
+        <li>Unpack the public key and signature.</li>
+        <li>Rebuild the challenge polynomial.</li>
+        <li>Recompute the relevant matrix-vector term.</li>
+        <li>Apply hints and repack \(w_1\).</li>
+        <li>Hash and compare.</li>
+      </ol>
+      <p>
+        Verify improved after moving \(\gamma_2\) dispatch out of the innermost coefficient loops and
+        into once-per-call specialization.
+      </p>
+    </section>
+
+    <section id="tuning">
+      <h2>Performance Problems, Solutions, and Rollbacks</h2>
+
+      <h3>1. The original fast eta sampler had the wrong leakage shape</h3>
+      <p>
+        The first fast eta sampler was attractive on paper, but the observable shape was wrong:
+      </p>
+      <ul>
+        <li>secret-dependent refill behavior,</li>
+        <li>secret-dependent SIMD lane completion,</li>
+        <li>destination writes driven directly by the running acceptance count.</li>
+      </ul>
+      <p>
+        The accepted fix was not "make it perfectly oblivious at any cost". The accepted fix was:
+      </p>
+      <ol>
+        <li>introduce a fixed-work prefix sampler,</li>
+        <li>remove the older lane-divergence behavior,</li>
+        <li>then restore batching only where the end-to-end shape stayed acceptable.</li>
+      </ol>
+
+      <h3>2. The fully oblivious destination-placement fix was correct, but too slow</h3>
+      <p>
+        One attempted design wrote candidates through a masked full-array placement scheme so the final
+        destination would no longer depend on the acceptance count. It was correct and it passed tests.
+        It also hurt keypair badly enough that it had to be rolled back.
+      </p>
+      <div class="callout">
+        <strong>Decision rule:</strong> a side-channel mitigation that makes the implementation
+        impractical is not the final answer. It is a proof that the shape can be made safer, not
+        proof that this exact version should remain in the tree.
+      </div>
+      <p>
+        The kept sampler is therefore best described as "substantially harder to observe and much
+        faster", not "fully oblivious regardless of cost".
+      </p>
+
+      <h3>3. Batching came back in layers</h3>
+      <ul>
+        <li>AVX2 batching returned for the cleaned eta path.</li>
+        <li>SSE2 x2 leftovers were kept for cases where a full four-lane batch wasted work.</li>
+        <li>Broader x2 leftovers were tried and rolled back when they hurt ML-DSA-87 keypair.</li>
+      </ul>
+      <p>
+        This mattered because the best shape for ML-DSA-65 was not always the best shape for ML-DSA-87.
+        Every generalization had to survive the full benchmark matrix.
+      </p>
+
+      <h3>4. Fixed-width AVX2 accumulation was one of the clearest wins</h3>
+      <p>
+        Dilithium only uses a few widths for its vector dimensions, especially \(l = 4, 5, 7\).
+        Once the pointwise accumulator was specialized into straight-line AVX2 kernels for those exact
+        widths, the compiler had a much better chance to emit clean vector code.
+      </p>
+      <p>
+        This improved keypair and sign noticeably, and it did so without complicating the security story.
+      </p>
+
+      <h3>5. Verify improved when gamma2 dispatch moved out of inner loops</h3>
+      <p>
+        The verify path originally rechecked whether
+        \(\gamma_2 = (q-1)/32\) or \(\gamma_2 = (q-1)/88\) inside coefficient loops. But the variant
+        is fixed for the whole call. The accepted optimization split this into variant-specific helpers
+        and dispatched once at the top.
+      </p>
+      <ul>
+        <li><code>decomposeGamma32</code> and <code>useHintGamma32</code></li>
+        <li><code>decomposeGamma88</code> and <code>useHintGamma88</code></li>
+      </ul>
+      <p>
+        The arithmetic stayed the same. The loop control around it got cheaper.
+      </p>
+
+      <h3>6. Small inline helpers helped only when they matched the generated C well</h3>
+      <p>
+        One real observation from the pass was that Nim's generated C sometimes improves when large
+        compound loops are split into smaller inline helpers. That helped in some places, especially
+        one keypair-focused row-expansion path. It hurt in others, such as an over-specialized verify
+        wrapper that was later removed.
+      </p>
+      <p>
+        The lesson is precise: inline refactoring is a compiler-shaping tool, not a general law.
+      </p>
+
+      <h3>7. Strategic wiping was kept, broad wipe-heavy rewrites were not</h3>
+      <p>
+        Secret-bearing exits received secure clears, while public scratch and hot arithmetic buffers kept
+        regular clear paths. This preserved the hardening benefit without turning the implementation into
+        a constant cascade of expensive wipe loops.
+      </p>
+
+      <h3>8. Summary of the tuning logic</h3>
+      <table class="perf-table">
+        <thead>
+          <tr>
+            <th>Problem</th>
+            <th>Accepted Solution</th>
+            <th>Why It Stayed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Eta sampler leakage shape</td>
+            <td>Fixed-work prefix sampler before reintroducing batching.</td>
+            <td>It materially improved the side-channel story while preserving speed.</td>
+          </tr>
+          <tr>
+            <td>Variable-width accumulation overhead</td>
+            <td>Specialize AVX2 accumulation for \(l = 4, 5, 7\).</td>
+            <td>Dilithium only needs those widths, so specialization paid off cleanly.</td>
+          </tr>
+          <tr>
+            <td>Verify inner-loop dispatch</td>
+            <td>Split gamma2 helpers by variant once per call.</td>
+            <td>Same arithmetic, less loop overhead.</td>
+          </tr>
+          <tr>
+            <td>Overly clean but slow ideas</td>
+            <td>Roll them back immediately after measurement.</td>
+            <td>The code still has to be practical, not just elegant.</td>
+          </tr>
+          <tr>
+            <td>Secret-bearing temporaries</td>
+            <td>Secure clear on strategic exits, regular clear elsewhere.</td>
+            <td>Better hardening without collapsing performance.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="security">
+      <h2>Security and Side-Channel Decisions</h2>
+      <p>
+        The Dilithium pass focused on the side channels that are easiest to accidentally introduce while
+        optimizing:
+      </p>
+      <ul>
+        <li>secret-dependent loop trip counts,</li>
+        <li>secret-dependent SIMD lane completion,</li>
+        <li>destination writes whose address tracks secret acceptance progress,</li>
+        <li>secret-bearing scratch that survives longer than needed.</li>
+      </ul>
+      <p>
+        The retained sampler still aims at the practical middle ground rather than the strongest
+        conceivable oblivious construction. That is why the fully masked destination-placement variant
+        was rejected even though it was correct: it solved the problem too expensively.
+      </p>
+      <div class="callout">
+        <strong>Important distinction:</strong> removing secret-dependent branches is not enough on
+        its own. Completion behavior and memory-write shape can also leak secret-dependent progress.
+      </div>
+      <p>
+        That insight shaped both the sampler changes and the later choice to place secure wiping only at
+        strategic exits instead of everywhere.
+      </p>
+    </section>
+
+    <section id="examples">
+      <h2>Worked Math Examples</h2>
+
+      <div class="example-box">
+        <h3>Example 1: Eta = 4 nibble sampling</h3>
+        <p>
+          In the \(\eta = 4\) path, each nibble is accepted only if it is smaller than \(9\), and then
+          mapped to \(4 - t\).
+        </p>
+        <p>
+          Take the byte \(\texttt{0x3A}\). It splits into
+        </p>
+        <p>
+          \[
+            t_0 = 10,\qquad t_1 = 3
+          \]
+        </p>
+        <p>
+          The first nibble is rejected because \(10 \not< 9\). The second is accepted and becomes
+        </p>
+        <p>
+          \[
+            4 - 3 = 1
+          \]
+        </p>
+        <p>
+          This tiny example shows why destination placement matters: one nibble advances the accepted
+          coefficient count while the other does not.
+        </p>
+      </div>
+
+      <div class="example-box">
+        <h3>Example 2: Decompose and useHint for \(\gamma_2 = (q-1)/32\)</h3>
+        <p>
+          For ML-DSA-65 and ML-DSA-87,
+        </p>
+        <p>
+          \[
+            q = 8380417,\qquad
+            \gamma_2 = \frac{q - 1}{32} = 261888,\qquad
+            2\gamma_2 = 523776
+          \]
+        </p>
+        <p>
+          Choose \(a = 600000\). Then
+        </p>
+        <p>
+          \[
+            a_1 = 1,\qquad
+            a_0 = 600000 - 523776 = 76224
+          \]
+        </p>
+        <p>
+          If the hint bit is \(1\) and \(a_0 > 0\), then the corrected high part becomes
+        </p>
+        <p>
+          \[
+            (a_1 + 1) \bmod 16 = 2
+          \]
+        </p>
+        <p>
+          The optimization here was not to change that arithmetic. It was to stop rechecking the
+          \((q-1)/32\) case on every coefficient.
+        </p>
+      </div>
+
+      <div class="example-box">
+        <h3>Example 3: Decompose and useHint for \(\gamma_2 = (q-1)/88\)</h3>
+        <p>
+          For ML-DSA-44,
+        </p>
+        <p>
+          \[
+            \gamma_2 = \frac{q - 1}{88} = 95232,\qquad
+            2\gamma_2 = 190464
+          \]
+        </p>
+        <p>
+          Choose \(a = 250000\). One valid decomposition is
+        </p>
+        <p>
+          \[
+            a_1 = 1,\qquad
+            a_0 = 250000 - 190464 = 59536
+          \]
+        </p>
+        <p>
+          If the hint says the high part must move upward, the corrected value is computed in the small
+          \((q-1)/88\) residue class rather than the \((q-1)/32\) one. That is exactly why once-per-call
+          gamma2 specialization is worthwhile.
+        </p>
+      </div>
+
+      <div class="example-box">
+        <h3>Example 4: Fixed-width pointwise accumulation</h3>
+        <p>
+          Suppose a toy fixed-width accumulation uses
+        </p>
+        <p>
+          \[
+            u = (1, 2, 3, 4),\qquad
+            v = (5, 6, 7, 8)
+          \]
+        </p>
+        <p>
+          Then the dot product is
+        </p>
+        <p>
+          \[
+            1 \cdot 5 + 2 \cdot 6 + 3 \cdot 7 + 4 \cdot 8 = 5 + 12 + 21 + 32 = 70
+          \]
+        </p>
+        <p>
+          The optimization lesson is not the number \(70\). It is that a fixed width lets the compiler
+          emit straighter vector code than a generic loop over a runtime width.
+        </p>
+      </div>
+    </section>
+
+    <section id="sources">
+      <h2>Papers and Implementation References</h2>
+
+      <div class="source-box">
+        <h3>Standards and base scheme references</h3>
+        <ul>
+          <li><a href="https://csrc.nist.gov/pubs/fips/204/final">FIPS 204: Module-Lattice-Based Digital Signature Standard</a></li>
+          <li><a href="https://eprint.iacr.org/2017/633">CRYSTALS-Dilithium original design paper / ePrint 2017/633</a></li>
+        </ul>
+      </div>
+
+      <div class="source-box">
+        <h3>Papers and references that informed the tuning work</h3>
+        <ul>
+          <li><a href="https://eprint.iacr.org/2021/986">Vectorized NTT and asymmetric multiplication ideas that also matter for Dilithium-style matrix-vector kernels</a></li>
+          <li><a href="https://eprint.iacr.org/2025/214">Recent side-channel work around Dilithium-style rejection sampling</a></li>
+          <li><a href="https://eprint.iacr.org/2025/582">Recent work on side-channel leakage shapes in lattice-signature sampling paths</a></li>
+          <li><a href="https://eprint.iacr.org/2024/1149">Recent implementation-focused analysis relevant to hardened Dilithium sampling and SIMD behavior</a></li>
+        </ul>
+      </div>
+
+      <div class="source-box">
+        <h3>Implementation references used during the pass</h3>
+        <ul>
+          <li>liboqs / PQClean Dilithium and ML-DSA reference flow for comparison</li>
+          <li>The Tyr-Crypto modules <code>poly.nim</code>, <code>arith.nim</code>, and <code>operations.nim</code></li>
+          <li>Sigma benchmark runs for keypair, sign, and verify after each accepted or rejected change</li>
+        </ul>
+      </div>
+    </section>
+  </article>
+</body>
+</html>
