@@ -25,6 +25,36 @@ proc load64At(mat: openArray[byte], offset: int): uint64 {.inline.} =
 proc store64At(mat: var openArray[byte], offset: int, v: uint64) {.inline.} =
   store8(mat.toOpenArray(offset, offset + 7), v)
 
+proc load64Copy(mat: openArray[byte], offset: int): uint64 {.inline.} =
+  copyMem(addr result, unsafeAddr mat[offset], 8)
+
+proc store64Copy(mat: var openArray[byte], offset: int, v: uint64) {.inline.} =
+  copyMem(addr mat[offset], unsafeAddr v, 8)
+
+proc xorRowMaskedWords(mat: var seq[byte], dstStart, srcStart, startByte, fullRowBytes: int,
+    mask: byte, maskWord: uint64) {.inline.} =
+  var
+    c: int = startByte
+    v: uint64 = 0
+    wordCount: int = 0
+  if c + 8 <= fullRowBytes:
+    if ((cast[uint](unsafeAddr mat[dstStart + c]) or cast[uint](unsafeAddr mat[srcStart + c])) and 7'u) == 0'u:
+      wordCount = (fullRowBytes - c) shr 3
+      let dstWords = cast[ptr UncheckedArray[uint64]](unsafeAddr mat[dstStart + c])
+      let srcWords = cast[ptr UncheckedArray[uint64]](unsafeAddr mat[srcStart + c])
+      var w: int = 0
+      while w < wordCount:
+        dstWords[w] = dstWords[w] xor (srcWords[w] and maskWord)
+        w = w + 1
+      c = c + (wordCount shl 3)
+  while c + 8 <= fullRowBytes:
+    v = load64Copy(mat, dstStart + c) xor (load64Copy(mat, srcStart + c) and maskWord)
+    store64Copy(mat, dstStart + c, v)
+    c = c + 8
+  while c < fullRowBytes:
+    mat[dstStart + c] = mat[dstStart + c] xor (mat[srcStart + c] and mask)
+    c = c + 1
+
 proc loadColumnBlock(mat: openArray[byte], rowStart, blockIdx, tail: int): uint64 {.inline.} =
   if tail == 0:
     return load64At(mat, rowStart + blockIdx)
@@ -82,6 +112,10 @@ when defined(avx2):
       inRows: array[64, uint64]
       outRows: array[64, uint64]
       tailBytes: array[8, byte]
+    defer:
+      clearSensitiveWords(inRows)
+      clearSensitiveWords(outRows)
+      clearSensitiveWords(tailBytes)
     let blockCount = p.sysN div 64
     let rem = p.sysN mod 64
 
@@ -120,40 +154,21 @@ when defined(avx2):
 
 proc xorRowMasked(mat: var seq[byte], dstStart, srcStart, fullRowBytes: int,
     mask: byte) {.inline.} =
-  if mask == 0'u8:
-    return
+  let maskWord = 0'u64 - uint64(mask and 1'u8)
 
   when defined(avx2):
+    let maskVec = mm256_set1_epi8(cast[int8](mask))
     let vecBytes = fullRowBytes and (not 31)
     var c: int = 0
     while c < vecBytes:
       let dstVec = mm256_loadu_si256(cast[pointer](unsafeAddr mat[dstStart + c]))
       let srcVec = mm256_loadu_si256(cast[pointer](unsafeAddr mat[srcStart + c]))
-      mm256_storeu_si256(cast[pointer](unsafeAddr mat[dstStart + c]), mm256_xor_si256(dstVec, srcVec))
+      let srcMasked = mm256_and_si256(srcVec, maskVec)
+      mm256_storeu_si256(cast[pointer](unsafeAddr mat[dstStart + c]), mm256_xor_si256(dstVec, srcMasked))
       c = c + 32
-    let wordCount = (fullRowBytes - c) shr 3
-    let dstWords = cast[ptr UncheckedArray[uint64]](unsafeAddr mat[dstStart + c])
-    let srcWords = cast[ptr UncheckedArray[uint64]](unsafeAddr mat[srcStart + c])
-    var w: int = 0
-    while w < wordCount:
-      dstWords[w] = dstWords[w] xor srcWords[w]
-      w = w + 1
-    c = c + (wordCount shl 3)
-    while c < fullRowBytes:
-      mat[dstStart + c] = mat[dstStart + c] xor mat[srcStart + c]
-      c = c + 1
+    xorRowMaskedWords(mat, dstStart, srcStart, c, fullRowBytes, mask, maskWord)
   else:
-    let wordCount = fullRowBytes shr 3
-    let dstWords = cast[ptr UncheckedArray[uint64]](unsafeAddr mat[dstStart])
-    let srcWords = cast[ptr UncheckedArray[uint64]](unsafeAddr mat[srcStart])
-    var c: int = 0
-    while c < wordCount:
-      dstWords[c] = dstWords[c] xor srcWords[c]
-      c = c + 1
-    c = wordCount shl 3
-    while c < fullRowBytes:
-      mat[dstStart + c] = mat[dstStart + c] xor mat[srcStart + c]
-      c = c + 1
+    xorRowMaskedWords(mat, dstStart, srcStart, 0, fullRowBytes, mask, maskWord)
 
 proc movColumns(mat: var seq[byte], pi: var seq[int16], pivots: var uint64,
     p: McElieceParams, fullRowBytes: int): bool =
@@ -168,6 +183,9 @@ proc movColumns(mat: var seq[byte], pi: var seq[int16], pivots: var uint64,
     tail = row mod 8
     j: int = 0
     k: int = 0
+  defer:
+    clearSensitiveWords(buf)
+    clearSensitiveWords(ctzList)
 
   for i in 0 ..< 32:
     buf[i] = loadColumnBlock(mat, (row + i) * fullRowBytes, blockIdx, tail)
@@ -233,6 +251,12 @@ proc pkGen*(p: McElieceParams, g: openArray[GF], perm: openArray[uint32],
     k: int = 0
     b: byte = 0
     mask: byte = 0
+  defer:
+    clearSensitiveWords(buf)
+    clearSensitiveWords(L)
+    clearSensitiveWords(inv)
+    clearSensitiveWords(invPrefix)
+    clearSensitiveWords(mat)
   if g.len < p.sysT + 1:
     raise newException(ValueError, "goppa polynomial length mismatch")
   if perm.len < (1 shl p.gfBits):

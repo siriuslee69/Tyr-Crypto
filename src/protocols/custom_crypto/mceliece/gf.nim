@@ -119,12 +119,11 @@ proc gfFrac*(den, num: GF): GF {.inline.} =
 proc gfInv*(den: GF): GF {.inline.} =
   gfFrac(den, 1'u16)
 
-proc GFmul*(p: McElieceParams; outp: var seq[GF]; in0, in1: openArray[GF]) =
+proc GFmul*(p: McElieceParams; outp: var openArray[GF]; in0, in1: openArray[GF]) =
   ## Polynomial multiplication in GF(2^13)[x] / (x^t + x^7 + x^2 + x + 1).
   ## outp.len >= p.sysT, in0.len == in1.len == p.sysT.
+  assert outp.len >= p.sysT
   assert in0.len >= p.sysT and in1.len >= p.sysT
-  if outp.len < p.sysT:
-    outp.setLen(p.sysT)
 
   var prod = newSeq[GF](p.sysT * 2 - 1)
   for i in 0 ..< p.sysT:
@@ -134,10 +133,9 @@ proc GFmul*(p: McElieceParams; outp: var seq[GF]; in0, in1: openArray[GF]) =
   var i = (p.sysT - 1) * 2
   while i >= p.sysT:
     let v = prod[i]
-    prod[i - p.sysT + 7] = prod[i - p.sysT + 7] xor v
-    prod[i - p.sysT + 2] = prod[i - p.sysT + 2] xor v
-    prod[i - p.sysT + 1] = prod[i - p.sysT + 1] xor v
-    prod[i - p.sysT + 0] = prod[i - p.sysT + 0] xor v
+    for j in 0 ..< p.reductionTermCount:
+      prod[i - p.sysT + p.reductionTerms[j]] =
+        prod[i - p.sysT + p.reductionTerms[j]] xor v
     dec i
   for k in 0 ..< p.sysT:
     outp[k] = prod[k]

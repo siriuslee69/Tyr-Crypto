@@ -1,4 +1,4 @@
-Commit Message: fix autopush progress path, correct ensure_env header checks, and clean test exe artifacts
+Commit Message: add AES-NI fast path for Frodo AES-backed matrix generation
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -29,6 +29,21 @@ Implemented:
 - ChunkyCrypto module with threaded chunk encrypt/decrypt + hash tree.
 - Hybrid KEX modules renamed to duo/triple with ASCII headers.
 - Bindings/builders moved into dedicated src folders.
+- Pure Nim Kyber768/Kyber1024 backend with Tyr typed KEM materials and tests.
+- Pure Nim Kyber validated against local liboqs byte-for-byte outputs and local KAT corpus hashes.
+- Pure Nim FrodoKEM-976-AES backend with Tyr typed KEM materials and release-mode interop/KAT checks.
+- Pure Nim ML-DSA-44/65/87 backend with Tyr typed signature materials and local liboqs/KAT validation.
+- Pure Nim SPHINCS+-SHAKE-128f-simple backend with Tyr typed signature materials and local liboqs/KAT validation.
+- Pure Nim BIKE-L1 backend with Tyr typed KEM materials and local liboqs/KAT validation.
+- Frodo hot matrix-dot loops now use optional SSE2/AVX2 SIMD via SIMD-Nexus-backed 16-bit multiply-low helpers.
+- Kyber polynomial add/sub now use optional SSE2/AVX2 SIMD coefficient lanes with scalar tails.
+- Dilithium polynomial add/sub/shift-left now use optional SSE2/AVX2 SIMD coefficient lanes with scalar tails.
+- SIMD-Nexus now exports missing generic `int32` helpers plus 16-bit multiply-low helpers for reusable PQ arithmetic paths.
+- Sigma benchmark support now works again in this workspace, and Tyr has a dedicated `perf_sigma_pq` benchmark comparing the pure-Nim PQ backends against liboqs for the currently available algorithms.
+- Otter wrapper-based PQ profiling now works through `perf_otter_pq` and prints the hottest timed Tyr PQ wrapper functions per algorithm family.
+- Otter now captures real inner-function spans for Kyber (`genMatrix`, `indcpaKeypair`, `indcpaEnc`, `indcpaDec`), Frodo (`generateMatrixA`, `mulAddAsPlusE`, `mulAddSaPlusE`, `mulAddSbPlusE`, `mulBs`), and BIKE (`gf2xModMul`, `gf2xModInv`, `decodeBike`).
+- Frodo no longer materializes the full AES matrix for keypair/encaps/decaps; the hot `A*s+e` and `s*A+e` paths now stream matrix stripes directly from AES.
+- Frodo now has an optional AES-NI fast path (`-d:aesni` + `-maes`) for AES-128 block encryption, and the 4-row `A*s+e` generator uses a 4-way AES-NI block helper.
 
 Working on:
 - Argon2 pure Nim implementation or dedicated binding wrapper.
@@ -36,10 +51,10 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- Added ChunkyCrypto wrapper and moved bindings/builders into dedicated folders.
+- The safe Frodo restructures improved the algorithmic shape, but the measured gap to liboqs remained enormous; the next real bottleneck was AES block throughput itself.
 
 Fix attempt and result:
-- Updated imports/tests for the new module layout and expanded ChunkyCrypto tests.
+- Added an optional AES-NI `Aes128NiCtx` plus 4-way block encryption helper in `aes_core`, then wired the Frodo 4-row `A*s+e` path to use it when compiled with `-d:aesni`. Focused release interop and KAT checks still pass, and the measured Frodo sequential roundtrip average dropped to about `1.65e9` ticks from about `4.15e9` in the same local Sigma comparison.
 
 ## 2026-04-04 First-pass Audit
 Readiness: Not production ready yet—the repo still ships tracked binaries, the autopush automation never reads the audit log, and environment tooling keeps claiming missing headers even when the submodules are present.

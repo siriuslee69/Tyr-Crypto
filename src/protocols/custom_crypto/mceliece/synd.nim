@@ -15,10 +15,11 @@ proc synd*(p: McElieceParams; f: openArray[GF]; L: openArray[GF]; r: openArray[b
 
   for i in 0 ..< p.sysN:
     let c = GF((r[i div 8] shr (i mod 8)) and 1)
+    let mask = GF(0) - c
     let e = evalPoly(p, f, L[i])
     let e2Inv = gfInv(gfMul(e, e))
 
     var accum = e2Inv
     for j in 0 ..< 2 * p.sysT:
-      outS[j] = gfAdd(outS[j], gfMul(accum, c))
+      outS[j] = gfAdd(outS[j], accum and mask)
       accum = gfMul(accum, L[i])

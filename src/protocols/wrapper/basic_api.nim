@@ -11,8 +11,13 @@ import ../bindings/liboqs
 import ../bindings/libsodium
 import ../custom_crypto/[xchacha20, aes_ctr, hmac]
 import ../custom_crypto/blake3
+import ../custom_crypto/dilithium as customDilithium
 import ../custom_crypto/gimli_sponge
+import ../custom_crypto/bike as customBike
+import ../custom_crypto/frodo as customFrodo
+import ../custom_crypto/kyber as customKyber
 import ../custom_crypto/mceliece as customMcEliece
+import ../custom_crypto/sphincs as customSphincs
 import ./helpers/signature_support as wrapSign
 
 const
@@ -56,16 +61,28 @@ type
     akDilithium1Verify, ## original Dilithium3 / standardized ML-DSA-65
     akDilithium2Sign, ## original Dilithium5 / standardized ML-DSA-87
     akDilithium2Verify, ## original Dilithium5 / standardized ML-DSA-87
+    akDilithium0TyrSign, ## original Dilithium2 / standardized ML-DSA-44
+    akDilithium0TyrVerify, ## original Dilithium2 / standardized ML-DSA-44
+    akDilithium1TyrSign, ## original Dilithium3 / standardized ML-DSA-65
+    akDilithium1TyrVerify, ## original Dilithium3 / standardized ML-DSA-65
+    akDilithium2TyrSign, ## original Dilithium5 / standardized ML-DSA-87
+    akDilithium2TyrVerify, ## original Dilithium5 / standardized ML-DSA-87
     akEd448Sign,
     akEd448Verify,
     akSphincsHaraka128fSimpleSign,
     akSphincsHaraka128fSimpleVerify,
+    akSphincsHaraka128fSimpleTyrSign,
+    akSphincsHaraka128fSimpleTyrVerify,
     akX25519Send,
     akX25519Open,
     akKyber0Send,
     akKyber0Open,
     akKyber1Send,
     akKyber1Open,
+    akKyber0TyrSend,
+    akKyber0TyrOpen,
+    akKyber1TyrSend,
+    akKyber1TyrOpen,
     akMcEliece0Send,
     akMcEliece0Open,
     akMcEliece1Send,
@@ -80,8 +97,12 @@ type
     akMcEliece2TyrOpen,
     akFrodo0Send,
     akFrodo0Open,
+    akFrodo0TyrSend,
+    akFrodo0TyrOpen,
     akNtruPrime0Send,
     akNtruPrime0Open,
+    akBike0TyrSend,
+    akBike0TyrOpen,
     akBike0Send,
     akBike0Open
 
@@ -228,6 +249,33 @@ type
     ## original Dilithium5 / standardized ML-DSA-87
     publicKey*: array[2592, byte]
     signature*: array[4627, byte]
+  ## Material for the pure-Nim Tyr tier-0 Dilithium signing path.
+  dilithium0TyrSignM* = object
+    ## original Dilithium2 / standardized ML-DSA-44
+    secretKey*: array[2560, byte]
+  ## Material for the pure-Nim Tyr tier-0 Dilithium verification path.
+  dilithium0TyrVerifyM* = object
+    ## original Dilithium2 / standardized ML-DSA-44
+    publicKey*: array[1312, byte]
+    signature*: array[2420, byte]
+  ## Material for the pure-Nim Tyr tier-1 Dilithium signing path.
+  dilithium1TyrSignM* = object
+    ## original Dilithium3 / standardized ML-DSA-65
+    secretKey*: array[4032, byte]
+  ## Material for the pure-Nim Tyr tier-1 Dilithium verification path.
+  dilithium1TyrVerifyM* = object
+    ## original Dilithium3 / standardized ML-DSA-65
+    publicKey*: array[1952, byte]
+    signature*: array[3309, byte]
+  ## Material for the pure-Nim Tyr tier-2 Dilithium signing path.
+  dilithium2TyrSignM* = object
+    ## original Dilithium5 / standardized ML-DSA-87
+    secretKey*: array[4896, byte]
+  ## Material for the pure-Nim Tyr tier-2 Dilithium verification path.
+  dilithium2TyrVerifyM* = object
+    ## original Dilithium5 / standardized ML-DSA-87
+    publicKey*: array[2592, byte]
+    signature*: array[4627, byte]
   ## Material for Ed448 signing.
   ed448SignM* = object
     secretKey*: array[57, byte]
@@ -242,6 +290,15 @@ type
     secretKey*: array[64, byte]
   ## Material for the Haraka 128f SPHINCS+ verification surface.
   sphincsHaraka128fSimpleVerifyM* = object
+    publicKey*: array[32, byte]
+    signature*: array[17088, byte]
+  ## Material for the pure-Nim Tyr 128f simple SPHINCS+ signing path.
+  ## Current local backend binding targets SPHINCS+-SHAKE-128f-simple.
+  sphincsHaraka128fSimpleTyrSignM* = object
+    secretKey*: array[64, byte]
+  ## Material for the pure-Nim Tyr 128f simple SPHINCS+ verification path.
+  ## Current local backend binding targets SPHINCS+-SHAKE-128f-simple.
+  sphincsHaraka128fSimpleTyrVerifyM* = object
     publicKey*: array[32, byte]
     signature*: array[17088, byte]
   ## Material for sending an X25519-derived shared secret.
@@ -261,6 +318,18 @@ type
     receiverPublicKey*: array[1568, byte]
   ## Material for Kyber tier-1 decapsulation.
   kyber1OpenM* = object
+    receiverSecretKey*: array[3168, byte]
+  ## Material for the pure-Nim Tyr Kyber tier-0 encapsulation path.
+  kyber0TyrSendM* = object
+    receiverPublicKey*: array[1184, byte]
+  ## Material for the pure-Nim Tyr Kyber tier-0 decapsulation path.
+  kyber0TyrOpenM* = object
+    receiverSecretKey*: array[2400, byte]
+  ## Material for the pure-Nim Tyr Kyber tier-1 encapsulation path.
+  kyber1TyrSendM* = object
+    receiverPublicKey*: array[1568, byte]
+  ## Material for the pure-Nim Tyr Kyber tier-1 decapsulation path.
+  kyber1TyrOpenM* = object
     receiverSecretKey*: array[3168, byte]
   ## Material for McEliece tier-0 encapsulation.
   mceliece0SendM* = object
@@ -304,6 +373,12 @@ type
   ## Material for Frodo tier-0 decapsulation.
   frodo0OpenM* = object
     receiverSecretKey*: array[31296, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-0 encapsulation path.
+  frodo0TyrSendM* = object
+    receiverPublicKey*: array[15632, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-0 decapsulation path.
+  frodo0TyrOpenM* = object
+    receiverSecretKey*: array[31296, byte]
   ## Material for NTRU Prime tier-0 encapsulation.
   ntruprime0SendM* = object
     ## ntruprime0 is currently bound to sntrup761 in the checked-out liboqs tree.
@@ -318,6 +393,43 @@ type
   ## Material for BIKE tier-0 decapsulation.
   bike0OpenM* = object
     receiverSecretKey*: array[5223, byte]
+  ## Material for the pure-Nim Tyr BIKE tier-0 encapsulation path.
+  bike0TyrSendM* = object
+    receiverPublicKey*: array[1541, byte]
+  ## Material for the pure-Nim Tyr BIKE tier-0 decapsulation path.
+  bike0TyrOpenM* = object
+    receiverSecretKey*: array[5223, byte]
+
+  ## Tyr-suffixed alias for the local BLAKE3 hash material.
+  blake3TyrHashM* = blake3HashM
+  ## Tyr-suffixed alias for the local Gimli hash material.
+  gimliTyrHashM* = gimliHashM
+  ## Tyr-suffixed alias for the local SHA3 hash material.
+  sha3TyrHashM* = sha3HashM
+  ## Tyr-suffixed alias for the local keyed BLAKE3 material.
+  blake3TyrKeyedHashM* = blake3KeyedHashM
+  ## Tyr-suffixed alias for the local BLAKE3 HMAC material.
+  blake3TyrHmacM* = blake3hmacM
+  ## Tyr-suffixed alias for the local Gimli HMAC material.
+  gimliTyrHmacM* = gimlihmacM
+  ## Tyr-suffixed alias for the local Poly1305 HMAC material.
+  poly1305TyrHmacM* = poly1305hmacM
+  ## Tyr-suffixed alias for the local SHA3 HMAC material.
+  sha3TyrHmacM* = sha3hmacM
+  ## Tyr-suffixed alias for the local BLAKE3 HMAC verification material.
+  blake3TyrHmacVerifyM* = blake3hmacVerifyM
+  ## Tyr-suffixed alias for the local Gimli HMAC verification material.
+  gimliTyrHmacVerifyM* = gimlihmacVerifyM
+  ## Tyr-suffixed alias for the local Poly1305 HMAC verification material.
+  poly1305TyrHmacVerifyM* = poly1305hmacVerifyM
+  ## Tyr-suffixed alias for the local SHA3 HMAC verification material.
+  sha3TyrHmacVerifyM* = sha3hmacVerifyM
+  ## Tyr-suffixed alias for the local XChaCha20 cipher material.
+  xchacha20TyrCipherM* = xchacha20cipherM
+  ## Tyr-suffixed alias for the local AES-CTR cipher material.
+  aesCtrTyrCipherM* = aesCtrcipherM
+  ## Tyr-suffixed alias for the local Gimli stream-cipher material.
+  gimliStreamTyrCipherM* = gimliStreamCipherM
 
 const
   zeroKeyLayout = KeyLayout(keyKind: kkSym, size: 0)
@@ -370,16 +482,28 @@ const algorithmLayouts*: array[AlgorithmKind, AlgorithmLayout] = [
   buildLayout(akDilithium1Verify, okVerify, 1, kkPublicKey -> 1952, kkSignature -> 3309),
   buildLayout(akDilithium2Sign, okSign, 4627, kkSecretKey -> 4896),
   buildLayout(akDilithium2Verify, okVerify, 1, kkPublicKey -> 2592, kkSignature -> 4627),
+  buildLayout(akDilithium0TyrSign, okSign, 2420, kkSecretKey -> 2560),
+  buildLayout(akDilithium0TyrVerify, okVerify, 1, kkPublicKey -> 1312, kkSignature -> 2420),
+  buildLayout(akDilithium1TyrSign, okSign, 3309, kkSecretKey -> 4032),
+  buildLayout(akDilithium1TyrVerify, okVerify, 1, kkPublicKey -> 1952, kkSignature -> 3309),
+  buildLayout(akDilithium2TyrSign, okSign, 4627, kkSecretKey -> 4896),
+  buildLayout(akDilithium2TyrVerify, okVerify, 1, kkPublicKey -> 2592, kkSignature -> 4627),
   buildLayout(akEd448Sign, okSign, 114, kkSecretKey -> 57),
   buildLayout(akEd448Verify, okVerify, 1, kkPublicKey -> 57, kkSignature -> 114),
   buildLayout(akSphincsHaraka128fSimpleSign, okSign, 17088, kkSecretKey -> 64),
   buildLayout(akSphincsHaraka128fSimpleVerify, okVerify, 1, kkPublicKey -> 32, kkSignature -> 17088),
+  buildLayout(akSphincsHaraka128fSimpleTyrSign, okSign, 17088, kkSecretKey -> 64),
+  buildLayout(akSphincsHaraka128fSimpleTyrVerify, okVerify, 1, kkPublicKey -> 32, kkSignature -> 17088),
   buildLayout(akX25519Send, okKemSend, 32, kkPublicKey -> 32),
   buildLayout(akX25519Open, okKemOpen, 32, kkSecretKey -> 32),
   buildLayout(akKyber0Send, okKemSend, 32, kkPublicKey -> 1184),
   buildLayout(akKyber0Open, okKemOpen, 32, kkSecretKey -> 2400),
   buildLayout(akKyber1Send, okKemSend, 32, kkPublicKey -> 1568),
   buildLayout(akKyber1Open, okKemOpen, 32, kkSecretKey -> 3168),
+  buildLayout(akKyber0TyrSend, okKemSend, 32, kkPublicKey -> 1184),
+  buildLayout(akKyber0TyrOpen, okKemOpen, 32, kkSecretKey -> 2400),
+  buildLayout(akKyber1TyrSend, okKemSend, 32, kkPublicKey -> 1568),
+  buildLayout(akKyber1TyrOpen, okKemOpen, 32, kkSecretKey -> 3168),
   buildLayout(akMcEliece0Send, okKemSend, 32, kkPublicKey -> 1044992),
   buildLayout(akMcEliece0Open, okKemOpen, 32, kkSecretKey -> 13932),
   buildLayout(akMcEliece1Send, okKemSend, 32, kkPublicKey -> 1047319),
@@ -394,8 +518,12 @@ const algorithmLayouts*: array[AlgorithmKind, AlgorithmLayout] = [
   buildLayout(akMcEliece2TyrOpen, okKemOpen, 32, kkSecretKey -> 14120),
   buildLayout(akFrodo0Send, okKemSend, 24, kkPublicKey -> 15632),
   buildLayout(akFrodo0Open, okKemOpen, 24, kkSecretKey -> 31296),
+  buildLayout(akFrodo0TyrSend, okKemSend, 24, kkPublicKey -> 15632),
+  buildLayout(akFrodo0TyrOpen, okKemOpen, 24, kkSecretKey -> 31296),
   buildLayout(akNtruPrime0Send, okKemSend, 32, kkPublicKey -> 1158),
   buildLayout(akNtruPrime0Open, okKemOpen, 32, kkSecretKey -> 1763),
+  buildLayout(akBike0TyrSend, okKemSend, 32, kkPublicKey -> 1541),
+  buildLayout(akBike0TyrOpen, okKemOpen, 32, kkSecretKey -> 5223),
   buildLayout(akBike0Send, okKemSend, 32, kkPublicKey -> 1541),
   buildLayout(akBike0Open, okKemOpen, 32, kkSecretKey -> 5223)
 ]
@@ -431,18 +559,32 @@ proc algorithmOf*(T: typedesc[dilithium1SignM]): AlgorithmKind = akDilithium1Sig
 proc algorithmOf*(T: typedesc[dilithium1VerifyM]): AlgorithmKind = akDilithium1Verify
 proc algorithmOf*(T: typedesc[dilithium2SignM]): AlgorithmKind = akDilithium2Sign
 proc algorithmOf*(T: typedesc[dilithium2VerifyM]): AlgorithmKind = akDilithium2Verify
+proc algorithmOf*(T: typedesc[dilithium0TyrSignM]): AlgorithmKind = akDilithium0TyrSign
+proc algorithmOf*(T: typedesc[dilithium0TyrVerifyM]): AlgorithmKind = akDilithium0TyrVerify
+proc algorithmOf*(T: typedesc[dilithium1TyrSignM]): AlgorithmKind = akDilithium1TyrSign
+proc algorithmOf*(T: typedesc[dilithium1TyrVerifyM]): AlgorithmKind = akDilithium1TyrVerify
+proc algorithmOf*(T: typedesc[dilithium2TyrSignM]): AlgorithmKind = akDilithium2TyrSign
+proc algorithmOf*(T: typedesc[dilithium2TyrVerifyM]): AlgorithmKind = akDilithium2TyrVerify
 proc algorithmOf*(T: typedesc[ed448SignM]): AlgorithmKind = akEd448Sign
 proc algorithmOf*(T: typedesc[ed448VerifyM]): AlgorithmKind = akEd448Verify
 proc algorithmOf*(T: typedesc[sphincsHaraka128fSimpleSignM]): AlgorithmKind =
   akSphincsHaraka128fSimpleSign
 proc algorithmOf*(T: typedesc[sphincsHaraka128fSimpleVerifyM]): AlgorithmKind =
   akSphincsHaraka128fSimpleVerify
+proc algorithmOf*(T: typedesc[sphincsHaraka128fSimpleTyrSignM]): AlgorithmKind =
+  akSphincsHaraka128fSimpleTyrSign
+proc algorithmOf*(T: typedesc[sphincsHaraka128fSimpleTyrVerifyM]): AlgorithmKind =
+  akSphincsHaraka128fSimpleTyrVerify
 proc algorithmOf*(T: typedesc[x25519SendM]): AlgorithmKind = akX25519Send
 proc algorithmOf*(T: typedesc[x25519OpenM]): AlgorithmKind = akX25519Open
 proc algorithmOf*(T: typedesc[kyber0SendM]): AlgorithmKind = akKyber0Send
 proc algorithmOf*(T: typedesc[kyber0OpenM]): AlgorithmKind = akKyber0Open
 proc algorithmOf*(T: typedesc[kyber1SendM]): AlgorithmKind = akKyber1Send
 proc algorithmOf*(T: typedesc[kyber1OpenM]): AlgorithmKind = akKyber1Open
+proc algorithmOf*(T: typedesc[kyber0TyrSendM]): AlgorithmKind = akKyber0TyrSend
+proc algorithmOf*(T: typedesc[kyber0TyrOpenM]): AlgorithmKind = akKyber0TyrOpen
+proc algorithmOf*(T: typedesc[kyber1TyrSendM]): AlgorithmKind = akKyber1TyrSend
+proc algorithmOf*(T: typedesc[kyber1TyrOpenM]): AlgorithmKind = akKyber1TyrOpen
 proc algorithmOf*(T: typedesc[mceliece0SendM]): AlgorithmKind = akMcEliece0Send
 proc algorithmOf*(T: typedesc[mceliece0OpenM]): AlgorithmKind = akMcEliece0Open
 proc algorithmOf*(T: typedesc[mceliece1SendM]): AlgorithmKind = akMcEliece1Send
@@ -457,8 +599,12 @@ proc algorithmOf*(T: typedesc[mceliece2TyrSendM]): AlgorithmKind = akMcEliece2Ty
 proc algorithmOf*(T: typedesc[mceliece2TyrOpenM]): AlgorithmKind = akMcEliece2TyrOpen
 proc algorithmOf*(T: typedesc[frodo0SendM]): AlgorithmKind = akFrodo0Send
 proc algorithmOf*(T: typedesc[frodo0OpenM]): AlgorithmKind = akFrodo0Open
+proc algorithmOf*(T: typedesc[frodo0TyrSendM]): AlgorithmKind = akFrodo0TyrSend
+proc algorithmOf*(T: typedesc[frodo0TyrOpenM]): AlgorithmKind = akFrodo0TyrOpen
 proc algorithmOf*(T: typedesc[ntruprime0SendM]): AlgorithmKind = akNtruPrime0Send
 proc algorithmOf*(T: typedesc[ntruprime0OpenM]): AlgorithmKind = akNtruPrime0Open
+proc algorithmOf*(T: typedesc[bike0TyrSendM]): AlgorithmKind = akBike0TyrSend
+proc algorithmOf*(T: typedesc[bike0TyrOpenM]): AlgorithmKind = akBike0TyrOpen
 proc algorithmOf*(T: typedesc[bike0SendM]): AlgorithmKind = akBike0Send
 proc algorithmOf*(T: typedesc[bike0OpenM]): AlgorithmKind = akBike0Open
 
@@ -761,6 +907,26 @@ proc asymKeypair*(T: typedesc[mceliece0TyrSendM]): AsymKeypair =
   result.publicKey = kp.publicKey
   result.secretKey = kp.secretKey
 
+proc asymKeypair*(T: typedesc[kyber0TyrSendM]): AsymKeypair =
+  ## Build a pure-Nim Tyr Kyber tier-0 keypair.
+  var kp = customKyber.kyberTyrKeypair(customKyber.kyber768)
+  result.publicKey = kp.publicKey
+  result.secretKey = kp.secretKey
+
+proc asymKeypair*(T: typedesc[kyber0TyrOpenM]): AsymKeypair =
+  ## Build a pure-Nim Tyr Kyber tier-0 keypair.
+  result = asymKeypair(kyber0TyrSendM)
+
+proc asymKeypair*(T: typedesc[kyber1TyrSendM]): AsymKeypair =
+  ## Build a pure-Nim Tyr Kyber tier-1 keypair.
+  var kp = customKyber.kyberTyrKeypair(customKyber.kyber1024)
+  result.publicKey = kp.publicKey
+  result.secretKey = kp.secretKey
+
+proc asymKeypair*(T: typedesc[kyber1TyrOpenM]): AsymKeypair =
+  ## Build a pure-Nim Tyr Kyber tier-1 keypair.
+  result = asymKeypair(kyber1TyrSendM)
+
 proc asymKeypair*(T: typedesc[mceliece0TyrOpenM]): AsymKeypair =
   ## Build a pure-Nim Tyr McEliece tier-0 keypair.
   result = asymKeypair(mceliece0TyrSendM)
@@ -784,6 +950,26 @@ proc asymKeypair*(T: typedesc[mceliece2TyrSendM]): AsymKeypair =
 proc asymKeypair*(T: typedesc[mceliece2TyrOpenM]): AsymKeypair =
   ## Build a pure-Nim Tyr McEliece tier-2 keypair.
   result = asymKeypair(mceliece2TyrSendM)
+
+proc asymKeypair*(T: typedesc[frodo0TyrSendM]): AsymKeypair =
+  ## Build a pure-Nim Tyr Frodo tier-0 keypair.
+  var kp = customFrodo.frodoTyrKeypair(customFrodo.frodo976aes)
+  result.publicKey = kp.publicKey
+  result.secretKey = kp.secretKey
+
+proc asymKeypair*(T: typedesc[frodo0TyrOpenM]): AsymKeypair =
+  ## Build a pure-Nim Tyr Frodo tier-0 keypair.
+  result = asymKeypair(frodo0TyrSendM)
+
+proc asymKeypair*(T: typedesc[bike0TyrSendM]): AsymKeypair =
+  ## Build a pure-Nim Tyr BIKE tier-0 keypair.
+  var kp = customBike.bikeTyrKeypair(customBike.bikeL1)
+  result.publicKey = kp.publicKey
+  result.secretKey = kp.secretKey
+
+proc asymKeypair*(T: typedesc[bike0TyrOpenM]): AsymKeypair =
+  ## Build a pure-Nim Tyr BIKE tier-0 keypair.
+  result = asymKeypair(bike0TyrSendM)
 
 proc symEnc*(alg: StreamCipherAlgorithm, key, nonce, msg: seq[uint8]): seq[uint8] =
   ## Encrypt or stream-XOR `msg` with the selected primitive cipher.
@@ -982,6 +1168,30 @@ proc verify*(message: openArray[byte], m: dilithium2VerifyM): bool =
   result = asymVerify(saDilithium2, toSeqBytes(message),
     toSeqBytes(m.signature), toSeqBytes(m.publicKey))
 
+proc sign*(message: openArray[byte], m: dilithium0TyrSignM): seq[byte] =
+  result = customDilithium.dilithiumTyrSign(customDilithium.dilithium44,
+    toSeqBytes(message), toSeqBytes(m.secretKey))
+
+proc verify*(message: openArray[byte], m: dilithium0TyrVerifyM): bool =
+  result = customDilithium.dilithiumTyrVerify(customDilithium.dilithium44,
+    toSeqBytes(message), toSeqBytes(m.signature), toSeqBytes(m.publicKey))
+
+proc sign*(message: openArray[byte], m: dilithium1TyrSignM): seq[byte] =
+  result = customDilithium.dilithiumTyrSign(customDilithium.dilithium65,
+    toSeqBytes(message), toSeqBytes(m.secretKey))
+
+proc verify*(message: openArray[byte], m: dilithium1TyrVerifyM): bool =
+  result = customDilithium.dilithiumTyrVerify(customDilithium.dilithium65,
+    toSeqBytes(message), toSeqBytes(m.signature), toSeqBytes(m.publicKey))
+
+proc sign*(message: openArray[byte], m: dilithium2TyrSignM): seq[byte] =
+  result = customDilithium.dilithiumTyrSign(customDilithium.dilithium87,
+    toSeqBytes(message), toSeqBytes(m.secretKey))
+
+proc verify*(message: openArray[byte], m: dilithium2TyrVerifyM): bool =
+  result = customDilithium.dilithiumTyrVerify(customDilithium.dilithium87,
+    toSeqBytes(message), toSeqBytes(m.signature), toSeqBytes(m.publicKey))
+
 proc sign*(message: openArray[byte], m: ed448SignM): seq[byte] =
   result = asymSign(saEd448, toSeqBytes(message), toSeqBytes(m.secretKey))
 
@@ -995,6 +1205,14 @@ proc sign*(message: openArray[byte], m: sphincsHaraka128fSimpleSignM): seq[byte]
 proc verify*(message: openArray[byte], m: sphincsHaraka128fSimpleVerifyM): bool =
   result = asymVerify(saSPHINCSPlusHaraka128fSimple, toSeqBytes(message),
     toSeqBytes(m.signature), toSeqBytes(m.publicKey))
+
+proc sign*(message: openArray[byte], m: sphincsHaraka128fSimpleTyrSignM): seq[byte] =
+  result = customSphincs.sphincsTyrSignDerand(customSphincs.sphincsShake128fSimple,
+    toSeqBytes(message), toSeqBytes(m.secretKey), cryptoRandomBytes(16))
+
+proc verify*(message: openArray[byte], m: sphincsHaraka128fSimpleTyrVerifyM): bool =
+  result = customSphincs.sphincsTyrVerify(customSphincs.sphincsShake128fSimple,
+    toSeqBytes(message), toSeqBytes(m.signature), toSeqBytes(m.publicKey))
 
 proc encrypt*(message: openArray[byte], m: xchacha20cipherM): seq[byte] =
   ## Encrypt or stream-XOR `message` with typed XChaCha20 material.
@@ -1035,6 +1253,30 @@ proc seal*(m: kyber1SendM): AsymCipher =
 
 proc open*(env: AsymCipher, m: kyber1OpenM): seq[byte] =
   result = asymDec(kaKyber1, toSeqBytes(m.receiverSecretKey), env)
+
+proc seal*(m: kyber0TyrSendM): AsymCipher =
+  ## Encapsulate with the pure-Nim Tyr Kyber tier-0 backend.
+  var env = customKyber.kyberTyrEncaps(customKyber.kyber768, toSeqBytes(m.receiverPublicKey))
+  result.ciphertext = env.ciphertext
+  result.senderPublicKey = @[]
+  result.sharedSecret = env.sharedSecret
+
+proc open*(env: AsymCipher, m: kyber0TyrOpenM): seq[byte] =
+  ## Decapsulate with the pure-Nim Tyr Kyber tier-0 backend.
+  result = customKyber.kyberTyrDecaps(customKyber.kyber768,
+    toSeqBytes(m.receiverSecretKey), env.ciphertext)
+
+proc seal*(m: kyber1TyrSendM): AsymCipher =
+  ## Encapsulate with the pure-Nim Tyr Kyber tier-1 backend.
+  var env = customKyber.kyberTyrEncaps(customKyber.kyber1024, toSeqBytes(m.receiverPublicKey))
+  result.ciphertext = env.ciphertext
+  result.senderPublicKey = @[]
+  result.sharedSecret = env.sharedSecret
+
+proc open*(env: AsymCipher, m: kyber1TyrOpenM): seq[byte] =
+  ## Decapsulate with the pure-Nim Tyr Kyber tier-1 backend.
+  result = customKyber.kyberTyrDecaps(customKyber.kyber1024,
+    toSeqBytes(m.receiverSecretKey), env.ciphertext)
 
 proc seal*(m: mceliece0SendM): AsymCipher =
   result = asymEnc(kaMcEliece0, toSeqBytes(m.receiverPublicKey))
@@ -1099,6 +1341,18 @@ proc seal*(m: frodo0SendM): AsymCipher =
 proc open*(env: AsymCipher, m: frodo0OpenM): seq[byte] =
   result = asymDec(kaFrodo0, toSeqBytes(m.receiverSecretKey), env)
 
+proc seal*(m: frodo0TyrSendM): AsymCipher =
+  ## Encapsulate with the pure-Nim Tyr Frodo tier-0 backend.
+  var env = customFrodo.frodoTyrEncaps(customFrodo.frodo976aes, toSeqBytes(m.receiverPublicKey))
+  result.ciphertext = env.ciphertext
+  result.senderPublicKey = @[]
+  result.sharedSecret = env.sharedSecret
+
+proc open*(env: AsymCipher, m: frodo0TyrOpenM): seq[byte] =
+  ## Decapsulate with the pure-Nim Tyr Frodo tier-0 backend.
+  result = customFrodo.frodoTyrDecaps(customFrodo.frodo976aes,
+    toSeqBytes(m.receiverSecretKey), env.ciphertext)
+
 proc seal*(m: ntruprime0SendM): AsymCipher =
   result = asymEnc(kaNtruPrime0, toSeqBytes(m.receiverPublicKey))
 
@@ -1110,3 +1364,15 @@ proc seal*(m: bike0SendM): AsymCipher =
 
 proc open*(env: AsymCipher, m: bike0OpenM): seq[byte] =
   result = asymDec(kaBike0, toSeqBytes(m.receiverSecretKey), env)
+
+proc seal*(m: bike0TyrSendM): AsymCipher =
+  ## Encapsulate with the pure-Nim Tyr BIKE tier-0 backend.
+  var env = customBike.bikeTyrEncaps(customBike.bikeL1, toSeqBytes(m.receiverPublicKey))
+  result.ciphertext = env.ciphertext
+  result.senderPublicKey = @[]
+  result.sharedSecret = env.sharedSecret
+
+proc open*(env: AsymCipher, m: bike0TyrOpenM): seq[byte] =
+  ## Decapsulate with the pure-Nim Tyr BIKE tier-0 backend.
+  result = customBike.bikeTyrDecaps(customBike.bikeL1,
+    toSeqBytes(m.receiverSecretKey), env.ciphertext)

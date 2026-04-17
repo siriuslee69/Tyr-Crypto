@@ -19,6 +19,10 @@ proc berlekampMassey*(p: McElieceParams; s: openArray[GF]; outPoly: var seq[GF])
     mle: uint16 = 0
     f: GF = 0
     newL: uint32 = 0
+  defer:
+    clearSensitiveWords(C)
+    clearSensitiveWords(B)
+    clearSensitiveWords(T)
   assert s.len >= 2 * p.sysT
   outPoly.setLen(p.sysT + 1)
   C[0] = 1

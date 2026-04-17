@@ -12,6 +12,10 @@ type
   OqsStatus* = distinct cint
   OqsRandombytesCallback* = proc (random_array: ptr uint8,
     bytes_to_read: csize_t) {.cdecl.}
+  OqsNistDrbgState* = object
+    key*: array[32, uint8]
+    v*: array[16, uint8]
+    reseed_counter*: cint
 
 proc `==`*(a, b: OqsStatus): bool =
   cint(a) == cint(b)
@@ -93,6 +97,8 @@ when defined(hasLibOqs):
       length_secret_key*: csize_t
       length_ciphertext*: csize_t
       length_shared_secret*: csize_t
+      length_keypair_seed*: csize_t
+      length_encaps_seed*: csize_t
 
     OqsSig* = object
       method_name*: cstring
@@ -105,7 +111,11 @@ when defined(hasLibOqs):
 
     KemNewProc = proc (algId: cstring): ptr OqsKem {.cdecl.}
     KemFreeProc = proc (kem: ptr OqsKem) {.cdecl.}
+    KemKeypairDerandProc = proc (kem: ptr OqsKem, public_key, secret_key: ptr uint8,
+      seed: ptr uint8): OqsStatus {.cdecl.}
     KemKeypairProc = proc (kem: ptr OqsKem, public_key, secret_key: ptr uint8): OqsStatus {.cdecl.}
+    KemEncapsDerandProc = proc (kem: ptr OqsKem, ciphertext, shared_secret: ptr uint8,
+      public_key, seed: ptr uint8): OqsStatus {.cdecl.}
     KemEncapsProc = proc (kem: ptr OqsKem, ciphertext, shared_secret: ptr uint8, public_key: ptr uint8): OqsStatus {.cdecl.}
     KemDecapsProc = proc (kem: ptr OqsKem, shared_secret: ptr uint8, ciphertext: ptr uint8, secret_key: ptr uint8): OqsStatus {.cdecl.}
 
@@ -116,12 +126,18 @@ when defined(hasLibOqs):
     SigVerifyProc = proc (sig: ptr OqsSig, msg: ptr uint8, msgLen: csize_t, signature: ptr uint8, sigLen: csize_t, public_key: ptr uint8): OqsStatus {.cdecl.}
     RandombytesSwitchProc = proc (algorithm: cstring): OqsStatus {.cdecl.}
     RandombytesCustomProc = proc (algorithm_ptr: OqsRandombytesCallback) {.cdecl.}
+    RandombytesNistInitProc = proc (entropy_input, personalization_string: ptr uint8) {.cdecl.}
+    RandombytesNistProc = proc (random_array: ptr uint8, bytes_to_read: csize_t) {.cdecl.}
+    RandombytesNistGetStateProc = proc (out_state: pointer) {.cdecl.}
+    RandombytesNistSetStateProc = proc (in_state: pointer) {.cdecl.}
 
   var
     oqsHandle: LibHandle
     oqsKemNew: KemNewProc
     oqsKemFree: KemFreeProc
+    oqsKemKeypairDerand: KemKeypairDerandProc
     oqsKemKeypair: KemKeypairProc
+    oqsKemEncapsDerand: KemEncapsDerandProc
     oqsKemEncaps: KemEncapsProc
     oqsKemDecaps: KemDecapsProc
     oqsSigNew: SigNewProc
@@ -131,6 +147,10 @@ when defined(hasLibOqs):
     oqsSigVerify: SigVerifyProc
     oqsRandombytesSwitch: RandombytesSwitchProc
     oqsRandombytesCustom: RandombytesCustomProc
+    oqsRandombytesNistInit: RandombytesNistInitProc
+    oqsRandombytesNist: RandombytesNistProc
+    oqsRandombytesNistGetState: RandombytesNistGetStateProc
+    oqsRandombytesNistSetState: RandombytesNistSetStateProc
     extraLibCandidates: seq[string] = defaultLibCandidates()
     builderAttempted: bool = false
 
@@ -171,7 +191,9 @@ when defined(hasLibOqs):
       return false
     if not loadSymbol("OQS_KEM_new", oqsKemNew): return false
     if not loadSymbol("OQS_KEM_free", oqsKemFree): return false
+    if not loadSymbol("OQS_KEM_keypair_derand", oqsKemKeypairDerand): return false
     if not loadSymbol("OQS_KEM_keypair", oqsKemKeypair): return false
+    if not loadSymbol("OQS_KEM_encaps_derand", oqsKemEncapsDerand): return false
     if not loadSymbol("OQS_KEM_encaps", oqsKemEncaps): return false
     if not loadSymbol("OQS_KEM_decaps", oqsKemDecaps): return false
     if not loadSymbol("OQS_SIG_new", oqsSigNew): return false
@@ -181,6 +203,18 @@ when defined(hasLibOqs):
     if not loadSymbol("OQS_SIG_verify", oqsSigVerify): return false
     if not loadSymbol("OQS_randombytes_switch_algorithm", oqsRandombytesSwitch): return false
     if not loadSymbol("OQS_randombytes_custom_algorithm", oqsRandombytesCustom): return false
+    let initSym = symAddr(oqsHandle, "OQS_randombytes_nist_kat_init_256bit")
+    if not initSym.isNil:
+      oqsRandombytesNistInit = cast[RandombytesNistInitProc](initSym)
+    let nistSym = symAddr(oqsHandle, "OQS_randombytes_nist_kat")
+    if not nistSym.isNil:
+      oqsRandombytesNist = cast[RandombytesNistProc](nistSym)
+    let getStateSym = symAddr(oqsHandle, "OQS_randombytes_nist_kat_get_state")
+    if not getStateSym.isNil:
+      oqsRandombytesNistGetState = cast[RandombytesNistGetStateProc](getStateSym)
+    let setStateSym = symAddr(oqsHandle, "OQS_randombytes_nist_kat_set_state")
+    if not setStateSym.isNil:
+      oqsRandombytesNistSetState = cast[RandombytesNistSetStateProc](setStateSym)
     true
 
   proc ensureLibOqsLoaded*(): bool =
@@ -198,9 +232,19 @@ when defined(hasLibOqs):
     requireLibOqs()
     oqsKemFree(kem)
 
+  proc OQS_KEM_keypair_derand*(kem: ptr OqsKem, public_key, secret_key: ptr uint8,
+      seed: ptr uint8): OqsStatus =
+    requireLibOqs()
+    oqsKemKeypairDerand(kem, public_key, secret_key, seed)
+
   proc OQS_KEM_keypair*(kem: ptr OqsKem, public_key, secret_key: ptr uint8): OqsStatus =
     requireLibOqs()
     oqsKemKeypair(kem, public_key, secret_key)
+
+  proc OQS_KEM_encaps_derand*(kem: ptr OqsKem, ciphertext, shared_secret: ptr uint8,
+      public_key, seed: ptr uint8): OqsStatus =
+    requireLibOqs()
+    oqsKemEncapsDerand(kem, ciphertext, shared_secret, public_key, seed)
 
   proc OQS_KEM_encaps*(kem: ptr OqsKem, ciphertext, shared_secret: ptr uint8, public_key: ptr uint8): OqsStatus =
     requireLibOqs()
@@ -238,6 +282,35 @@ when defined(hasLibOqs):
     requireLibOqs()
     oqsRandombytesCustom(algorithm_ptr)
 
+  proc hasOqsNistKatDrbg*(): bool =
+    requireLibOqs()
+    result = oqsRandombytesNistInit != nil and oqsRandombytesNist != nil and
+      oqsRandombytesNistGetState != nil and oqsRandombytesNistSetState != nil
+
+  proc OQS_randombytes_nist_kat_init_256bit*(entropy_input, personalization_string: ptr uint8) =
+    requireLibOqs()
+    if oqsRandombytesNistInit == nil:
+      raiseOperation("liboqs", "OQS_randombytes_nist_kat_init_256bit unavailable")
+    oqsRandombytesNistInit(entropy_input, personalization_string)
+
+  proc OQS_randombytes_nist_kat*(random_array: ptr uint8, bytes_to_read: csize_t) =
+    requireLibOqs()
+    if oqsRandombytesNist == nil:
+      raiseOperation("liboqs", "OQS_randombytes_nist_kat unavailable")
+    oqsRandombytesNist(random_array, bytes_to_read)
+
+  proc OQS_randombytes_nist_kat_get_state*(out_state: pointer) =
+    requireLibOqs()
+    if oqsRandombytesNistGetState == nil:
+      raiseOperation("liboqs", "OQS_randombytes_nist_kat_get_state unavailable")
+    oqsRandombytesNistGetState(out_state)
+
+  proc OQS_randombytes_nist_kat_set_state*(in_state: pointer) =
+    requireLibOqs()
+    if oqsRandombytesNistSetState == nil:
+      raiseOperation("liboqs", "OQS_randombytes_nist_kat_set_state unavailable")
+    oqsRandombytesNistSetState(in_state)
+
 else:
   type
     OqsKem* = object
@@ -255,10 +328,29 @@ else:
     discard kem
     raiseUnavailable("liboqs", "hasLibOqs")
 
+  proc OQS_KEM_keypair_derand*(kem: ptr OqsKem, public_key, secret_key: ptr uint8,
+      seed: ptr uint8): OqsStatus =
+    discard kem
+    discard public_key
+    discard secret_key
+    discard seed
+    raiseUnavailable("liboqs", "hasLibOqs")
+    return oqsError
+
   proc OQS_KEM_keypair*(kem: ptr OqsKem, public_key, secret_key: ptr uint8): OqsStatus =
     discard kem
     discard public_key
     discard secret_key
+    raiseUnavailable("liboqs", "hasLibOqs")
+    return oqsError
+
+  proc OQS_KEM_encaps_derand*(kem: ptr OqsKem, ciphertext, shared_secret: ptr uint8,
+      public_key, seed: ptr uint8): OqsStatus =
+    discard kem
+    discard ciphertext
+    discard shared_secret
+    discard public_key
+    discard seed
     raiseUnavailable("liboqs", "hasLibOqs")
     return oqsError
 
@@ -322,6 +414,27 @@ else:
   proc OQS_randombytes_custom_algorithm*(algorithm_ptr: OqsRandombytesCallback) =
     raiseUnavailable("liboqs", "hasLibOqs")
 
+  proc hasOqsNistKatDrbg*(): bool =
+    false
+
+  proc OQS_randombytes_nist_kat_init_256bit*(entropy_input, personalization_string: ptr uint8) =
+    discard entropy_input
+    discard personalization_string
+    raiseUnavailable("liboqs", "hasLibOqs")
+
+  proc OQS_randombytes_nist_kat*(random_array: ptr uint8, bytes_to_read: csize_t) =
+    discard random_array
+    discard bytes_to_read
+    raiseUnavailable("liboqs", "hasLibOqs")
+
+  proc OQS_randombytes_nist_kat_get_state*(out_state: pointer) =
+    discard out_state
+    raiseUnavailable("liboqs", "hasLibOqs")
+
+  proc OQS_randombytes_nist_kat_set_state*(in_state: pointer) =
+    discard in_state
+    raiseUnavailable("liboqs", "hasLibOqs")
+
 const
   ## Algorithm identifiers used across the project.
   oqsRandAlgSystem* = "system"
@@ -340,14 +453,15 @@ const
   oqsAlgNtruPrime0* = "sntrup761" ## current lowest bound backend for ntruprime0
   oqsAlgNtruPrimeSntrup761* = oqsAlgNtruPrime0
 
-  oqsSigDilithium0* = "Dilithium2" ## original Dilithium2 / standardized ML-DSA-44
-  oqsSigDilithium1* = "Dilithium3" ## original Dilithium3 / standardized ML-DSA-65
-  oqsSigDilithium2* = "Dilithium5" ## original Dilithium5 / standardized ML-DSA-87
+  oqsSigDilithium0* = "ML-DSA-44" ## original Dilithium2 / standardized ML-DSA-44
+  oqsSigDilithium1* = "ML-DSA-65" ## original Dilithium3 / standardized ML-DSA-65
+  oqsSigDilithium2* = "ML-DSA-87" ## original Dilithium5 / standardized ML-DSA-87
   oqsSigDilithium3* = oqsSigDilithium1
   oqsSigDilithium5* = oqsSigDilithium2
   oqsSigFalcon512* = "Falcon-512"
   oqsSigFalcon1024* = "Falcon-1024"
-  oqsSigSphincsHaraka128fSimple* = "SPHINCS+-Haraka-128f-simple"
+  oqsSigSphincsShake128fSimple* = "SPHINCS+-SHAKE-128f-simple"
+  oqsSigSphincsHaraka128fSimple* = "SPHINCS+-SHAKE-128f-simple" ## current local backend binding for the kept 128f simple surface
 
 proc requireSuccess*(status: OqsStatus, action: string) =
   if status != oqsSuccess:

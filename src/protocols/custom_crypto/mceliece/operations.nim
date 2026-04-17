@@ -4,6 +4,7 @@ import ./params
 import ./util
 import ./sk_gen
 import ./pk_gen
+import ./controlbits
 import ./encrypt
 import ./decrypt
 import ../sha3/sha3
@@ -44,10 +45,12 @@ proc buildKeypairStreamLength(p: McElieceParams): int =
   ## Length of the SHAKE-derived stream used during keypair generation.
   (p.sysN div 8) + ((1 shl p.gfBits) * 4) + (p.sysT * 2) + 32
 
-proc parseGoppaPolynomial(p: McElieceParams; buf: openArray[byte]): seq[GF] =
-  result = newSeq[GF](p.sysT)
+proc parseGoppaPolynomial(p: McElieceParams; buf: openArray[byte];
+    outPoly: var seq[GF]) =
+  if outPoly.len < p.sysT:
+    outPoly.setLen(p.sysT)
   for i in 0 ..< p.sysT:
-    result[i] = loadGF(buf.toOpenArray(i * 2, i * 2 + 1))
+    outPoly[i] = loadGF(buf.toOpenArray(i * 2, i * 2 + 1))
 
 proc encodeGoppaPolynomial(f: openArray[GF]): seq[byte] =
   result = newSeq[byte](f.len * 2)
@@ -62,6 +65,7 @@ proc mcelieceTyrKeypair*(v: McElieceVariant; seed: seq[byte] = @[]): McElieceTyr
     seedMaterial: seq[byte]
     stream: seq[byte]
     perm = newSeq[uint32](1 shl p.gfBits)
+    pi = newSeq[int16](1 shl p.gfBits)
     irr = newSeq[GF](p.sysT)
     g = newSeq[GF](p.sysT + 1)
     storedSeed = newSeq[byte](32)
@@ -74,6 +78,18 @@ proc mcelieceTyrKeypair*(v: McElieceVariant; seed: seq[byte] = @[]): McElieceTyr
     nextSeedOffset = 0
     pk: seq[byte]
     irrBytes: seq[byte]
+  defer:
+    clearSensitiveWords(seedBytes)
+    clearSensitiveWords(seedMaterial)
+    clearSensitiveWords(stream)
+    clearSensitiveWords(perm)
+    clearSensitiveWords(pi)
+    clearSensitiveWords(irr)
+    clearSensitiveWords(g)
+    clearSensitiveWords(storedSeed)
+    clearSensitiveWords(controlBits)
+    clearSensitiveWords(fWords)
+    clearSensitiveWords(irrBytes)
 
   if seed.len > 0 and seed.len != 32:
     raise newException(ValueError, "McEliece seeded keypair requires a 32-byte seed")
@@ -93,11 +109,12 @@ proc mcelieceTyrKeypair*(v: McElieceVariant; seed: seq[byte] = @[]): McElieceTyr
   while true:
     for i in 0 ..< 32:
       storedSeed[i] = seedMaterial[i + 1]
+    clearSensitiveWords(stream)
     stream = shake256(seedMaterial, buildKeypairStreamLength(p))
     for i in 0 ..< 32:
       seedMaterial[i + 1] = stream[nextSeedOffset + i]
 
-    fWords = parseGoppaPolynomial(p, stream.toOpenArray(fOffset, nextSeedOffset - 1))
+    parseGoppaPolynomial(p, stream.toOpenArray(fOffset, nextSeedOffset - 1), fWords)
     if not genpolyGen(p, irr, fWords):
       continue
 
@@ -108,10 +125,13 @@ proc mcelieceTyrKeypair*(v: McElieceVariant; seed: seq[byte] = @[]): McElieceTyr
     for i in 0 ..< perm.len:
       perm[i] = load4(stream.toOpenArray(permOffset + i * 4, permOffset + i * 4 + 3))
 
-    pk = newSeq[byte](publicKeyBytes(p))
-    if not pkGen(p, g, perm, pk, controlBits, pivots):
+    if not pkGen(p, g, perm, pi, pk, pivots):
       continue
 
+    when defined(danger):
+      controlBits = controlBitsFromPermutationUnchecked(pi, p.gfBits)
+    else:
+      controlBits = controlBitsFromPermutation(pi, p.gfBits)
     irrBytes = encodeGoppaPolynomial(irr)
     result.variant = v
     result.publicKey = pk
@@ -135,11 +155,11 @@ proc buildEncapPreimage(p: McElieceParams; e, syndrome: openArray[byte]): seq[by
   for i in 0 ..< p.syndBytes:
     result[1 + p.sysN div 8 + i] = syndrome[i]
 
-proc buildDecapPreimage(p: McElieceParams; ok: bool; e, c, sk: openArray[byte]): seq[byte] =
+proc buildDecapPreimage(p: McElieceParams; okMask: uint16; e, c, sk: openArray[byte]): seq[byte] =
   let condOffset = 32 + 8 + p.irrBytes
   let sOffset = condOffset + p.condBytes
-  let m = (if ok: 0x00FF'u16 else: 0'u16)
-  let nm = m xor 0xFFFF'u16
+  let m = okMask and 0x00FF'u16
+  let nm = m xor 0x00FF'u16
 
   result = newSeq[byte](1 + p.sysN div 8 + p.syndBytes)
   result[0] = byte(m and 1)
@@ -154,9 +174,13 @@ proc mcelieceTyrEncaps*(v: McElieceVariant, pk: openArray[byte]): McElieceTyrCip
   var
     p = params(v)
     enc: tuple[syndrome, errorVec: seq[byte]]
+    preimage: seq[byte]
+  defer:
+    clearSensitiveWords(enc.errorVec)
+    clearSensitiveWords(preimage)
   assert pk.len == publicKeyBytes(p)
   enc = encryptError(p, pk)
-  let preimage = buildEncapPreimage(p, enc.errorVec, enc.syndrome)
+  preimage = buildEncapPreimage(p, enc.errorVec, enc.syndrome)
   result.variant = v
   result.ciphertext = enc.syndrome
   result.sharedSecret = shake256(preimage, sharedKeyBytes())
@@ -165,11 +189,15 @@ proc mcelieceTyrTryDecaps*(v: McElieceVariant, sk, ct: openArray[byte]): tuple[s
   ## Decapsulate and return the derived shared secret plus a success flag.
   var
     p = params(v)
-    dec: tuple[ok: bool, errorVec: seq[byte]]
+    dec: tuple[ok: bool, okMask: uint16, errorVec: seq[byte]]
+    preimage: seq[byte]
+  defer:
+    clearSensitiveWords(dec.errorVec)
+    clearSensitiveWords(preimage)
   assert ct.len == ciphertextBytes(p)
   assert sk.len == secretKeyBytes(p)
   dec = decodeErrorVector(p, sk.toOpenArray(40, sk.len - 1), ct)
-  let preimage = buildDecapPreimage(p, dec.ok, dec.errorVec, ct, sk)
+  preimage = buildDecapPreimage(p, dec.okMask, dec.errorVec, ct, sk)
   result.sharedSecret = shake256(preimage, sharedKeyBytes())
   result.ok = dec.ok
 

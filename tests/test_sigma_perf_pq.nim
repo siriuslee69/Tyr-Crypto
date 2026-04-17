@@ -91,12 +91,17 @@ proc buildCustomMcElieceRoundtrip(name: string, v: custom_mceliece.McElieceVaria
 
 proc buildCustomDilithiumRoundtrip(name: string, v: custom_dilithium.DilithiumVariant,
     msg: openArray[byte]): BenchAlgo =
+  let p = custom_dilithium.dilithiumParamsTable[v]
   let msgBuf = @msg
+  var
+    pk = newSeq[byte](p.publicKeyBytes)
+    sk = newSeq[byte](p.secretKeyBytes)
+    sig = newSeq[byte](p.signatureBytes)
   result.name = name
   result.run = proc() =
-    let kp = custom_dilithium.dilithiumTyrKeypair(v)
-    let sig = custom_dilithium.dilithiumTyrSign(v, msgBuf, kp.secretKey)
-    doAssert custom_dilithium.dilithiumTyrVerify(v, msgBuf, sig, kp.publicKey)
+    custom_dilithium.dilithiumTyrKeypairInto(v, pk, sk)
+    custom_dilithium.dilithiumTyrSignInto(v, sig, msgBuf, sk)
+    doAssert custom_dilithium.dilithiumTyrVerify(v, msgBuf, sig, pk)
 
 proc buildCustomSphincsRoundtrip(name: string, v: custom_sphincs.SphincsVariant,
     msg: openArray[byte]): BenchAlgo =

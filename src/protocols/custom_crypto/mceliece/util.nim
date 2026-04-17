@@ -1,5 +1,7 @@
 ## Little-endian helpers and constant-time masks used across the Classic McEliece helpers.
 
+import std/[typetraits, volatile]
+
 type
   GF* = uint16
 
@@ -63,3 +65,18 @@ proc ctMaskNonZero*(x: GF): uint16 {.inline.} =
 proc ctMaskZero*(x: GF): uint16 {.inline.} =
   ## Return 0xFFFF when x == 0, else 0x0000 (branch-free).
   not ctMaskNonZero(x)
+
+proc clearSensitiveWords*[T](A: var openArray[T]) {.raises: [].} =
+  ## Volatile wipe for POD buffers that hold transient secret data.
+  when supportsCopyMem(T):
+    if A.len == 0:
+      return
+    var
+      p = cast[ptr UncheckedArray[byte]](unsafeAddr A[0])
+      i: int = 0
+      n: int = A.len * sizeof(T)
+    while i < n:
+      volatileStore(addr p[i], 0'u8)
+      i = i + 1
+  else:
+    {.error: "clearSensitiveWords requires supportsCopyMem(T)".}

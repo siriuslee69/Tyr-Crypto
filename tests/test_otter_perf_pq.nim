@@ -143,11 +143,15 @@ proc mceliece6688128fBenchRoundtripImpl() =
 
 proc dilithium44BenchSignVerifyImpl() =
   var
-    msg = newSeq[byte](2048)
+    p = params(dilithium44)
+    msg: array[2048, byte]
+    pk = newSeq[byte](p.publicKeyBytes)
+    sk = newSeq[byte](p.secretKeyBytes)
+    sig = newSeq[byte](p.signatureBytes)
   fillPattern(msg, 0x61)
-  let kp = dilithiumTyrKeypair(dilithium44)
-  let sig = dilithiumTyrSign(dilithium44, msg, kp.secretKey)
-  doAssert dilithiumTyrVerify(dilithium44, msg, sig, kp.publicKey)
+  dilithiumTyrKeypairInto(dilithium44, pk, sk)
+  dilithiumTyrSignInto(dilithium44, sig, msg, sk)
+  doAssert dilithiumTyrVerify(dilithium44, msg, sig, pk)
 
 proc sphincsShake128fBenchSignVerifyImpl() =
   var

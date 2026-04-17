@@ -4,17 +4,203 @@
 ## Define -d:unsafeFastAes to use table lookups (unsafe).
 ## ------------------------------------------------------
 
+import std/[dynlib, os, strutils]
+
+when defined(aesni):
+  import nimsimd/sse2
+
 const
   aesBlockLen* = 16
+  aesKeyLen128* = 16
   aesKeyLen256* = 32
+  aesNr128 = 10
   aesNr256 = 14
+  aesRoundKeysLen128 = aesBlockLen * (aesNr128 + 1)
   aesRoundKeysLen256 = aesBlockLen * (aesNr256 + 1)
 
 type
   AesBlock* = array[aesBlockLen, uint8]
 
+  Aes128Ctx* = object
+    roundKeys: array[aesRoundKeysLen128, uint8]
+
   Aes256Ctx* = object
     roundKeys: array[aesRoundKeysLen256, uint8]
+
+  EVP_CIPHER = object
+  EVP_CIPHER_CTX = object
+
+  Aes128OpenSslCtx* = object
+    ctx: ptr EVP_CIPHER_CTX
+
+when defined(aesni):
+  type
+    Aes128NiCtx* = object
+      roundKeys*: array[aesNr128 + 1, M128i]
+
+type
+  EvpAes128EcbProc = proc (): ptr EVP_CIPHER {.cdecl.}
+  EvpCipherCtxNewProc = proc (): ptr EVP_CIPHER_CTX {.cdecl.}
+  EvpCipherCtxFreeProc = proc (ctx: ptr EVP_CIPHER_CTX) {.cdecl.}
+  EvpEncryptInitExProc = proc (ctx: ptr EVP_CIPHER_CTX, cipher: ptr EVP_CIPHER,
+    impl: pointer, key: ptr uint8, iv: ptr uint8): cint {.cdecl.}
+  EvpEncryptUpdateProc = proc (ctx: ptr EVP_CIPHER_CTX, outBuf: ptr uint8,
+    outLen: ptr cint, inBuf: ptr uint8, inLen: cint): cint {.cdecl.}
+  EvpEncryptFinalExProc = proc (ctx: ptr EVP_CIPHER_CTX, outBuf: ptr uint8,
+    outLen: ptr cint): cint {.cdecl.}
+  EvpCipherCtxSetPaddingProc = proc (ctx: ptr EVP_CIPHER_CTX, pad: cint): cint {.cdecl.}
+
+const
+  opensslAesLibNames = when defined(windows):
+                         @["libcrypto-3-x64.dll"]
+                       elif defined(macosx):
+                         @["libcrypto.3.dylib", "libcrypto.dylib"]
+                       else:
+                         @["libcrypto.so.3", "libcrypto.so"]
+
+var
+  opensslAesHandle: LibHandle
+  opensslAesChecked: bool = false
+  opensslAesReady: bool = false
+  osslAes128Ecb: EvpAes128EcbProc
+  osslCipherCtxNew: EvpCipherCtxNewProc
+  osslCipherCtxFree: EvpCipherCtxFreeProc
+  osslEncryptInitEx: EvpEncryptInitExProc
+  osslEncryptUpdate: EvpEncryptUpdateProc
+  osslEncryptFinalEx: EvpEncryptFinalExProc
+  osslCipherCtxSetPadding: EvpCipherCtxSetPaddingProc
+
+proc appendOpenSslAesCandidates(candidates: var seq[string], dirPath: string) =
+  let trimmed = dirPath.strip()
+  if trimmed.len == 0:
+    return
+  for name in opensslAesLibNames:
+    candidates.add(joinPath(trimmed, name))
+
+proc collectOpenSslAesCandidates(): seq[string] =
+  let envDirs = getEnv("OPENSSL_LIB_DIRS").strip()
+  let pathDirs = getEnv("PATH").split(PathSep)
+  let moduleDir = splitFile(currentSourcePath()).dir
+  let repoRoot = absolutePath(joinPath(moduleDir, "..", "..", "..", ".."))
+  when defined(windows):
+    let commonWindowsDirs = [
+      r"C:\Program Files\Git\mingw64\bin",
+      r"C:\msys64\mingw64\bin",
+      r"C:\msys64\clang64\bin"
+    ]
+  for name in opensslAesLibNames:
+    result.add(name)
+  if envDirs.len > 0:
+    for dirPath in envDirs.split({';', ':'}):
+      appendOpenSslAesCandidates(result, dirPath)
+  appendOpenSslAesCandidates(result, joinPath(repoRoot, "build", "openssl", "lib"))
+  appendOpenSslAesCandidates(result, joinPath(repoRoot, "build", "openssl", "install", "lib"))
+  for dirPath in pathDirs:
+    appendOpenSslAesCandidates(result, dirPath)
+  when defined(windows):
+    for dirPath in commonWindowsDirs:
+      appendOpenSslAesCandidates(result, dirPath)
+
+proc unloadOpenSslAes() =
+  if opensslAesHandle != nil:
+    unloadLib(opensslAesHandle)
+    opensslAesHandle = nil
+  opensslAesReady = false
+
+proc loadOpenSslAesSymbol[T](symName: string, target: var T): bool =
+  let addrSym = symAddr(opensslAesHandle, symName)
+  if addrSym.isNil:
+    unloadOpenSslAes()
+    return false
+  target = cast[T](addrSym)
+  true
+
+proc ensureOpenSslAesLoaded*(): bool =
+  if opensslAesChecked:
+    return opensslAesReady
+  opensslAesChecked = true
+  for candidate in collectOpenSslAesCandidates():
+    opensslAesHandle = loadLib(candidate)
+    if opensslAesHandle != nil:
+      break
+  if opensslAesHandle == nil:
+    return false
+  if not loadOpenSslAesSymbol("EVP_aes_128_ecb", osslAes128Ecb):
+    return false
+  if not loadOpenSslAesSymbol("EVP_CIPHER_CTX_new", osslCipherCtxNew):
+    return false
+  if not loadOpenSslAesSymbol("EVP_CIPHER_CTX_free", osslCipherCtxFree):
+    return false
+  if not loadOpenSslAesSymbol("EVP_EncryptInit_ex", osslEncryptInitEx):
+    return false
+  if not loadOpenSslAesSymbol("EVP_EncryptUpdate", osslEncryptUpdate):
+    return false
+  if not loadOpenSslAesSymbol("EVP_EncryptFinal_ex", osslEncryptFinalEx):
+    return false
+  if not loadOpenSslAesSymbol("EVP_CIPHER_CTX_set_padding", osslCipherCtxSetPadding):
+    return false
+  opensslAesReady = true
+  true
+
+proc clear*(ctx: var Aes128OpenSslCtx) =
+  if ctx.ctx != nil:
+    osslCipherCtxFree(ctx.ctx)
+    ctx.ctx = nil
+
+proc initOpenSslPublicFast*(ctx: var Aes128OpenSslCtx, key: openArray[uint8]): bool =
+  if key.len != aesKeyLen128:
+    raise newException(ValueError, "AES-128 requires 16-byte key")
+  clear(ctx)
+  if not ensureOpenSslAesLoaded():
+    return false
+  ctx.ctx = osslCipherCtxNew()
+  if ctx.ctx == nil:
+    return false
+  if osslEncryptInitEx(ctx.ctx, osslAes128Ecb(), nil, unsafeAddr key[0], nil) != 1:
+    clear(ctx)
+    return false
+  if osslCipherCtxSetPadding(ctx.ctx, 0) != 1:
+    clear(ctx)
+    return false
+  true
+
+proc encryptBlocksPublicFast*(ctx: Aes128OpenSslCtx, input: openArray[AesBlock],
+    output: var openArray[AesBlock])
+
+proc encryptBlock*(ctx: Aes128OpenSslCtx, input: AesBlock): AesBlock =
+  var
+    inBlock: array[1, AesBlock]
+    outBlock: array[1, AesBlock]
+  inBlock[0] = input
+  encryptBlocksPublicFast(ctx, inBlock, outBlock)
+  result = outBlock[0]
+
+proc encryptBlocksPublicFast*(ctx: Aes128OpenSslCtx, input: openArray[AesBlock],
+    output: var openArray[AesBlock]) =
+  var
+    outLen: cint = 0
+    finalLen: cint = 0
+    tail: AesBlock
+  if ctx.ctx == nil:
+    raise newException(ValueError, "OpenSSL AES context is not initialized")
+  if output.len != input.len:
+    raise newException(ValueError, "AES public bulk encrypt length mismatch")
+  if input.len > 0:
+    if osslEncryptUpdate(ctx.ctx, addr output[0][0], addr outLen,
+        cast[ptr uint8](unsafeAddr input[0][0]), cint(input.len * aesBlockLen)) != 1:
+      raise newException(ValueError, "OpenSSL AES bulk encrypt failed")
+    if outLen != cint(input.len * aesBlockLen):
+      raise newException(ValueError, "OpenSSL AES bulk encrypt length mismatch")
+  if osslEncryptFinalEx(ctx.ctx, addr tail[0], addr finalLen) != 1:
+    raise newException(ValueError, "OpenSSL AES bulk finalize failed")
+  if finalLen != 0:
+    raise newException(ValueError, "OpenSSL AES ECB finalize emitted trailing bytes")
+
+when defined(aesni):
+  {.push header: "wmmintrin.h".}
+  proc mm_aesenc_si128(a, rk: M128i): M128i {.importc: "_mm_aesenc_si128".}
+  proc mm_aesenclast_si128(a, rk: M128i): M128i {.importc: "_mm_aesenclast_si128".}
+  {.pop.}
 
 const
   sbox: array[256, uint8] = [
@@ -57,6 +243,79 @@ const
     0x20'u8, 0x40'u8, 0x80'u8, 0x1b'u8, 0x36'u8
   ]
 
+func xtimeConst(x: uint8): uint8 =
+  let shifted = uint8(x shl 1)
+  let carry = (x shr 7) and 0x1'u8
+  shifted xor (0x1b'u8 * carry)
+
+func mul2Const(x: uint8): uint8 =
+  xtimeConst(x)
+
+func mul3Const(x: uint8): uint8 =
+  xtimeConst(x) xor x
+
+func buildTe0(): array[256, uint32] =
+  var
+    i: int = 0
+    s: uint8 = 0
+  i = 0
+  while i < 256:
+    s = sbox[i]
+    result[i] =
+      (uint32(mul2Const(s)) shl 24) or
+      (uint32(s) shl 16) or
+      (uint32(s) shl 8) or
+      uint32(mul3Const(s))
+    i = i + 1
+
+func buildTe1(): array[256, uint32] =
+  var
+    i: int = 0
+    s: uint8 = 0
+  i = 0
+  while i < 256:
+    s = sbox[i]
+    result[i] =
+      (uint32(mul3Const(s)) shl 24) or
+      (uint32(mul2Const(s)) shl 16) or
+      (uint32(s) shl 8) or
+      uint32(s)
+    i = i + 1
+
+func buildTe2(): array[256, uint32] =
+  var
+    i: int = 0
+    s: uint8 = 0
+  i = 0
+  while i < 256:
+    s = sbox[i]
+    result[i] =
+      (uint32(s) shl 24) or
+      (uint32(mul3Const(s)) shl 16) or
+      (uint32(mul2Const(s)) shl 8) or
+      uint32(s)
+    i = i + 1
+
+func buildTe3(): array[256, uint32] =
+  var
+    i: int = 0
+    s: uint8 = 0
+  i = 0
+  while i < 256:
+    s = sbox[i]
+    result[i] =
+      (uint32(s) shl 24) or
+      (uint32(s) shl 16) or
+      (uint32(mul3Const(s)) shl 8) or
+      uint32(mul2Const(s))
+    i = i + 1
+
+const
+  te0: array[256, uint32] = buildTe0()
+  te1: array[256, uint32] = buildTe1()
+  te2: array[256, uint32] = buildTe2()
+  te3: array[256, uint32] = buildTe3()
+
 {.push overflowChecks: off.}
 proc ctEq(a, b: uint8): uint8 {.inline.} =
   ## Returns 0xFF when equal, 0x00 otherwise (constant-time).
@@ -80,6 +339,10 @@ proc subByte(x: uint8): uint8 {.inline.} =
   else:
     result = sboxCt(x)
 
+proc subByteFast(x: uint8): uint8 {.inline.} =
+  ## Fast table lookup for public-data-only AES paths.
+  result = sbox[x]
+
 proc xtime(x: uint8): uint8 {.inline.} =
   let shifted = uint8(x shl 1)
   let carry = (x shr 7) and 0x1'u8
@@ -96,6 +359,13 @@ proc subBytes(state: var AesBlock) =
   i = 0
   while i < state.len:
     state[i] = subByte(state[i])
+    i = i + 1
+
+proc subBytesFast(state: var AesBlock) =
+  var i: int = 0
+  i = 0
+  while i < state.len:
+    state[i] = subByteFast(state[i])
     i = i + 1
 
 proc shiftRows(state: var AesBlock) =
@@ -145,6 +415,119 @@ proc addRoundKey(state: var AesBlock, roundKeys: array[aesRoundKeysLen256, uint8
     state[i] = state[i] xor roundKeys[base + i]
     i = i + 1
 
+proc addRoundKey(state: var AesBlock, roundKeys: array[aesRoundKeysLen128, uint8],
+    round: int) =
+  let base = round * aesBlockLen
+  var i: int = 0
+  i = 0
+  while i < aesBlockLen:
+    state[i] = state[i] xor roundKeys[base + i]
+    i = i + 1
+
+proc load32Be(A: openArray[uint8], o: int): uint32 {.inline.} =
+  result =
+    (uint32(A[o]) shl 24) or
+    (uint32(A[o + 1]) shl 16) or
+    (uint32(A[o + 2]) shl 8) or
+    uint32(A[o + 3])
+
+proc store32Be(A: var openArray[uint8], o: int, v: uint32) {.inline.} =
+  A[o] = uint8((v shr 24) and 0xff'u32)
+  A[o + 1] = uint8((v shr 16) and 0xff'u32)
+  A[o + 2] = uint8((v shr 8) and 0xff'u32)
+  A[o + 3] = uint8(v and 0xff'u32)
+
+proc expandKey128(key: openArray[uint8]): array[aesRoundKeysLen128, uint8] =
+  if key.len != aesKeyLen128:
+    raise newException(ValueError, "AES-128 requires 16-byte key")
+  var
+    bytesGenerated: int = 0
+    rconIter: int = 1
+    temp: array[4, uint8]
+    j: int = 0
+  while bytesGenerated < aesKeyLen128:
+    result[bytesGenerated] = key[bytesGenerated]
+    bytesGenerated = bytesGenerated + 1
+  while bytesGenerated < aesRoundKeysLen128:
+    temp[0] = result[bytesGenerated - 4]
+    temp[1] = result[bytesGenerated - 3]
+    temp[2] = result[bytesGenerated - 2]
+    temp[3] = result[bytesGenerated - 1]
+    if (bytesGenerated mod aesKeyLen128) == 0:
+      let t0 = temp[0]
+      temp[0] = temp[1]
+      temp[1] = temp[2]
+      temp[2] = temp[3]
+      temp[3] = t0
+      temp[0] = subByte(temp[0])
+      temp[1] = subByte(temp[1])
+      temp[2] = subByte(temp[2])
+      temp[3] = subByte(temp[3])
+      temp[0] = temp[0] xor rcon[rconIter]
+      rconIter = rconIter + 1
+    j = 0
+    while j < 4:
+      result[bytesGenerated] = result[bytesGenerated - aesKeyLen128] xor temp[j]
+      bytesGenerated = bytesGenerated + 1
+      j = j + 1
+
+proc expandKey128Fast(key: openArray[uint8]): array[aesRoundKeysLen128, uint8] =
+  if key.len != aesKeyLen128:
+    raise newException(ValueError, "AES-128 requires 16-byte key")
+  var
+    bytesGenerated: int = 0
+    rconIter: int = 1
+    temp: array[4, uint8]
+    j: int = 0
+  while bytesGenerated < aesKeyLen128:
+    result[bytesGenerated] = key[bytesGenerated]
+    bytesGenerated = bytesGenerated + 1
+  while bytesGenerated < aesRoundKeysLen128:
+    temp[0] = result[bytesGenerated - 4]
+    temp[1] = result[bytesGenerated - 3]
+    temp[2] = result[bytesGenerated - 2]
+    temp[3] = result[bytesGenerated - 1]
+    if (bytesGenerated mod aesKeyLen128) == 0:
+      let t0 = temp[0]
+      temp[0] = temp[1]
+      temp[1] = temp[2]
+      temp[2] = temp[3]
+      temp[3] = t0
+      temp[0] = subByteFast(temp[0])
+      temp[1] = subByteFast(temp[1])
+      temp[2] = subByteFast(temp[2])
+      temp[3] = subByteFast(temp[3])
+      temp[0] = temp[0] xor rcon[rconIter]
+      rconIter = rconIter + 1
+    j = 0
+    while j < 4:
+      result[bytesGenerated] = result[bytesGenerated - aesKeyLen128] xor temp[j]
+      bytesGenerated = bytesGenerated + 1
+      j = j + 1
+
+proc init*(ctx: var Aes128Ctx, key: openArray[uint8]) =
+  ctx.roundKeys = expandKey128(key)
+
+proc initPublicFast*(ctx: var Aes128Ctx, key: openArray[uint8]) =
+  ## Fast AES-128 key schedule for public-data-only use.
+  ctx.roundKeys = expandKey128Fast(key)
+
+when defined(aesni):
+  proc init*(ctx: var Aes128NiCtx, key: openArray[uint8]) =
+    var
+      scalarCtx: Aes128Ctx
+      i: int = 0
+      o: int = 0
+    scalarCtx.init(key)
+    i = 0
+    while i <= aesNr128:
+      o = i * aesBlockLen
+      ctx.roundKeys[i] = mm_loadu_si128(cast[pointer](unsafeAddr scalarCtx.roundKeys[o]))
+      i = i + 1
+
+  proc initPublicFast*(ctx: var Aes128NiCtx, key: openArray[uint8]) =
+    ctx.init(key)
+
 proc expandKey256(key: openArray[uint8]): array[aesRoundKeysLen256, uint8] =
   if key.len != aesKeyLen256:
     raise newException(ValueError, "AES-256 requires 32-byte key")
@@ -185,6 +568,280 @@ proc expandKey256(key: openArray[uint8]): array[aesRoundKeysLen256, uint8] =
 
 proc init*(ctx: var Aes256Ctx, key: openArray[uint8]) =
   ctx.roundKeys = expandKey256(key)
+
+proc encryptBlock*(ctx: Aes128Ctx, input: AesBlock): AesBlock =
+  var
+    state = input
+    round: int = 1
+  addRoundKey(state, ctx.roundKeys, 0)
+  round = 1
+  while round < aesNr128:
+    subBytes(state)
+    shiftRows(state)
+    mixColumns(state)
+    addRoundKey(state, ctx.roundKeys, round)
+    round = round + 1
+  subBytes(state)
+  shiftRows(state)
+  addRoundKey(state, ctx.roundKeys, aesNr128)
+  result = state
+
+proc encryptBlockPublicFast*(ctx: Aes128Ctx, input: AesBlock): AesBlock =
+  ## Fast AES-128 encryption for public-data-only use.
+  var
+    s0: uint32 = load32Be(input, 0) xor load32Be(ctx.roundKeys, 0)
+    s1: uint32 = load32Be(input, 4) xor load32Be(ctx.roundKeys, 4)
+    s2: uint32 = load32Be(input, 8) xor load32Be(ctx.roundKeys, 8)
+    s3: uint32 = load32Be(input, 12) xor load32Be(ctx.roundKeys, 12)
+    t0: uint32 = 0
+    t1: uint32 = 0
+    t2: uint32 = 0
+    t3: uint32 = 0
+    round: int = 1
+    rkOff: int = 16
+  round = 1
+  while round < aesNr128:
+    t0 = te0[(s0 shr 24) and 0xff'u32] xor
+      te1[(s1 shr 16) and 0xff'u32] xor
+      te2[(s2 shr 8) and 0xff'u32] xor
+      te3[s3 and 0xff'u32] xor
+      load32Be(ctx.roundKeys, rkOff + 0)
+    t1 = te0[(s1 shr 24) and 0xff'u32] xor
+      te1[(s2 shr 16) and 0xff'u32] xor
+      te2[(s3 shr 8) and 0xff'u32] xor
+      te3[s0 and 0xff'u32] xor
+      load32Be(ctx.roundKeys, rkOff + 4)
+    t2 = te0[(s2 shr 24) and 0xff'u32] xor
+      te1[(s3 shr 16) and 0xff'u32] xor
+      te2[(s0 shr 8) and 0xff'u32] xor
+      te3[s1 and 0xff'u32] xor
+      load32Be(ctx.roundKeys, rkOff + 8)
+    t3 = te0[(s3 shr 24) and 0xff'u32] xor
+      te1[(s0 shr 16) and 0xff'u32] xor
+      te2[(s1 shr 8) and 0xff'u32] xor
+      te3[s2 and 0xff'u32] xor
+      load32Be(ctx.roundKeys, rkOff + 12)
+    s0 = t0
+    s1 = t1
+    s2 = t2
+    s3 = t3
+    rkOff = rkOff + 16
+    round = round + 1
+  t0 =
+    (uint32(sbox[(s0 shr 24) and 0xff'u32]) shl 24) or
+    (uint32(sbox[(s1 shr 16) and 0xff'u32]) shl 16) or
+    (uint32(sbox[(s2 shr 8) and 0xff'u32]) shl 8) or
+    uint32(sbox[s3 and 0xff'u32])
+  t1 =
+    (uint32(sbox[(s1 shr 24) and 0xff'u32]) shl 24) or
+    (uint32(sbox[(s2 shr 16) and 0xff'u32]) shl 16) or
+    (uint32(sbox[(s3 shr 8) and 0xff'u32]) shl 8) or
+    uint32(sbox[s0 and 0xff'u32])
+  t2 =
+    (uint32(sbox[(s2 shr 24) and 0xff'u32]) shl 24) or
+    (uint32(sbox[(s3 shr 16) and 0xff'u32]) shl 16) or
+    (uint32(sbox[(s0 shr 8) and 0xff'u32]) shl 8) or
+    uint32(sbox[s1 and 0xff'u32])
+  t3 =
+    (uint32(sbox[(s3 shr 24) and 0xff'u32]) shl 24) or
+    (uint32(sbox[(s0 shr 16) and 0xff'u32]) shl 16) or
+    (uint32(sbox[(s1 shr 8) and 0xff'u32]) shl 8) or
+    uint32(sbox[s2 and 0xff'u32])
+  t0 = t0 xor load32Be(ctx.roundKeys, rkOff + 0)
+  t1 = t1 xor load32Be(ctx.roundKeys, rkOff + 4)
+  t2 = t2 xor load32Be(ctx.roundKeys, rkOff + 8)
+  t3 = t3 xor load32Be(ctx.roundKeys, rkOff + 12)
+  store32Be(result, 0, t0)
+  store32Be(result, 4, t1)
+  store32Be(result, 8, t2)
+  store32Be(result, 12, t3)
+
+proc encryptBlocksPublicFast*(ctx: Aes128Ctx, input: openArray[AesBlock],
+    output: var openArray[AesBlock]) =
+  ## Fast AES-128 bulk encryption for public-data-only use.
+  var
+    i: int = 0
+  if output.len != input.len:
+    raise newException(ValueError, "AES public bulk encrypt length mismatch")
+  i = 0
+  while i < input.len:
+    output[i] = encryptBlockPublicFast(ctx, input[i])
+    i = i + 1
+
+when defined(aesni):
+  proc encryptBlock*(ctx: Aes128NiCtx, input: AesBlock): AesBlock =
+    var
+      state: M128i
+      round: int = 1
+    state = mm_loadu_si128(cast[pointer](unsafeAddr input[0]))
+    state = mm_xor_si128(state, ctx.roundKeys[0])
+    round = 1
+    while round < aesNr128:
+      state = mm_aesenc_si128(state, ctx.roundKeys[round])
+      round = round + 1
+    state = mm_aesenclast_si128(state, ctx.roundKeys[aesNr128])
+    mm_storeu_si128(cast[pointer](unsafeAddr result[0]), state)
+
+  proc encryptBlock4*(ctx: Aes128NiCtx, input: array[4, AesBlock]): array[4, AesBlock] =
+    var
+      s0, s1, s2, s3: M128i
+      round: int = 1
+    s0 = mm_loadu_si128(cast[pointer](unsafeAddr input[0][0]))
+    s1 = mm_loadu_si128(cast[pointer](unsafeAddr input[1][0]))
+    s2 = mm_loadu_si128(cast[pointer](unsafeAddr input[2][0]))
+    s3 = mm_loadu_si128(cast[pointer](unsafeAddr input[3][0]))
+    s0 = mm_xor_si128(s0, ctx.roundKeys[0])
+    s1 = mm_xor_si128(s1, ctx.roundKeys[0])
+    s2 = mm_xor_si128(s2, ctx.roundKeys[0])
+    s3 = mm_xor_si128(s3, ctx.roundKeys[0])
+    round = 1
+    while round < aesNr128:
+      s0 = mm_aesenc_si128(s0, ctx.roundKeys[round])
+      s1 = mm_aesenc_si128(s1, ctx.roundKeys[round])
+      s2 = mm_aesenc_si128(s2, ctx.roundKeys[round])
+      s3 = mm_aesenc_si128(s3, ctx.roundKeys[round])
+      round = round + 1
+    s0 = mm_aesenclast_si128(s0, ctx.roundKeys[aesNr128])
+    s1 = mm_aesenclast_si128(s1, ctx.roundKeys[aesNr128])
+    s2 = mm_aesenclast_si128(s2, ctx.roundKeys[aesNr128])
+    s3 = mm_aesenclast_si128(s3, ctx.roundKeys[aesNr128])
+    mm_storeu_si128(cast[pointer](unsafeAddr result[0][0]), s0)
+    mm_storeu_si128(cast[pointer](unsafeAddr result[1][0]), s1)
+    mm_storeu_si128(cast[pointer](unsafeAddr result[2][0]), s2)
+    mm_storeu_si128(cast[pointer](unsafeAddr result[3][0]), s3)
+
+  proc encryptBlock8*(ctx: Aes128NiCtx, input: array[8, AesBlock]): array[8, AesBlock] =
+    var
+      s0, s1, s2, s3: M128i
+      s4, s5, s6, s7: M128i
+      round: int = 1
+    s0 = mm_loadu_si128(cast[pointer](unsafeAddr input[0][0]))
+    s1 = mm_loadu_si128(cast[pointer](unsafeAddr input[1][0]))
+    s2 = mm_loadu_si128(cast[pointer](unsafeAddr input[2][0]))
+    s3 = mm_loadu_si128(cast[pointer](unsafeAddr input[3][0]))
+    s4 = mm_loadu_si128(cast[pointer](unsafeAddr input[4][0]))
+    s5 = mm_loadu_si128(cast[pointer](unsafeAddr input[5][0]))
+    s6 = mm_loadu_si128(cast[pointer](unsafeAddr input[6][0]))
+    s7 = mm_loadu_si128(cast[pointer](unsafeAddr input[7][0]))
+    s0 = mm_xor_si128(s0, ctx.roundKeys[0])
+    s1 = mm_xor_si128(s1, ctx.roundKeys[0])
+    s2 = mm_xor_si128(s2, ctx.roundKeys[0])
+    s3 = mm_xor_si128(s3, ctx.roundKeys[0])
+    s4 = mm_xor_si128(s4, ctx.roundKeys[0])
+    s5 = mm_xor_si128(s5, ctx.roundKeys[0])
+    s6 = mm_xor_si128(s6, ctx.roundKeys[0])
+    s7 = mm_xor_si128(s7, ctx.roundKeys[0])
+    round = 1
+    while round < aesNr128:
+      s0 = mm_aesenc_si128(s0, ctx.roundKeys[round])
+      s1 = mm_aesenc_si128(s1, ctx.roundKeys[round])
+      s2 = mm_aesenc_si128(s2, ctx.roundKeys[round])
+      s3 = mm_aesenc_si128(s3, ctx.roundKeys[round])
+      s4 = mm_aesenc_si128(s4, ctx.roundKeys[round])
+      s5 = mm_aesenc_si128(s5, ctx.roundKeys[round])
+      s6 = mm_aesenc_si128(s6, ctx.roundKeys[round])
+      s7 = mm_aesenc_si128(s7, ctx.roundKeys[round])
+      round = round + 1
+    s0 = mm_aesenclast_si128(s0, ctx.roundKeys[aesNr128])
+    s1 = mm_aesenclast_si128(s1, ctx.roundKeys[aesNr128])
+    s2 = mm_aesenclast_si128(s2, ctx.roundKeys[aesNr128])
+    s3 = mm_aesenclast_si128(s3, ctx.roundKeys[aesNr128])
+    s4 = mm_aesenclast_si128(s4, ctx.roundKeys[aesNr128])
+    s5 = mm_aesenclast_si128(s5, ctx.roundKeys[aesNr128])
+    s6 = mm_aesenclast_si128(s6, ctx.roundKeys[aesNr128])
+    s7 = mm_aesenclast_si128(s7, ctx.roundKeys[aesNr128])
+    mm_storeu_si128(cast[pointer](unsafeAddr result[0][0]), s0)
+    mm_storeu_si128(cast[pointer](unsafeAddr result[1][0]), s1)
+    mm_storeu_si128(cast[pointer](unsafeAddr result[2][0]), s2)
+    mm_storeu_si128(cast[pointer](unsafeAddr result[3][0]), s3)
+    mm_storeu_si128(cast[pointer](unsafeAddr result[4][0]), s4)
+    mm_storeu_si128(cast[pointer](unsafeAddr result[5][0]), s5)
+    mm_storeu_si128(cast[pointer](unsafeAddr result[6][0]), s6)
+    mm_storeu_si128(cast[pointer](unsafeAddr result[7][0]), s7)
+
+  proc encryptBlocks*(ctx: Aes128NiCtx, input: openArray[AesBlock],
+      output: var openArray[AesBlock]) =
+    var
+      i: int = 0
+      s0, s1, s2, s3: M128i
+      s4, s5, s6, s7: M128i
+      round: int = 1
+    if output.len != input.len:
+      raise newException(ValueError, "AES block bulk encrypt length mismatch")
+    i = 0
+    while i + 8 <= input.len:
+      s0 = mm_loadu_si128(cast[pointer](unsafeAddr input[i + 0][0]))
+      s1 = mm_loadu_si128(cast[pointer](unsafeAddr input[i + 1][0]))
+      s2 = mm_loadu_si128(cast[pointer](unsafeAddr input[i + 2][0]))
+      s3 = mm_loadu_si128(cast[pointer](unsafeAddr input[i + 3][0]))
+      s4 = mm_loadu_si128(cast[pointer](unsafeAddr input[i + 4][0]))
+      s5 = mm_loadu_si128(cast[pointer](unsafeAddr input[i + 5][0]))
+      s6 = mm_loadu_si128(cast[pointer](unsafeAddr input[i + 6][0]))
+      s7 = mm_loadu_si128(cast[pointer](unsafeAddr input[i + 7][0]))
+      s0 = mm_xor_si128(s0, ctx.roundKeys[0])
+      s1 = mm_xor_si128(s1, ctx.roundKeys[0])
+      s2 = mm_xor_si128(s2, ctx.roundKeys[0])
+      s3 = mm_xor_si128(s3, ctx.roundKeys[0])
+      s4 = mm_xor_si128(s4, ctx.roundKeys[0])
+      s5 = mm_xor_si128(s5, ctx.roundKeys[0])
+      s6 = mm_xor_si128(s6, ctx.roundKeys[0])
+      s7 = mm_xor_si128(s7, ctx.roundKeys[0])
+      round = 1
+      while round < aesNr128:
+        s0 = mm_aesenc_si128(s0, ctx.roundKeys[round])
+        s1 = mm_aesenc_si128(s1, ctx.roundKeys[round])
+        s2 = mm_aesenc_si128(s2, ctx.roundKeys[round])
+        s3 = mm_aesenc_si128(s3, ctx.roundKeys[round])
+        s4 = mm_aesenc_si128(s4, ctx.roundKeys[round])
+        s5 = mm_aesenc_si128(s5, ctx.roundKeys[round])
+        s6 = mm_aesenc_si128(s6, ctx.roundKeys[round])
+        s7 = mm_aesenc_si128(s7, ctx.roundKeys[round])
+        round = round + 1
+      s0 = mm_aesenclast_si128(s0, ctx.roundKeys[aesNr128])
+      s1 = mm_aesenclast_si128(s1, ctx.roundKeys[aesNr128])
+      s2 = mm_aesenclast_si128(s2, ctx.roundKeys[aesNr128])
+      s3 = mm_aesenclast_si128(s3, ctx.roundKeys[aesNr128])
+      s4 = mm_aesenclast_si128(s4, ctx.roundKeys[aesNr128])
+      s5 = mm_aesenclast_si128(s5, ctx.roundKeys[aesNr128])
+      s6 = mm_aesenclast_si128(s6, ctx.roundKeys[aesNr128])
+      s7 = mm_aesenclast_si128(s7, ctx.roundKeys[aesNr128])
+      mm_storeu_si128(cast[pointer](unsafeAddr output[i + 0][0]), s0)
+      mm_storeu_si128(cast[pointer](unsafeAddr output[i + 1][0]), s1)
+      mm_storeu_si128(cast[pointer](unsafeAddr output[i + 2][0]), s2)
+      mm_storeu_si128(cast[pointer](unsafeAddr output[i + 3][0]), s3)
+      mm_storeu_si128(cast[pointer](unsafeAddr output[i + 4][0]), s4)
+      mm_storeu_si128(cast[pointer](unsafeAddr output[i + 5][0]), s5)
+      mm_storeu_si128(cast[pointer](unsafeAddr output[i + 6][0]), s6)
+      mm_storeu_si128(cast[pointer](unsafeAddr output[i + 7][0]), s7)
+      i = i + 8
+    while i + 4 <= input.len:
+      s0 = mm_loadu_si128(cast[pointer](unsafeAddr input[i + 0][0]))
+      s1 = mm_loadu_si128(cast[pointer](unsafeAddr input[i + 1][0]))
+      s2 = mm_loadu_si128(cast[pointer](unsafeAddr input[i + 2][0]))
+      s3 = mm_loadu_si128(cast[pointer](unsafeAddr input[i + 3][0]))
+      s0 = mm_xor_si128(s0, ctx.roundKeys[0])
+      s1 = mm_xor_si128(s1, ctx.roundKeys[0])
+      s2 = mm_xor_si128(s2, ctx.roundKeys[0])
+      s3 = mm_xor_si128(s3, ctx.roundKeys[0])
+      round = 1
+      while round < aesNr128:
+        s0 = mm_aesenc_si128(s0, ctx.roundKeys[round])
+        s1 = mm_aesenc_si128(s1, ctx.roundKeys[round])
+        s2 = mm_aesenc_si128(s2, ctx.roundKeys[round])
+        s3 = mm_aesenc_si128(s3, ctx.roundKeys[round])
+        round = round + 1
+      s0 = mm_aesenclast_si128(s0, ctx.roundKeys[aesNr128])
+      s1 = mm_aesenclast_si128(s1, ctx.roundKeys[aesNr128])
+      s2 = mm_aesenclast_si128(s2, ctx.roundKeys[aesNr128])
+      s3 = mm_aesenclast_si128(s3, ctx.roundKeys[aesNr128])
+      mm_storeu_si128(cast[pointer](unsafeAddr output[i + 0][0]), s0)
+      mm_storeu_si128(cast[pointer](unsafeAddr output[i + 1][0]), s1)
+      mm_storeu_si128(cast[pointer](unsafeAddr output[i + 2][0]), s2)
+      mm_storeu_si128(cast[pointer](unsafeAddr output[i + 3][0]), s3)
+      i = i + 4
+    while i < input.len:
+      output[i] = encryptBlock(ctx, input[i])
+      i = i + 1
 
 proc encryptBlock*(ctx: Aes256Ctx, input: AesBlock): AesBlock =
   var state = input

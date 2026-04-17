@@ -8,7 +8,7 @@ import ./root
 import ./synd
 import ./benes
 
-proc decodeErrorVector*(p: McElieceParams, skTail, ciphertext: openArray[byte]): tuple[ok: bool, errorVec: seq[byte]] =
+proc decodeErrorVector*(p: McElieceParams, skTail, ciphertext: openArray[byte]): tuple[ok: bool, okMask: uint16, errorVec: seq[byte]] =
   ## Decode a Niederreiter ciphertext into the bit-packed error vector using the secret-key tail.
   ## `skTail` layout: irreducible polynomial || control bits || secret s.
   var
@@ -19,10 +19,18 @@ proc decodeErrorVector*(p: McElieceParams, skTail, ciphertext: openArray[byte]):
     sCmp: seq[GF] = @[]
     locator: seq[GF] = @[]
     images: seq[GF] = @[]
-    checkZero: bool = true
+    check: GF = 0
     w: int = 0
     t: GF = 0
     condOffset = p.irrBytes
+  defer:
+    clearSensitiveWords(g)
+    clearSensitiveWords(L)
+    clearSensitiveWords(r)
+    clearSensitiveWords(s0)
+    clearSensitiveWords(sCmp)
+    clearSensitiveWords(locator)
+    clearSensitiveWords(images)
   if skTail.len < p.irrBytes + p.condBytes + (p.sysN div 8):
     raise newException(ValueError, "invalid McEliece secret key tail length")
   if ciphertext.len != p.syndBytes:
@@ -49,11 +57,8 @@ proc decodeErrorVector*(p: McElieceParams, skTail, ciphertext: openArray[byte]):
     result.errorVec[i div 8] = result.errorVec[i div 8] or byte(t shl (i mod 8))
     w = w + int(t)
   synd(p, g, L, result.errorVec, sCmp)
-  if w != p.sysT:
-    result.ok = false
-    return
+  check = GF(uint16(w xor p.sysT))
   for i in 0 ..< s0.len:
-    if s0[i] != sCmp[i]:
-      checkZero = false
-      break
-  result.ok = checkZero
+    check = check or (s0[i] xor sCmp[i])
+  result.okMask = ctMaskZero(check)
+  result.ok = result.okMask == 0xFFFF'u16

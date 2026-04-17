@@ -269,11 +269,11 @@ proc chunkOutput(chunk: openArray[byte], chunkIndex: uint64, key: array[8, uint3
     inc blockIndex
   Output(inputCv: blockCv, blockWords: blockWords, blockLen: thisBlockLen, flags: thisFlags, counter: chunkIndex)
 
-proc initBlake3Hasher*(): Blake3Hasher =
+proc initBlake3HasherFor(key: array[8, uint32], baseFlags: uint32): Blake3Hasher =
   var
     s: Blake3Hasher
-  s.key = iv
-  s.baseFlags = 0'u32
+  s.key = key
+  s.baseFlags = baseFlags
   s.chunkIndex = 0'u64
   s.chunkBuf = @[]
   s.chunkBuf.setLen(chunkLen)
@@ -282,6 +282,9 @@ proc initBlake3Hasher*(): Blake3Hasher =
   s.stackLevels = @[]
   s.hasOutput = false
   result = s
+
+proc initBlake3Hasher*(): Blake3Hasher =
+  result = initBlake3HasherFor(iv, 0'u32)
 
 proc pushCv(s: var Blake3Hasher, cv: array[8, uint32], level: int) =
   var
@@ -305,20 +308,26 @@ proc pushCv(s: var Blake3Hasher, cv: array[8, uint32], level: int) =
     s.stackCvs.add(parentCv)
     s.stackLevels.add(lvl)
 
-proc processChunk(s: var Blake3Hasher, l: int) =
+proc processChunkBytes(s: var Blake3Hasher, chunk: openArray[byte]) =
   var
     outNode: Output
     cv: array[8, uint32]
-  if l == 0:
+  if chunk.len == 0:
     outNode = chunkOutput(@[], s.chunkIndex, s.key, s.baseFlags)
   else:
-    outNode = chunkOutput(s.chunkBuf.toOpenArray(0, l - 1), s.chunkIndex, s.key, s.baseFlags)
+    outNode = chunkOutput(chunk, s.chunkIndex, s.key, s.baseFlags)
   cv = chainingValue(compress(outNode.inputCv, outNode.blockWords, outNode.counter, outNode.blockLen, outNode.flags))
   if not s.hasOutput:
     s.lastOutput = outNode
     s.hasOutput = true
   pushCv(s, cv, 0)
   s.chunkIndex = s.chunkIndex + 1'u64
+
+proc processChunk(s: var Blake3Hasher, l: int) =
+  if l == 0:
+    processChunkBytes(s, @[])
+  else:
+    processChunkBytes(s, s.chunkBuf.toOpenArray(0, l - 1))
 
 proc updateBlake3*(s: var Blake3Hasher, bs: openArray[byte]) =
   var
@@ -327,6 +336,10 @@ proc updateBlake3*(s: var Blake3Hasher, bs: openArray[byte]) =
     j: int = 0
   i = 0
   while i < bs.len:
+    if s.chunkBufLen == 0 and bs.len - i >= chunkLen:
+      processChunkBytes(s, bs.toOpenArray(i, i + chunkLen - 1))
+      i = i + chunkLen
+      continue
     take = min(chunkLen - s.chunkBufLen, bs.len - i)
     j = 0
     while j < take:
@@ -381,45 +394,13 @@ proc blake3HashFile*(p: string, outLen: int = outLenDefault): seq[byte] =
 
 proc hashInternal(input: openArray[byte], key: array[8, uint32], baseFlags: uint32,
     outLen: int): seq[byte] =
+  var
+    s: Blake3Hasher
   if outLen <= 0:
     raise newException(ValueError, "output length must be positive")
-
-  var chunkOutputs: seq[Output]
-  if input.len == 0:
-    chunkOutputs.add(chunkOutput(input, 0, key, baseFlags))
-  else:
-    var idx = 0
-    var chunkIndex = 0'u64
-    while idx < input.len:
-      let take = min(chunkLen, input.len - idx)
-      chunkOutputs.add(chunkOutput(input[idx ..< idx + take], chunkIndex, key, baseFlags))
-      inc chunkIndex
-      idx += take
-
-  var currentCvs: seq[array[8, uint32]]
-  currentCvs.setLen(chunkOutputs.len)
-  for i, node in chunkOutputs:
-    currentCvs[i] = chainingValue(compress(node.inputCv, node.blockWords, node.counter, node.blockLen, node.flags))
-
-  var lastOutput: Output
-  if chunkOutputs.len == 1:
-    lastOutput = chunkOutputs[0]
-  else:
-    var levelCvs = currentCvs
-    while levelCvs.len > 1:
-      var nextCvs: seq[array[8, uint32]]
-      var idx = 0
-      while idx + 1 < levelCvs.len:
-        let parent = parentOutput(levelCvs[idx], levelCvs[idx + 1], key, baseFlags)
-        lastOutput = parent
-        nextCvs.add(chainingValue(compress(parent.inputCv, parent.blockWords, parent.counter, parent.blockLen, parent.flags)))
-        idx += 2
-      if idx < levelCvs.len:
-        nextCvs.add(levelCvs[idx])
-      levelCvs = nextCvs
-
-  result = newSeq[byte](outLen)
-  outputBytes(lastOutput, true, result)
+  s = initBlake3HasherFor(key, baseFlags)
+  updateBlake3(s, input)
+  result = finalBlake3(s, outLen)
 
 proc keyWords(key: openArray[byte]): array[8, uint32] =
   if key.len != 32:

@@ -58,6 +58,13 @@ task perf_sigma, "Benchmark custom crypto with Sigma helpers":
 task perf_sigma_pq, "Benchmark Tyr PQ backends against liboqs with Sigma helpers":
   exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_pq").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_pq.nim")
 
+task perf_sigma_dilithium, "Benchmark split Tyr Dilithium phases against the current liboqs profile":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_dilithium").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_dilithium.nim")
+
+task perf_sigma_dilithium_scalar, "Benchmark scalar Tyr Dilithium against the scalar liboqs Dilithium profile":
+  putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_dilithium_scalar_zig_mingw"))
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_dilithium_scalar").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -r tests/test_sigma_perf_dilithium.nim")
+
 task perf_sigma_kyber, "Benchmark Tyr Kyber against liboqs with Sigma helpers":
   exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_kyber").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_kyber_only.nim")
 
@@ -113,6 +120,27 @@ task build_liboqs_frodo_ossl, "Build an OpenSSL-backed Frodo-focused liboqs prof
   putEnv("LIBOQS_DIST_BUILD", "ON")
   putEnv("LIBOQS_OPT_TARGET", "auto")
   putEnv("LIBOQS_MINIMAL_BUILD", "KEM_frodokem_976_aes")
+  exec "nim r tools/ensure_env.nim -- --submodules --builddirs"
+  exec "nim r tools/build_liboqs.nim"
+  exec "nim r tools/prepare_liboqs_header.nim"
+
+task build_liboqs_dilithium_scalar_zig, "Build a scalar Zig-backed liboqs profile focused on ML-DSA":
+  putEnv("LIBOQS_PROFILE_NAME", "dilithium_scalar_zig")
+  putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_dilithium_scalar_zig_mingw"))
+  putEnv("LIBOQS_OVERWRITE_BUILD", "1")
+  putEnv("LIBOQS_USE_OPENSSL", "OFF")
+  putEnv("LIBOQS_USE_AES_OPENSSL", "OFF")
+  putEnv("LIBOQS_USE_SHA2_OPENSSL", "OFF")
+  putEnv("LIBOQS_USE_SHA3_OPENSSL", "OFF")
+  putEnv("LIBOQS_DIST_BUILD", "OFF")
+  putEnv("LIBOQS_OPT_TARGET", "generic")
+  putEnv("LIBOQS_MINIMAL_BUILD", "SIG_ml_dsa_44;SIG_ml_dsa_65;SIG_ml_dsa_87")
+  putEnv("LIBOQS_CMAKE_GENERATOR", "MinGW Makefiles")
+  putEnv("LIBOQS_CMAKE_C_COMPILER", joinPath(getCurrentDir(), "tools", "zigcc_wrapper.cmd"))
+  putEnv("LIBOQS_CMAKE_C_COMPILER_ARG1", "")
+  putEnv("LIBOQS_CMAKE_ASM_COMPILER", joinPath(getCurrentDir(), "tools", "zigcc_wrapper.cmd"))
+  putEnv("LIBOQS_CMAKE_ASM_COMPILER_ARG1", "")
+  putEnv("LIBOQS_EXTRA_CMAKE_ARGS", "-DOQS_ENABLE_SIG_ml_dsa_44_avx2=OFF -DOQS_ENABLE_SIG_ml_dsa_65_avx2=OFF -DOQS_ENABLE_SIG_ml_dsa_87_avx2=OFF -DOQS_ENABLE_SHA3_xkcp_low_avx2=OFF -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY -DCMAKE_SH=CMAKE_SH-NOTFOUND")
   exec "nim r tools/ensure_env.nim -- --submodules --builddirs"
   exec "nim r tools/build_liboqs.nim"
   exec "nim r tools/prepare_liboqs_header.nim"

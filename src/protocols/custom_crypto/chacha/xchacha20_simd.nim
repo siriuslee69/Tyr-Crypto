@@ -32,11 +32,8 @@ when defined(sse2) or defined(avx2):
   const
     chachaBlockLen = 64
 
-  proc store32Le(dst: var ByteSeq, offset: int, value: uint32) =
-    dst[offset] = uint8(value and 0xff'u32)
-    dst[offset + 1] = uint8((value shr 8) and 0xff'u32)
-    dst[offset + 2] = uint8((value shr 16) and 0xff'u32)
-    dst[offset + 3] = uint8((value shr 24) and 0xff'u32)
+  proc storeWordNative(dst: var ByteSeq, offset: int, value: uint32) {.inline.} =
+    copyMem(addr dst[offset], unsafeAddr value, sizeof(value))
 
 proc store32LeArr(dst: var array[32, byte], offset: int, value: uint32) =
   dst[offset] = byte(value and 0xff'u32)
@@ -111,12 +108,7 @@ proc buildChaChaNonce(nonce: openArray[byte]): array[12, byte] =
 proc resolveBackend(b: XChaChaBackend): XChaChaBackend =
   case b
   of xcbAuto:
-    when defined(avx2):
-      result = xcbAvx2
-    elif defined(sse2):
-      result = xcbSse2
-    else:
-      result = xcbScalar
+    result = xcbScalar
   else:
     result = b
 
@@ -270,7 +262,7 @@ when defined(sse2):
       lane = 0
       while lane < 4:
         offset = outOffset + lane * chachaBlockLen + word * 4
-        store32Le(outBytes, offset, tmp[lane])
+        storeWordNative(outBytes, offset, tmp[lane])
         lane = lane + 1
       word = word + 1
 
@@ -426,7 +418,7 @@ when defined(avx2):
       lane = 0
       while lane < 8:
         offset = outOffset + lane * chachaBlockLen + word * 4
-        store32Le(outBytes, offset, tmp[lane])
+        storeWordNative(outBytes, offset, tmp[lane])
         lane = lane + 1
       word = word + 1
 

@@ -102,7 +102,16 @@ proc xchacha20XorInPlace*(key, nonce: openArray[byte], initialCounter: uint32,
 proc xchacha20Stream*(key, nonce: openArray[byte], length: int,
                       initialCounter: uint32 = 0'u32): seq[byte] =
   ## Generates an XChaCha20 keystream of requested length.
+  var
+    subkey: array[32, byte]
+    chachaNonce: array[12, byte]
   if length < 0:
     raise newException(ValueError, "length must be non-negative")
-  var zeros = newSeq[byte](length)
-  xchacha20Xor(key, nonce, initialCounter, zeros)
+  if key.len != 32:
+    raise newException(ValueError, "XChaCha20 requires a 32-byte key")
+  if nonce.len != xchacha20NonceSize:
+    raise newException(ValueError, "XChaCha20 requires a 24-byte nonce")
+  subkey = deriveXChaCha20Key(key, nonce)
+  chachaNonce = buildChaChaNonce(nonce)
+  result = newSeq[byte](length)
+  chacha20XorInPlace(subkey, chachaNonce, initialCounter, result)

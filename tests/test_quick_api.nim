@@ -13,6 +13,8 @@ suite "quick api":
     check layout.keyLayouts[1].size == 24
     check layoutOf(akKyber0Send).keyLayouts[0].size == 1184
     check layoutOf(akKyber1Open).keyLayouts[0].size == 3168
+    check layoutOf(akKyber0TyrSend).keyLayouts[0].size == 1184
+    check layoutOf(akKyber1TyrOpen).keyLayouts[0].size == 3168
     check layoutOf(akMcEliece1Send).keyLayouts[0].size == 1047319
     check layoutOf(akMcEliece2Open).keyLayouts[0].size == 14120
     check layoutOf(akFrodo0Send).keyLayouts[0].size == 15632
@@ -23,16 +25,26 @@ suite "quick api":
     check layoutOf(akDilithium1Verify).keyLayouts[1].size == 3309
     check layoutOf(akDilithium2Verify).keyLayouts[0].size == 2592
     check layoutOf(akDilithium2Verify).keyLayouts[1].size == 4627
+    check layoutOf(akDilithium0TyrSign).keyLayouts[0].size == 2560
+    check layoutOf(akDilithium0TyrSign).outputBytes == 2420
+    check layoutOf(akDilithium1TyrVerify).keyLayouts[0].size == 1952
+    check layoutOf(akDilithium1TyrVerify).keyLayouts[1].size == 3309
+    check layoutOf(akDilithium2TyrVerify).keyLayouts[0].size == 2592
+    check layoutOf(akDilithium2TyrVerify).keyLayouts[1].size == 4627
     check layoutOf(akEd448Sign).keyLayouts[0].size == 57
     check layoutOf(akEd448Sign).outputBytes == 114
     check layoutOf(akSphincsHaraka128fSimpleSign).keyLayouts[0].size == 64
     check layoutOf(akSphincsHaraka128fSimpleSign).outputBytes == 17088
+    check layoutOf(akSphincsHaraka128fSimpleTyrSign).keyLayouts[0].size == 64
+    check layoutOf(akSphincsHaraka128fSimpleTyrSign).outputBytes == 17088
     check layoutOf(akMcEliece0TyrSend).keyLayouts[0].size == 1044992
     check layoutOf(akMcEliece0TyrOpen).keyLayouts[0].size == 13932
     check layoutOf(akMcEliece1TyrSend).keyLayouts[0].size == 1047319
     check layoutOf(akMcEliece2TyrOpen).keyLayouts[0].size == 14120
     check layoutOf(akNtruPrime0Send).keyLayouts[0].size == 1158
     check layoutOf(akNtruPrime0Open).keyLayouts[0].size == 1763
+    check layoutOf(akFrodo0TyrSend).keyLayouts[0].size == 15632
+    check layoutOf(akFrodo0TyrOpen).keyLayouts[0].size == 31296
     check layoutOf(akBike0Send).keyLayouts[0].size == 1541
     check layoutOf(akBike0Open).keyLayouts[0].size == 5223
 

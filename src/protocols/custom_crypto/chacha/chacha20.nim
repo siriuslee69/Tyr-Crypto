@@ -4,12 +4,21 @@ const
   chacha20BlockSize* = 64
   sigma = [0x61707865'u32, 0x3320646e'u32, 0x79622d32'u32, 0x6b206574'u32]
 
+type
+  ChaCha20State = array[16, uint32]
+
 proc load32Le(data: openArray[byte], offset: int): uint32 =
   result =
     (uint32(data[offset]) or
     (uint32(data[offset + 1]) shl 8) or
     (uint32(data[offset + 2]) shl 16) or
     (uint32(data[offset + 3]) shl 24))
+
+proc store32Le(dst: var openArray[byte], offset: int, value: uint32) {.inline.} =
+  dst[offset] = byte(value and 0xff'u32)
+  dst[offset + 1] = byte((value shr 8) and 0xff'u32)
+  dst[offset + 2] = byte((value shr 16) and 0xff'u32)
+  dst[offset + 3] = byte((value shr 24) and 0xff'u32)
 
 proc quarterRound(a, b, c, d: var uint32) {.inline.} =
   a = a + b
@@ -21,26 +30,38 @@ proc quarterRound(a, b, c, d: var uint32) {.inline.} =
   c = c + d
   b = rotateLeftBits(b xor c, 7)
 
-proc chacha20Block*(key: openArray[byte], nonce: openArray[byte], counter: uint32 = 0'u32): array[chacha20BlockSize, byte] =
-  ## Returns a single 64-byte ChaCha20 keystream block using a 32-byte key,
-  ## 12-byte nonce (IETF variant), and a 32-bit block counter.
+proc requireChaCha20Inputs(key, nonce: openArray[byte]) {.inline.} =
   if key.len != 32:
     raise newException(ValueError, "ChaCha20 requires a 32-byte key")
   if nonce.len != 12:
     raise newException(ValueError, "ChaCha20 requires a 12-byte nonce")
 
-  var state: array[16, uint32]
-  for i in 0 .. 3:
-    state[i] = sigma[i]
-  for i in 0 .. 7:
-    state[4 + i] = load32Le(key, i * 4)
-  state[12] = counter
-  state[13] = load32Le(nonce, 0)
-  state[14] = load32Le(nonce, 4)
-  state[15] = load32Le(nonce, 8)
+proc initChaCha20State(key, nonce: openArray[byte]): ChaCha20State {.inline.} =
+  var
+    i: int = 0
+  i = 0
+  while i < 4:
+    result[i] = sigma[i]
+    i = i + 1
+  i = 0
+  while i < 8:
+    result[4 + i] = load32Le(key, i * 4)
+    i = i + 1
+  result[13] = load32Le(nonce, 0)
+  result[14] = load32Le(nonce, 4)
+  result[15] = load32Le(nonce, 8)
 
-  var working = state
-  for _ in 0 ..< 10:
+proc writeChaCha20Block(baseState: ChaCha20State, counter: uint32,
+    dst: var openArray[byte], offset: int) {.inline.} =
+  var
+    state: ChaCha20State
+    working: ChaCha20State
+    i: int = 0
+  state = baseState
+  state[12] = counter
+  working = state
+  i = 0
+  while i < 10:
     quarterRound(working[0], working[4], working[8], working[12])
     quarterRound(working[1], working[5], working[9], working[13])
     quarterRound(working[2], working[6], working[10], working[14])
@@ -50,31 +71,46 @@ proc chacha20Block*(key: openArray[byte], nonce: openArray[byte], counter: uint3
     quarterRound(working[1], working[6], working[11], working[12])
     quarterRound(working[2], working[7], working[8], working[13])
     quarterRound(working[3], working[4], working[9], working[14])
+    i = i + 1
 
-  for i in 0 ..< 16:
+  i = 0
+  while i < 16:
     working[i] = working[i] + state[i]
-    let off = i * 4
-    result[off] = byte(working[i] and 0xff'u32)
-    result[off + 1] = byte((working[i] shr 8) and 0xff'u32)
-    result[off + 2] = byte((working[i] shr 16) and 0xff'u32)
-    result[off + 3] = byte((working[i] shr 24) and 0xff'u32)
+    store32Le(dst, offset + i * 4, working[i])
+    i = i + 1
+
+proc chacha20Block*(key: openArray[byte], nonce: openArray[byte], counter: uint32 = 0'u32): array[chacha20BlockSize, byte] =
+  ## Returns a single 64-byte ChaCha20 keystream block using a 32-byte key,
+  ## 12-byte nonce (IETF variant), and a 32-bit block counter.
+  var
+    baseState: ChaCha20State
+  requireChaCha20Inputs(key, nonce)
+  baseState = initChaCha20State(key, nonce)
+  writeChaCha20Block(baseState, counter, result, 0)
 
 proc chacha20Xor*(key, nonce: openArray[byte], initialCounter: uint32, input: openArray[byte]): seq[byte] =
   ## Encrypts/decrypts `input` with ChaCha20, returning a freshly allocated buffer.
-  if key.len != 32:
-    raise newException(ValueError, "ChaCha20 requires a 32-byte key")
-  if nonce.len != 12:
-    raise newException(ValueError, "ChaCha20 requires a 12-byte nonce")
+  var
+    blockCounter: uint32 = 0'u32
+    offset: int = 0
+    todo: int = 0
+    i: int = 0
+    blockBytes: array[chacha20BlockSize, byte]
+    baseState: ChaCha20State
+  requireChaCha20Inputs(key, nonce)
+  baseState = initChaCha20State(key, nonce)
 
   result = newSeq[byte](input.len)
-  var blockCounter = initialCounter
-  var offset = 0
+  blockCounter = initialCounter
+  offset = 0
   while offset < input.len:
-    let keystream = chacha20Block(key, nonce, blockCounter)
-    inc blockCounter
-    let todo = min(chacha20BlockSize, input.len - offset)
-    for i in 0 ..< todo:
-      result[offset + i] = input[offset + i] xor keystream[i]
+    writeChaCha20Block(baseState, blockCounter, blockBytes, 0)
+    blockCounter = blockCounter + 1'u32
+    todo = min(chacha20BlockSize, input.len - offset)
+    i = 0
+    while i < todo:
+      result[offset + i] = input[offset + i] xor blockBytes[i]
+      i = i + 1
     offset += todo
 
 proc chacha20Xor*(key, nonce: openArray[byte], input: openArray[byte]): seq[byte] =
@@ -83,19 +119,25 @@ proc chacha20Xor*(key, nonce: openArray[byte], input: openArray[byte]): seq[byte
 
 proc chacha20XorInPlace*(key, nonce: openArray[byte], initialCounter: uint32, buffer: var openArray[byte]) =
   ## In-place ChaCha20 transform to avoid an extra allocation.
-  if key.len != 32:
-    raise newException(ValueError, "ChaCha20 requires a 32-byte key")
-  if nonce.len != 12:
-    raise newException(ValueError, "ChaCha20 requires a 12-byte nonce")
-
-  var blockCounter = initialCounter
-  var offset = 0
+  var
+    blockCounter: uint32 = 0'u32
+    offset: int = 0
+    todo: int = 0
+    i: int = 0
+    blockBytes: array[chacha20BlockSize, byte]
+    baseState: ChaCha20State
+  requireChaCha20Inputs(key, nonce)
+  baseState = initChaCha20State(key, nonce)
+  blockCounter = initialCounter
+  offset = 0
   while offset < buffer.len:
-    let keystream = chacha20Block(key, nonce, blockCounter)
-    inc blockCounter
-    let todo = min(chacha20BlockSize, buffer.len - offset)
-    for i in 0 ..< todo:
-      buffer[offset + i] = buffer[offset + i] xor keystream[i]
+    writeChaCha20Block(baseState, blockCounter, blockBytes, 0)
+    blockCounter = blockCounter + 1'u32
+    todo = min(chacha20BlockSize, buffer.len - offset)
+    i = 0
+    while i < todo:
+      buffer[offset + i] = buffer[offset + i] xor blockBytes[i]
+      i = i + 1
     offset += todo
 
 when isMainModule:
