@@ -2,7 +2,7 @@
 ## Gimli Sponge <- compatibility facade to gimli folder
 ## -----------------------------------------------------
 
-import ./gimli/gimli_sponge
+import ./symmetric/gimli/gimli_sponge
 
 export gimli_sponge
 

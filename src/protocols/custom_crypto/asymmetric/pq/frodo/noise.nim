@@ -3,7 +3,7 @@
 ## ------------------------------------------------------
 
 import ./params
-import ../../helpers/otter_support
+import ../../../../helpers/otter_support
 
 proc frodoSampleN*(p: FrodoParams, S: var openArray[uint16]) =
   ## Map raw 16-bit pseudo-random words to the Frodo noise distribution.

@@ -1,4 +1,4 @@
-Commit Message: add AES-NI fast path for Frodo AES-backed matrix generation
+Commit Message: restructure custom crypto into symmetric and asymmetric folders
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -44,6 +44,7 @@ Implemented:
 - Otter now captures real inner-function spans for Kyber (`genMatrix`, `indcpaKeypair`, `indcpaEnc`, `indcpaDec`), Frodo (`generateMatrixA`, `mulAddAsPlusE`, `mulAddSaPlusE`, `mulAddSbPlusE`, `mulBs`), and BIKE (`gf2xModMul`, `gf2xModInv`, `decodeBike`).
 - Frodo no longer materializes the full AES matrix for keypair/encaps/decaps; the hot `A*s+e` and `s*A+e` paths now stream matrix stripes directly from AES.
 - Frodo now has an optional AES-NI fast path (`-d:aesni` + `-maes`) for AES-128 block encryption, and the 4-row `A*s+e` generator uses a 4-way AES-NI block helper.
+- `custom_crypto` implementations now live under `symmetric/` and `asymmetric/pq/`, while top-level module names remain compatibility facades and `asymmetric/none_pq/` is reserved for future non-PQ asymmetric code.
 
 Working on:
 - Argon2 pure Nim implementation or dedicated binding wrapper.
@@ -51,10 +52,10 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- The safe Frodo restructures improved the algorithmic shape, but the measured gap to liboqs remained enormous; the next real bottleneck was AES block throughput itself.
+- The `custom_crypto` tree had grown by algorithm name only, which made the symmetric vs asymmetric split implicit and left no reserved slot for non-PQ asymmetric code.
 
 Fix attempt and result:
-- Added an optional AES-NI `Aes128NiCtx` plus 4-way block encryption helper in `aes_core`, then wired the Frodo 4-row `A*s+e` path to use it when compiled with `-d:aesni`. Focused release interop and KAT checks still pass, and the measured Frodo sequential roundtrip average dropped to about `1.65e9` ticks from about `4.15e9` in the same local Sigma comparison.
+- Moved implementation folders under `src/protocols/custom_crypto/symmetric/` and `src/protocols/custom_crypto/asymmetric/pq/`, added top-level facades for moved single-file modules (`random`, `hmac`, `otp`), reserved `asymmetric/none_pq/`, then revalidated the public surface with `nim check` plus focused symmetric/PQ tests.
 
 ## 2026-04-04 First-pass Audit
 Readiness: Not production ready yet—the repo still ships tracked binaries, the autopush automation never reads the audit log, and environment tooling keeps claiming missing headers even when the submodules are present.

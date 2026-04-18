@@ -7,8 +7,8 @@ import ./pk_gen
 import ./controlbits
 import ./encrypt
 import ./decrypt
-import ../sha3/sha3
-import ../random
+import ../../../sha3
+import ../../../random
 
 type
   ## Public/secret keypair emitted by the pure-Nim McEliece backend.

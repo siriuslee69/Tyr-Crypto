@@ -6,7 +6,7 @@ import ./params
 import ./address
 import ./context
 import ./util
-import ../sha3/sha3
+import ../../../sha3
 
 when defined(amd64) or defined(i386):
   import simd_nexus/simd/base_operations

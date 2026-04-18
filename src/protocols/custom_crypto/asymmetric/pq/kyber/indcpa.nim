@@ -8,9 +8,9 @@ import ./util
 import ./poly
 import ./polyvec
 import ./symmetric
-import ../sha3/sha3
-import ../../helpers/otter_support
-import ../random
+import ../../../sha3
+import ../../../../helpers/otter_support
+import ../../../random
 
 {.push boundChecks: off.}
 

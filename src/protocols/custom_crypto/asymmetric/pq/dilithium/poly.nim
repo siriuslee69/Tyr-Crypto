@@ -4,8 +4,8 @@
 
 import ./params
 import ./arith
-import ../sha3/sha3
-import ../../helpers/otter_support
+import ../../../sha3
+import ../../../../helpers/otter_support
 import std/[typetraits, volatile]
 
 when defined(sse2) or defined(avx2):

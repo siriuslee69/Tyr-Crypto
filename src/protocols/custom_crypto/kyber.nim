@@ -2,18 +2,18 @@
 ## Kyber <- compatibility facade to the Kyber core folder
 ## -----------------------------------------------------
 
-import ./kyber/params
-import ./kyber/types
-import ./kyber/util
-import ./kyber/reduce
-import ./kyber/verify
-import ./kyber/ntt
-import ./kyber/symmetric
-import ./kyber/cbd
-import ./kyber/poly
-import ./kyber/polyvec
-import ./kyber/indcpa
-import ./kyber/operations
+import ./asymmetric/pq/kyber/params
+import ./asymmetric/pq/kyber/types
+import ./asymmetric/pq/kyber/util
+import ./asymmetric/pq/kyber/reduce
+import ./asymmetric/pq/kyber/verify
+import ./asymmetric/pq/kyber/ntt
+import ./asymmetric/pq/kyber/symmetric
+import ./asymmetric/pq/kyber/cbd
+import ./asymmetric/pq/kyber/poly
+import ./asymmetric/pq/kyber/polyvec
+import ./asymmetric/pq/kyber/indcpa
+import ./asymmetric/pq/kyber/operations
 
 ## Compatibility facade note:
 ## This currently re-exports the full Kyber internals to keep KAT, profiling,

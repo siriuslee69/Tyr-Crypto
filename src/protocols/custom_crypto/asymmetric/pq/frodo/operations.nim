@@ -5,10 +5,10 @@
 import ./params
 import ./util
 import ./noise
-import ../../helpers/otter_support
-import ../aes/aes_core
-import ../sha3/sha3
-import ../random
+import ../../../../helpers/otter_support
+import ../../../aes_core
+import ../../../sha3
+import ../../../random
 
 when defined(sse2) or defined(avx2):
   import simd_nexus/simd/base_operations

@@ -17,86 +17,80 @@
     };
   </script>
   <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+  <script defer src="./shared_signal.js"></script>
   <script defer src="./shared.js"></script>
 </head>
-<body>
+<body class="docs-root">
   <div class="shell">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-kicker">Tyr-Crypto</div>
-        <h1>Algorithm Notes</h1>
-        <p>Top-down implementation notes, tuning rationale, security constraints, and worked examples.</p>
-      </div>
+    <aside class="left-menu">
+      <section class="menu-panel search-panel">
+        <input
+          id="doc-search"
+          class="menu-search"
+          type="search"
+          placeholder="Search algorithms"
+          aria-label="Search algorithm pages"
+          autocomplete="off"
+        >
+      </section>
+
+      <section class="menu-filter" aria-label="Page Filter">
+        <button class="filter-link is-active" data-filter="all" title="Show every docs page">All</button>
+        <button class="filter-link" data-filter="implemented" title="Show finished algorithm pages">Ready</button>
+        <button class="filter-link" data-filter="pending" title="Show placeholder algorithm pages">Pending</button>
+      </section>
 
       <nav class="nav-list" aria-label="Algorithm Pages">
-        <button class="nav-link is-active" data-page="overview">Overview</button>
-        <button class="nav-link" data-page="kyber">Kyber / ML-KEM</button>
-        <button class="nav-link" data-page="dilithium">Dilithium / ML-DSA</button>
-        <button class="nav-link" data-page="bike">BIKE</button>
-        <button class="nav-link" data-page="frodo">Frodo</button>
-        <button class="nav-link" data-page="mceliece">Classic McEliece</button>
-        <button class="nav-link" data-page="sphincs">SPHINCS+</button>
+        <button class="nav-link is-active" data-page="overview" title="Shared shell overview">Overview</button>
+        <button class="nav-link" data-page="kyber" title="Kyber and ML-KEM notes">Kyber / ML-KEM</button>
+        <button class="nav-link" data-page="dilithium" title="Dilithium and ML-DSA notes">Dilithium / ML-DSA</button>
+        <button class="nav-link" data-page="bike" title="BIKE notes">BIKE</button>
+        <button class="nav-link" data-page="frodo" title="Frodo notes">Frodo</button>
+        <button class="nav-link" data-page="mceliece" title="Classic McEliece notes">Classic McEliece</button>
+        <button class="nav-link" data-page="sphincs" title="SPHINCS plus notes">SPHINCS+</button>
       </nav>
-
-      <section class="sidebar-note">
-        <h2>Reading Pattern</h2>
-        <ol>
-          <li>Start with the system view.</li>
-          <li>Follow the module map.</li>
-          <li>Inspect the hot path decisions.</li>
-          <li>Work through the small math examples.</li>
-        </ol>
-      </section>
     </aside>
 
-    <main class="content-shell">
-      <header class="content-header">
-        <div>
-          <div class="eyebrow" id="page-kicker">Documentation Shell</div>
-          <h2 id="page-title">Overview</h2>
-        </div>
-        <div class="status-pill" id="page-status">Local HTML + MathJax</div>
-      </header>
-
+    <main class="main-shell">
       <section id="doc-content" class="doc-content" aria-live="polite">
         <article class="doc-page">
           <section class="hero-card">
             <p class="eyebrow">What this shell is for</p>
-            <h3>One loader, many algorithm notes</h3>
+            <h3>One shell, many custom-crypto notes</h3>
             <p>
               This root page loads standalone algorithm documents from the corresponding
               subfolders under <code>docs/</code>. The idea is that every algorithm can keep
-              its own detailed writeup, while the shell provides a common navigation layout,
+              its own detailed writeup, while the shell provides the shared left-menu docs layout,
               typography, and LaTeX rendering surface.
             </p>
           </section>
 
           <section class="grid-two">
             <div class="info-card">
-              <h3>Written now</h3>
+              <h3>Written Now</h3>
               <ul>
                 <li>Kyber / ML-KEM</li>
                 <li>Dilithium / ML-DSA</li>
                 <li>Frodo</li>
+                <li>Classic McEliece</li>
                 <li>SPHINCS+</li>
               </ul>
             </div>
             <div class="info-card">
-              <h3>Expected follow-up</h3>
+              <h3>Queued Next</h3>
               <ul>
                 <li>BIKE</li>
-                <li>Classic McEliece</li>
               </ul>
             </div>
           </section>
 
           <section>
-            <h3>Conventions used by these pages</h3>
+            <h3>Doc Shell Rules</h3>
             <ul>
               <li>Start high-level, then descend into modules, then into hot loops.</li>
               <li>Separate speed work, security work, and rollback decisions explicitly.</li>
-              <li>Use small numeric examples that a reader can recompute by hand.</li>
-              <li>Keep paper references tied to the exact implementation choices they influenced.</li>
+              <li>Keep numeric examples small enough to recompute by hand.</li>
+              <li>Use the left-menu search and state filters to move between writeups.</li>
             </ul>
           </section>
         </article>

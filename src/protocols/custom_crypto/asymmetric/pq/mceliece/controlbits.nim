@@ -3,7 +3,7 @@
 
 {.compile: "controlbits_fast.c".}
 
-import ../../helpers/otter_support
+import ../../../../helpers/otter_support
 import ./support
 import ./sort
 

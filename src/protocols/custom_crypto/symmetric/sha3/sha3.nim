@@ -5,7 +5,7 @@
 import std/bitops
 when defined(tyrSha3OpenSslTestOnly):
   import std/[dynlib, os, strutils]
-import ../../helpers/otter_support
+import ../../../helpers/otter_support
 
 type
   ## Supported fixed-output SHA3 variants.

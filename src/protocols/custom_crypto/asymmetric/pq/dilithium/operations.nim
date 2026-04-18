@@ -4,9 +4,9 @@
 
 import ./params
 import ./poly
-import ../sha3/sha3
-import ../random
-import ../../helpers/otter_support
+import ../../../sha3
+import ../../../random
+import ../../../../helpers/otter_support
 
 type
   ## Public/secret keypair emitted by the pure-Nim ML-DSA backend.

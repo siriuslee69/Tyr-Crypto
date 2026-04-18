@@ -2,6 +2,6 @@
 ## Gimli <- compatibility facade to gimli folder
 ## ----------------------------------------------
 
-import ./gimli/gimli
+import ./symmetric/gimli/gimli
 
 export gimli

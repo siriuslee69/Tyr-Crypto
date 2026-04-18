@@ -8,7 +8,7 @@ import ./util
 import ./sampling
 import ./gf2x
 import ./decode
-import ../sha3/sha3
+import ../../../sha3
 
 proc bikeTyrKeypairFromParts*(v: BikeVariant, seed0, seed1: openArray[byte]): BikeTyrKeypair
 

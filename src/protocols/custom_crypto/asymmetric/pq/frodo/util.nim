@@ -2,7 +2,7 @@
 ## Frodo Util <- packing, endian, and constant-time Frodo helpers
 ## ---------------------------------------------------------------
 
-import ../../helpers/otter_support
+import ../../../../helpers/otter_support
 
 proc frodoPackInto*(dst: var openArray[byte], input: openArray[uint16], lsb: int)
 proc frodoUnpackInto*(dst: var openArray[uint16], input: openArray[byte], lsb: int)

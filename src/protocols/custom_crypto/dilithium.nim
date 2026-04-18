@@ -2,10 +2,10 @@
 ## Dilithium <- compatibility facade to the ML-DSA core folder
 ## ------------------------------------------------------------
 
-import ./dilithium/params
-import ./dilithium/arith
-import ./dilithium/poly
-import ./dilithium/operations
+import ./asymmetric/pq/dilithium/params
+import ./asymmetric/pq/dilithium/arith
+import ./asymmetric/pq/dilithium/poly
+import ./asymmetric/pq/dilithium/operations
 
 export params
 export arith

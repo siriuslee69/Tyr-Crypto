@@ -2,7 +2,7 @@
 
 import ./params
 import ./util
-import ../random
+import ../../../random
 
 proc sameMask(x, y: uint16): byte {.inline.} =
   var

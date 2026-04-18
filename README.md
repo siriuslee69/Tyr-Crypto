@@ -20,6 +20,14 @@ This repository is not production-ready.
 The canonical wrapper layer is [basic_api.nim](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/basic_api.nim).
 There is no generic material/inference layer anymore.
 
+`custom_crypto/` now splits implementation code by primitive class:
+
+- `symmetric/` for hashes, MACs, RNG, stream/block helpers, and OTP utilities
+- `asymmetric/pq/` for post-quantum KEM/signature implementations
+- `asymmetric/none_pq/` reserved for non-PQ asymmetric implementations
+
+The old top-level module names under `custom_crypto/` remain as compatibility facades.
+
 ## Repo Boundary
 This repo owns:
 
@@ -199,7 +207,13 @@ Relevant files:
 - [basic_api.nim](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/basic_api.nim)
   canonical typed wrapper API
 - [src/protocols/custom_crypto/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto)
-  pure-Nim and SIMD-oriented implementations
+  compatibility facades plus the implementation roots below
+- [src/protocols/custom_crypto/symmetric/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto/symmetric)
+  symmetric/hash/MAC/random/OTP implementations
+- [src/protocols/custom_crypto/asymmetric/pq/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto/asymmetric/pq)
+  post-quantum KEM/signature implementations
+- [src/protocols/custom_crypto/asymmetric/none_pq/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto/asymmetric/none_pq)
+  reserved slot for future non-PQ asymmetric implementations
 - [src/protocols/bindings/](f:/CodingMain/Tyr-Crypto/src/protocols/bindings)
   optional native bindings
 - [src/protocols/wrapper/wasm/](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/wasm)

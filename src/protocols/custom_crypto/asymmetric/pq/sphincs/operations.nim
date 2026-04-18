@@ -11,7 +11,7 @@ import ./merkle
 import ./merkle_utils
 import ./wots
 import ./util
-import ../random
+import ../../../random
 
 type
   SphincsTyrKeypair* = object

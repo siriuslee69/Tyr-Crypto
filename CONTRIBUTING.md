@@ -36,7 +36,7 @@ If the change touches wasm/JS:
 - `modern_api` is gone.
 - `Tyr`-suffixed material aliases identify local custom implementations.
 - Unsuffixed backend-backed materials may still coexist where Tyr also exposes a pure-Nim alternative.
-- `custom_crypto/` is organized by algorithm family with small compatibility facades at the top level.
+- `custom_crypto/` is organized into `symmetric/` and `asymmetric/`, with `asymmetric/pq/` holding the current PQ implementations and small compatibility facades at the top level.
 
 ## Rules
 - Preserve explicit endianness in crypto code. Do not rely on host-endian memory casts for protocol-critical state.
@@ -55,11 +55,11 @@ If the change touches wasm/JS:
 ## High-Risk Areas
 - [basic_api.nim](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/basic_api.nim)
   typed public wrapper surface
-- [src/protocols/custom_crypto/mceliece/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto/mceliece)
+- [src/protocols/custom_crypto/asymmetric/pq/mceliece/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto/asymmetric/pq/mceliece)
   large pure-Nim KEM implementation
-- [src/protocols/custom_crypto/sha3/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto/sha3)
+- [src/protocols/custom_crypto/symmetric/sha3/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto/symmetric/sha3)
   Keccak/SHA3/SHAKE code
-- [src/protocols/custom_crypto/poly1305/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto/poly1305)
+- [src/protocols/custom_crypto/symmetric/poly1305/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto/symmetric/poly1305)
   one-time authenticator and SIMD batch path
 - [src/protocols/custom_crypto/hmac.nim](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto/hmac.nim)
   generic HMAC orchestration over custom backends

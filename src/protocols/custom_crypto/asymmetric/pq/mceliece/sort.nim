@@ -3,7 +3,7 @@
 
 {.compile: "sort_fast.c".}
 
-import ../../helpers/otter_support
+import ../../../../helpers/otter_support
 
 proc cUint64Sort(x: ptr uint64, n: clonglong) {.
     importc: "tyr_mceliece_uint64_sort", cdecl.}

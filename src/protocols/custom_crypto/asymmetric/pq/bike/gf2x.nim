@@ -5,7 +5,7 @@
 import ./params
 import ./types
 import ./util
-import ../../helpers/otter_support
+import ../../../../helpers/otter_support
 
 const
   bikeKSqrThreshold = 64

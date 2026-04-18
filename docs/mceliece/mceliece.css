@@ -1,75 +1,76 @@
 .mce-toc {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.9rem;
-  margin: 1rem 0 1.4rem;
+  gap: 10px;
+  margin: 12px 0 16px;
 }
 
 .mce-flow {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.9rem;
-  margin: 1rem 0 1.35rem;
+  gap: 14px;
+  margin: 12px 0 16px;
 }
 
 .mce-flow-card,
 .mce-mini-card,
 .mce-formula-card {
-  padding: 1rem 1.05rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(241, 236, 226, 0.9));
+  min-height: 100%;
 }
 
 .mce-mini-grid,
 .mce-formula-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.95rem;
-  margin: 1rem 0 1.3rem;
+  gap: 14px;
+  margin: 12px 0 16px;
 }
 
 .mce-tag-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  margin: 0.8rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .mce-tag {
-  display: inline-flex;
+  display: grid;
+  min-height: 30px;
   align-items: center;
-  padding: 0.32rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: rgba(31, 107, 114, 0.09);
-  color: var(--ink-0);
-  font: 700 0.76rem/1.15 "Trebuchet MS", "Segoe UI", sans-serif;
+  padding: 0 10px;
+  border: none;
+  border-left: 1px solid rgba(230, 50, 215, 0.34);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(230, 50, 215, 0.05));
+  color: #f4f8fb;
+  font: 700 11px/1.15 "Trebuchet MS", "Segoe UI", sans-serif;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  transition: color var(--transition), border-color var(--transition), background-color var(--transition);
+}
+
+.mce-tag:hover,
+.mce-tag:focus-visible {
+  border-left-color: var(--ui-active);
+  background: var(--glue-bg);
 }
 
 .mce-key-layout {
-  margin: 1rem 0;
-  padding: 0.95rem 1rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: #101922;
-  color: #edf2f5;
+  margin: 12px 0;
   overflow-x: auto;
+  color: var(--ui-ink);
 }
 
 .mce-key-layout strong {
-  color: #fff;
+  color: #ffffff;
 }
 
 .mce-note {
-  color: var(--ink-2);
+  color: var(--ui-muted);
   font-size: 0.93rem;
 }
 
 .mce-accent {
-  color: var(--accent);
+  color: #ffd9f7;
   font-weight: 700;
 }
 
@@ -84,16 +85,26 @@
 }
 
 .mce-section-link {
-  text-decoration: none;
+  padding-left: 10px;
+  border-left: none;
+  border-bottom-color: rgba(230, 50, 215, 0.18);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(230, 50, 215, 0.04));
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .mce-section-link:hover,
 .mce-section-link:focus-visible {
-  text-decoration: underline;
+  background: rgba(230, 50, 215, 0.06);
+  border-bottom-color: var(--recommendation-line);
+  color: #ffffff;
 }
 
 .mce-section-link.is-active {
-  color: var(--accent);
+  background: rgba(109, 199, 221, 0.08);
+  border-bottom-color: var(--ui-active);
+  color: #ffffff;
   font-weight: 700;
 }
 

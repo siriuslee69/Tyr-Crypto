@@ -6,7 +6,7 @@ import ./params
 import ./types
 import ./util
 import ./gf2x
-import ../../helpers/otter_support
+import ../../../../helpers/otter_support
 
 proc log2Msb(v: int): int =
   var

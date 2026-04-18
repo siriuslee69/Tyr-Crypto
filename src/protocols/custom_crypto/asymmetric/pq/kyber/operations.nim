@@ -7,7 +7,7 @@ import ./util
 import ./indcpa
 import ./symmetric
 import ./verify
-import ../random
+import ../../../random
 
 type
   ## Public/secret keypair emitted by the pure-Nim Kyber backend.

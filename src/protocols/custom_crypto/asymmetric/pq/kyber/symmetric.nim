@@ -3,7 +3,7 @@
 ## ---------------------------------------------------------
 
 import ./params
-import ../sha3/sha3
+import ../../../sha3
 
 proc hashHInto*(dst: var openArray[byte], A: openArray[byte]) =
   ## SHA3-256 wrapper used by Kyber into a fixed 32-byte buffer.

@@ -2,21 +2,21 @@
 ## Classic McEliece <- compatibility facade to mceliece folder
 ## ------------------------------------------------------------
 
-import ./mceliece/params
-import ./mceliece/util
-import ./mceliece/gf
-import ./mceliece/bm
-import ./mceliece/root
-import ./mceliece/synd
-import ./mceliece/sk_gen
-import ./mceliece/sort
-import ./mceliece/transpose
-import ./mceliece/controlbits
-import ./mceliece/benes
-import ./mceliece/encrypt
-import ./mceliece/decrypt
-import ./mceliece/pk_gen
-import ./mceliece/operations
+import ./asymmetric/pq/mceliece/params
+import ./asymmetric/pq/mceliece/util
+import ./asymmetric/pq/mceliece/gf
+import ./asymmetric/pq/mceliece/bm
+import ./asymmetric/pq/mceliece/root
+import ./asymmetric/pq/mceliece/synd
+import ./asymmetric/pq/mceliece/sk_gen
+import ./asymmetric/pq/mceliece/sort
+import ./asymmetric/pq/mceliece/transpose
+import ./asymmetric/pq/mceliece/controlbits
+import ./asymmetric/pq/mceliece/benes
+import ./asymmetric/pq/mceliece/encrypt
+import ./asymmetric/pq/mceliece/decrypt
+import ./asymmetric/pq/mceliece/pk_gen
+import ./asymmetric/pq/mceliece/operations
 
 export params
 export util
