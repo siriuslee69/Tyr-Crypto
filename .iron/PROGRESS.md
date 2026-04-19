@@ -1,4 +1,4 @@
-Commit Message: restructure custom crypto into symmetric and asymmetric folders
+Commit Message: add automated scalar avx2 pq benchmark profile tool
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -45,6 +45,7 @@ Implemented:
 - Frodo no longer materializes the full AES matrix for keypair/encaps/decaps; the hot `A*s+e` and `s*A+e` paths now stream matrix stripes directly from AES.
 - Frodo now has an optional AES-NI fast path (`-d:aesni` + `-maes`) for AES-128 block encryption, and the 4-row `A*s+e` generator uses a 4-way AES-NI block helper.
 - `custom_crypto` implementations now live under `symmetric/` and `asymmetric/pq/`, while top-level module names remain compatibility facades and `asymmetric/none_pq/` is reserved for future non-PQ asymmetric code.
+- Added `tools/bench_pq_profiles.nim` plus a `nimble bench_pq_profiles` task to build matched `liboqs_min_pq_scalar` / `liboqs_min_pq_avx2` profiles and run the Sigma PQ comparison suites with the intended Tyr scalar and AVX2 flags.
 
 Working on:
 - Argon2 pure Nim implementation or dedicated binding wrapper.
@@ -52,10 +53,10 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- The `custom_crypto` tree had grown by algorithm name only, which made the symmetric vs asymmetric split implicit and left no reserved slot for non-PQ asymmetric code.
+- The scalar-vs-AVX2 Tyr/liboqs comparison flow existed only as manual shell history, which made reproducing apples-to-apples PQ benchmark runs slow and error-prone.
 
 Fix attempt and result:
-- Moved implementation folders under `src/protocols/custom_crypto/symmetric/` and `src/protocols/custom_crypto/asymmetric/pq/`, added top-level facades for moved single-file modules (`random`, `hmac`, `otp`), reserved `asymmetric/none_pq/`, then revalidated the public surface with `nim check` plus focused symmetric/PQ tests.
+- Added an orchestration tool that sets the same liboqs profile env vars and Tyr `danger`/SIMD flags used in the manual comparison runs, writes per-step logs under `build/`, and exposes the flow as `nimble bench_pq_profiles`.
 
 ## 2026-04-04 First-pass Audit
 Readiness: Not production ready yet—the repo still ships tracked binaries, the autopush automation never reads the audit log, and environment tooling keeps claiming missing headers even when the submodules are present.

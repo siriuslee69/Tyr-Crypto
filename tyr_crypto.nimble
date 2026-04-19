@@ -79,6 +79,9 @@ task perf_sigma_frodo_ossl, "Benchmark Tyr Frodo against the OpenSSL-backed Frod
   putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_frodo_ossl"))
   exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_frodo_ossl").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_frodo_profile.nim")
 
+task bench_pq_profiles, "Build matched scalar/AVX2 liboqs profiles and run Sigma PQ comparison benches":
+  exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_bench_pq_profiles").replace('\\', '/') & " tools/bench_pq_profiles.nim")
+
 task perf_otter_pq, "Profile Tyr PQ functions with Otter timing instrumentation":
   exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_otter_pq").replace('\\', '/') & " --path:src --path:../Otter-RepoEvaluation/src -d:release -d:otterTiming -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_otter_perf_pq.nim")
 
@@ -203,6 +206,12 @@ task find, "Use local clones for submodules in parent folder":
             exec "git config -f .gitmodules submodule." & current & ".url " & localUrl
             exec "git config submodule." & current & ".url " & localUrl
     exec "git submodule sync --recursive"
+
+task test_backend_matrix, "Run the backend matrix bench against liboqs and libsodium":
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_backend_matrix").replace('\\', '/') & " -d:hasLibOqs -d:hasLibsodium -r tests/test_backend_matrix.nim")
+
+task test_public_api_surface, "Compile and run the top-level public API export smoke test":
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_public_api_surface").replace('\\', '/') & " -d:hasLibOqs -d:hasLibsodium -r tests/test_public_api_surface.nim")
 
 
 

@@ -235,6 +235,7 @@ nimble test_blake3_simd
 nimble build_wasm
 nimble build_libsodium
 nimble build_liboqs
+nimble bench_pq_profiles
 nimble build_openssl
 ```
 
