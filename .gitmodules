@@ -18,6 +18,10 @@
 	path = submodules/sigma_bench_and_eval
 	url = https://github.com/siriuslee69/Sigma-BenchAndEval.git
 	branch = main
+[submodule "otter_repo_evaluation"]
+	path = submodules/otter_repo_evaluation
+	url = https://github.com/siriuslee69/Otter-RepoEvaluation.git
+	branch = main
 [submodule "simd_nexus"]
 	path = submodules/simd_nexus
 	url = https://github.com/siriuslee69/SIMD-Nexus.git

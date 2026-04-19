@@ -133,6 +133,19 @@ Some surfaces still depend on optional native libraries:
 
 Missing optional libraries should raise explicit `LibraryUnavailableError`, not silently fall back.
 
+## Workspace Dependencies
+The repo uses local workspace helper repos in addition to the native-library submodules:
+
+- `SIMD-Nexus`
+  - SIMD helpers used by the local accelerated paths
+- `Sigma-BenchAndEval`
+  - benchmarking helpers for the Sigma perf tasks
+- `Otter-RepoEvaluation`
+  - timing instrumentation for `otterBench`, `otterSpan`, and the Otter perf tasks
+
+The `submodules/` folder is expected to mirror the shared workspace with local junctions during development.
+The corresponding manifest entries live in [.gitmodules](f:/CodingMain/Tyr-Crypto/.gitmodules).
+
 ## Quick Start
 ### Typed hash
 ```nim

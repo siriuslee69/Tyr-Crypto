@@ -22,6 +22,25 @@ proc withRepoCaches(cmd: string): string =
   putEnv("NIMBLE_DIR", repoNimbleDir().replace('\\', '/'))
   result = cmd
 
+proc requireRepoPath(candidates: openArray[string], label: string): string =
+  var
+    i = 0
+    l = candidates.len
+  while i < l:
+    if dirExists(candidates[i]):
+      return candidates[i].replace('\\', '/')
+    inc i
+  raise newException(OSError, "Missing required path for " & label)
+
+proc otterSrcDir(): string =
+  result = requireRepoPath(
+    @[
+      joinPath(getCurrentDir(), "submodules", "otter_repo_evaluation", "src"),
+      joinPath(getCurrentDir(), "..", "Otter-RepoEvaluation", "src")
+    ],
+    "Otter-RepoEvaluation"
+  )
+
 task check, "Run nim check on core modules":
   exec withRepoCaches("nim check .iron/meta/registry.nim")
 
@@ -83,10 +102,10 @@ task bench_pq_profiles, "Build matched scalar/AVX2 liboqs profiles and run Sigma
   exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_bench_pq_profiles").replace('\\', '/') & " tools/bench_pq_profiles.nim")
 
 task perf_otter_pq, "Profile Tyr PQ functions with Otter timing instrumentation":
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_otter_pq").replace('\\', '/') & " --path:src --path:../Otter-RepoEvaluation/src -d:release -d:otterTiming -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_otter_perf_pq.nim")
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_otter_pq").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:otterTiming -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_otter_perf_pq.nim")
 
 task perf_otter_kyber, "Profile Tyr Kyber functions with Otter timing instrumentation":
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_otter_kyber").replace('\\', '/') & " --path:src --path:../Otter-RepoEvaluation/src -d:release -d:otterTiming -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_otter_perf_kyber_only.nim")
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_otter_kyber").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:otterTiming -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_otter_perf_kyber_only.nim")
 
 
 task build_libsodium, "Build libsodium and prepare combined headers":

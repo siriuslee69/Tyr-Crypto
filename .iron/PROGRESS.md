@@ -1,4 +1,4 @@
-Commit Message: add automated scalar avx2 pq benchmark profile tool
+Commit Message: surface otter as a proper Tyr submodule dependency
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -46,6 +46,7 @@ Implemented:
 - Frodo now has an optional AES-NI fast path (`-d:aesni` + `-maes`) for AES-128 block encryption, and the 4-row `A*s+e` generator uses a 4-way AES-NI block helper.
 - `custom_crypto` implementations now live under `symmetric/` and `asymmetric/pq/`, while top-level module names remain compatibility facades and `asymmetric/none_pq/` is reserved for future non-PQ asymmetric code.
 - Added `tools/bench_pq_profiles.nim` plus a `nimble bench_pq_profiles` task to build matched `liboqs_min_pq_scalar` / `liboqs_min_pq_avx2` profiles and run the Sigma PQ comparison suites with the intended Tyr scalar and AVX2 flags.
+- Added `Otter-RepoEvaluation` to the visible submodule manifest and local submodule path resolution used by Tyr's Otter profiling tasks.
 
 Working on:
 - Argon2 pure Nim implementation or dedicated binding wrapper.

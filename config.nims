@@ -15,6 +15,7 @@ addPathIfExists(joinPath(repoRoot, ".iron", "meta"))
 addPathIfExists(joinPath(repoRoot, "submodules", "simd_nexus", "src"))
 addPathIfExists(joinPath(repoRoot, "..", "SIMD-Nexus", "src"))
 addPathIfExists(joinPath(repoRoot, "..", "Fylgia-Utils", "src"))
+addPathIfExists(joinPath(repoRoot, "submodules", "otter_repo_evaluation", "src"))
 addPathIfExists(joinPath(repoRoot, "..", "Otter-RepoEvaluation", "src"))
 addPathIfExists(joinPath(repoRoot, "..", "Sigma-BenchAndEval", "src"))
 
