@@ -8,11 +8,18 @@ import ./context
 import ./util
 import ../../../sha3
 
-when defined(amd64) or defined(i386):
+when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defined(aarch64):
   import simd_nexus/simd/base_operations
   import protocols/simd/generic_u64
 
-when defined(amd64) or defined(i386):
+when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defined(aarch64):
+  when defined(neon) or defined(arm64) or defined(aarch64):
+    type
+      SphincsVec2 = uint64x2
+  else:
+    type
+      SphincsVec2 = u64x2
+
   proc load64LeSphincs(A: openArray[byte], o: int): uint64 {.inline.} =
     result =
       uint64(A[o]) or
@@ -24,20 +31,22 @@ when defined(amd64) or defined(i386):
       (uint64(A[o + 6]) shl 48) or
       (uint64(A[o + 7]) shl 56)
 
-  proc packAddrChunkU64x2(A: array[2, SphincsAddress], o: int): u64x2 {.inline.} =
-    result = u64x2(mm_set_epi64x(
-      cast[int64](load64LeSphincs(A[1], o)),
-      cast[int64](load64LeSphincs(A[0], o))
-    ))
+  proc packAddrChunkU64x2(A: array[2, SphincsAddress], o: int): SphincsVec2 {.inline.} =
+    var
+      laneVals: array[2, uint64]
+    laneVals[0] = load64LeSphincs(A[0], o)
+    laneVals[1] = load64LeSphincs(A[1], o)
+    result = loadU64x2[SphincsVec2](laneVals)
 
-  proc packNodeChunkU64x2(A: var array[2, array[spxN, byte]], o: int): u64x2 {.inline.} =
-    result = u64x2(mm_set_epi64x(
-      cast[int64](load64LeSphincs(A[1], o)),
-      cast[int64](load64LeSphincs(A[0], o))
-    ))
+  proc packNodeChunkU64x2(A: var array[2, array[spxN, byte]], o: int): SphincsVec2 {.inline.} =
+    var
+      laneVals: array[2, uint64]
+    laneVals[0] = load64LeSphincs(A[0], o)
+    laneVals[1] = load64LeSphincs(A[1], o)
+    result = loadU64x2[SphincsVec2](laneVals)
 
-  proc broadcastSeedU64x2(seed: array[spxN, byte], o: int): u64x2 {.inline.} =
-    result = set1U64[u64x2](load64LeSphincs(seed, o))
+  proc broadcastSeedU64x2(seed: array[spxN, byte], o: int): SphincsVec2 {.inline.} =
+    result = set1U64[SphincsVec2](load64LeSphincs(seed, o))
 
   when defined(avx2):
     proc packAddrChunkU64x4(A: array[4, SphincsAddress], o: int): u64x4 {.inline.} =
@@ -105,7 +114,7 @@ proc prfAddr*(outBytes: var openArray[byte], ctx: SphincsCtx, A: SphincsAddress)
   copyMem(addr buf[spxN + spxAddrBytes], unsafeAddr ctx.skSeed[0], spxN)
   shake256OneBlockAlignedInto(outBytes, buf)
 
-when defined(amd64) or defined(i386):
+when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defined(aarch64):
   proc thash1Batch2*(outBytes: var array[2, array[spxN, byte]],
       input: var array[2, array[spxN, byte]], ctx: SphincsCtx,
       A: array[2, SphincsAddress]) =

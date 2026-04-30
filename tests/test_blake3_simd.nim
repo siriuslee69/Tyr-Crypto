@@ -82,3 +82,27 @@ suite "blake3 simd":
         i = i + 1
       outs = blake3CompressAvx8(cvs, blocks, 1'u64, 64'u32, 0'u32)
       check outs == refs
+
+  when defined(neon) or defined(arm64) or defined(aarch64):
+    test "NEON4 compression matches reference":
+      var
+        cvs: array[4, Blake3Cv]
+        blocks: array[4, Blake3Block]
+        outs: array[4, Blake3Out]
+        refs: array[4, Blake3Out]
+        i: int = 0
+        j: int = 0
+      i = 0
+      while i < cvs.len:
+        j = 0
+        while j < 8:
+          cvs[i][j] = 0x01020304'u32 + uint32(i) * 0x22222222'u32 + uint32(j)
+          j = j + 1
+        blocks[i] = buildBlock(uint32(0x0f1e2d3c'u32 + uint32(i) * 0x01010101'u32))
+        i = i + 1
+      i = 0
+      while i < refs.len:
+        refs[i] = blake3Compress(cvs[i], blocks[i], 2'u64, 64'u32, 0'u32)
+        i = i + 1
+      outs = blake3CompressNeon4(cvs, blocks, 2'u64, 64'u32, 0'u32)
+      check outs == refs

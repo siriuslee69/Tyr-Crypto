@@ -259,19 +259,14 @@ when defined(tyrSha3OpenSslTestOnly):
       return false
     if A.len > 0 and osslDigestUpdate(ctx, unsafeAddr A[0], csize_t(A.len)) != 1:
       return false
-    when cpuEndian == littleEndian:
-      if dst.len > 0 and osslDigestFinalXof(ctx, cast[ptr uint8](unsafeAddr dst[0]),
-          csize_t(dst.len * sizeof(uint16))) != 1:
+    if dst.len > 0:
+      tmp = newSeq[byte](dst.len * 2)
+      if osslDigestFinalXof(ctx, unsafeAddr tmp[0], csize_t(tmp.len)) != 1:
         return false
-    else:
-      if dst.len > 0:
-        tmp = newSeq[byte](dst.len * 2)
-        if osslDigestFinalXof(ctx, unsafeAddr tmp[0], csize_t(tmp.len)) != 1:
-          return false
-        i = 0
-        while i < dst.len:
-          dst[i] = uint16(tmp[i * 2]) or (uint16(tmp[i * 2 + 1]) shl 8)
-          i = i + 1
+      i = 0
+      while i < dst.len:
+        dst[i] = uint16(tmp[i * 2]) or (uint16(tmp[i * 2 + 1]) shl 8)
+        i = i + 1
     result = true
 
 proc sha3DigestBytes*(v: Sha3Variant): int =
@@ -982,6 +977,6 @@ proc sha3Hash*(A: openArray[byte], outLen: int = 32): seq[byte] =
 
 {.pop.}
 
-when defined(amd64) or defined(i386):
+when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defined(aarch64):
   import ./sha3_simd
   export sha3_simd

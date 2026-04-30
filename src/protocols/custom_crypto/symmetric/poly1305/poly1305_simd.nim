@@ -3,7 +3,7 @@
 ## ---------------------------------------------------------------
 
 import simd_nexus/simd/base_operations
-import protocols/simd/generic_u64
+import simd_nexus/simd/generic_u64
 
 when not declared(Poly1305Tag):
   const
@@ -117,13 +117,15 @@ proc poly1305MacBatchImpl[T: SimdU64](
   const lanes = lanesU64[T]()
 
   template pack(vals: untyped): untyped =
-    when lanes == 2:
+    when T is uint64x2:
+      loadU64x2[uint64x2](vals)
+    elif T is u64x2:
       loadU64x2[u64x2](vals)
     else:
       loadU64x4[u64x4](vals)
 
   template unpack(v: untyped): untyped =
-    when lanes == 2:
+    when T is uint64x2 or T is u64x2:
       storeU64x2(v)
     else:
       storeU64x4(v)
@@ -332,6 +334,14 @@ proc poly1305MacSse2x*(keys: array[2, array[poly1305KeyBytes, byte]],
   var tags = poly1305MacBatchImpl[u64x2](keys, msgs)
   result[0] = tags[0]
   result[1] = tags[1]
+
+when defined(neon) or defined(arm64) or defined(aarch64):
+  proc poly1305MacNeon2x*(keys: array[2, array[poly1305KeyBytes, byte]],
+      msgs: array[2, seq[byte]]): array[2, Poly1305Tag] =
+    ## Compute two equal-length Poly1305 tags in a batched NEON lane layout.
+    var tags = poly1305MacBatchImpl[uint64x2](keys, msgs)
+    result[0] = tags[0]
+    result[1] = tags[1]
 
 when defined(avx2):
   proc poly1305MacAvx4x*(keys: array[4, array[poly1305KeyBytes, byte]],

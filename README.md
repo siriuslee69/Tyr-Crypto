@@ -245,6 +245,11 @@ nimble test_all
 nimble test_wasm
 nimble test_gimli
 nimble test_blake3_simd
+nimble test_neon_checks
+nimble test_simd_matrix
+nimble build_android_harness
+nimble build_android_harness_asymmetric_fast
+nimble build_android_harness_asymmetric_full
 nimble build_wasm
 nimble build_libsodium
 nimble build_liboqs
@@ -265,9 +270,59 @@ The suite currently includes:
 
 - known-answer tests for BLAKE3, SHA3, and Poly1305
 - scalar/SIMD parity tests for BLAKE3, Gimli, SHA3, and Poly1305
+- ARM64/NEON compile-check coverage for the SIMD/custom-crypto matrix plus
+  X25519, Kyber, Dilithium, SPHINCS, and McEliece asymmetric paths
 - wrapper-layer dispatch tests
 - wasm bridge tests
 - pure-Nim `mceliece0Tyr` roundtrip coverage
+
+## Android Harness
+- `tests/android_harness`
+  - minimal Android app that executes the packaged native Tyr test binary and
+    writes the captured output to `files/last_test_output.txt`
+- `tests/test_android_custom_crypto.nim`
+  - Android-targeted subset covering custom crypto plus SIMD/NEON checks
+- `tests/test_android_asymmetric_fast.nim`
+  - Android-targeted reduced asymmetric/PQ subset for quicker phone validation,
+    including a Falcon-512 smoke subset instead of the full Falcon suite
+- `tests/test_android_asymmetric_crypto.nim`
+  - Android-targeted full asymmetric/PQ bundle including Frodo, SPHINCS+, and McEliece
+- `tools/build_android_harness.ps1`
+  - cross-compiles the selected ARM64 and x86_64 native harness binaries and builds the APK
+- `tools/run_android_harness.ps1`
+  - installs, launches, polls for completion, and prints the captured app output for one connected device
+
+Typical flow:
+```bash
+nimble build_android_harness
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_android_harness.ps1 -Serial ZY22K9DZG9
+```
+
+Asymmetric/PQ harness flows:
+```bash
+nimble build_android_harness_asymmetric_fast
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_android_harness.ps1 -Serial ZY22K9DZG9 -TimeoutSeconds 900
+
+nimble build_android_harness_asymmetric_full
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_android_harness.ps1 -Serial ZY22K9DZG9 -TimeoutSeconds 1200
+```
+
+Tracing support:
+- add `{.otterTrace.}` to top-level routines you want enter/leave markers for
+- compile with `-d:otterTrace`
+- on Android harness runs, `MainActivity` passes `TYR_OTTER_TRACE_PATH` to the native process
+
+Current result from this workspace:
+- Motorola `motorola_edge_50_fusion` ARM64 run passed the custom/SIMD harness,
+  including the NEON checks.
+- Motorola `motorola_edge_50_fusion` ARM64 direct native runs also passed both
+  the reduced asymmetric/PQ bundle and the full asymmetric/PQ bundle.
+- Motorola direct ARM64 focused runs also passed the new X25519 `NEON2x` batch
+  test and the McEliece roundtrip test after the latest phone-oriented NEON pass.
+- Host and Motorola revalidation also passed after the SPHINCS 2-lane batching
+  and Kyber SSE2 cached-basemul expansion pass.
+- The x86_64 emulator app launches, but the packaged x86_64 native harness exits
+  with code `139`, so the emulator path still needs follow-up.
 
 ## Notes
 - Endianness is handled explicitly in the local implementations.

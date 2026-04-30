@@ -3,6 +3,7 @@
 ## ------------------------------------------------------
 
 import simd_nexus/simd/base_operations
+import simd_nexus/simd/generic_u32
 import nimsimd/avx2
 
 import ./gimli_types
@@ -11,31 +12,83 @@ const
   gimliSwapPairs = 0xB1'i32
   gimliSwapHalves = 0x4E'i32
 
+when defined(neon) or defined(arm64) or defined(aarch64):
+  type
+    GimliVec4 = uint32x4
+else:
+  type
+    GimliVec4 = M128i
 
-proc loadVec(s: Gimli_Block, o: int): M128i {.inline.} =
-  result = mm_setr_epi32(
-    cast[int32](s[o]),
-    cast[int32](s[o + 1]),
-    cast[int32](s[o + 2]),
-    cast[int32](s[o + 3])
-  )
+proc loadVec(s: Gimli_Block, o: int): GimliVec4 {.inline.} =
+  var
+    laneValues: array[4, uint32]
+  laneValues[0] = s[o]
+  laneValues[1] = s[o + 1]
+  laneValues[2] = s[o + 2]
+  laneValues[3] = s[o + 3]
+  result = loadU32x4[GimliVec4](laneValues)
 
 
-proc storeVec(v: M128i, s: var Gimli_Block, o: int) {.inline.} =
-  mm_storeu_si128(addr s[o], v)
+proc storeVec(v: GimliVec4, s: var Gimli_Block, o: int) {.inline.} =
+  var
+    laneValues: array[4, uint32]
+  laneValues = storeU32x4(v)
+  s[o] = laneValues[0]
+  s[o + 1] = laneValues[1]
+  s[o + 2] = laneValues[2]
+  s[o + 3] = laneValues[3]
+
+proc swapPairs(v: GimliVec4): GimliVec4 {.inline.} =
+  when GimliVec4 is M128i:
+    result = mm_shuffle_epi32(v, gimliSwapPairs)
+  else:
+    var
+      laneValues: array[4, uint32]
+    laneValues = storeU32x4(v)
+    result = loadU32x4[GimliVec4]([
+      laneValues[1],
+      laneValues[0],
+      laneValues[3],
+      laneValues[2]
+    ])
+
+proc swapHalves(v: GimliVec4): GimliVec4 {.inline.} =
+  when GimliVec4 is M128i:
+    result = mm_shuffle_epi32(v, gimliSwapHalves)
+  else:
+    var
+      laneValues: array[4, uint32]
+    laneValues = storeU32x4(v)
+    result = loadU32x4[GimliVec4]([
+      laneValues[2],
+      laneValues[3],
+      laneValues[0],
+      laneValues[1]
+    ])
+
+proc roundMaskVec(round: uint32): GimliVec4 {.inline.} =
+  when GimliVec4 is M128i:
+    result = mm_setr_epi32(cast[int32](0x9e377900'u32 or round), 0, 0, 0)
+  else:
+    result = loadU32x4[GimliVec4]([
+      0x9e377900'u32 or round,
+      0'u32,
+      0'u32,
+      0'u32
+    ])
 
 
 proc gimli_core_sse*(state: var Gimli_Block) =
   ## SSE-accelerated Gimli permutation (24 rounds).
   var
     round: uint32 = 24
-    a: M128i
-    b: M128i
-    c: M128i
-    x: M128i
-    y: M128i
-    z: M128i
-    roundVec: M128i
+    a: GimliVec4
+    b: GimliVec4
+    c: GimliVec4
+    x: GimliVec4
+    y: GimliVec4
+    z: GimliVec4
+    roundVec: GimliVec4
   a = loadVec(state, 0)
   b = loadVec(state, 4)
   c = loadVec(state, 8)
@@ -49,11 +102,11 @@ proc gimli_core_sse*(state: var Gimli_Block) =
     a = z xor y xor ((x and y) shl 3)
     case (round and 3)
     of 0'u32:
-      a = mm_shuffle_epi32(a, gimliSwapPairs)
-      roundVec = mm_setr_epi32(cast[int32](0x9e377900'u32 or round), 0, 0, 0)
+      a = swapPairs(a)
+      roundVec = roundMaskVec(round)
       a = a xor roundVec
     of 2'u32:
-      a = mm_shuffle_epi32(a, gimliSwapHalves)
+      a = swapHalves(a)
     else:
       discard
     round = round - 1
@@ -67,7 +120,7 @@ proc gimliPermuteSse*(state: var Gimli_Block) {.inline.} =
 
 
 type
-  GimliSimdState* = array[3, M128i]
+  GimliSimdState* = array[3, GimliVec4]
 
 
 proc loadSimdState*(s: Gimli_Block): GimliSimdState {.inline.} =
@@ -89,13 +142,13 @@ proc gimli_core_sse_state*(st: var GimliSimdState) {.inline.} =
   ## SSE-accelerated Gimli permutation (24 rounds) on SIMD state.
   var
     round: uint32 = 24
-    a: M128i
-    b: M128i
-    c: M128i
-    x: M128i
-    y: M128i
-    z: M128i
-    roundVec: M128i
+    a: GimliVec4
+    b: GimliVec4
+    c: GimliVec4
+    x: GimliVec4
+    y: GimliVec4
+    z: GimliVec4
+    roundVec: GimliVec4
   a = st[0]
   b = st[1]
   c = st[2]
@@ -109,11 +162,11 @@ proc gimli_core_sse_state*(st: var GimliSimdState) {.inline.} =
     a = z xor y xor ((x and y) shl 3)
     case (round and 3)
     of 0'u32:
-      a = mm_shuffle_epi32(a, gimliSwapPairs)
-      roundVec = mm_setr_epi32(cast[int32](0x9e377900'u32 or round), 0, 0, 0)
+      a = swapPairs(a)
+      roundVec = roundMaskVec(round)
       a = a xor roundVec
     of 2'u32:
-      a = mm_shuffle_epi32(a, gimliSwapHalves)
+      a = swapHalves(a)
     else:
       discard
     round = round - 1
@@ -127,35 +180,36 @@ proc gimliPermuteSseState*(st: var GimliSimdState) {.inline.} =
   gimli_core_sse_state(st)
 
 
-proc loadVec4(ss: array[4, Gimli_Block], o: int): M128i {.inline.} =
-  result = mm_setr_epi32(
-    cast[int32](ss[0][o]),
-    cast[int32](ss[1][o]),
-    cast[int32](ss[2][o]),
-    cast[int32](ss[3][o])
-  )
-
-
-proc storeVec4(v: M128i, ss: var array[4, Gimli_Block], o: int) {.inline.} =
+proc loadVec4(ss: array[4, Gimli_Block], o: int): GimliVec4 {.inline.} =
   var
-    tmp: array[4, int32]
-  mm_storeu_si128(addr tmp[0], v)
-  ss[0][o] = uint32(tmp[0])
-  ss[1][o] = uint32(tmp[1])
-  ss[2][o] = uint32(tmp[2])
-  ss[3][o] = uint32(tmp[3])
+    laneValues: array[4, uint32]
+  laneValues[0] = ss[0][o]
+  laneValues[1] = ss[1][o]
+  laneValues[2] = ss[2][o]
+  laneValues[3] = ss[3][o]
+  result = loadU32x4[GimliVec4](laneValues)
+
+
+proc storeVec4(v: GimliVec4, ss: var array[4, Gimli_Block], o: int) {.inline.} =
+  var
+    tmp: array[4, uint32]
+  tmp = storeU32x4(v)
+  ss[0][o] = tmp[0]
+  ss[1][o] = tmp[1]
+  ss[2][o] = tmp[2]
+  ss[3][o] = tmp[3]
 
 
 proc gimli_core_sse4x*(ss: var array[4, Gimli_Block]) {.inline.} =
   ## SSE-accelerated Gimli permutation (24 rounds) for 4 blocks.
   var
     round: uint32 = 24
-    s: array[12, M128i]
+    s: array[12, GimliVec4]
     column: int = 0
-    x: M128i
-    y: M128i
-    z: M128i
-    roundVec: M128i
+    x: GimliVec4
+    y: GimliVec4
+    z: GimliVec4
+    roundVec: GimliVec4
     i: int = 0
   i = 0
   while i < 12:
@@ -176,7 +230,7 @@ proc gimli_core_sse4x*(ss: var array[4, Gimli_Block]) {.inline.} =
     of 0'u32:
       swap(s[0], s[1])
       swap(s[2], s[3])
-      roundVec = mm_set1_epi32(cast[int32](0x9e377900'u32 or round))
+      roundVec = set1U32[GimliVec4](0x9e377900'u32 or round)
       s[0] = s[0] xor roundVec
     of 2'u32:
       swap(s[0], s[2])
@@ -193,6 +247,16 @@ proc gimli_core_sse4x*(ss: var array[4, Gimli_Block]) {.inline.} =
 proc gimliPermuteSse4x*(ss: var array[4, Gimli_Block]) {.inline.} =
   ## SSE-accelerated Gimli permutation for 4 blocks.
   gimli_core_sse4x(ss)
+
+when defined(neon) or defined(arm64) or defined(aarch64):
+  proc gimliPermuteNeon*(state: var Gimli_Block) {.inline.} =
+    gimli_core_sse(state)
+
+  proc gimliPermuteNeonState*(st: var GimliSimdState) {.inline.} =
+    gimli_core_sse_state(st)
+
+  proc gimliPermuteNeon4x*(ss: var array[4, Gimli_Block]) {.inline.} =
+    gimli_core_sse4x(ss)
 
 
 when defined(avx2):

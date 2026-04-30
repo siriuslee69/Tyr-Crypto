@@ -3,6 +3,7 @@
 ## ------------------------------------------------------
 
 import simd_nexus/simd/base_operations
+import simd_nexus/simd/generic_u32
 
 const
   blake3BlockLen* = 64
@@ -17,6 +18,13 @@ type
   Blake3Block* = array[16, uint32]
   Blake3Out* = array[16, uint32]
 
+when defined(neon) or defined(arm64) or defined(aarch64):
+  type
+    Blake3Vec4 = uint32x4
+else:
+  type
+    Blake3Vec4 = M128i
+
 
 proc permute(schedule: var array[16, int]) {.inline.} =
   var next: array[16, int]
@@ -25,7 +33,7 @@ proc permute(schedule: var array[16, int]) {.inline.} =
   schedule = next
 
 
-template gVec(v: var array[16, M128i], a, b, c, d: int, x, y: M128i) =
+template gVec(v: var array[16, Blake3Vec4], a, b, c, d: int, x, y: Blake3Vec4) =
   v[a] = v[a] + v[b] + x
   v[d] = rot_left(v[d] xor v[a], 16)
   v[c] = v[c] + v[d]
@@ -48,22 +56,34 @@ when defined(avx2):
     v[b] = rotLeft32(v[b] xor v[c], 25)
 
 
-proc loadVec4(ss: array[4, Blake3Block], i: int): M128i {.inline.} =
-  result = mm_setr_epi32(int32(ss[0][i]), int32(ss[1][i]), int32(ss[2][i]), int32(ss[3][i]))
-
-
-proc loadCv4(cs: array[4, Blake3Cv], i: int): M128i {.inline.} =
-  result = mm_setr_epi32(int32(cs[0][i]), int32(cs[1][i]), int32(cs[2][i]), int32(cs[3][i]))
-
-
-proc storeVec4(v: M128i, outs: var array[4, Blake3Out], i: int) {.inline.} =
+proc loadVec4(ss: array[4, Blake3Block], i: int): Blake3Vec4 {.inline.} =
   var
-    tmp: array[4, int32]
-  mm_storeu_si128(addr tmp[0], v)
-  outs[0][i] = uint32(tmp[0])
-  outs[1][i] = uint32(tmp[1])
-  outs[2][i] = uint32(tmp[2])
-  outs[3][i] = uint32(tmp[3])
+    laneValues: array[4, uint32]
+  laneValues[0] = ss[0][i]
+  laneValues[1] = ss[1][i]
+  laneValues[2] = ss[2][i]
+  laneValues[3] = ss[3][i]
+  result = loadU32x4[Blake3Vec4](laneValues)
+
+
+proc loadCv4(cs: array[4, Blake3Cv], i: int): Blake3Vec4 {.inline.} =
+  var
+    laneValues: array[4, uint32]
+  laneValues[0] = cs[0][i]
+  laneValues[1] = cs[1][i]
+  laneValues[2] = cs[2][i]
+  laneValues[3] = cs[3][i]
+  result = loadU32x4[Blake3Vec4](laneValues)
+
+
+proc storeVec4(v: Blake3Vec4, outs: var array[4, Blake3Out], i: int) {.inline.} =
+  var
+    tmp: array[4, uint32]
+  tmp = storeU32x4(v)
+  outs[0][i] = tmp[0]
+  outs[1][i] = tmp[1]
+  outs[2][i] = tmp[2]
+  outs[3][i] = tmp[3]
 
 
 when defined(avx2):
@@ -96,12 +116,12 @@ when defined(avx2):
 proc blake3CompressSse4*(cvs: array[4, Blake3Cv], blocks: array[4, Blake3Block],
     counter: uint64, blkLen, flags: uint32): array[4, Blake3Out] =
   var
-    state: array[16, M128i]
-    words: array[16, M128i]
+    state: array[16, Blake3Vec4]
+    words: array[16, Blake3Vec4]
     schedule: array[16, int]
-    cvVec: array[8, M128i]
+    cvVec: array[8, Blake3Vec4]
     i: int = 0
-    outVec: array[16, M128i]
+    outVec: array[16, Blake3Vec4]
     lo: uint32 = 0
     hi: uint32 = 0
   i = 0
@@ -109,16 +129,16 @@ proc blake3CompressSse4*(cvs: array[4, Blake3Cv], blocks: array[4, Blake3Block],
     cvVec[i] = loadCv4(cvs, i)
     state[i] = cvVec[i]
     i = i + 1
-  state[8] = mm_set1_epi32(cast[int32](blake3Iv[0]))
-  state[9] = mm_set1_epi32(cast[int32](blake3Iv[1]))
-  state[10] = mm_set1_epi32(cast[int32](blake3Iv[2]))
-  state[11] = mm_set1_epi32(cast[int32](blake3Iv[3]))
+  state[8] = set1U32[Blake3Vec4](blake3Iv[0])
+  state[9] = set1U32[Blake3Vec4](blake3Iv[1])
+  state[10] = set1U32[Blake3Vec4](blake3Iv[2])
+  state[11] = set1U32[Blake3Vec4](blake3Iv[3])
   lo = uint32(counter and 0xffffffff'u64)
   hi = uint32((counter shr 32) and 0xffffffff'u64)
-  state[12] = mm_set1_epi32(cast[int32](lo))
-  state[13] = mm_set1_epi32(cast[int32](hi))
-  state[14] = mm_set1_epi32(cast[int32](blkLen))
-  state[15] = mm_set1_epi32(cast[int32](flags))
+  state[12] = set1U32[Blake3Vec4](lo)
+  state[13] = set1U32[Blake3Vec4](hi)
+  state[14] = set1U32[Blake3Vec4](blkLen)
+  state[15] = set1U32[Blake3Vec4](flags)
   i = 0
   while i < 16:
     words[i] = loadVec4(blocks, i)
@@ -147,6 +167,11 @@ proc blake3CompressSse4*(cvs: array[4, Blake3Cv], blocks: array[4, Blake3Block],
   while i < 16:
     storeVec4(outVec[i], result, i)
     i = i + 1
+
+when defined(neon) or defined(arm64) or defined(aarch64):
+  proc blake3CompressNeon4*(cvs: array[4, Blake3Cv], blocks: array[4, Blake3Block],
+      counter: uint64, blkLen, flags: uint32): array[4, Blake3Out] =
+    result = blake3CompressSse4(cvs, blocks, counter, blkLen, flags)
 
 
 when defined(avx2):

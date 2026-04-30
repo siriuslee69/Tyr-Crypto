@@ -76,3 +76,39 @@ suite "gimli sse":
         i = i + 1
       gimliPermuteAvx8x(ss)
       check ss == rs
+
+  when defined(neon) or defined(arm64) or defined(aarch64):
+    test "NEON permutation matches reference":
+      var
+        s0: Gimli_Block
+        s1: Gimli_Block
+        i: int = 0
+      i = 0
+      while i < s0.len:
+        s0[i] = uint32(0x11121314'u32 + uint32(i) * 0x101'u32)
+        s1[i] = s0[i]
+        i = i + 1
+      gimli_core_ref(s0)
+      gimliPermuteNeon(s1)
+      check s0 == s1
+
+    test "NEON 4x permutation matches reference":
+      var
+        ss: array[4, Gimli_Block]
+        rs: array[4, Gimli_Block]
+        i: int = 0
+        j: int = 0
+      i = 0
+      while i < ss.len:
+        j = 0
+        while j < ss[i].len:
+          ss[i][j] = uint32(0x21222324'u32 + uint32(i) * 0x01010101'u32 + uint32(j) * 0x101'u32)
+          rs[i][j] = ss[i][j]
+          j = j + 1
+        i = i + 1
+      i = 0
+      while i < rs.len:
+        gimli_core_ref(rs[i])
+        i = i + 1
+      gimliPermuteNeon4x(ss)
+      check ss == rs

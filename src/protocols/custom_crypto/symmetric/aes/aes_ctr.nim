@@ -3,8 +3,9 @@ import ./aes_core as aesCore
 when defined(avx2):
   import nimsimd/avx
   import nimsimd/avx2
-elif defined(sse2):
-  import nimsimd/sse2
+
+when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+  import simd_nexus/sequences/byte_streams as simdByteStreams
 
 const
   aesCtrBlockLen* = 16
@@ -17,6 +18,7 @@ type
     acbAuto,
     acbScalar,
     acbSse2,
+    acbNeon,
     acbAvx2
 
   AesCtrState* = object
@@ -30,6 +32,8 @@ proc resolveBackend(b: AesCtrBackend): AesCtrBackend =
       result = acbAvx2
     elif defined(sse2):
       result = acbSse2
+    elif defined(neon) or defined(arm64) or defined(aarch64):
+      result = acbNeon
     else:
       result = acbScalar
   else:
@@ -75,29 +79,6 @@ proc xorBlockScalarInPlace(bs: var openArray[uint8], ks: openArray[uint8],
   while i < l:
     bs[o + i] = bs[o + i] xor ks[i]
     i = i + 1
-
-when defined(sse2):
-  proc xorBlockSse(ps: openArray[uint8], ks: openArray[uint8],
-      rs: var ByteSeq, o: int) =
-    var
-      vp: M128i
-      vk: M128i
-      vr: M128i
-    vp = mm_loadu_si128(cast[pointer](unsafeAddr ps[o]))
-    vk = mm_loadu_si128(cast[pointer](unsafeAddr ks[0]))
-    vr = mm_xor_si128(vp, vk)
-    mm_storeu_si128(cast[pointer](unsafeAddr rs[o]), vr)
-
-  proc xorBlockSseInPlace(bs: var openArray[uint8], ks: openArray[uint8],
-      o: int) =
-    var
-      vp: M128i
-      vk: M128i
-      vr: M128i
-    vp = mm_loadu_si128(cast[pointer](unsafeAddr bs[o]))
-    vk = mm_loadu_si128(cast[pointer](unsafeAddr ks[0]))
-    vr = mm_xor_si128(vp, vk)
-    mm_storeu_si128(cast[pointer](unsafeAddr bs[o]), vr)
 
 when defined(avx2):
   proc xorBlockAvx2(ps: openArray[uint8], ks: openArray[uint8],
@@ -166,7 +147,16 @@ proc aesCtrXor*(k, n, ps: openArray[uint8], b: AesCtrBackend = acbAuto): ByteSeq
       while offset + 16 <= ps.len:
         ks0 = aesCore.encryptBlock(ctx, counter)
         incrementCounter(counter)
-        xorBlockSse(ps, ks0, rs, offset)
+        simdByteStreams.xorBytes16Into(rs, offset, ps, offset, ks0, 0)
+        offset = offset + 16
+    else:
+      discard
+  of acbNeon:
+    when defined(neon) or defined(arm64) or defined(aarch64):
+      while offset + 16 <= ps.len:
+        ks0 = aesCore.encryptBlock(ctx, counter)
+        incrementCounter(counter)
+        simdByteStreams.xorBytes16Into(rs, offset, ps, offset, ks0, 0)
         offset = offset + 16
     else:
       discard
@@ -232,7 +222,16 @@ proc aesCtrXorInPlace*(s: var AesCtrState, ps: var openArray[uint8],
       while offset + 16 <= ps.len:
         ks0 = aesCore.encryptBlock(s.ctx, s.counter)
         incrementCounter(s.counter)
-        xorBlockSseInPlace(ps, ks0, offset)
+        simdByteStreams.xorBytes16InPlace(ps, offset, ks0, 0)
+        offset = offset + 16
+    else:
+      discard
+  of acbNeon:
+    when defined(neon) or defined(arm64) or defined(aarch64):
+      while offset + 16 <= ps.len:
+        ks0 = aesCore.encryptBlock(s.ctx, s.counter)
+        incrementCounter(s.counter)
+        simdByteStreams.xorBytes16InPlace(ps, offset, ks0, 0)
         offset = offset + 16
     else:
       discard

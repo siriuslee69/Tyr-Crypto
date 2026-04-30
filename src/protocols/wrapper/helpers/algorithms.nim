@@ -14,6 +14,12 @@ type
     mceliece1
     mceliece2
 
+  ## FrodoTier: concrete Frodo security tier.
+  FrodoTier* = enum
+    frodo0
+    frodo1
+    frodo2
+
   ## StreamCipherAlgorithm: primitive symmetric cipher/stream transform.
   StreamCipherAlgorithm* = enum
     scaXChaCha20
@@ -40,7 +46,12 @@ type
     kaMcEliece0
     kaMcEliece1
     kaMcEliece2
-    kaFrodo0
+    kaFrodo0Aes
+    kaFrodo0Shake
+    kaFrodo1Aes
+    kaFrodo1Shake
+    kaFrodo2Aes
+    kaFrodo2Shake
     kaNtruPrime0
     kaBike0
 

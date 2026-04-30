@@ -1,6 +1,6 @@
-## ----------------------------------------------------------------
-## Frodo Operations <- pure-Nim FrodoKEM-976-AES key encapsulation
-## ----------------------------------------------------------------
+## ----------------------------------------------------------
+## Frodo Operations <- pure-Nim FrodoKEM key encapsulation
+## ----------------------------------------------------------
 
 import ./params
 import ./util
@@ -10,9 +10,11 @@ import ../../../aes_core
 import ../../../sha3
 import ../../../random
 
-when defined(sse2) or defined(avx2):
+when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   import simd_nexus/simd/base_operations
   import simd_nexus/simd/generic_i16
+when defined(neon) or defined(arm64) or defined(aarch64):
+  import simd_nexus/simd/generic_i32
 when defined(sse2):
   import nimsimd/sse2 as nsse2
 when defined(avx2):
@@ -56,26 +58,56 @@ proc prefixedByte(prefix: byte, A: openArray[byte]): seq[byte] =
   if A.len > 0:
     copyMem(addr result[1], unsafeAddr A[0], A.len)
 
-proc prefixed24(prefix: byte, A: openArray[byte]): array[25, byte] =
-  var
-    i: int = 0
-  if A.len != 24:
-    raise newException(ValueError, "Frodo fixed prefixed input requires 24 bytes")
-  result[0] = prefix
-  i = 0
-  while i < 24:
-    result[i + 1] = A[i]
-    i = i + 1
+proc concatByteSeq(A, B: openArray[byte]): seq[byte] =
+  result = newSeq[byte](A.len + B.len)
+  if A.len > 0:
+    copyMem(addr result[0], unsafeAddr A[0], A.len)
+  if B.len > 0:
+    copyMem(addr result[A.len], unsafeAddr B[0], B.len)
 
-proc concat24x2(A, B: openArray[byte]): array[48, byte] =
+proc shakeIntoForParams(p: FrodoParams, dst: var openArray[byte], A: openArray[byte]) =
+  case p.xofKind
+  of fxShake128:
+    shake128Into(dst, A)
+  of fxShake256:
+    shake256Into(dst, A)
+
+proc shakeWordsLeIntoForParams(p: FrodoParams, dst: var openArray[uint16], A: openArray[byte]) =
+  case p.xofKind
+  of fxShake128:
+    var
+      t: seq[byte] = newSeq[byte](dst.len * 2)
+    shake128Into(t, A)
+    bytesToWordsLeInto(dst, t)
+    clearBytes(t)
+  of fxShake256:
+    shake256WordsLeInto(dst, A)
+
+proc useOptimizedAesStreamPath(p: FrodoParams): bool {.inline.} =
+  result = p.matrixGenerator == fmgAes128 and p.nbar == 8 and
+    p.stripeStep == 8 and (p.n mod 8) == 0
+
+proc qMask(p: FrodoParams): uint16 {.inline.} =
+  result = uint16(p.q - 1'u32)
+
+proc reduceWordQ(p: FrodoParams, x: uint16): uint16 {.inline.} =
+  result = x and qMask(p)
+
+proc reduceWideQ(p: FrodoParams, x: uint32): uint16 {.inline.} =
+  result = uint16(x and uint32(qMask(p)))
+
+proc addModQ(p: FrodoParams, a, b: uint16): uint16 {.inline.} =
+  result = reduceWideQ(p, uint32(a) + uint32(b))
+
+proc subModQ(p: FrodoParams, a, b: uint16): uint16 {.inline.} =
+  result = reduceWideQ(p, uint32(a) - uint32(b))
+
+proc reduceWordsModQ(p: FrodoParams, dst: var openArray[uint16]) =
   var
     i: int = 0
-  if A.len != 24 or B.len != 24:
-    raise newException(ValueError, "Frodo fixed concat input requires two 24-byte slices")
   i = 0
-  while i < 24:
-    result[i] = A[i]
-    result[i + 24] = B[i]
+  while i < dst.len:
+    dst[i] = reduceWordQ(p, dst[i])
     i = i + 1
 
 proc mulLo16(a, b: uint16): uint16 {.inline.} =
@@ -95,6 +127,7 @@ when defined(sse2):
   proc dotModQ16Sse(A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
     var
       i: int = 0
+      laneIdx: int = 0
       acc = i16x8(mm_setzero_si128())
       va: i16x8
       vb: i16x8
@@ -107,10 +140,10 @@ when defined(sse2):
       acc = acc + mulLoI16(va, vb)
       i = i + 8
     lanes = storeI16x8(acc)
-    i = 0
-    while i < lanes.len:
-      sum = sum + lanes[i]
-      i = i + 1
+    laneIdx = 0
+    while laneIdx < lanes.len:
+      sum = sum + lanes[laneIdx]
+      laneIdx = laneIdx + 1
     while i < n:
       sum = sum + mulLo16(A[aOff + i], B[bOff + i])
       i = i + 1
@@ -137,6 +170,38 @@ when defined(avx2):
     while laneIdx < lanes.len:
       sum = sum + lanes[laneIdx]
       laneIdx = laneIdx + 1
+    while i < n:
+      sum = sum + mulLo16(A[aOff + i], B[bOff + i])
+      i = i + 1
+    result = sum
+
+when defined(neon) or defined(arm64) or defined(aarch64):
+  proc sumLanes8Neon(v: uint16x8): uint16 =
+    var
+      partial: array[4, int32]
+      i: int = 0
+      acc: uint32 = 0
+    partial = storeI32x4[uint32x4](vpaddlq_u16(v))
+    i = 0
+    while i < partial.len:
+      acc = acc + uint32(partial[i])
+      i = i + 1
+    result = uint16(acc)
+
+  proc dotModQ16Neon(A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
+    var
+      i: int = 0
+      acc: uint16x8 = vmovq_n_u16(0'u16)
+      va: uint16x8
+      vb: uint16x8
+      sum: uint16 = 0
+    i = 0
+    while i + 8 <= n:
+      va = loadI16x8At[uint16x8](A, aOff + i)
+      vb = loadI16x8At[uint16x8](B, bOff + i)
+      acc = acc + mulLoI16(va, vb)
+      i = i + 8
+    sum = sumLanes8Neon(acc)
     while i < n:
       sum = sum + mulLo16(A[aOff + i], B[bOff + i])
       i = i + 1
@@ -212,10 +277,10 @@ when defined(sse2):
     j = 0
     while j < strideN:
       sVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr s[sOff + j]))
-      a0 = nsse2.mm_load_si128(cast[pointer](unsafeAddr aColsT[(colBase + 0) * strideN + j]))
-      a1 = nsse2.mm_load_si128(cast[pointer](unsafeAddr aColsT[(colBase + 1) * strideN + j]))
-      a2 = nsse2.mm_load_si128(cast[pointer](unsafeAddr aColsT[(colBase + 2) * strideN + j]))
-      a3 = nsse2.mm_load_si128(cast[pointer](unsafeAddr aColsT[(colBase + 3) * strideN + j]))
+      a0 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aColsT[(colBase + 0) * strideN + j]))
+      a1 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aColsT[(colBase + 1) * strideN + j]))
+      a2 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aColsT[(colBase + 2) * strideN + j]))
+      a3 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aColsT[(colBase + 3) * strideN + j]))
       acc0 = nsse2.mm_add_epi32(acc0, nsse2.mm_madd_epi16(a0, sVec))
       acc1 = nsse2.mm_add_epi32(acc1, nsse2.mm_madd_epi16(a1, sVec))
       acc2 = nsse2.mm_add_epi32(acc2, nsse2.mm_madd_epi16(a2, sVec))
@@ -258,10 +323,10 @@ when defined(sse2):
     j = 0
     while j < strideN:
       sVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr s[sOff + j]))
-      r0 = nsse2.mm_load_si128(cast[pointer](unsafeAddr aRows[0 * strideN + j]))
-      r1 = nsse2.mm_load_si128(cast[pointer](unsafeAddr aRows[1 * strideN + j]))
-      r2 = nsse2.mm_load_si128(cast[pointer](unsafeAddr aRows[2 * strideN + j]))
-      r3 = nsse2.mm_load_si128(cast[pointer](unsafeAddr aRows[3 * strideN + j]))
+      r0 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aRows[0 * strideN + j]))
+      r1 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aRows[1 * strideN + j]))
+      r2 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aRows[2 * strideN + j]))
+      r3 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aRows[3 * strideN + j]))
       acc0 = nsse2.mm_add_epi32(acc0, nsse2.mm_madd_epi16(r0, sVec))
       acc1 = nsse2.mm_add_epi32(acc1, nsse2.mm_madd_epi16(r1, sVec))
       acc2 = nsse2.mm_add_epi32(acc2, nsse2.mm_madd_epi16(r2, sVec))
@@ -316,10 +381,10 @@ when defined(avx2):
     j = 0
     while j < strideN:
       sVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr s[sOff + j]))
-      a0 = navx.mm256_load_si256(cast[pointer](unsafeAddr aColsT[(colBase + 0) * strideN + j]))
-      a1 = navx.mm256_load_si256(cast[pointer](unsafeAddr aColsT[(colBase + 1) * strideN + j]))
-      a2 = navx.mm256_load_si256(cast[pointer](unsafeAddr aColsT[(colBase + 2) * strideN + j]))
-      a3 = navx.mm256_load_si256(cast[pointer](unsafeAddr aColsT[(colBase + 3) * strideN + j]))
+      a0 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(colBase + 0) * strideN + j]))
+      a1 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(colBase + 1) * strideN + j]))
+      a2 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(colBase + 2) * strideN + j]))
+      a3 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(colBase + 3) * strideN + j]))
       acc0 = navx2.mm256_add_epi32(acc0, navx2.mm256_madd_epi16(a0, sVec))
       acc1 = navx2.mm256_add_epi32(acc1, navx2.mm256_madd_epi16(a1, sVec))
       acc2 = navx2.mm256_add_epi32(acc2, navx2.mm256_madd_epi16(a2, sVec))
@@ -362,10 +427,10 @@ when defined(avx2):
     j = 0
     while j < strideN:
       sVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr s[sOff + j]))
-      r0 = navx.mm256_load_si256(cast[pointer](unsafeAddr aRows[0 * strideN + j]))
-      r1 = navx.mm256_load_si256(cast[pointer](unsafeAddr aRows[1 * strideN + j]))
-      r2 = navx.mm256_load_si256(cast[pointer](unsafeAddr aRows[2 * strideN + j]))
-      r3 = navx.mm256_load_si256(cast[pointer](unsafeAddr aRows[3 * strideN + j]))
+      r0 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[0 * strideN + j]))
+      r1 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[1 * strideN + j]))
+      r2 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[2 * strideN + j]))
+      r3 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[3 * strideN + j]))
       acc0 = navx2.mm256_add_epi32(acc0, navx2.mm256_madd_epi16(r0, sVec))
       acc1 = navx2.mm256_add_epi32(acc1, navx2.mm256_madd_epi16(r1, sVec))
       acc2 = navx2.mm256_add_epi32(acc2, navx2.mm256_madd_epi16(r2, sVec))
@@ -379,10 +444,15 @@ when defined(avx2):
 proc dotModQ16(A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
   when defined(avx2):
     result = dotModQ16Avx2(A, B, aOff, bOff, n)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    result = dotModQ16Neon(A, B, aOff, bOff, n)
   elif defined(sse2):
     result = dotModQ16Sse(A, B, aOff, bOff, n)
   else:
     result = dotModQ16Scalar(A, B, aOff, bOff, n)
+
+proc dotModQ(p: FrodoParams, A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
+  result = reduceWordQ(p, dotModQ16(A, B, aOff, bOff, n))
 
 {.push boundChecks: off, overflowChecks: off.}
 proc initFourRowBlocks(blocksIn: var array[frodoBlocksPerFourRows, AesBlock]) =
@@ -463,15 +533,141 @@ proc generateRowStripe(ctx: Aes128Ctx, row, colStart: int): array[8, uint16] =
     result[i] = loadU16Le(enc, i * 2)
     i = i + 1
 
+proc decodeAesBlocksLe(dst: var openArray[uint16], blocks: openArray[AesBlock]) =
+  var
+    blockIdx: int = 0
+    lane: int = 0
+    dstOff: int = 0
+  blockIdx = 0
+  dstOff = 0
+  while blockIdx < blocks.len:
+    lane = 0
+    while lane < 8:
+      dst[dstOff + lane] = loadU16Le(blocks[blockIdx], lane * 2)
+      lane = lane + 1
+    dstOff = dstOff + 8
+    blockIdx = blockIdx + 1
+
+proc decodeAesBlocksLeTransposedModQ(p: FrodoParams, dstT: var openArray[uint16],
+    blocks: openArray[AesBlock], n: int) =
+  var
+    row: int = 0
+    lane: int = 0
+  row = 0
+  while row < n:
+    lane = 0
+    while lane < 8:
+      dstT[lane * n + row] = reduceWordQ(p, loadU16Le(blocks[row], lane * 2))
+      lane = lane + 1
+    row = row + 1
+
+proc initFourRowBlocksDynamic(blocksIn: var openArray[AesBlock], n: int) =
+  var
+    row: int = 0
+    blockCol: int = 0
+    blockIdx: int = 0
+    blocksPerRow: int = n div 8
+  row = 0
+  while row < 4:
+    blockCol = 0
+    while blockCol < n:
+      blockIdx = row * blocksPerRow + (blockCol div 8)
+      blocksIn[blockIdx] = default(AesBlock)
+      blocksIn[blockIdx][2] = byte(blockCol and 0xff)
+      blocksIn[blockIdx][3] = byte((blockCol shr 8) and 0xff)
+      blockCol = blockCol + 8
+    row = row + 1
+
+proc updateFourRowBlocks(blocksIn: var openArray[AesBlock], rowStart, n: int) =
+  var
+    row: int = 0
+    blockCol: int = 0
+    blockIdx: int = 0
+    blocksPerRow: int = n div 8
+  row = 0
+  while row < 4:
+    blockCol = 0
+    while blockCol < n:
+      blockIdx = row * blocksPerRow + (blockCol div 8)
+      blocksIn[blockIdx][0] = byte((rowStart + row) and 0xff)
+      blocksIn[blockIdx][1] = byte(((rowStart + row) shr 8) and 0xff)
+      blockCol = blockCol + 8
+    row = row + 1
+
+proc initColStripeBlocksDynamic(blocksIn: var openArray[AesBlock], n: int) =
+  var
+    row: int = 0
+  row = 0
+  while row < n:
+    blocksIn[row] = default(AesBlock)
+    blocksIn[row][0] = byte(row and 0xff)
+    blocksIn[row][1] = byte((row shr 8) and 0xff)
+    row = row + 1
+
+proc updateColStripeBlocks(blocksIn: var openArray[AesBlock], colStart, n: int) =
+  var
+    row: int = 0
+  row = 0
+  while row < n:
+    blocksIn[row][2] = byte(colStart and 0xff)
+    blocksIn[row][3] = byte((colStart shr 8) and 0xff)
+    row = row + 1
+
+proc generateFourRowsBulkDynamic(ctx: Aes128Ctx,
+    blocksIn: var openArray[AesBlock],
+    blocksOut: var openArray[AesBlock],
+    rowStart, n: int, dst: var openArray[uint16]) =
+  updateFourRowBlocks(blocksIn, rowStart, n)
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  decodeAesBlocksLe(dst, blocksOut)
+
+proc generateFourRowsBulkDynamic(ctx: Aes128OpenSslCtx,
+    blocksIn: var openArray[AesBlock],
+    blocksOut: var openArray[AesBlock],
+    rowStart, n: int, dst: var openArray[uint16]) =
+  updateFourRowBlocks(blocksIn, rowStart, n)
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  decodeAesBlocksLe(dst, blocksOut)
+
+proc generateColStripeBulkTDynamic(p: FrodoParams, ctx: Aes128Ctx,
+    blocksIn: var openArray[AesBlock],
+    blocksOut: var openArray[AesBlock],
+    colStart, n: int, dstT: var openArray[uint16]) =
+  updateColStripeBlocks(blocksIn, colStart, n)
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  decodeAesBlocksLeTransposedModQ(p, dstT, blocksOut, n)
+
+proc generateColStripeBulkTDynamic(p: FrodoParams, ctx: Aes128OpenSslCtx,
+    blocksIn: var openArray[AesBlock],
+    blocksOut: var openArray[AesBlock],
+    colStart, n: int, dstT: var openArray[uint16]) =
+  updateColStripeBlocks(blocksIn, colStart, n)
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  decodeAesBlocksLeTransposedModQ(p, dstT, blocksOut, n)
+
 when defined(aesni):
+  proc generateFourRowsBulkDynamic(ctx: Aes128NiCtx,
+      blocksIn: var openArray[AesBlock],
+      blocksOut: var openArray[AesBlock],
+      rowStart, n: int, dst: var openArray[uint16]) =
+    updateFourRowBlocks(blocksIn, rowStart, n)
+    encryptBlocks(ctx, blocksIn, blocksOut)
+    decodeAesBlocksLe(dst, blocksOut)
+
+  proc generateColStripeBulkTDynamic(p: FrodoParams, ctx: Aes128NiCtx,
+      blocksIn: var openArray[AesBlock],
+      blocksOut: var openArray[AesBlock],
+      colStart, n: int, dstT: var openArray[uint16]) =
+    updateColStripeBlocks(blocksIn, colStart, n)
+    encryptBlocks(ctx, blocksIn, blocksOut)
+    decodeAesBlocksLeTransposedModQ(p, dstT, blocksOut, n)
+
   proc generateColStripeBulk(ctx: Aes128NiCtx,
       blocksIn: var array[frodoBlocksPerColStripe, AesBlock],
       blocksOut: var array[frodoBlocksPerColStripe, AesBlock],
       colStart: int, dst: var array[frodoWordsPerColStripe, uint16]) =
     var
       row: int = 0
-      lane: int = 0
-      rowOff: int = 0
     row = 0
     while row < frodoBlocksPerColStripe:
       blocksIn[row][0] = byte(row and 0xff)
@@ -480,17 +676,7 @@ when defined(aesni):
       blocksIn[row][3] = byte((colStart shr 8) and 0xff)
       row = row + 1
     encryptBlocks(ctx, blocksIn, blocksOut)
-    when cpuEndian == littleEndian:
-      copyMem(addr dst[0], unsafeAddr blocksOut[0], frodoWordsPerColStripe * sizeof(uint16))
-    else:
-      row = 0
-      while row < frodoBlocksPerColStripe:
-        rowOff = row * 8
-        lane = 0
-        while lane < 8:
-          dst[rowOff + lane] = loadU16Le(blocksOut[row], lane * 2)
-          lane = lane + 1
-        row = row + 1
+    decodeAesBlocksLe(dst, blocksOut)
 
   proc generateFourRowsBulk(ctx: Aes128NiCtx,
       blocksIn: var array[frodoBlocksPerFourRows, AesBlock],
@@ -500,7 +686,6 @@ when defined(aesni):
       row: int = 0
       blockCol: int = 0
       blockIdx: int = 0
-      lane: int = 0
     row = 0
     while row < 4:
       blockCol = 0
@@ -511,16 +696,7 @@ when defined(aesni):
         blockCol = blockCol + 8
       row = row + 1
     encryptBlocks(ctx, blocksIn, blocksOut)
-    when cpuEndian == littleEndian:
-      copyMem(addr dst[0], unsafeAddr blocksOut[0], frodoWordsPerFourRows * sizeof(uint16))
-    else:
-      blockIdx = 0
-      while blockIdx < frodoBlocksPerFourRows:
-        lane = 0
-        while lane < 8:
-          dst[blockIdx * 8 + lane] = loadU16Le(blocksOut[blockIdx], lane * 2)
-          lane = lane + 1
-        blockIdx = blockIdx + 1
+    decodeAesBlocksLe(dst, blocksOut)
 
   proc generateColStripeBulkT(ctx: Aes128NiCtx,
       blocksIn: var array[frodoBlocksPerColStripe, AesBlock],
@@ -555,7 +731,6 @@ proc generateFourRowsBulk(ctx: Aes128Ctx,
     row: int = 0
     blockCol: int = 0
     blockIdx: int = 0
-    lane: int = 0
   row = 0
   while row < 4:
     blockCol = 0
@@ -566,16 +741,7 @@ proc generateFourRowsBulk(ctx: Aes128Ctx,
       blockCol = blockCol + 8
     row = row + 1
   encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
-  when cpuEndian == littleEndian:
-    copyMem(addr dst[0], unsafeAddr blocksOut[0], frodoWordsPerFourRows * sizeof(uint16))
-  else:
-    blockIdx = 0
-    while blockIdx < frodoBlocksPerFourRows:
-      lane = 0
-      while lane < 8:
-        dst[blockIdx * 8 + lane] = loadU16Le(blocksOut[blockIdx], lane * 2)
-        lane = lane + 1
-      blockIdx = blockIdx + 1
+  decodeAesBlocksLe(dst, blocksOut)
 
 proc generateFourRowsBulk(ctx: Aes128OpenSslCtx,
     blocksIn: var array[frodoBlocksPerFourRows, AesBlock],
@@ -585,7 +751,6 @@ proc generateFourRowsBulk(ctx: Aes128OpenSslCtx,
     row: int = 0
     blockCol: int = 0
     blockIdx: int = 0
-    lane: int = 0
   row = 0
   while row < 4:
     blockCol = 0
@@ -596,16 +761,7 @@ proc generateFourRowsBulk(ctx: Aes128OpenSslCtx,
       blockCol = blockCol + 8
     row = row + 1
   encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
-  when cpuEndian == littleEndian:
-    copyMem(addr dst[0], unsafeAddr blocksOut[0], frodoWordsPerFourRows * sizeof(uint16))
-  else:
-    blockIdx = 0
-    while blockIdx < frodoBlocksPerFourRows:
-      lane = 0
-      while lane < 8:
-        dst[blockIdx * 8 + lane] = loadU16Le(blocksOut[blockIdx], lane * 2)
-        lane = lane + 1
-      blockIdx = blockIdx + 1
+  decodeAesBlocksLe(dst, blocksOut)
 
 proc generateColStripeBulkT(ctx: Aes128Ctx,
     blocksIn: var array[frodoBlocksPerColStripe, AesBlock],
@@ -659,25 +815,13 @@ proc generateColStripeBulk(ctx: Aes128Ctx,
     colStart: int, dst: var array[frodoWordsPerColStripe, uint16]) =
   var
     row: int = 0
-    lane: int = 0
-    rowOff: int = 0
   row = 0
   while row < frodoBlocksPerColStripe:
     blocksIn[row][2] = byte(colStart and 0xff)
     blocksIn[row][3] = byte((colStart shr 8) and 0xff)
     row = row + 1
   encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
-  when cpuEndian == littleEndian:
-    copyMem(addr dst[0], unsafeAddr blocksOut[0], frodoWordsPerColStripe * sizeof(uint16))
-  else:
-    row = 0
-    while row < frodoBlocksPerColStripe:
-      rowOff = row * 8
-      lane = 0
-      while lane < 8:
-        dst[rowOff + lane] = loadU16Le(blocksOut[row], lane * 2)
-        lane = lane + 1
-      row = row + 1
+  decodeAesBlocksLe(dst, blocksOut)
 
 proc generateColStripeBulk(ctx: Aes128OpenSslCtx,
     blocksIn: var array[frodoBlocksPerColStripe, AesBlock],
@@ -685,25 +829,13 @@ proc generateColStripeBulk(ctx: Aes128OpenSslCtx,
     colStart: int, dst: var array[frodoWordsPerColStripe, uint16]) =
   var
     row: int = 0
-    lane: int = 0
-    rowOff: int = 0
   row = 0
   while row < frodoBlocksPerColStripe:
     blocksIn[row][2] = byte(colStart and 0xff)
     blocksIn[row][3] = byte((colStart shr 8) and 0xff)
     row = row + 1
   encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
-  when cpuEndian == littleEndian:
-    copyMem(addr dst[0], unsafeAddr blocksOut[0], frodoWordsPerColStripe * sizeof(uint16))
-  else:
-    row = 0
-    while row < frodoBlocksPerColStripe:
-      rowOff = row * 8
-      lane = 0
-      while lane < 8:
-        dst[rowOff + lane] = loadU16Le(blocksOut[row], lane * 2)
-        lane = lane + 1
-      row = row + 1
+  decodeAesBlocksLe(dst, blocksOut)
 
 when defined(aesni):
   proc generateRowStripe(ctx: Aes128NiCtx, row, colStart: int): array[8, uint16] =
@@ -789,7 +921,7 @@ when defined(aesni):
 
 when defined(avx2):
   proc accumulateAsBlock4x8Avx2(aRows: openArray[uint16],
-      s: openArray[uint16], result: var openArray[uint16], outOff: int) =
+      s: openArray[uint16], result: var openArray[uint16], outOff, strideN: int) =
     var
       sums {.align: 32.}: array[32, uint32]
       col: int = 0
@@ -806,18 +938,18 @@ when defined(avx2):
       acc3: navx.M256i
     col = 0
     while col < 8:
-      sOff = col * 976
+      sOff = col * strideN
       acc0 = navx.mm256_setzero_si256()
       acc1 = navx.mm256_setzero_si256()
       acc2 = navx.mm256_setzero_si256()
       acc3 = navx.mm256_setzero_si256()
       j = 0
-      while j < 976:
+      while j < strideN:
         sVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr s[sOff + j]))
-        r0 = navx.mm256_load_si256(cast[pointer](unsafeAddr aRows[0 * 976 + j]))
-        r1 = navx.mm256_load_si256(cast[pointer](unsafeAddr aRows[1 * 976 + j]))
-        r2 = navx.mm256_load_si256(cast[pointer](unsafeAddr aRows[2 * 976 + j]))
-        r3 = navx.mm256_load_si256(cast[pointer](unsafeAddr aRows[3 * 976 + j]))
+        r0 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[0 * strideN + j]))
+        r1 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[1 * strideN + j]))
+        r2 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[2 * strideN + j]))
+        r3 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[3 * strideN + j]))
         acc0 = navx2.mm256_add_epi32(acc0, navx2.mm256_madd_epi16(r0, sVec))
         acc1 = navx2.mm256_add_epi32(acc1, navx2.mm256_madd_epi16(r1, sVec))
         acc2 = navx2.mm256_add_epi32(acc2, navx2.mm256_madd_epi16(r2, sVec))
@@ -838,7 +970,7 @@ when defined(avx2):
       col = col + 1
 
   proc accumulateSaStripe8Avx2(aColsT: openArray[uint16],
-      s: openArray[uint16], result: var openArray[uint16], colStart: int) =
+      s: openArray[uint16], result: var openArray[uint16], colStart, strideN: int) =
     var
       sums {.align: 32.}: array[32, uint32]
       row: int = 0
@@ -857,8 +989,8 @@ when defined(avx2):
       acc3: navx.M256i
     row = 0
     while row < 8:
-      sOff = row * 976
-      rowOff = row * 976 + colStart
+      sOff = row * strideN
+      rowOff = row * strideN + colStart
       col = 0
       while col < 8:
         acc0 = navx.mm256_setzero_si256()
@@ -866,12 +998,12 @@ when defined(avx2):
         acc2 = navx.mm256_setzero_si256()
         acc3 = navx.mm256_setzero_si256()
         j = 0
-        while j < 976:
+        while j < strideN:
           sVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr s[sOff + j]))
-          a0 = navx.mm256_load_si256(cast[pointer](unsafeAddr aColsT[(col + 0) * 976 + j]))
-          a1 = navx.mm256_load_si256(cast[pointer](unsafeAddr aColsT[(col + 1) * 976 + j]))
-          a2 = navx.mm256_load_si256(cast[pointer](unsafeAddr aColsT[(col + 2) * 976 + j]))
-          a3 = navx.mm256_load_si256(cast[pointer](unsafeAddr aColsT[(col + 3) * 976 + j]))
+          a0 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(col + 0) * strideN + j]))
+          a1 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(col + 1) * strideN + j]))
+          a2 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(col + 2) * strideN + j]))
+          a3 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(col + 3) * strideN + j]))
           acc0 = navx2.mm256_add_epi32(acc0, navx2.mm256_madd_epi16(a0, sVec))
           acc1 = navx2.mm256_add_epi32(acc1, navx2.mm256_madd_epi16(a1, sVec))
           acc2 = navx2.mm256_add_epi32(acc2, navx2.mm256_madd_epi16(a2, sVec))
@@ -894,15 +1026,15 @@ when defined(avx2):
 
 when defined(sse2):
   proc accumulateAsBlock4x8Sse(aRows: openArray[uint16],
-      s: openArray[uint16], result: var openArray[uint16], outOff: int) =
+      s: openArray[uint16], result: var openArray[uint16], outOff, strideN: int) =
     var
       sums: array[4, uint16]
       col: int = 0
       sOff: int = 0
     col = 0
     while col < 8:
-      sOff = col * 976
-      dot4RowsSse(aRows, s, sOff, 976, sums)
+      sOff = col * strideN
+      dot4RowsSse(aRows, s, sOff, strideN, sums)
       result[outOff + 0 * 8 + col] = result[outOff + 0 * 8 + col] + sums[0]
       result[outOff + 1 * 8 + col] = result[outOff + 1 * 8 + col] + sums[1]
       result[outOff + 2 * 8 + col] = result[outOff + 2 * 8 + col] + sums[2]
@@ -910,7 +1042,7 @@ when defined(sse2):
       col = col + 1
 
   proc accumulateSaStripe8Sse(aColsT: openArray[uint16],
-      s: openArray[uint16], result: var openArray[uint16], colStart: int) =
+      s: openArray[uint16], result: var openArray[uint16], colStart, strideN: int) =
     var
       sums: array[8, uint16]
       row: int = 0
@@ -918,9 +1050,78 @@ when defined(sse2):
       rowOff: int = 0
     row = 0
     while row < 8:
-      sOff = row * 976
-      rowOff = row * 976 + colStart
-      dot8ColsSse(s, sOff, 976, aColsT, sums)
+      sOff = row * strideN
+      rowOff = row * strideN + colStart
+      dot8ColsSse(s, sOff, strideN, aColsT, sums)
+      result[rowOff + 0] = result[rowOff + 0] + sums[0]
+      result[rowOff + 1] = result[rowOff + 1] + sums[1]
+      result[rowOff + 2] = result[rowOff + 2] + sums[2]
+      result[rowOff + 3] = result[rowOff + 3] + sums[3]
+      result[rowOff + 4] = result[rowOff + 4] + sums[4]
+      result[rowOff + 5] = result[rowOff + 5] + sums[5]
+      result[rowOff + 6] = result[rowOff + 6] + sums[6]
+      result[rowOff + 7] = result[rowOff + 7] + sums[7]
+      row = row + 1
+
+when defined(neon) or defined(arm64) or defined(aarch64):
+  proc dot4ColsNeon(s: openArray[uint16], sOff, strideN, colBase: int,
+      aColsT: openArray[uint16], outSums: var array[4, uint16]) =
+    outSums[0] = dotModQ16Neon(s, aColsT, sOff, (colBase + 0) * strideN, strideN)
+    outSums[1] = dotModQ16Neon(s, aColsT, sOff, (colBase + 1) * strideN, strideN)
+    outSums[2] = dotModQ16Neon(s, aColsT, sOff, (colBase + 2) * strideN, strideN)
+    outSums[3] = dotModQ16Neon(s, aColsT, sOff, (colBase + 3) * strideN, strideN)
+
+  proc dot8ColsNeon(s: openArray[uint16], sOff, strideN: int,
+      aColsT: openArray[uint16], outSums: var array[8, uint16]) =
+    var
+      first4: array[4, uint16]
+      last4: array[4, uint16]
+    dot4ColsNeon(s, sOff, strideN, 0, aColsT, first4)
+    dot4ColsNeon(s, sOff, strideN, 4, aColsT, last4)
+    outSums[0] = first4[0]
+    outSums[1] = first4[1]
+    outSums[2] = first4[2]
+    outSums[3] = first4[3]
+    outSums[4] = last4[0]
+    outSums[5] = last4[1]
+    outSums[6] = last4[2]
+    outSums[7] = last4[3]
+
+  proc dot4RowsNeon(aRows: openArray[uint16], s: openArray[uint16], sOff, strideN: int,
+      outSums: var array[4, uint16]) =
+    outSums[0] = dotModQ16Neon(aRows, s, 0 * strideN, sOff, strideN)
+    outSums[1] = dotModQ16Neon(aRows, s, 1 * strideN, sOff, strideN)
+    outSums[2] = dotModQ16Neon(aRows, s, 2 * strideN, sOff, strideN)
+    outSums[3] = dotModQ16Neon(aRows, s, 3 * strideN, sOff, strideN)
+
+  proc accumulateAsBlock4x8Neon(aRows: openArray[uint16],
+      s: openArray[uint16], result: var openArray[uint16], outOff, strideN: int) =
+    var
+      sums: array[4, uint16]
+      col: int = 0
+      sOff: int = 0
+    col = 0
+    while col < 8:
+      sOff = col * strideN
+      dot4RowsNeon(aRows, s, sOff, strideN, sums)
+      result[outOff + 0 * 8 + col] = result[outOff + 0 * 8 + col] + sums[0]
+      result[outOff + 1 * 8 + col] = result[outOff + 1 * 8 + col] + sums[1]
+      result[outOff + 2 * 8 + col] = result[outOff + 2 * 8 + col] + sums[2]
+      result[outOff + 3 * 8 + col] = result[outOff + 3 * 8 + col] + sums[3]
+      col = col + 1
+
+  proc accumulateSaStripe8Neon(aColsT: openArray[uint16],
+      s: openArray[uint16], result: var openArray[uint16], colStart, strideN: int) =
+    var
+      sums: array[8, uint16]
+      row: int = 0
+      sOff: int = 0
+      rowOff: int = 0
+    row = 0
+    while row < 8:
+      sOff = row * strideN
+      rowOff = row * strideN + colStart
+      dot8ColsNeon(s, sOff, strideN, aColsT, sums)
       result[rowOff + 0] = result[rowOff + 0] + sums[0]
       result[rowOff + 1] = result[rowOff + 1] + sums[1]
       result[rowOff + 2] = result[rowOff + 2] + sums[2]
@@ -932,7 +1133,7 @@ when defined(sse2):
       row = row + 1
 
 proc accumulateAsBlock4x8Scalar(aRows: openArray[uint16],
-    s: openArray[uint16], result: var openArray[uint16], outOff: int) =
+    s: openArray[uint16], result: var openArray[uint16], outOff, strideN: int) =
   var
     row: int = 0
     col: int = 0
@@ -943,14 +1144,14 @@ proc accumulateAsBlock4x8Scalar(aRows: openArray[uint16],
     rowOff = outOff + row * 8
     col = 0
     while col < 8:
-      sOff = col * 976
+      sOff = col * strideN
       result[rowOff + col] = result[rowOff + col] +
-        dotModQ16(aRows, s, row * 976, sOff, 976)
+        dotModQ16(aRows, s, row * strideN, sOff, strideN)
       col = col + 1
     row = row + 1
 
 proc accumulateSaStripe8Scalar(aColsT: openArray[uint16],
-    s: openArray[uint16], result: var openArray[uint16], colStart: int) =
+    s: openArray[uint16], result: var openArray[uint16], colStart, strideN: int) =
   var
     row: int = 0
     col: int = 0
@@ -958,48 +1159,67 @@ proc accumulateSaStripe8Scalar(aColsT: openArray[uint16],
     sOff: int = 0
   row = 0
   while row < 8:
-    rowOff = row * 976 + colStart
-    sOff = row * 976
+    rowOff = row * strideN + colStart
+    sOff = row * strideN
     col = 0
     while col < 8:
       result[rowOff + col] = result[rowOff + col] +
-        dotModQ16(s, aColsT, sOff, col * 976, 976)
+        dotModQ16(s, aColsT, sOff, col * strideN, strideN)
       col = col + 1
     row = row + 1
 
 proc generateMatrixA(p: FrodoParams, seedA: openArray[byte]): seq[uint16] =
-  ## Generate the Frodo matrix `A` row-wise via AES-128 ECB blocks.
+  ## Generate the Frodo matrix `A` row-wise for the selected parameter set.
   otterSpan("frodo.generateMatrixA"):
     var
-      ctx: Aes128Ctx
-      blk: AesBlock
-      enc: AesBlock
       i: int = 0
       j: int = 0
       k: int = 0
       o: int = 0
     if seedA.len != p.bytesSeedA:
       raise newException(ValueError, "invalid Frodo seed_A length")
-    ctx.initPublicFast(seedA)
     result = newSeq[uint16](p.n * p.n)
-    i = 0
-    while i < p.n:
-      j = 0
-      while j < p.n:
-        blk = default(AesBlock)
-        blk[0] = byte(i and 0xff)
-        blk[1] = byte((i shr 8) and 0xff)
-        blk[2] = byte(j and 0xff)
-        blk[3] = byte((j shr 8) and 0xff)
-        enc = encryptBlockPublicFast(ctx, blk)
-        k = 0
-        while k < p.stripeStep:
-          o = i * p.n + j + k
-          if o < result.len:
-            result[o] = loadU16Le(enc, k * 2)
-          k = k + 1
-        j = j + p.stripeStep
-      i = i + 1
+    case p.matrixGenerator
+    of fmgAes128:
+      var
+        ctx: Aes128Ctx
+        blk: AesBlock
+        enc: AesBlock
+      ctx.initPublicFast(seedA)
+      i = 0
+      while i < p.n:
+        j = 0
+        while j < p.n:
+          blk = default(AesBlock)
+          blk[0] = byte(i and 0xff)
+          blk[1] = byte((i shr 8) and 0xff)
+          blk[2] = byte(j and 0xff)
+          blk[3] = byte((j shr 8) and 0xff)
+          enc = encryptBlockPublicFast(ctx, blk)
+          k = 0
+          while k < p.stripeStep:
+            o = i * p.n + j + k
+            if o < result.len:
+              result[o] = reduceWordQ(p, loadU16Le(enc, k * 2))
+            k = k + 1
+          j = j + p.stripeStep
+        i = i + 1
+    of fmgShake128:
+      var
+        rowInput: seq[byte] = newSeq[byte](2 + p.bytesSeedA)
+        rowBytes: seq[byte] = newSeq[byte](2 * p.n)
+      if seedA.len > 0:
+        copyMem(addr rowInput[2], unsafeAddr seedA[0], p.bytesSeedA)
+      i = 0
+      while i < p.n:
+        rowInput[0] = byte(i and 0xff)
+        rowInput[1] = byte((i shr 8) and 0xff)
+        shake128Into(rowBytes, rowInput)
+        bytesToWordsLeInto(result.toOpenArray(i * p.n, (i + 1) * p.n - 1), rowBytes)
+        reduceWordsModQ(p, result.toOpenArray(i * p.n, (i + 1) * p.n - 1))
+        i = i + 1
+      clearBytes(rowInput)
+      clearBytes(rowBytes)
 
 proc mulAddAsPlusE(p: FrodoParams, A, s, e: openArray[uint16]): seq[uint16] =
   ## Compute `A * s + e` with `A` in row-major order.
@@ -1012,7 +1232,7 @@ proc mulAddAsPlusE(p: FrodoParams, A, s, e: openArray[uint16]): seq[uint16] =
     result = newSeq[uint16](p.n * p.nbar)
     i = 0
     while i < result.len:
-      result[i] = e[i]
+      result[i] = reduceWordQ(p, e[i])
       i = i + 1
     i = 0
     while i < p.n:
@@ -1020,8 +1240,8 @@ proc mulAddAsPlusE(p: FrodoParams, A, s, e: openArray[uint16]): seq[uint16] =
       k = 0
       while k < p.nbar:
         sOff = k * p.n
-        result[i * p.nbar + k] = result[i * p.nbar + k] +
-          dotModQ16(A, s, rowOff, sOff, p.n)
+        result[i * p.nbar + k] = addModQ(p, result[i * p.nbar + k],
+          dotModQ(p, A, s, rowOff, sOff, p.n))
         k = k + 1
       i = i + 1
 
@@ -1030,70 +1250,87 @@ proc mulAddAsPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
   otterSpan("frodo.mulAddAsPlusEStream"):
     if seedA.len != p.bytesSeedA:
       raise newException(ValueError, "invalid Frodo seed_A length")
+    if not useOptimizedAesStreamPath(p):
+      var
+        A: seq[uint16] = generateMatrixA(p, seedA)
+      result = mulAddAsPlusE(p, A, s, e)
+      clearWords(A)
+      return result
     result = newSeq[uint16](p.n * p.nbar)
     if result.len > 0:
       copyMem(addr result[0], unsafeAddr e[0], result.len * sizeof(uint16))
     block openSslPath:
       var
         ctx: Aes128OpenSslCtx
-        blocksIn: array[frodoBlocksPerFourRows, AesBlock]
-        blocksOut: array[frodoBlocksPerFourRows, AesBlock]
-        aRow {.align: 32.}: array[frodoWordsPerFourRows, uint16]
+        blocksIn: seq[AesBlock] = newSeq[AesBlock](frodoRowsPerBlock * (p.n div 8))
+        blocksOut: seq[AesBlock] = newSeq[AesBlock](blocksIn.len)
+        aRow: seq[uint16] = newSeq[uint16](frodoRowsPerBlock * p.n)
         i: int = 0
       if not initOpenSslPublicFast(ctx, seedA):
         break openSslPath
       defer:
         clear(ctx)
-      initFourRowBlocks(blocksIn)
+      initFourRowBlocksDynamic(blocksIn, p.n)
       i = 0
       while i < p.n:
-        generateFourRowsBulk(ctx, blocksIn, blocksOut, i, aRow)
+        generateFourRowsBulkDynamic(ctx, blocksIn, blocksOut, i, p.n, aRow)
+        reduceWordsModQ(p, aRow)
         when defined(avx2):
-          accumulateAsBlock4x8Avx2(aRow, s, result, i * p.nbar)
+          accumulateAsBlock4x8Avx2(aRow, s, result, i * p.nbar, p.n)
+        elif defined(neon) or defined(arm64) or defined(aarch64):
+          accumulateAsBlock4x8Neon(aRow, s, result, i * p.nbar, p.n)
         elif defined(sse2):
-          accumulateAsBlock4x8Sse(aRow, s, result, i * p.nbar)
+          accumulateAsBlock4x8Sse(aRow, s, result, i * p.nbar, p.n)
         else:
-          accumulateAsBlock4x8Scalar(aRow, s, result, i * p.nbar)
+          accumulateAsBlock4x8Scalar(aRow, s, result, i * p.nbar, p.n)
         i = i + 4
+      reduceWordsModQ(p, result)
       return result
     when defined(aesni):
       var
         ctx: Aes128NiCtx
-        blocksIn: array[frodoBlocksPerFourRows, AesBlock]
-        blocksOut: array[frodoBlocksPerFourRows, AesBlock]
-        aRow {.align: 32.}: array[frodoWordsPerFourRows, uint16]
+        blocksIn: seq[AesBlock] = newSeq[AesBlock](frodoRowsPerBlock * (p.n div 8))
+        blocksOut: seq[AesBlock] = newSeq[AesBlock](blocksIn.len)
+        aRow: seq[uint16] = newSeq[uint16](frodoRowsPerBlock * p.n)
         i: int = 0
       ctx.initPublicFast(seedA)
-      initFourRowBlocks(blocksIn)
+      initFourRowBlocksDynamic(blocksIn, p.n)
       i = 0
       while i < p.n:
-        generateFourRowsBulk(ctx, blocksIn, blocksOut, i, aRow)
+        generateFourRowsBulkDynamic(ctx, blocksIn, blocksOut, i, p.n, aRow)
+        reduceWordsModQ(p, aRow)
         when defined(avx2):
-          accumulateAsBlock4x8Avx2(aRow, s, result, i * p.nbar)
+          accumulateAsBlock4x8Avx2(aRow, s, result, i * p.nbar, p.n)
+        elif defined(neon) or defined(arm64) or defined(aarch64):
+          accumulateAsBlock4x8Neon(aRow, s, result, i * p.nbar, p.n)
         elif defined(sse2):
-          accumulateAsBlock4x8Sse(aRow, s, result, i * p.nbar)
+          accumulateAsBlock4x8Sse(aRow, s, result, i * p.nbar, p.n)
         else:
-          accumulateAsBlock4x8Scalar(aRow, s, result, i * p.nbar)
+          accumulateAsBlock4x8Scalar(aRow, s, result, i * p.nbar, p.n)
         i = i + frodoRowsPerWideBlock
     else:
       var
         ctx: Aes128Ctx
-        blocksIn: array[frodoBlocksPerFourRows, AesBlock]
-        blocksOut: array[frodoBlocksPerFourRows, AesBlock]
-        aRow {.align: 32.}: array[frodoWordsPerFourRows, uint16]
+        blocksIn: seq[AesBlock] = newSeq[AesBlock](frodoRowsPerBlock * (p.n div 8))
+        blocksOut: seq[AesBlock] = newSeq[AesBlock](blocksIn.len)
+        aRow: seq[uint16] = newSeq[uint16](frodoRowsPerBlock * p.n)
         i: int = 0
       ctx.initPublicFast(seedA)
-      initFourRowBlocks(blocksIn)
+      initFourRowBlocksDynamic(blocksIn, p.n)
       i = 0
       while i < p.n:
-        generateFourRowsBulk(ctx, blocksIn, blocksOut, i, aRow)
+        generateFourRowsBulkDynamic(ctx, blocksIn, blocksOut, i, p.n, aRow)
+        reduceWordsModQ(p, aRow)
         when defined(avx2):
-          accumulateAsBlock4x8Avx2(aRow, s, result, i * p.nbar)
+          accumulateAsBlock4x8Avx2(aRow, s, result, i * p.nbar, p.n)
+        elif defined(neon) or defined(arm64) or defined(aarch64):
+          accumulateAsBlock4x8Neon(aRow, s, result, i * p.nbar, p.n)
         elif defined(sse2):
-          accumulateAsBlock4x8Sse(aRow, s, result, i * p.nbar)
+          accumulateAsBlock4x8Sse(aRow, s, result, i * p.nbar, p.n)
         else:
-          accumulateAsBlock4x8Scalar(aRow, s, result, i * p.nbar)
+          accumulateAsBlock4x8Scalar(aRow, s, result, i * p.nbar, p.n)
         i = i + 4
+    reduceWordsModQ(p, result)
 
 proc mulAddSaPlusE(p: FrodoParams, A, s, e: openArray[uint16]): seq[uint16] =
   ## Compute `s * A + e` with `A` in row-major order.
@@ -1107,7 +1344,7 @@ proc mulAddSaPlusE(p: FrodoParams, A, s, e: openArray[uint16]): seq[uint16] =
     result = newSeq[uint16](p.nbar * p.n)
     i = 0
     while i < result.len:
-      result[i] = e[i]
+      result[i] = reduceWordQ(p, e[i])
       i = i + 1
     aCol = newSeq[uint16](p.n)
     i = 0
@@ -1119,8 +1356,8 @@ proc mulAddSaPlusE(p: FrodoParams, A, s, e: openArray[uint16]): seq[uint16] =
       k = 0
       while k < p.nbar:
         sOff = k * p.n
-        result[k * p.n + i] = result[k * p.n + i] +
-          dotModQ16(s, aCol, sOff, 0, p.n)
+        result[k * p.n + i] = addModQ(p, result[k * p.n + i],
+          dotModQ(p, s, aCol, sOff, 0, p.n))
         k = k + 1
       i = i + 1
 
@@ -1130,76 +1367,84 @@ proc mulAddSaPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
   otterSpan("frodo.mulAddSaPlusEStream"):
     if seedA.len != p.bytesSeedA:
       raise newException(ValueError, "invalid Frodo seed_A length")
+    if not useOptimizedAesStreamPath(p):
+      var
+        A: seq[uint16] = generateMatrixA(p, seedA)
+      result = mulAddSaPlusE(p, A, s, e)
+      clearWords(A)
+      return result
     result = newSeq[uint16](p.nbar * p.n)
     if result.len > 0:
       copyMem(addr result[0], unsafeAddr e[0], result.len * sizeof(uint16))
     block openSslPath:
       var
         ctx: Aes128OpenSslCtx
-        blocksIn: array[frodoBlocksPerColStripe, AesBlock]
-        blocksOut: array[frodoBlocksPerColStripe, AesBlock]
-        aCols {.align: 32.}: array[frodoWordsPerColStripe, uint16]
-        aColsT {.align: 32.}: array[frodoWordsPerColStripe, uint16]
+        blocksIn: seq[AesBlock] = newSeq[AesBlock](p.n)
+        blocksOut: seq[AesBlock] = newSeq[AesBlock](p.n)
+        aColsT: seq[uint16] = newSeq[uint16](p.n * p.stripeStep)
         kk: int = 0
       if not initOpenSslPublicFast(ctx, seedA):
         break openSslPath
       defer:
         clear(ctx)
-      initColStripeBlocks(blocksIn)
+      initColStripeBlocksDynamic(blocksIn, p.n)
       kk = 0
       while kk < p.n:
-        generateColStripeBulk(ctx, blocksIn, blocksOut, kk, aCols)
-        transposeColStripe8xN(aCols, aColsT)
+        generateColStripeBulkTDynamic(p, ctx, blocksIn, blocksOut, kk, p.n, aColsT)
         when defined(avx2):
-          accumulateSaStripe8Avx2(aColsT, s, result, kk)
+          accumulateSaStripe8Avx2(aColsT, s, result, kk, p.n)
+        elif defined(neon) or defined(arm64) or defined(aarch64):
+          accumulateSaStripe8Neon(aColsT, s, result, kk, p.n)
         elif defined(sse2):
-          accumulateSaStripe8Sse(aColsT, s, result, kk)
+          accumulateSaStripe8Sse(aColsT, s, result, kk, p.n)
         else:
-          accumulateSaStripe8Scalar(aColsT, s, result, kk)
+          accumulateSaStripe8Scalar(aColsT, s, result, kk, p.n)
         kk = kk + p.stripeStep
+      reduceWordsModQ(p, result)
       return result
     when defined(aesni):
       var
         ctx: Aes128NiCtx
-        blocksIn: array[frodoBlocksPerColStripe, AesBlock]
-        blocksOut: array[frodoBlocksPerColStripe, AesBlock]
-        aCols {.align: 32.}: array[frodoWordsPerColStripe, uint16]
-        aColsT {.align: 32.}: array[frodoWordsPerColStripe, uint16]
+        blocksIn: seq[AesBlock] = newSeq[AesBlock](p.n)
+        blocksOut: seq[AesBlock] = newSeq[AesBlock](p.n)
+        aColsT: seq[uint16] = newSeq[uint16](p.n * p.stripeStep)
         kk: int = 0
       ctx.initPublicFast(seedA)
-      initColStripeBlocks(blocksIn)
+      initColStripeBlocksDynamic(blocksIn, p.n)
       kk = 0
       while kk < p.n:
-        generateColStripeBulk(ctx, blocksIn, blocksOut, kk, aCols)
-        transposeColStripe8xN(aCols, aColsT)
+        generateColStripeBulkTDynamic(p, ctx, blocksIn, blocksOut, kk, p.n, aColsT)
         when defined(avx2):
-          accumulateSaStripe8Avx2(aColsT, s, result, kk)
+          accumulateSaStripe8Avx2(aColsT, s, result, kk, p.n)
+        elif defined(neon) or defined(arm64) or defined(aarch64):
+          accumulateSaStripe8Neon(aColsT, s, result, kk, p.n)
         elif defined(sse2):
-          accumulateSaStripe8Sse(aColsT, s, result, kk)
+          accumulateSaStripe8Sse(aColsT, s, result, kk, p.n)
         else:
-          accumulateSaStripe8Scalar(aColsT, s, result, kk)
+          accumulateSaStripe8Scalar(aColsT, s, result, kk, p.n)
         kk = kk + p.stripeStep
     else:
       var
         ctx: Aes128Ctx
-        blocksIn: array[frodoBlocksPerColStripe, AesBlock]
-        blocksOut: array[frodoBlocksPerColStripe, AesBlock]
-        aCols {.align: 32.}: array[frodoWordsPerColStripe, uint16]
-        aColsT {.align: 32.}: array[frodoWordsPerColStripe, uint16]
+        blocksIn: seq[AesBlock] = newSeq[AesBlock](p.n)
+        blocksOut: seq[AesBlock] = newSeq[AesBlock](p.n)
+        aColsT: seq[uint16] = newSeq[uint16](p.n * p.stripeStep)
         kk: int = 0
       ctx.initPublicFast(seedA)
-      initColStripeBlocks(blocksIn)
+      initColStripeBlocksDynamic(blocksIn, p.n)
       kk = 0
       while kk < p.n:
-        generateColStripeBulk(ctx, blocksIn, blocksOut, kk, aCols)
-        transposeColStripe8xN(aCols, aColsT)
+        generateColStripeBulkTDynamic(p, ctx, blocksIn, blocksOut, kk, p.n, aColsT)
         when defined(avx2):
-          accumulateSaStripe8Avx2(aColsT, s, result, kk)
+          accumulateSaStripe8Avx2(aColsT, s, result, kk, p.n)
+        elif defined(neon) or defined(arm64) or defined(aarch64):
+          accumulateSaStripe8Neon(aColsT, s, result, kk, p.n)
         elif defined(sse2):
-          accumulateSaStripe8Sse(aColsT, s, result, kk)
+          accumulateSaStripe8Sse(aColsT, s, result, kk, p.n)
         else:
-          accumulateSaStripe8Scalar(aColsT, s, result, kk)
+          accumulateSaStripe8Scalar(aColsT, s, result, kk, p.n)
         kk = kk + p.stripeStep
+    reduceWordsModQ(p, result)
 
 proc mulAddAsPlusEStreamPair(p: FrodoParams, seedA: seq[byte], seWords: seq[uint16],
     sOff, eOff: int): seq[uint16] =
@@ -1238,7 +1483,7 @@ proc mulBs(p: FrodoParams, b, s: openArray[uint16]): seq[uint16] =
           acc = acc + uint32(b[i * p.n + k + 6]) * uint32(s[j * p.n + k + 6])
           acc = acc + uint32(b[i * p.n + k + 7]) * uint32(s[j * p.n + k + 7])
           k = k + 8
-        result[i * p.nbar + j] = uint16(acc)
+        result[i * p.nbar + j] = reduceWideQ(p, acc)
         j = j + 1
       i = i + 1
 
@@ -1267,7 +1512,7 @@ proc mulAddSbPlusE(p: FrodoParams, b, s, e: openArray[uint16]): seq[uint16] =
           acc = acc + uint32(s[k * p.n + j + 6]) * uint32(b[(j + 6) * p.nbar + iBar])
           acc = acc + uint32(s[k * p.n + j + 7]) * uint32(b[(j + 7) * p.nbar + iBar])
           j = j + 8
-        result[k * p.nbar + iBar] = e[k * p.nbar + iBar] + uint16(acc)
+        result[k * p.nbar + iBar] = reduceWideQ(p, uint32(e[k * p.nbar + iBar]) + acc)
         iBar = iBar + 1
       k = k + 1
 
@@ -1277,7 +1522,7 @@ proc addWords(p: FrodoParams, A, B: openArray[uint16]): seq[uint16] =
   result = newSeq[uint16](A.len)
   i = 0
   while i < A.len:
-    result[i] = A[i] + B[i]
+    result[i] = addModQ(p, A[i], B[i])
     i = i + 1
 
 proc subWords(p: FrodoParams, A, B: openArray[uint16]): seq[uint16] =
@@ -1286,7 +1531,7 @@ proc subWords(p: FrodoParams, A, B: openArray[uint16]): seq[uint16] =
   result = newSeq[uint16](A.len)
   i = 0
   while i < A.len:
-    result[i] = A[i] - B[i]
+    result[i] = subModQ(p, A[i], B[i])
     i = i + 1
 
 proc keyEncode(p: FrodoParams, input: openArray[byte]): seq[uint16] =
@@ -1345,8 +1590,8 @@ proc keyDecode(p: FrodoParams, input: openArray[uint16]): seq[byte] =
       i = i + 1
 {.pop.}
 
-proc frodoTyrKeypairDerand*(v: FrodoVariant, randomness: openArray[byte]): FrodoTyrKeypair =
-    ## Generate a pure-Nim FrodoKEM keypair from explicit 64-byte randomness.
+proc frodoTyrKeypairDerand*(v: FrodoVariant, randomness: openArray[byte]): FrodoTyrKeypair {.otterTrace.} =
+    ## Generate a pure-Nim FrodoKEM keypair from explicit randomness.
     var
       p: FrodoParams = params(v)
       wordCount: int = p.n * p.nbar
@@ -1355,12 +1600,15 @@ proc frodoTyrKeypairDerand*(v: FrodoVariant, randomness: openArray[byte]): Frodo
       seedSEWords: seq[uint16] = @[]
       pkh: seq[byte] = @[]
     if randomness.len != p.keypairRandomBytes:
-      raise newException(ValueError, "Frodo976AES derand keypair requires 64 bytes")
+      raise newException(ValueError, p.name & " derand keypair requires " &
+        $p.keypairRandomBytes & " bytes")
     pkSeedA = newSeq[byte](p.bytesSeedA)
-    shake256Into(pkSeedA, randomness.toOpenArray(48, 63))
-    let seedSEInput = prefixed24(0x5f'u8, randomness.toOpenArray(24, 47))
+    shakeIntoForParams(p, pkSeedA,
+      randomness.toOpenArray(randomness.len - p.bytesSeedA, randomness.len - 1))
+    let seedSEInput = prefixedByte(0x5f'u8,
+      randomness.toOpenArray(p.sharedSecretBytes, 2 * p.sharedSecretBytes - 1))
     seedSEWords = newSeq[uint16](2 * wordCount)
-    shake256WordsLeInto(seedSEWords, seedSEInput)
+    shakeWordsLeIntoForParams(p, seedSEWords, seedSEInput)
     frodoSampleN(p, seedSEWords.toOpenArray(0, wordCount - 1))
     frodoSampleN(p, seedSEWords.toOpenArray(wordCount, 2 * wordCount - 1))
     bWords = mulAddAsPlusEStreamPair(p, pkSeedA, seedSEWords, 0, wordCount)
@@ -1369,7 +1617,7 @@ proc frodoTyrKeypairDerand*(v: FrodoVariant, randomness: openArray[byte]): Frodo
     copyMem(addr result.publicKey[0], unsafeAddr pkSeedA[0], pkSeedA.len)
     frodoPackInto(result.publicKey.toOpenArray(p.bytesSeedA, result.publicKey.len - 1), bWords, p.logQ)
     pkh = newSeq[byte](p.bytesPkHash)
-    shake256Into(pkh, result.publicKey)
+    shakeIntoForParams(p, pkh, result.publicKey)
     result.secretKey = newSeq[byte](p.secretKeyBytes)
     copyMem(addr result.secretKey[0], unsafeAddr randomness[0], p.sharedSecretBytes)
     copyMem(addr result.secretKey[p.sharedSecretBytes], unsafeAddr result.publicKey[0], result.publicKey.len)
@@ -1387,13 +1635,14 @@ proc frodoTyrKeypairDerand*(v: FrodoVariant, randomness: openArray[byte]): Frodo
     clearBytes(pkSeedA)
     clearBytes(pkh)
 
-proc frodoTyrKeypair*(v: FrodoVariant, randomness: seq[byte] = @[]): FrodoTyrKeypair =
+proc frodoTyrKeypair*(v: FrodoVariant, randomness: seq[byte] = @[]): FrodoTyrKeypair {.otterTrace.} =
   ## Generate a pure-Nim FrodoKEM keypair.
   var
     material: seq[byte] = @[]
     i: int = 0
   if randomness.len > 0 and randomness.len != params(v).keypairRandomBytes:
-    raise newException(ValueError, "Frodo976AES seeded keypair requires 64 bytes")
+    raise newException(ValueError, params(v).name & " seeded keypair requires " &
+      $params(v).keypairRandomBytes & " bytes")
   if randomness.len == 0:
     material = cryptoRandomBytes(params(v).keypairRandomBytes)
   else:
@@ -1404,7 +1653,7 @@ proc frodoTyrKeypair*(v: FrodoVariant, randomness: seq[byte] = @[]): FrodoTyrKey
     material[i] = 0'u8
     i = i + 1
 
-proc frodoTyrEncapsDerand*(v: FrodoVariant, pk: openArray[byte], mu: openArray[byte]): FrodoTyrCipher =
+proc frodoTyrEncapsDerand*(v: FrodoVariant, pk: openArray[byte], mu: openArray[byte]): FrodoTyrCipher {.otterTrace.} =
   ## Encapsulate against a pure-Nim Frodo public key from explicit `mu` randomness.
   var
     p: FrodoParams = params(v)
@@ -1422,15 +1671,15 @@ proc frodoTyrEncapsDerand*(v: FrodoVariant, pk: openArray[byte], mu: openArray[b
   if pk.len != p.publicKeyBytes:
     raise newException(ValueError, "invalid Frodo public key length")
   if mu.len != p.bytesMu:
-    raise newException(ValueError, "Frodo encaps randomness must be 24 bytes")
+    raise newException(ValueError, p.name & " encaps randomness must be " & $p.bytesMu & " bytes")
   pkh = newSeq[byte](p.bytesPkHash)
-  shake256Into(pkh, pk)
-  let g2Input = concat24x2(pkh, mu)
+  shakeIntoForParams(p, pkh, pk)
+  let g2Input = concatByteSeq(pkh, mu)
   g2Out = newSeq[byte](2 * p.sharedSecretBytes)
-  shake256Into(g2Out, g2Input)
-  let spInput = prefixed24(0x96'u8, g2Out.toOpenArray(0, p.sharedSecretBytes - 1))
+  shakeIntoForParams(p, g2Out, g2Input)
+  let spInput = prefixedByte(0x96'u8, g2Out.toOpenArray(0, p.sharedSecretBytes - 1))
   noiseWords = newSeq[uint16](noiseWordCount)
-  shake256WordsLeInto(noiseWords, spInput)
+  shakeWordsLeIntoForParams(p, noiseWords, spInput)
   frodoSampleN(p, noiseWords.toOpenArray(0, wordCount - 1))
   frodoSampleN(p, noiseWords.toOpenArray(wordCount, 2 * wordCount - 1))
   frodoSampleN(p, noiseWords.toOpenArray(2 * wordCount, noiseWordCount - 1))
@@ -1451,7 +1700,7 @@ proc frodoTyrEncapsDerand*(v: FrodoVariant, pk: openArray[byte], mu: openArray[b
   copyMem(addr fin[0], unsafeAddr result.ciphertext[0], result.ciphertext.len)
   copyMem(addr fin[result.ciphertext.len], unsafeAddr g2Out[p.sharedSecretBytes], p.sharedSecretBytes)
   result.sharedSecret = newSeq[byte](p.sharedSecretBytes)
-  shake256Into(result.sharedSecret, fin)
+  shakeIntoForParams(p, result.sharedSecret, fin)
   clearBytes(pkh)
   clearBytes(pkSeedA)
   clearBytes(g2Out)
@@ -1462,13 +1711,14 @@ proc frodoTyrEncapsDerand*(v: FrodoVariant, pk: openArray[byte], mu: openArray[b
   clearWords(vWords)
   clearWords(cWords)
 
-proc frodoTyrEncaps*(v: FrodoVariant, pk: openArray[byte], randomness: seq[byte] = @[]): FrodoTyrCipher =
+proc frodoTyrEncaps*(v: FrodoVariant, pk: openArray[byte], randomness: seq[byte] = @[]): FrodoTyrCipher {.otterTrace.} =
   ## Encapsulate against a pure-Nim Frodo public key.
   var
     mu: seq[byte] = @[]
     i: int = 0
   if randomness.len > 0 and randomness.len != params(v).encapsRandomBytes:
-    raise newException(ValueError, "Frodo976AES seeded encaps requires 24 bytes")
+    raise newException(ValueError, params(v).name & " seeded encaps requires " &
+      $params(v).encapsRandomBytes & " bytes")
   if randomness.len == 0:
     mu = cryptoRandomBytes(params(v).encapsRandomBytes)
   else:
@@ -1479,7 +1729,7 @@ proc frodoTyrEncaps*(v: FrodoVariant, pk: openArray[byte], randomness: seq[byte]
     mu[i] = 0'u8
     i = i + 1
 
-proc frodoTyrDecaps*(v: FrodoVariant, sk, ct: openArray[byte]): seq[byte] =
+proc frodoTyrDecaps*(v: FrodoVariant, sk, ct: openArray[byte]): seq[byte] {.otterTrace.} =
   ## Decapsulate a Frodo ciphertext and return the shared secret.
   var
     p: FrodoParams = params(v)
@@ -1512,12 +1762,12 @@ proc frodoTyrDecaps*(v: FrodoVariant, sk, ct: openArray[byte]): seq[byte] =
   wWords = mulBs(p, bpWords, sWords)
   wWords = subWords(p, cWords, wWords)
   muPrime = keyDecode(p, wWords)
-  let g2Input = concat24x2(sk.toOpenArray(skPkhOff, skPkhOff + p.bytesPkHash - 1), muPrime)
+  let g2Input = concatByteSeq(sk.toOpenArray(skPkhOff, skPkhOff + p.bytesPkHash - 1), muPrime)
   g2Out = newSeq[byte](2 * p.sharedSecretBytes)
-  shake256Into(g2Out, g2Input)
-  let spInput = prefixed24(0x96'u8, g2Out.toOpenArray(0, p.sharedSecretBytes - 1))
+  shakeIntoForParams(p, g2Out, g2Input)
+  let spInput = prefixedByte(0x96'u8, g2Out.toOpenArray(0, p.sharedSecretBytes - 1))
   noiseWords = newSeq[uint16](noiseWordCount)
-  shake256WordsLeInto(noiseWords, spInput)
+  shakeWordsLeIntoForParams(p, noiseWords, spInput)
   frodoSampleN(p, noiseWords.toOpenArray(0, wordCount - 1))
   frodoSampleN(p, noiseWords.toOpenArray(wordCount, 2 * wordCount - 1))
   frodoSampleN(p, noiseWords.toOpenArray(2 * wordCount, noiseWordCount - 1))
@@ -1538,7 +1788,7 @@ proc frodoTyrDecaps*(v: FrodoVariant, sk, ct: openArray[byte]): seq[byte] =
   copyMem(addr fin[0], unsafeAddr ct[0], ct.len)
   copyMem(addr fin[ct.len], unsafeAddr selected[0], selected.len)
   result = newSeq[byte](p.sharedSecretBytes)
-  shake256Into(result, fin)
+  shakeIntoForParams(p, result, fin)
   clearBytes(muPrime)
   clearBytes(decSeedA)
   clearBytes(g2Out)

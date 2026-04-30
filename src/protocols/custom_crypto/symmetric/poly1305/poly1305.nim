@@ -239,6 +239,6 @@ proc poly1305Verify*(key, msg, tag: openArray[byte]): bool =
   var expected = poly1305Mac(key, msg)
   result = constantTimeEqual(expected, tag)
 
-when defined(amd64) or defined(i386):
+when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defined(aarch64):
   import ./poly1305_simd
   export poly1305_simd

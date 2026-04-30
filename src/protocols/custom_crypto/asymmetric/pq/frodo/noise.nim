@@ -20,7 +20,7 @@ proc frodoSampleN*(p: FrodoParams, S: var openArray[uint16]) =
       prnd = S[i] shr 1
       sign = S[i] and 0x1'u16
       j = 0
-      while j < p.cdfTable.len - 1:
+      while j < p.cdfTableLen - 1:
         sample = sample + (p.cdfTable[j] - prnd) shr 15
         j = j + 1
       S[i] = cast[uint16]((cast[int16](-cast[int16](sign)) xor cast[int16](sample)) +

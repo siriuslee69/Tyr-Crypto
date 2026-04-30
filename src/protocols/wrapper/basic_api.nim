@@ -95,10 +95,30 @@ type
     akMcEliece1TyrOpen,
     akMcEliece2TyrSend,
     akMcEliece2TyrOpen,
-    akFrodo0Send,
-    akFrodo0Open,
-    akFrodo0TyrSend,
-    akFrodo0TyrOpen,
+    akFrodo0AesSend,
+    akFrodo0AesOpen,
+    akFrodo0ShakeSend,
+    akFrodo0ShakeOpen,
+    akFrodo1AesSend,
+    akFrodo1AesOpen,
+    akFrodo1ShakeSend,
+    akFrodo1ShakeOpen,
+    akFrodo2AesSend,
+    akFrodo2AesOpen,
+    akFrodo2ShakeSend,
+    akFrodo2ShakeOpen,
+    akFrodo0AesTyrSend,
+    akFrodo0AesTyrOpen,
+    akFrodo0ShakeTyrSend,
+    akFrodo0ShakeTyrOpen,
+    akFrodo1AesTyrSend,
+    akFrodo1AesTyrOpen,
+    akFrodo1ShakeTyrSend,
+    akFrodo1ShakeTyrOpen,
+    akFrodo2AesTyrSend,
+    akFrodo2AesTyrOpen,
+    akFrodo2ShakeTyrSend,
+    akFrodo2ShakeTyrOpen,
     akNtruPrime0Send,
     akNtruPrime0Open,
     akBike0TyrSend,
@@ -367,18 +387,78 @@ type
   ## Material for the pure-Nim Tyr McEliece tier-2 decapsulation path.
   mceliece2TyrOpenM* = object
     receiverSecretKey*: array[14120, byte]
-  ## Material for Frodo tier-0 encapsulation.
-  frodo0SendM* = object
+  ## Material for Frodo tier-0 AES encapsulation.
+  frodo0AesSendM* = object
+    receiverPublicKey*: array[9616, byte]
+  ## Material for Frodo tier-0 AES decapsulation.
+  frodo0AesOpenM* = object
+    receiverSecretKey*: array[19888, byte]
+  ## Material for Frodo tier-0 SHAKE encapsulation.
+  frodo0ShakeSendM* = object
+    receiverPublicKey*: array[9616, byte]
+  ## Material for Frodo tier-0 SHAKE decapsulation.
+  frodo0ShakeOpenM* = object
+    receiverSecretKey*: array[19888, byte]
+  ## Material for Frodo tier-1 AES encapsulation.
+  frodo1AesSendM* = object
     receiverPublicKey*: array[15632, byte]
-  ## Material for Frodo tier-0 decapsulation.
-  frodo0OpenM* = object
+  ## Material for Frodo tier-1 AES decapsulation.
+  frodo1AesOpenM* = object
     receiverSecretKey*: array[31296, byte]
-  ## Material for the pure-Nim Tyr Frodo tier-0 encapsulation path.
-  frodo0TyrSendM* = object
+  ## Material for Frodo tier-1 SHAKE encapsulation.
+  frodo1ShakeSendM* = object
     receiverPublicKey*: array[15632, byte]
-  ## Material for the pure-Nim Tyr Frodo tier-0 decapsulation path.
-  frodo0TyrOpenM* = object
+  ## Material for Frodo tier-1 SHAKE decapsulation.
+  frodo1ShakeOpenM* = object
     receiverSecretKey*: array[31296, byte]
+  ## Material for Frodo tier-2 AES encapsulation.
+  frodo2AesSendM* = object
+    receiverPublicKey*: array[21520, byte]
+  ## Material for Frodo tier-2 AES decapsulation.
+  frodo2AesOpenM* = object
+    receiverSecretKey*: array[43088, byte]
+  ## Material for Frodo tier-2 SHAKE encapsulation.
+  frodo2ShakeSendM* = object
+    receiverPublicKey*: array[21520, byte]
+  ## Material for Frodo tier-2 SHAKE decapsulation.
+  frodo2ShakeOpenM* = object
+    receiverSecretKey*: array[43088, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-0 AES encapsulation path.
+  frodo0AesTyrSendM* = object
+    receiverPublicKey*: array[9616, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-0 AES decapsulation path.
+  frodo0AesTyrOpenM* = object
+    receiverSecretKey*: array[19888, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-0 SHAKE encapsulation path.
+  frodo0ShakeTyrSendM* = object
+    receiverPublicKey*: array[9616, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-0 SHAKE decapsulation path.
+  frodo0ShakeTyrOpenM* = object
+    receiverSecretKey*: array[19888, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-1 AES encapsulation path.
+  frodo1AesTyrSendM* = object
+    receiverPublicKey*: array[15632, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-1 AES decapsulation path.
+  frodo1AesTyrOpenM* = object
+    receiverSecretKey*: array[31296, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-1 SHAKE encapsulation path.
+  frodo1ShakeTyrSendM* = object
+    receiverPublicKey*: array[15632, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-1 SHAKE decapsulation path.
+  frodo1ShakeTyrOpenM* = object
+    receiverSecretKey*: array[31296, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-2 AES encapsulation path.
+  frodo2AesTyrSendM* = object
+    receiverPublicKey*: array[21520, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-2 AES decapsulation path.
+  frodo2AesTyrOpenM* = object
+    receiverSecretKey*: array[43088, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-2 SHAKE encapsulation path.
+  frodo2ShakeTyrSendM* = object
+    receiverPublicKey*: array[21520, byte]
+  ## Material for the pure-Nim Tyr Frodo tier-2 SHAKE decapsulation path.
+  frodo2ShakeTyrOpenM* = object
+    receiverSecretKey*: array[43088, byte]
   ## Material for NTRU Prime tier-0 encapsulation.
   ntruprime0SendM* = object
     ## ntruprime0 is currently bound to sntrup761 in the checked-out liboqs tree.
@@ -516,10 +596,30 @@ const algorithmLayouts*: array[AlgorithmKind, AlgorithmLayout] = [
   buildLayout(akMcEliece1TyrOpen, okKemOpen, 32, kkSecretKey -> 13948),
   buildLayout(akMcEliece2TyrSend, okKemSend, 32, kkPublicKey -> 1357824),
   buildLayout(akMcEliece2TyrOpen, okKemOpen, 32, kkSecretKey -> 14120),
-  buildLayout(akFrodo0Send, okKemSend, 24, kkPublicKey -> 15632),
-  buildLayout(akFrodo0Open, okKemOpen, 24, kkSecretKey -> 31296),
-  buildLayout(akFrodo0TyrSend, okKemSend, 24, kkPublicKey -> 15632),
-  buildLayout(akFrodo0TyrOpen, okKemOpen, 24, kkSecretKey -> 31296),
+  buildLayout(akFrodo0AesSend, okKemSend, 16, kkPublicKey -> 9616),
+  buildLayout(akFrodo0AesOpen, okKemOpen, 16, kkSecretKey -> 19888),
+  buildLayout(akFrodo0ShakeSend, okKemSend, 16, kkPublicKey -> 9616),
+  buildLayout(akFrodo0ShakeOpen, okKemOpen, 16, kkSecretKey -> 19888),
+  buildLayout(akFrodo1AesSend, okKemSend, 24, kkPublicKey -> 15632),
+  buildLayout(akFrodo1AesOpen, okKemOpen, 24, kkSecretKey -> 31296),
+  buildLayout(akFrodo1ShakeSend, okKemSend, 24, kkPublicKey -> 15632),
+  buildLayout(akFrodo1ShakeOpen, okKemOpen, 24, kkSecretKey -> 31296),
+  buildLayout(akFrodo2AesSend, okKemSend, 32, kkPublicKey -> 21520),
+  buildLayout(akFrodo2AesOpen, okKemOpen, 32, kkSecretKey -> 43088),
+  buildLayout(akFrodo2ShakeSend, okKemSend, 32, kkPublicKey -> 21520),
+  buildLayout(akFrodo2ShakeOpen, okKemOpen, 32, kkSecretKey -> 43088),
+  buildLayout(akFrodo0AesTyrSend, okKemSend, 16, kkPublicKey -> 9616),
+  buildLayout(akFrodo0AesTyrOpen, okKemOpen, 16, kkSecretKey -> 19888),
+  buildLayout(akFrodo0ShakeTyrSend, okKemSend, 16, kkPublicKey -> 9616),
+  buildLayout(akFrodo0ShakeTyrOpen, okKemOpen, 16, kkSecretKey -> 19888),
+  buildLayout(akFrodo1AesTyrSend, okKemSend, 24, kkPublicKey -> 15632),
+  buildLayout(akFrodo1AesTyrOpen, okKemOpen, 24, kkSecretKey -> 31296),
+  buildLayout(akFrodo1ShakeTyrSend, okKemSend, 24, kkPublicKey -> 15632),
+  buildLayout(akFrodo1ShakeTyrOpen, okKemOpen, 24, kkSecretKey -> 31296),
+  buildLayout(akFrodo2AesTyrSend, okKemSend, 32, kkPublicKey -> 21520),
+  buildLayout(akFrodo2AesTyrOpen, okKemOpen, 32, kkSecretKey -> 43088),
+  buildLayout(akFrodo2ShakeTyrSend, okKemSend, 32, kkPublicKey -> 21520),
+  buildLayout(akFrodo2ShakeTyrOpen, okKemOpen, 32, kkSecretKey -> 43088),
   buildLayout(akNtruPrime0Send, okKemSend, 32, kkPublicKey -> 1158),
   buildLayout(akNtruPrime0Open, okKemOpen, 32, kkSecretKey -> 1763),
   buildLayout(akBike0TyrSend, okKemSend, 32, kkPublicKey -> 1541),
@@ -597,10 +697,30 @@ proc algorithmOf*(T: typedesc[mceliece1TyrSendM]): AlgorithmKind = akMcEliece1Ty
 proc algorithmOf*(T: typedesc[mceliece1TyrOpenM]): AlgorithmKind = akMcEliece1TyrOpen
 proc algorithmOf*(T: typedesc[mceliece2TyrSendM]): AlgorithmKind = akMcEliece2TyrSend
 proc algorithmOf*(T: typedesc[mceliece2TyrOpenM]): AlgorithmKind = akMcEliece2TyrOpen
-proc algorithmOf*(T: typedesc[frodo0SendM]): AlgorithmKind = akFrodo0Send
-proc algorithmOf*(T: typedesc[frodo0OpenM]): AlgorithmKind = akFrodo0Open
-proc algorithmOf*(T: typedesc[frodo0TyrSendM]): AlgorithmKind = akFrodo0TyrSend
-proc algorithmOf*(T: typedesc[frodo0TyrOpenM]): AlgorithmKind = akFrodo0TyrOpen
+proc algorithmOf*(T: typedesc[frodo0AesSendM]): AlgorithmKind = akFrodo0AesSend
+proc algorithmOf*(T: typedesc[frodo0AesOpenM]): AlgorithmKind = akFrodo0AesOpen
+proc algorithmOf*(T: typedesc[frodo0ShakeSendM]): AlgorithmKind = akFrodo0ShakeSend
+proc algorithmOf*(T: typedesc[frodo0ShakeOpenM]): AlgorithmKind = akFrodo0ShakeOpen
+proc algorithmOf*(T: typedesc[frodo1AesSendM]): AlgorithmKind = akFrodo1AesSend
+proc algorithmOf*(T: typedesc[frodo1AesOpenM]): AlgorithmKind = akFrodo1AesOpen
+proc algorithmOf*(T: typedesc[frodo1ShakeSendM]): AlgorithmKind = akFrodo1ShakeSend
+proc algorithmOf*(T: typedesc[frodo1ShakeOpenM]): AlgorithmKind = akFrodo1ShakeOpen
+proc algorithmOf*(T: typedesc[frodo2AesSendM]): AlgorithmKind = akFrodo2AesSend
+proc algorithmOf*(T: typedesc[frodo2AesOpenM]): AlgorithmKind = akFrodo2AesOpen
+proc algorithmOf*(T: typedesc[frodo2ShakeSendM]): AlgorithmKind = akFrodo2ShakeSend
+proc algorithmOf*(T: typedesc[frodo2ShakeOpenM]): AlgorithmKind = akFrodo2ShakeOpen
+proc algorithmOf*(T: typedesc[frodo0AesTyrSendM]): AlgorithmKind = akFrodo0AesTyrSend
+proc algorithmOf*(T: typedesc[frodo0AesTyrOpenM]): AlgorithmKind = akFrodo0AesTyrOpen
+proc algorithmOf*(T: typedesc[frodo0ShakeTyrSendM]): AlgorithmKind = akFrodo0ShakeTyrSend
+proc algorithmOf*(T: typedesc[frodo0ShakeTyrOpenM]): AlgorithmKind = akFrodo0ShakeTyrOpen
+proc algorithmOf*(T: typedesc[frodo1AesTyrSendM]): AlgorithmKind = akFrodo1AesTyrSend
+proc algorithmOf*(T: typedesc[frodo1AesTyrOpenM]): AlgorithmKind = akFrodo1AesTyrOpen
+proc algorithmOf*(T: typedesc[frodo1ShakeTyrSendM]): AlgorithmKind = akFrodo1ShakeTyrSend
+proc algorithmOf*(T: typedesc[frodo1ShakeTyrOpenM]): AlgorithmKind = akFrodo1ShakeTyrOpen
+proc algorithmOf*(T: typedesc[frodo2AesTyrSendM]): AlgorithmKind = akFrodo2AesTyrSend
+proc algorithmOf*(T: typedesc[frodo2AesTyrOpenM]): AlgorithmKind = akFrodo2AesTyrOpen
+proc algorithmOf*(T: typedesc[frodo2ShakeTyrSendM]): AlgorithmKind = akFrodo2ShakeTyrSend
+proc algorithmOf*(T: typedesc[frodo2ShakeTyrOpenM]): AlgorithmKind = akFrodo2ShakeTyrOpen
 proc algorithmOf*(T: typedesc[ntruprime0SendM]): AlgorithmKind = akNtruPrime0Send
 proc algorithmOf*(T: typedesc[ntruprime0OpenM]): AlgorithmKind = akNtruPrime0Open
 proc algorithmOf*(T: typedesc[bike0TyrSendM]): AlgorithmKind = akBike0TyrSend
@@ -852,14 +972,31 @@ proc mcElieceVariantForTier(alg: KemAlgorithm): McElieceTier =
   else:
     raise newException(ValueError, "algorithm is not a mceliece tier")
 
+proc frodoAlgIdForTier(alg: KemAlgorithm): string =
+  case alg
+  of kaFrodo0Aes:
+    result = oqsAlgFrodoKEM640Aes
+  of kaFrodo0Shake:
+    result = oqsAlgFrodoKEM640Shake
+  of kaFrodo1Aes:
+    result = oqsAlgFrodoKEM976Aes
+  of kaFrodo1Shake:
+    result = oqsAlgFrodoKEM976Shake
+  of kaFrodo2Aes:
+    result = oqsAlgFrodoKEM1344Aes
+  of kaFrodo2Shake:
+    result = oqsAlgFrodoKEM1344Shake
+  else:
+    raise newException(ValueError, "algorithm is not a frodo tier")
+
 proc kemAlgIdForDispatch(alg: KemAlgorithm): string =
   case alg
   of kaKyber0, kaKyber1:
     result = kyberAlgId(kyberVariantForTier(alg))
   of kaMcEliece0, kaMcEliece1, kaMcEliece2:
     result = mcElieceAlgId(mcElieceVariantForTier(alg))
-  of kaFrodo0:
-    result = oqsAlgFrodoKEM976
+  of kaFrodo0Aes, kaFrodo0Shake, kaFrodo1Aes, kaFrodo1Shake, kaFrodo2Aes, kaFrodo2Shake:
+    result = frodoAlgIdForTier(alg)
   of kaNtruPrime0:
     result = oqsAlgNtruPrime0
   of kaBike0:
@@ -882,7 +1019,8 @@ proc asymKeypair*(alg: KemAlgorithm, seed: seq[uint8] = @[]): AsymKeypair =
     result.publicKey = kp0.pk
     result.secretKey = kp0.sk
   of kaKyber0, kaKyber1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
-      kaFrodo0, kaNtruPrime0, kaBike0:
+      kaFrodo0Aes, kaFrodo0Shake, kaFrodo1Aes, kaFrodo1Shake, kaFrodo2Aes,
+      kaFrodo2Shake, kaNtruPrime0, kaBike0:
     algId = kemAlgIdForDispatch(alg)
     if seed.len > 0:
       kp0 = kemKeypair(algId, seed)
@@ -951,15 +1089,46 @@ proc asymKeypair*(T: typedesc[mceliece2TyrOpenM]): AsymKeypair =
   ## Build a pure-Nim Tyr McEliece tier-2 keypair.
   result = asymKeypair(mceliece2TyrSendM)
 
-proc asymKeypair*(T: typedesc[frodo0TyrSendM]): AsymKeypair =
-  ## Build a pure-Nim Tyr Frodo tier-0 keypair.
-  var kp = customFrodo.frodoTyrKeypair(customFrodo.frodo976aes)
+proc buildFrodoTyrKeypair(v: customFrodo.FrodoVariant): AsymKeypair =
+  var kp = customFrodo.frodoTyrKeypair(v)
   result.publicKey = kp.publicKey
   result.secretKey = kp.secretKey
 
-proc asymKeypair*(T: typedesc[frodo0TyrOpenM]): AsymKeypair =
-  ## Build a pure-Nim Tyr Frodo tier-0 keypair.
-  result = asymKeypair(frodo0TyrSendM)
+proc asymKeypair*(T: typedesc[frodo0AesTyrSendM]): AsymKeypair =
+  result = buildFrodoTyrKeypair(customFrodo.frodo640aes)
+
+proc asymKeypair*(T: typedesc[frodo0AesTyrOpenM]): AsymKeypair =
+  result = asymKeypair(frodo0AesTyrSendM)
+
+proc asymKeypair*(T: typedesc[frodo0ShakeTyrSendM]): AsymKeypair =
+  result = buildFrodoTyrKeypair(customFrodo.frodo640shake)
+
+proc asymKeypair*(T: typedesc[frodo0ShakeTyrOpenM]): AsymKeypair =
+  result = asymKeypair(frodo0ShakeTyrSendM)
+
+proc asymKeypair*(T: typedesc[frodo1AesTyrSendM]): AsymKeypair =
+  result = buildFrodoTyrKeypair(customFrodo.frodo976aes)
+
+proc asymKeypair*(T: typedesc[frodo1AesTyrOpenM]): AsymKeypair =
+  result = asymKeypair(frodo1AesTyrSendM)
+
+proc asymKeypair*(T: typedesc[frodo1ShakeTyrSendM]): AsymKeypair =
+  result = buildFrodoTyrKeypair(customFrodo.frodo976shake)
+
+proc asymKeypair*(T: typedesc[frodo1ShakeTyrOpenM]): AsymKeypair =
+  result = asymKeypair(frodo1ShakeTyrSendM)
+
+proc asymKeypair*(T: typedesc[frodo2AesTyrSendM]): AsymKeypair =
+  result = buildFrodoTyrKeypair(customFrodo.frodo1344aes)
+
+proc asymKeypair*(T: typedesc[frodo2AesTyrOpenM]): AsymKeypair =
+  result = asymKeypair(frodo2AesTyrSendM)
+
+proc asymKeypair*(T: typedesc[frodo2ShakeTyrSendM]): AsymKeypair =
+  result = buildFrodoTyrKeypair(customFrodo.frodo1344shake)
+
+proc asymKeypair*(T: typedesc[frodo2ShakeTyrOpenM]): AsymKeypair =
+  result = asymKeypair(frodo2ShakeTyrSendM)
 
 proc asymKeypair*(T: typedesc[bike0TyrSendM]): AsymKeypair =
   ## Build a pure-Nim Tyr BIKE tier-0 keypair.
@@ -1028,7 +1197,8 @@ proc asymEnc*(alg: KemAlgorithm, receiverPublicKey: seq[uint8],
     result.ciphertext = @[]
     result.sharedSecret = x25519Shared(kp0.sk, receiverPublicKey)
   of kaKyber0, kaKyber1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
-      kaFrodo0, kaNtruPrime0, kaBike0:
+      kaFrodo0Aes, kaFrodo0Shake, kaFrodo1Aes, kaFrodo1Shake, kaFrodo2Aes,
+      kaFrodo2Shake, kaNtruPrime0, kaBike0:
     algId = kemAlgIdForDispatch(alg)
     if seed.len > 0:
       kem0 = kemEncaps(algId, receiverPublicKey, seed)
@@ -1046,7 +1216,8 @@ proc asymDec*(alg: KemAlgorithm, receiverSecretKey: seq[uint8],
   of kaX25519:
     result = x25519Shared(receiverSecretKey, cipher.senderPublicKey)
   of kaKyber0, kaKyber1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
-      kaFrodo0, kaNtruPrime0, kaBike0:
+      kaFrodo0Aes, kaFrodo0Shake, kaFrodo1Aes, kaFrodo1Shake, kaFrodo2Aes,
+      kaFrodo2Shake, kaNtruPrime0, kaBike0:
     algId = kemAlgIdForDispatch(alg)
     result = kemDecaps(algId, cipher.ciphertext, receiverSecretKey)
 
@@ -1335,23 +1506,87 @@ proc open*(env: AsymCipher, m: mceliece2TyrOpenM): seq[byte] =
   result = customMcEliece.mcelieceTyrDecaps(customMcEliece.mceliece8192128f,
     toSeqBytes(m.receiverSecretKey), env.ciphertext)
 
-proc seal*(m: frodo0SendM): AsymCipher =
-  result = asymEnc(kaFrodo0, toSeqBytes(m.receiverPublicKey))
-
-proc open*(env: AsymCipher, m: frodo0OpenM): seq[byte] =
-  result = asymDec(kaFrodo0, toSeqBytes(m.receiverSecretKey), env)
-
-proc seal*(m: frodo0TyrSendM): AsymCipher =
-  ## Encapsulate with the pure-Nim Tyr Frodo tier-0 backend.
-  var env = customFrodo.frodoTyrEncaps(customFrodo.frodo976aes, toSeqBytes(m.receiverPublicKey))
+proc buildFrodoTyrSeal(v: customFrodo.FrodoVariant, pk: openArray[byte]): AsymCipher =
+  var env = customFrodo.frodoTyrEncaps(v, toSeqBytes(pk))
   result.ciphertext = env.ciphertext
   result.senderPublicKey = @[]
   result.sharedSecret = env.sharedSecret
 
-proc open*(env: AsymCipher, m: frodo0TyrOpenM): seq[byte] =
-  ## Decapsulate with the pure-Nim Tyr Frodo tier-0 backend.
-  result = customFrodo.frodoTyrDecaps(customFrodo.frodo976aes,
-    toSeqBytes(m.receiverSecretKey), env.ciphertext)
+proc buildFrodoTyrOpen(v: customFrodo.FrodoVariant, sk: openArray[byte],
+    env: AsymCipher): seq[byte] =
+  result = customFrodo.frodoTyrDecaps(v, toSeqBytes(sk), env.ciphertext)
+
+proc seal*(m: frodo0AesSendM): AsymCipher =
+  result = asymEnc(kaFrodo0Aes, toSeqBytes(m.receiverPublicKey))
+
+proc open*(env: AsymCipher, m: frodo0AesOpenM): seq[byte] =
+  result = asymDec(kaFrodo0Aes, toSeqBytes(m.receiverSecretKey), env)
+
+proc seal*(m: frodo0ShakeSendM): AsymCipher =
+  result = asymEnc(kaFrodo0Shake, toSeqBytes(m.receiverPublicKey))
+
+proc open*(env: AsymCipher, m: frodo0ShakeOpenM): seq[byte] =
+  result = asymDec(kaFrodo0Shake, toSeqBytes(m.receiverSecretKey), env)
+
+proc seal*(m: frodo1AesSendM): AsymCipher =
+  result = asymEnc(kaFrodo1Aes, toSeqBytes(m.receiverPublicKey))
+
+proc open*(env: AsymCipher, m: frodo1AesOpenM): seq[byte] =
+  result = asymDec(kaFrodo1Aes, toSeqBytes(m.receiverSecretKey), env)
+
+proc seal*(m: frodo1ShakeSendM): AsymCipher =
+  result = asymEnc(kaFrodo1Shake, toSeqBytes(m.receiverPublicKey))
+
+proc open*(env: AsymCipher, m: frodo1ShakeOpenM): seq[byte] =
+  result = asymDec(kaFrodo1Shake, toSeqBytes(m.receiverSecretKey), env)
+
+proc seal*(m: frodo2AesSendM): AsymCipher =
+  result = asymEnc(kaFrodo2Aes, toSeqBytes(m.receiverPublicKey))
+
+proc open*(env: AsymCipher, m: frodo2AesOpenM): seq[byte] =
+  result = asymDec(kaFrodo2Aes, toSeqBytes(m.receiverSecretKey), env)
+
+proc seal*(m: frodo2ShakeSendM): AsymCipher =
+  result = asymEnc(kaFrodo2Shake, toSeqBytes(m.receiverPublicKey))
+
+proc open*(env: AsymCipher, m: frodo2ShakeOpenM): seq[byte] =
+  result = asymDec(kaFrodo2Shake, toSeqBytes(m.receiverSecretKey), env)
+
+proc seal*(m: frodo0AesTyrSendM): AsymCipher =
+  result = buildFrodoTyrSeal(customFrodo.frodo640aes, m.receiverPublicKey)
+
+proc open*(env: AsymCipher, m: frodo0AesTyrOpenM): seq[byte] =
+  result = buildFrodoTyrOpen(customFrodo.frodo640aes, m.receiverSecretKey, env)
+
+proc seal*(m: frodo0ShakeTyrSendM): AsymCipher =
+  result = buildFrodoTyrSeal(customFrodo.frodo640shake, m.receiverPublicKey)
+
+proc open*(env: AsymCipher, m: frodo0ShakeTyrOpenM): seq[byte] =
+  result = buildFrodoTyrOpen(customFrodo.frodo640shake, m.receiverSecretKey, env)
+
+proc seal*(m: frodo1AesTyrSendM): AsymCipher =
+  result = buildFrodoTyrSeal(customFrodo.frodo976aes, m.receiverPublicKey)
+
+proc open*(env: AsymCipher, m: frodo1AesTyrOpenM): seq[byte] =
+  result = buildFrodoTyrOpen(customFrodo.frodo976aes, m.receiverSecretKey, env)
+
+proc seal*(m: frodo1ShakeTyrSendM): AsymCipher =
+  result = buildFrodoTyrSeal(customFrodo.frodo976shake, m.receiverPublicKey)
+
+proc open*(env: AsymCipher, m: frodo1ShakeTyrOpenM): seq[byte] =
+  result = buildFrodoTyrOpen(customFrodo.frodo976shake, m.receiverSecretKey, env)
+
+proc seal*(m: frodo2AesTyrSendM): AsymCipher =
+  result = buildFrodoTyrSeal(customFrodo.frodo1344aes, m.receiverPublicKey)
+
+proc open*(env: AsymCipher, m: frodo2AesTyrOpenM): seq[byte] =
+  result = buildFrodoTyrOpen(customFrodo.frodo1344aes, m.receiverSecretKey, env)
+
+proc seal*(m: frodo2ShakeTyrSendM): AsymCipher =
+  result = buildFrodoTyrSeal(customFrodo.frodo1344shake, m.receiverPublicKey)
+
+proc open*(env: AsymCipher, m: frodo2ShakeTyrOpenM): seq[byte] =
+  result = buildFrodoTyrOpen(customFrodo.frodo1344shake, m.receiverSecretKey, env)
 
 proc seal*(m: ntruprime0SendM): AsymCipher =
   result = asymEnc(kaNtruPrime0, toSeqBytes(m.receiverPublicKey))

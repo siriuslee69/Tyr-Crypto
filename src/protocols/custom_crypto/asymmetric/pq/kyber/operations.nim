@@ -7,6 +7,7 @@ import ./util
 import ./indcpa
 import ./symmetric
 import ./verify
+import ../../../../helpers/otter_support
 import ../../../random
 
 type
@@ -55,7 +56,7 @@ proc kyberTyrKeypairFromParts*(v: KyberVariant, indcpaSeed, zSeed: openArray[byt
   copyBytes(result.secretKey, p.secretKeyBytes - kyberSymBytes, zSeed)
   clearBytes(pkHash)
 
-proc kyberTyrKeypair*(v: KyberVariant, seed: seq[byte] = @[]): KyberTyrKeypair =
+proc kyberTyrKeypair*(v: KyberVariant, seed: seq[byte] = @[]): KyberTyrKeypair {.otterTrace.} =
   ## Generate a pure-Nim Kyber keypair.
   var
     seedMaterial: seq[byte] = @[]
@@ -71,7 +72,7 @@ proc kyberTyrKeypair*(v: KyberVariant, seed: seq[byte] = @[]): KyberTyrKeypair =
   result = kyberTyrKeypairDerand(v, seedMaterialBuf)
   secureClearBytes(seedMaterialBuf)
 
-proc kyberTyrEncaps*(v: KyberVariant, pk: openArray[byte], seed: seq[byte] = @[]): KyberTyrCipher =
+proc kyberTyrEncaps*(v: KyberVariant, pk: openArray[byte], seed: seq[byte] = @[]): KyberTyrCipher {.otterTrace.} =
   ## Encapsulate against a pure-Nim Kyber public key.
   var
     p: KyberParams = params(v)
@@ -144,7 +145,7 @@ proc kyberTyrTryDecaps(v: KyberVariant, sk, ct: openArray[byte]): tuple[sharedSe
   secureClearBytes(cmp)
   clearBytes(hct)
 
-proc kyberTyrDecaps*(v: KyberVariant, sk, ct: openArray[byte]): seq[byte] =
+proc kyberTyrDecaps*(v: KyberVariant, sk, ct: openArray[byte]): seq[byte] {.otterTrace.} =
   ## Decapsulate a Kyber ciphertext and return the derived shared secret
   ## without exposing the internal re-encryption check result.
   result = kyberTyrTryDecaps(v, sk, ct).sharedSecret

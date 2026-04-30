@@ -85,6 +85,60 @@ proc wotsGenLeafX1(leaf: var openArray[byte], ctx: SphincsCtx, leafIdx: uint32,
       clearPlainData(chainTargets)
       i = i + 4
       nodeOffset = nodeOffset + (4 * spxN)
+  when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+    while i + 2 <= spxWotsLen:
+      var
+        nodes: array[2, array[spxN, byte]]
+        addrs: array[2, SphincsAddress]
+        chainTargets: array[2, uint32]
+        lane: int = 0
+        laneOffset: int = 0
+        k: int = 0
+      lane = 0
+      while lane < 2:
+        addrs[lane] = info.leafAddr
+        setChainAddr(addrs[lane], uint32(i + lane))
+        setHashAddr(addrs[lane], 0)
+        setType(addrs[lane], spxAddrTypeWotsPrf)
+        chainTargets[lane] =
+          (info.wotsSteps[][i + lane] and leafMask) or
+          (high(uint32) and not leafMask)
+        lane = lane + 1
+      prfAddrBatch2(nodes, ctx, addrs)
+      lane = 0
+      while lane < 2:
+        setType(addrs[lane], spxAddrTypeWots)
+        lane = lane + 1
+      k = 0
+      while true:
+        lane = 0
+        laneOffset = nodeOffset
+        while lane < 2:
+          ctCopyBytesMasked(
+            info.wotsSig[].toOpenArray(laneOffset, laneOffset + spxN - 1),
+            nodes[lane],
+            ctMaskEqU32(uint32(k), chainTargets[lane])
+          )
+          laneOffset = laneOffset + spxN
+          lane = lane + 1
+        if k == (spxWotsW - 1):
+          break
+        lane = 0
+        while lane < 2:
+          setHashAddr(addrs[lane], uint32(k))
+          lane = lane + 1
+        thash1Batch2(nodes, nodes, ctx, addrs)
+        k = k + 1
+      lane = 0
+      laneOffset = nodeOffset
+      while lane < 2:
+        copyMem(addr pkBuffer[laneOffset], addr nodes[lane][0], spxN)
+        laneOffset = laneOffset + spxN
+        lane = lane + 1
+      clearSensitivePlainData(nodes)
+      clearPlainData(chainTargets)
+      i = i + 2
+      nodeOffset = nodeOffset + (2 * spxN)
   while i < spxWotsLen:
     var
       node: array[spxN, byte]

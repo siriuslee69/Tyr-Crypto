@@ -11,6 +11,7 @@ import ./merkle
 import ./merkle_utils
 import ./wots
 import ./util
+import ../../../../helpers/otter_support
 import ../../../random
 
 type
@@ -28,7 +29,7 @@ proc initCtxFromSk(sk: openArray[byte]): SphincsCtx =
 proc copyRoot(dst: var array[spxN, byte], src: openArray[byte]) =
   copyMem(addr dst[0], unsafeAddr src[0], spxN)
 
-proc sphincsTyrSeedKeypair*(v: SphincsVariant, seed: openArray[byte]): SphincsTyrKeypair =
+proc sphincsTyrSeedKeypair*(v: SphincsVariant, seed: openArray[byte]): SphincsTyrKeypair {.otterTrace.} =
   var
     p = params(v)
     ctx: SphincsCtx
@@ -48,7 +49,7 @@ proc sphincsTyrSeedKeypair*(v: SphincsVariant, seed: openArray[byte]): SphincsTy
   copyMem(addr result.secretKey[3 * spxN], addr root[0], spxN)
   copyMem(addr result.publicKey[spxN], addr root[0], spxN)
 
-proc sphincsTyrKeypair*(v: SphincsVariant, seed: seq[byte] = @[]): SphincsTyrKeypair =
+proc sphincsTyrKeypair*(v: SphincsVariant, seed: seq[byte] = @[]): SphincsTyrKeypair {.otterTrace.} =
   var
     randomness: seq[byte] = @[]
   if seed.len > 0 and seed.len != 48:
@@ -62,7 +63,7 @@ proc sphincsTyrKeypair*(v: SphincsVariant, seed: seq[byte] = @[]): SphincsTyrKey
   result = sphincsTyrSeedKeypair(v, randomness)
 
 proc sphincsTyrSignDerand*(v: SphincsVariant, msg: openArray[byte], sk: openArray[byte],
-    optrand: openArray[byte]): seq[byte] =
+    optrand: openArray[byte]): seq[byte] {.otterTrace.} =
   var
     p = params(v)
     ctx: SphincsCtx
@@ -104,10 +105,10 @@ proc sphincsTyrSignDerand*(v: SphincsVariant, msg: openArray[byte], sk: openArra
     tree = tree shr p.treeHeight
   result = sig
 
-proc sphincsTyrSign*(v: SphincsVariant, msg: openArray[byte], sk: openArray[byte]): seq[byte] =
+proc sphincsTyrSign*(v: SphincsVariant, msg: openArray[byte], sk: openArray[byte]): seq[byte] {.otterTrace.} =
   result = sphincsTyrSignDerand(v, msg, sk, cryptoRandomBytes(16))
 
-proc sphincsTyrVerify*(v: SphincsVariant, msg, sig, pk: openArray[byte]): bool =
+proc sphincsTyrVerify*(v: SphincsVariant, msg, sig, pk: openArray[byte]): bool {.otterTrace.} =
   var
     p = params(v)
     ctx: SphincsCtx

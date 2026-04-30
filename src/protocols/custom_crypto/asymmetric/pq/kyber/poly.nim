@@ -10,8 +10,9 @@ import ./cbd
 import ./symmetric
 import ./verify
 
-when defined(sse2) or defined(avx2):
+when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   import simd_nexus/simd/base_operations
+  import simd_nexus/simd/generic_i16
 
 {.push boundChecks: off.}
 
@@ -81,6 +82,37 @@ when defined(avx2):
       vr = va - vb
       mm256_storeu_si256(cast[pointer](unsafeAddr r.coeffs[i]), M256i(vr))
       i = i + 16
+    while i < kyberN:
+      r.coeffs[i] = a.coeffs[i] - b.coeffs[i]
+      i = i + 1
+
+when defined(neon) or defined(arm64) or defined(aarch64):
+  proc polyAddSimdNeon(r: var Poly, a, b: Poly) =
+    var
+      i: int = 0
+      va: uint16x8
+      vb: uint16x8
+    i = 0
+    while i + 8 <= kyberN:
+      va = loadI16x8At[uint16x8](a.coeffs, i)
+      vb = loadI16x8At[uint16x8](b.coeffs, i)
+      storeI16x8At[uint16x8](va + vb, r.coeffs, i)
+      i = i + 8
+    while i < kyberN:
+      r.coeffs[i] = a.coeffs[i] + b.coeffs[i]
+      i = i + 1
+
+  proc polySubSimdNeon(r: var Poly, a, b: Poly) =
+    var
+      i: int = 0
+      va: uint16x8
+      vb: uint16x8
+    i = 0
+    while i + 8 <= kyberN:
+      va = loadI16x8At[uint16x8](a.coeffs, i)
+      vb = loadI16x8At[uint16x8](b.coeffs, i)
+      storeI16x8At[uint16x8](va - vb, r.coeffs, i)
+      i = i + 8
     while i < kyberN:
       r.coeffs[i] = a.coeffs[i] - b.coeffs[i]
       i = i + 1
@@ -381,6 +413,8 @@ proc polyAdd*(r: var Poly, a, b: Poly) {.inline.} =
     polyAddSimdAvx2(r, a, b)
   elif defined(sse2):
     polyAddSimdSse(r, a, b)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    polyAddSimdNeon(r, a, b)
   else:
     var
       i: int = 0
@@ -395,6 +429,8 @@ proc polySub*(r: var Poly, a, b: Poly) {.inline.} =
     polySubSimdAvx2(r, a, b)
   elif defined(sse2):
     polySubSimdSse(r, a, b)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    polySubSimdNeon(r, a, b)
   else:
     var
       i: int = 0

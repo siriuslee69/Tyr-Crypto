@@ -8,12 +8,19 @@ import ./context
 import ./hash
 import ./util
 
-when defined(avx2):
+when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64) or defined(avx2):
   proc applyWotsHashStep(node: var array[spxN, byte], ctx: SphincsCtx,
       A: var SphincsAddress, hashAddr: uint32) {.inline.} =
     setHashAddr(A, hashAddr)
     thash(node, node, 1, ctx, A)
 
+  proc applyWotsHashStep2(nodes: var array[2, array[spxN, byte]], ctx: SphincsCtx,
+      addrs: var array[2, SphincsAddress], hashAddr: uint32) =
+    setHashAddr(addrs[0], hashAddr)
+    setHashAddr(addrs[1], hashAddr)
+    thash1Batch2(nodes, nodes, ctx, addrs)
+
+when defined(avx2):
   proc applyWotsHashStep2(nodes: var array[4, array[spxN, byte]], ctx: SphincsCtx,
       addrs: array[4, SphincsAddress], lane0, lane1: int, hashAddr: uint32) =
     var
@@ -134,6 +141,42 @@ proc wotsPkFromSig*(pk: var openArray[byte], sig, msg: openArray[byte],
         copyMem(addr pk[(i + lane) * spxN], addr nodes[lane][0], spxN)
         lane = lane + 1
       i = i + 4
+  when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+    while i + 2 <= spxWotsLen:
+      var
+        nodes: array[2, array[spxN, byte]]
+        addrs: array[2, SphincsAddress]
+        starts: array[2, uint32]
+        active: array[2, int]
+        lane: int = 0
+        activeLen: int = 0
+        hashAddr: int = 0
+      lane = 0
+      while lane < 2:
+        copyMem(addr nodes[lane][0], unsafeAddr sig[(i + lane) * spxN], spxN)
+        addrs[lane] = A
+        setChainAddr(addrs[lane], uint32(i + lane))
+        starts[lane] = lengths[i + lane]
+        lane = lane + 1
+      hashAddr = 0
+      while hashAddr < (spxWotsW - 1):
+        activeLen = 0
+        lane = 0
+        while lane < 2:
+          if uint32(hashAddr) >= starts[lane]:
+            active[activeLen] = lane
+            activeLen = activeLen + 1
+          lane = lane + 1
+        if activeLen == 2:
+          applyWotsHashStep2(nodes, ctx, addrs, uint32(hashAddr))
+        elif activeLen == 1:
+          applyWotsHashStep(nodes[active[0]], ctx, addrs[active[0]], uint32(hashAddr))
+        hashAddr = hashAddr + 1
+      lane = 0
+      while lane < 2:
+        copyMem(addr pk[(i + lane) * spxN], addr nodes[lane][0], spxN)
+        lane = lane + 1
+      i = i + 2
   while i < spxWotsLen:
     setChainAddr(A, uint32(i))
     var node: array[16, byte]

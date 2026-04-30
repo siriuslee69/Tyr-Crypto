@@ -8,6 +8,7 @@ import ./util
 import ./sampling
 import ./gf2x
 import ./decode
+import ../../../../helpers/otter_support
 import ../../../sha3
 
 proc bikeTyrKeypairFromParts*(v: BikeVariant, seed0, seed1: openArray[byte]): BikeTyrKeypair
@@ -92,7 +93,7 @@ proc reencrypt(E: BikeRawError, ct: BikeCiphertextRaw): BikeMessage =
     result[i] = l[i] xor ct.c1[i]
     i = i + 1
 
-proc bikeTyrKeypairDerand*(v: BikeVariant, randomness: openArray[byte]): BikeTyrKeypair =
+proc bikeTyrKeypairDerand*(v: BikeVariant, randomness: openArray[byte]): BikeTyrKeypair {.otterTrace.} =
   ## Generate a pure-Nim BIKE keypair from explicit 64-byte keypair material.
   if randomness.len != bikeKeypairRandomBytes:
     raise newException(ValueError, "BIKE-L1 keypair randomness must be 64 bytes")
@@ -124,7 +125,7 @@ proc bikeTyrKeypairFromParts*(v: BikeVariant, seed0, seed1: openArray[byte]): Bi
   result.publicKey = serializePublicKey(skState.pk)
   result.secretKey = serializeSecretKey(skState)
 
-proc bikeTyrKeypair*(v: BikeVariant, randomness: seq[byte] = @[]): BikeTyrKeypair =
+proc bikeTyrKeypair*(v: BikeVariant, randomness: seq[byte] = @[]): BikeTyrKeypair {.otterTrace.} =
   ## Generate a BIKE-L1 keypair, optionally from explicit 64-byte randomness.
   var
     material: seq[byte] = @[]
@@ -138,7 +139,7 @@ proc bikeTyrKeypair*(v: BikeVariant, randomness: seq[byte] = @[]): BikeTyrKeypai
   zeroBytes(material)
 
 proc bikeTyrEncapsDerand*(v: BikeVariant, pk: openArray[byte],
-    randomness: openArray[byte]): BikeTyrCipher =
+    randomness: openArray[byte]): BikeTyrCipher {.otterTrace.} =
   ## Encapsulate against a BIKE-L1 public key from explicit 64-byte randomness.
   var
     pkRaw: BikeRawPoly
@@ -160,7 +161,7 @@ proc bikeTyrEncapsDerand*(v: BikeVariant, pk: openArray[byte],
   result.sharedSecret = copyByteSeq(ss)
 
 proc bikeTyrEncaps*(v: BikeVariant, pk: openArray[byte],
-    randomness: seq[byte] = @[]): BikeTyrCipher =
+    randomness: seq[byte] = @[]): BikeTyrCipher {.otterTrace.} =
   ## Encapsulate against a BIKE-L1 public key.
   var
     material: seq[byte] = @[]
@@ -207,6 +208,6 @@ proc bikeTyrTryDecaps*(v: BikeVariant, sk, ctBytes: openArray[byte]): tuple[shar
   result.sharedSecret = copyByteSeq(ss)
   result.ok = successCond == 1'u32
 
-proc bikeTyrDecaps*(v: BikeVariant, sk, ctBytes: openArray[byte]): seq[byte] =
+proc bikeTyrDecaps*(v: BikeVariant, sk, ctBytes: openArray[byte]): seq[byte] {.otterTrace.} =
   ## Decapsulate a BIKE-L1 ciphertext and return the shared secret.
   result = bikeTyrTryDecaps(v, sk, ctBytes).sharedSecret

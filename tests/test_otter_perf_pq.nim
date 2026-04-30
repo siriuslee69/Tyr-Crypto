@@ -5,7 +5,8 @@
 
 import std/[algorithm, tables, unittest]
 
-import ../src/protocols/custom_crypto/[kyber, frodo, bike, mceliece, dilithium, sphincs]
+import ../src/protocols/custom_crypto/[kyber, frodo, bike, mceliece, dilithium, falcon, sphincs]
+import ../src/protocols/custom_crypto/asymmetric/pq/falcon/[sign as pure_falcon_sign, pure_verify as pure_falcon_verify]
 import otter_repo_evaluation
 
 const
@@ -153,6 +154,42 @@ proc dilithium44BenchSignVerifyImpl() =
   dilithiumTyrSignInto(dilithium44, sig, msg, sk)
   doAssert dilithiumTyrVerify(dilithium44, msg, sig, pk)
 
+proc falcon512BenchSignVerifyImpl() =
+  var
+    msg = newSeq[byte](128)
+  fillPattern(msg, 0x69)
+  let kp = falconTyrKeypair(falcon512)
+  let sig = falconTyrSign(falcon512, msg, kp.secretKey)
+  doAssert falconTyrVerify(falcon512, msg, sig, kp.publicKey)
+
+proc falcon512BenchPreparedSignVerifyImpl() =
+  var
+    msg = newSeq[byte](128)
+    kp: FalconTyrKeypair
+    prepared: FalconPreparedSecret
+    sig: seq[byte]
+  fillPattern(msg, 0x6D)
+  kp = falconTyrKeypair(falcon512)
+  prepared = falconTyrPrepareSecret(falcon512, kp.secretKey)
+  sig = falconTyrSignPrepared(prepared, msg)
+  doAssert falconTyrVerify(falcon512, msg, sig, kp.publicKey)
+  falconTyrClearPreparedSecret(prepared)
+  falconTyrClearKeypair(kp)
+
+proc falcon512PurePreparedSignVerifyImpl() =
+  var
+    msg = newSeq[byte](128)
+    kp: FalconTyrKeypair
+    prepared: pure_falcon_sign.FalconExpandedSecret
+    sig: seq[byte]
+  fillPattern(msg, 0x73)
+  kp = falconTyrKeypair(falcon512)
+  prepared = pure_falcon_sign.prepareSecretKey(falcon512, kp.secretKey)
+  sig = pure_falcon_sign.falconSignPrepared(prepared, msg, falcon512)
+  doAssert pure_falcon_verify.falconVerifyPure(falcon512, msg, sig, kp.publicKey)
+  pure_falcon_sign.clearExpandedSecret(prepared)
+  falconTyrClearKeypair(kp)
+
 proc sphincsShake128fBenchSignVerifyImpl() =
   var
     msg = newSeq[byte](64)
@@ -185,6 +222,15 @@ otterInstrument:
 
   proc dilithium44BenchSignVerify() =
     dilithium44BenchSignVerifyImpl()
+
+  proc falcon512BenchSignVerify() =
+    falcon512BenchSignVerifyImpl()
+
+  proc falcon512BenchPreparedSignVerify() =
+    falcon512BenchPreparedSignVerifyImpl()
+
+  proc falcon512PurePreparedSignVerify() =
+    falcon512PurePreparedSignVerifyImpl()
 
   proc sphincsShake128fBenchSignVerify() =
     sphincsShake128fBenchSignVerifyImpl()
@@ -231,6 +277,27 @@ suite "Otter PQ timing":
       i = 0
       while i < 5:
         dilithium44BenchSignVerify()
+        i = i + 1
+    )
+
+    runTimedGroup("Falcon-512 Sign+Verify Hotspots", proc () =
+      i = 0
+      while i < 3:
+        falcon512BenchSignVerify()
+        i = i + 1
+    )
+
+    runTimedGroup("Falcon-512 Prepared Sign+Verify Hotspots", proc () =
+      i = 0
+      while i < 3:
+        falcon512BenchPreparedSignVerify()
+        i = i + 1
+    )
+
+    runTimedGroup("Falcon-512 Pure Prepared Sign+Verify Hotspots", proc () =
+      i = 0
+      while i < 3:
+        falcon512PurePreparedSignVerify()
         i = i + 1
     )
 

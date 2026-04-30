@@ -1,6 +1,6 @@
 import std/bitops
 
-when defined(amd64) or defined(i386):
+when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defined(aarch64):
   import ./blake3_simd
   export blake3_simd
 
@@ -50,6 +50,7 @@ type
     bcbAuto
     bcbScalar
     bcbSse2
+    bcbNeon
     bcbAvx2
 
 when not declared(Blake3Cv):
@@ -142,6 +143,12 @@ proc resolveBackend(b: Blake3CompressBackend): Blake3CompressBackend =
   else:
     if b == bcbSse2:
       return bcbScalar
+  when defined(neon) or defined(arm64) or defined(aarch64):
+    if b == bcbAuto:
+      return bcbNeon
+  else:
+    if b == bcbNeon:
+      return bcbScalar
   if b == bcbAuto:
     return bcbScalar
   result = b
@@ -179,8 +186,8 @@ proc blake3CompressBatch*(
           result[i + j] = out8[j]
           j = j + 1
         i = i + 8
-  when defined(sse2):
-    if backend == bcbSse2 or backend == bcbAvx2:
+  when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+    if backend == bcbSse2 or backend == bcbNeon or backend == bcbAvx2:
       while i + 4 <= cvs.len:
         var
           cv4: array[4, Blake3Cv]

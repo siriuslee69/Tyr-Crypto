@@ -3,7 +3,7 @@ import ./gimli_types
 
 export gimli_types
 
-when defined(amd64) or defined(i386):
+when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defined(aarch64):
   import ./gimli_sse
   export gimli_sse
 

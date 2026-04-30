@@ -7,6 +7,9 @@ import ./types
 import ./util
 import ../../../../helpers/otter_support
 
+when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+  import ./simd_words
+
 const
   bikeKSqrThreshold = 64
 
@@ -14,7 +17,8 @@ proc gf2xModAdd*(C: var BikePadPoly, A, B: BikePadPoly) =
   ## Compute `C = A + B mod 2` over padded qwords.
   var
     i: int = 0
-  i = 0
+  when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+    i = xorWords128(C, A, B, bikeRPaddedQWords)
   while i < bikeRPaddedQWords:
     C[i] = A[i] xor B[i]
     i = i + 1

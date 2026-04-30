@@ -282,7 +282,7 @@ proc dilithiumTyrKeypairInto*(v: DilithiumVariant, publicKey, secretKey: var ope
     raise newException(ValueError, "Dilithium secret key buffer has wrong size for variant")
   keypairFromRandomSeedInto(p, seed, publicKey, secretKey)
 
-proc dilithiumTyrKeypair*(v: DilithiumVariant, seed: seq[byte] = @[]): DilithiumTyrKeypair =
+proc dilithiumTyrKeypair*(v: DilithiumVariant, seed: seq[byte] = @[]): DilithiumTyrKeypair {.otterTrace.} =
   ## Generate a pure-Nim ML-DSA keypair.
   var
     p: DilithiumParams = params(v)
@@ -369,7 +369,7 @@ proc dilithiumTyrSignDerandInto*(v: DilithiumVariant, sig: var openArray[byte], 
     break
 
 proc dilithiumTyrSignDerand*(v: DilithiumVariant, msg: openArray[byte], sk: openArray[byte],
-    rnd: openArray[byte], ctx: openArray[byte] = @[]): seq[byte] =
+    rnd: openArray[byte], ctx: openArray[byte] = @[]): seq[byte] {.otterTrace.} =
   ## Sign a message with explicit ML-DSA randomness.
   let p = params(v)
   result = newSeq[byte](p.signatureBytes)
@@ -383,7 +383,7 @@ proc dilithiumTyrSignDeterministicInto*(v: DilithiumVariant, sig: var openArray[
   dilithiumTyrSignDerandInto(v, sig, msg, sk, rnd, ctx)
 
 proc dilithiumTyrSignDeterministic*(v: DilithiumVariant, msg: openArray[byte], sk: openArray[byte],
-    ctx: openArray[byte] = @[]): seq[byte] =
+    ctx: openArray[byte] = @[]): seq[byte] {.otterTrace.} =
   ## Sign deterministically with zeroed ML-DSA randomness.
   let p = params(v)
   result = newSeq[byte](p.signatureBytes)
@@ -400,14 +400,14 @@ proc dilithiumTyrSignInto*(v: DilithiumVariant, sig: var openArray[byte], msg: o
   dilithiumTyrSignDerandInto(v, sig, msg, sk, rnd, ctx)
 
 proc dilithiumTyrSign*(v: DilithiumVariant, msg: openArray[byte], sk: openArray[byte],
-    ctx: openArray[byte] = @[]): seq[byte] =
+    ctx: openArray[byte] = @[]): seq[byte] {.otterTrace.} =
   ## Sign using liboqs-compatible randomized ML-DSA signing.
   let p = params(v)
   result = newSeq[byte](p.signatureBytes)
   dilithiumTyrSignInto(v, result, msg, sk, ctx)
 
 proc dilithiumTyrVerify*(v: DilithiumVariant, msg, sig, pk: openArray[byte],
-    ctx: openArray[byte] = @[]): bool {.otterBench.} =
+    ctx: openArray[byte] = @[]): bool {.otterBench, otterTrace.} =
   ## Verify a signature with the pure-Nim ML-DSA backend.
   var
     p: DilithiumParams = params(v)

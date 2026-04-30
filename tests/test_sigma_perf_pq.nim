@@ -10,6 +10,7 @@ import ../src/protocols/custom_crypto/[kyber as custom_kyber,
   bike as custom_bike,
   mceliece as custom_mceliece,
   dilithium as custom_dilithium,
+  falcon as custom_falcon,
   sphincs as custom_sphincs]
 import sigma_bench_and_eval
 
@@ -111,6 +112,15 @@ proc buildCustomSphincsRoundtrip(name: string, v: custom_sphincs.SphincsVariant,
     let kp = custom_sphincs.sphincsTyrKeypair(v)
     let sig = custom_sphincs.sphincsTyrSign(v, msgBuf, kp.secretKey)
     doAssert custom_sphincs.sphincsTyrVerify(v, msgBuf, sig, kp.publicKey)
+
+proc buildCustomFalconRoundtrip(name: string, v: custom_falcon.FalconVariant,
+    msg: openArray[byte]): BenchAlgo =
+  let msgBuf = @msg
+  result.name = name
+  result.run = proc() =
+    let kp = custom_falcon.falconTyrKeypair(v)
+    let sig = custom_falcon.falconTyrSign(v, msgBuf, kp.secretKey)
+    doAssert custom_falcon.falconTyrVerify(v, msgBuf, sig, kp.publicKey)
 
 when defined(hasLibOqs):
   proc buildOqsKemRoundtrip(name, algId: string, holders: var seq[ptr OqsKem]): BenchAlgo =
@@ -251,6 +261,18 @@ suite "Sigma PQ performance":
         ]
         appendGroup(groups, "SPHINCS+-SHAKE-128f-simple Sign+Verify Roundtrip",
           slowLoops, warmSlow, sigAlgos)
+
+        sigAlgos = @[
+          buildCustomFalconRoundtrip("tyr_falcon512_roundtrip", custom_falcon.falcon512, msgShort),
+          buildOqsSigRoundtrip("oqs_falcon512_roundtrip", oqsSigFalcon512, msgShort, sigHolders)
+        ]
+        appendGroup(groups, "Falcon-512 Sign+Verify Roundtrip", slowLoops, warmSlow, sigAlgos)
+
+        sigAlgos = @[
+          buildCustomFalconRoundtrip("tyr_falcon1024_roundtrip", custom_falcon.falcon1024, msgShort),
+          buildOqsSigRoundtrip("oqs_falcon1024_roundtrip", oqsSigFalcon1024, msgShort, sigHolders)
+        ]
+        appendGroup(groups, "Falcon-1024 Sign+Verify Roundtrip", verySlowLoops, warmVerySlow, sigAlgos)
 
         check groups.len > 0
         for g in groups:

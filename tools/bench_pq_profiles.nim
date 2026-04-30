@@ -13,7 +13,8 @@ type
     bsPq,
     bsKyber,
     bsFrodo,
-    bsDilithium
+    bsDilithium,
+    bsFalcon
 
   EnvBackup = object
     key: string
@@ -36,7 +37,8 @@ type
 const
   minimalBuildArg = "KEM_kyber_768;KEM_kyber_1024;KEM_frodokem_976_aes;" &
     "KEM_bike_l1;KEM_classic_mceliece_6688128f;SIG_ml_dsa_44;" &
-    "SIG_ml_dsa_65;SIG_ml_dsa_87;SIG_sphincs_shake_128f_simple"
+    "SIG_ml_dsa_65;SIG_ml_dsa_87;SIG_falcon_512;SIG_falcon_1024;" &
+    "SIG_sphincs_shake_128f_simple"
   envKeys = [
     "LIBOQS_PROFILE_NAME",
     "LIBOQS_BUILD_ROOT",
@@ -121,6 +123,8 @@ proc suiteName(a: BenchSuite): string =
     result = "frodo"
   of bsDilithium:
     result = "dilithium"
+  of bsFalcon:
+    result = "falcon"
 
 proc suiteTestPath(a: BenchSuite): string =
   ## a: benchmark suite.
@@ -133,6 +137,8 @@ proc suiteTestPath(a: BenchSuite): string =
     result = "tests/test_sigma_perf_frodo_profile.nim"
   of bsDilithium:
     result = "tests/test_sigma_perf_dilithium.nim"
+  of bsFalcon:
+    result = "tests/test_sigma_perf_falcon.nim"
 
 proc suiteUsesFrodo(a: BenchSuite): bool =
   ## a: benchmark suite.
@@ -259,6 +265,9 @@ proc addSuiteToken(S: var seq[BenchSuite], a: string) =
   if t == "dilithium":
     appendSuite(S, bsDilithium)
     return
+  if t == "falcon":
+    appendSuite(S, bsFalcon)
+    return
   raise newException(ValueError, "unknown suite: " & a)
 
 proc setDefaultSuites(S: var seq[BenchSuite]) =
@@ -269,6 +278,7 @@ proc setDefaultSuites(S: var seq[BenchSuite]) =
   appendSuite(S, bsKyber)
   appendSuite(S, bsFrodo)
   appendSuite(S, bsDilithium)
+  appendSuite(S, bsFalcon)
 
 proc printHelp() =
   echo "bench_pq_profiles.nim"
@@ -277,6 +287,7 @@ proc printHelp() =
   echo "Options:"
   echo "  --mode=scalar|avx2|all"
   echo "  --suite=pq|kyber|frodo|dilithium|all"
+  echo "         plus falcon"
   echo "  --no-rebuild"
   echo "  --dry-run"
   echo "  --logs-dir=<dir>"

@@ -8,6 +8,9 @@ import ./util
 import ./gf2x
 import ../../../../helpers/otter_support
 
+when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+  import ./simd_words
+
 proc log2Msb(v: int): int =
   var
     t: int = v
@@ -89,6 +92,8 @@ proc bitSlicedAdderPort*(U: var BikeUpc, rotated: var BikeSyndrome, numSlices: i
   j = 0
   while j < numSlices:
     i = 0
+    when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+      i = addBitSliceWords128(U[j], rotated, bikeRQWords)
     while i < bikeRQWords:
       carry = U[j][i] and rotated[i]
       U[j][i] = U[j][i] xor rotated[i]
@@ -114,6 +119,8 @@ proc bitSliceFullSubtractPort*(U: var BikeUpc, vIn: int) =
       lsbMask = 0'u64
     v = v shr 1
     i = 0
+    when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+      i = fullSubtractWords128(U[j], br, lsbMask, bikeRQWords)
     while i < bikeRQWords:
       a = U[j][i]
       tmp = ((not a) and lsbMask and (not br[i])) or (((not a) or lsbMask) and br[i])

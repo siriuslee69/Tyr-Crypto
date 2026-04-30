@@ -45,16 +45,16 @@ task check, "Run nim check on core modules":
   exec withRepoCaches("nim check .iron/meta/registry.nim")
 
 task test, "Run the crypto bindings test suite":
-  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test").replace('\\', '/') & " -r tests/test_all.nim")
+  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_desktop_tests_parallel.ps1")
 
 task test_all, "Run the full crypto bindings test suite with libsodium, liboqs, and OpenSSL":
-  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_all").replace('\\', '/') & " -d:hasLiboqs -d:hasLibsodium -d:hasOpenSSL3 -r tests/test_all.nim")
+  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_desktop_tests_parallel.ps1 -Full")
 
 task test_all_threads_on, "Run test_all with threads enabled":
-  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_all_threads_on").replace('\\', '/') & " --gc:orc --threads:on -d:hasLiboqs -d:hasLibsodium -d:hasOpenSSL3 -r tests/test_all.nim")
+  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_desktop_tests_parallel.ps1 -Full -ChildNimFlags '--gc:orc --threads:on'")
 
 task test_all_threads_off, "Run test_all with threads disabled":
-  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_all_threads_off").replace('\\', '/') & " --gc:orc --threads:off -d:hasLiboqs -d:hasLibsodium -d:hasOpenSSL3 -r tests/test_all.nim")
+  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_desktop_tests_parallel.ps1 -Full -ChildNimFlags '--gc:orc --threads:off'")
 
 task test_gimli, "Run Gimli SSE tests":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_gimli").replace('\\', '/') & " -r tests/test_gimli_sse.nim")
@@ -65,8 +65,59 @@ task test_gimli_avx, "Run Gimli AVX tests":
 task test_blake3_simd, "Run Blake3 SIMD tests":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_blake3_simd").replace('\\', '/') & " --passC:\"-mavx2\" --passL:\"-mavx2\" -d:avx2 -r tests/test_blake3_simd.nim")
 
+task test_neon_checks, "Compile-check the ARM64/NEON SIMD coverage matrix":
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_xchacha20").replace('\\', '/') & " tests/test_xchacha20_simd.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_blake3").replace('\\', '/') & " tests/test_blake3_simd.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_sha3").replace('\\', '/') & " tests/test_sha3_simd.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_poly1305").replace('\\', '/') & " tests/test_poly1305_simd.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_gimli").replace('\\', '/') & " tests/test_gimli_sse.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_aes").replace('\\', '/') & " tests/test_aes_ctr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_custom").replace('\\', '/') & " tests/test_custom_crypto.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_x25519").replace('\\', '/') & " tests/test_x25519_simd.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_kyber").replace('\\', '/') & " tests/test_kyber_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_frodo").replace('\\', '/') & " tests/test_frodo_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_bike").replace('\\', '/') & " tests/test_bike_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_dilithium").replace('\\', '/') & " tests/test_dilithium_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_sphincs").replace('\\', '/') & " tests/test_sphincs_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_mceliece").replace('\\', '/') & " tests/test_mceliece_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_falcon").replace('\\', '/') & " tests/test_falcon_tyr.nim")
+
+task test_simd_matrix, "Run the host SIMD/runtime suite and the ARM64/NEON compile-check matrix":
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_custom_crypto_matrix").replace('\\', '/') & " -r tests/test_custom_crypto.nim")
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_aes_ctr_matrix").replace('\\', '/') & " -r tests/test_aes_ctr.nim")
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_xchacha20_matrix").replace('\\', '/') & " -r tests/test_xchacha20_simd.nim")
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_blake3_matrix").replace('\\', '/') & " -r tests/test_blake3_simd.nim")
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_sha3_matrix").replace('\\', '/') & " -r tests/test_sha3_simd.nim")
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_poly1305_matrix").replace('\\', '/') & " -r tests/test_poly1305_simd.nim")
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_gimli_matrix").replace('\\', '/') & " -r tests/test_gimli_sse.nim")
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_x25519_matrix").replace('\\', '/') & " -r tests/test_x25519_simd.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_xchacha20").replace('\\', '/') & " tests/test_xchacha20_simd.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_blake3").replace('\\', '/') & " tests/test_blake3_simd.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_sha3").replace('\\', '/') & " tests/test_sha3_simd.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_poly1305").replace('\\', '/') & " tests/test_poly1305_simd.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_gimli").replace('\\', '/') & " tests/test_gimli_sse.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_aes").replace('\\', '/') & " tests/test_aes_ctr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_custom").replace('\\', '/') & " tests/test_custom_crypto.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_x25519").replace('\\', '/') & " tests/test_x25519_simd.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_kyber").replace('\\', '/') & " tests/test_kyber_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_frodo").replace('\\', '/') & " tests/test_frodo_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_bike").replace('\\', '/') & " tests/test_bike_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_dilithium").replace('\\', '/') & " tests/test_dilithium_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_sphincs").replace('\\', '/') & " tests/test_sphincs_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_mceliece").replace('\\', '/') & " tests/test_mceliece_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_falcon").replace('\\', '/') & " tests/test_falcon_tyr.nim")
+
 task test_wasm, "Run wasm bridge regression tests":
   exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_wasm_test").replace('\\', '/') & " tests/test_wasm_bridge.nim")
+
+task build_android_harness, "Cross-compile the Android native test binaries and build the harness APK":
+  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/build_android_harness.ps1")
+
+task build_android_harness_asymmetric_fast, "Build the Android harness APK with the reduced asymmetric/PQ native test bundle":
+  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/build_android_harness.ps1 -HarnessTarget asymmetric_fast -Release")
+
+task build_android_harness_asymmetric_full, "Build the Android harness APK with the full asymmetric/PQ native test bundle":
+  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/build_android_harness.ps1 -HarnessTarget asymmetric_full -Release")
 
 task test_pin, "Run interactive pin + key unwrap test.":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_pin").replace('\\', '/') & " -d:hasLibsodium -r tests/test_pin_key_interactive.nim")
@@ -79,6 +130,9 @@ task perf_sigma_pq, "Benchmark Tyr PQ backends against liboqs with Sigma helpers
 
 task perf_sigma_dilithium, "Benchmark split Tyr Dilithium phases against the current liboqs profile":
   exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_dilithium").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_dilithium.nim")
+
+task perf_sigma_falcon, "Benchmark split Tyr Falcon phases against the current liboqs profile":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_falcon").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_falcon.nim")
 
 task perf_sigma_dilithium_scalar, "Benchmark scalar Tyr Dilithium against the scalar liboqs Dilithium profile":
   putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_dilithium_scalar_zig_mingw"))
@@ -100,6 +154,9 @@ task perf_sigma_frodo_ossl, "Benchmark Tyr Frodo against the OpenSSL-backed Frod
 
 task bench_pq_profiles, "Build matched scalar/AVX2 liboqs profiles and run Sigma PQ comparison benches":
   exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_bench_pq_profiles").replace('\\', '/') & " tools/bench_pq_profiles.nim")
+
+task bench_custom_crypto, "Run the unified Tyr-only custom-crypto benchmark report":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_bench_custom_crypto").replace('\\', '/') & " -d:release -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tools/bench_custom_crypto_table.nim")
 
 task perf_otter_pq, "Profile Tyr PQ functions with Otter timing instrumentation":
   exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_otter_pq").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:otterTiming -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_otter_perf_pq.nim")

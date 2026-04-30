@@ -147,13 +147,63 @@ proc kemBackends*(alg: KemAlgorithm): seq[AlgoInfo] =
         requiresFlag: "hasLibOqs"
       )
     ]
-  of kaFrodo0:
+  of kaFrodo0Aes:
     result = @[
       AlgoInfo(
         provider: "liboqs",
         source: "https://github.com/open-quantum-safe/liboqs",
-        algorithmId: oqsAlgFrodoKEM976,
+        algorithmId: oqsAlgFrodoKEM640Aes,
+        notes: "FrodoKEM-640 AES KEM.",
+        requiresFlag: "hasLibOqs"
+      )
+    ]
+  of kaFrodo0Shake:
+    result = @[
+      AlgoInfo(
+        provider: "liboqs",
+        source: "https://github.com/open-quantum-safe/liboqs",
+        algorithmId: oqsAlgFrodoKEM640Shake,
+        notes: "FrodoKEM-640 SHAKE KEM.",
+        requiresFlag: "hasLibOqs"
+      )
+    ]
+  of kaFrodo1Aes:
+    result = @[
+      AlgoInfo(
+        provider: "liboqs",
+        source: "https://github.com/open-quantum-safe/liboqs",
+        algorithmId: oqsAlgFrodoKEM976Aes,
         notes: "FrodoKEM-976 AES KEM.",
+        requiresFlag: "hasLibOqs"
+      )
+    ]
+  of kaFrodo1Shake:
+    result = @[
+      AlgoInfo(
+        provider: "liboqs",
+        source: "https://github.com/open-quantum-safe/liboqs",
+        algorithmId: oqsAlgFrodoKEM976Shake,
+        notes: "FrodoKEM-976 SHAKE KEM.",
+        requiresFlag: "hasLibOqs"
+      )
+    ]
+  of kaFrodo2Aes:
+    result = @[
+      AlgoInfo(
+        provider: "liboqs",
+        source: "https://github.com/open-quantum-safe/liboqs",
+        algorithmId: oqsAlgFrodoKEM1344Aes,
+        notes: "FrodoKEM-1344 AES KEM.",
+        requiresFlag: "hasLibOqs"
+      )
+    ]
+  of kaFrodo2Shake:
+    result = @[
+      AlgoInfo(
+        provider: "liboqs",
+        source: "https://github.com/open-quantum-safe/liboqs",
+        algorithmId: oqsAlgFrodoKEM1344Shake,
+        notes: "FrodoKEM-1344 SHAKE KEM.",
         requiresFlag: "hasLibOqs"
       )
     ]

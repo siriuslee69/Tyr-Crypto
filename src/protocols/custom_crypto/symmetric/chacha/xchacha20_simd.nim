@@ -12,14 +12,15 @@ type
     xcbAuto,
     xcbScalar,
     xcbSse2,
+    xcbNeon,
     xcbAvx2
-
-when defined(sse2):
-  import nimsimd/sse2
 
 when defined(avx2):
   import nimsimd/avx
   import nimsimd/avx2
+
+when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+  import simd_nexus/simd/[base_operations, generic_u32]
 
 proc load32Le(data: openArray[byte], offset: int): uint32 =
   result =
@@ -28,12 +29,15 @@ proc load32Le(data: openArray[byte], offset: int): uint32 =
     (uint32(data[offset + 2]) shl 16) or
     (uint32(data[offset + 3]) shl 24))
 
-when defined(sse2) or defined(avx2):
+when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64) or defined(avx2):
   const
     chachaBlockLen = 64
 
-  proc storeWordNative(dst: var ByteSeq, offset: int, value: uint32) {.inline.} =
-    copyMem(addr dst[offset], unsafeAddr value, sizeof(value))
+  proc storeWordLe(dst: var ByteSeq, offset: int, value: uint32) {.inline.} =
+    dst[offset] = byte(value and 0xff'u32)
+    dst[offset + 1] = byte((value shr 8) and 0xff'u32)
+    dst[offset + 2] = byte((value shr 16) and 0xff'u32)
+    dst[offset + 3] = byte((value shr 24) and 0xff'u32)
 
 proc store32LeArr(dst: var array[32, byte], offset: int, value: uint32) =
   dst[offset] = byte(value and 0xff'u32)
@@ -108,37 +112,45 @@ proc buildChaChaNonce(nonce: openArray[byte]): array[12, byte] =
 proc resolveBackend(b: XChaChaBackend): XChaChaBackend =
   case b
   of xcbAuto:
-    result = xcbScalar
+    when defined(avx2):
+      result = xcbAvx2
+    elif defined(sse2):
+      result = xcbSse2
+    elif defined(neon) or defined(arm64) or defined(aarch64):
+      result = xcbNeon
+    else:
+      result = xcbScalar
   else:
     result = b
 
-when defined(sse2):
-  type
-    Vec4 = M128i
+when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+  when defined(neon) or defined(arm64) or defined(aarch64):
+    type
+      Vec4 = uint32x4
+  else:
+    type
+      Vec4 = M128i
 
   proc vset1(x: uint32): Vec4 =
-    result = mm_set1_epi32(x)
+    result = set1U32[Vec4](x)
 
   proc vset4(a, b, c, d: uint32): Vec4 =
-    result = mm_set_epi32(int32(d), int32(c), int32(b), int32(a))
+    var
+      laneValues: array[4, uint32]
+    laneValues[0] = a
+    laneValues[1] = b
+    laneValues[2] = c
+    laneValues[3] = d
+    result = loadU32x4[Vec4](laneValues)
 
   proc vadd(a, b: Vec4): Vec4 =
-    result = mm_add_epi32(a, b)
+    result = a + b
 
   proc vxor(a, b: Vec4): Vec4 =
-    result = mm_xor_si128(a, b)
-
-  proc vor(a, b: Vec4): Vec4 =
-    result = mm_or_si128(a, b)
-
-  proc vshl(a: Vec4, n: int): Vec4 =
-    result = mm_slli_epi32(a, int32(n))
-
-  proc vshr(a: Vec4, n: int): Vec4 =
-    result = mm_srli_epi32(a, int32(n))
+    result = a xor b
 
   proc vrotl(a: Vec4, n: int): Vec4 =
-    result = vor(vshl(a, n), vshr(a, 32 - n))
+    result = rotl32(a, int32(n))
 
   proc vqr(a, b, c, d: var Vec4) =
     a = vadd(a, b)
@@ -243,26 +255,26 @@ when defined(sse2):
     word = 0
     while word < 16:
       case word
-      of 0: mm_storeu_si128(cast[pointer](addr tmp[0]), x0)
-      of 1: mm_storeu_si128(cast[pointer](addr tmp[0]), x1)
-      of 2: mm_storeu_si128(cast[pointer](addr tmp[0]), x2)
-      of 3: mm_storeu_si128(cast[pointer](addr tmp[0]), x3)
-      of 4: mm_storeu_si128(cast[pointer](addr tmp[0]), x4)
-      of 5: mm_storeu_si128(cast[pointer](addr tmp[0]), x5)
-      of 6: mm_storeu_si128(cast[pointer](addr tmp[0]), x6)
-      of 7: mm_storeu_si128(cast[pointer](addr tmp[0]), x7)
-      of 8: mm_storeu_si128(cast[pointer](addr tmp[0]), x8)
-      of 9: mm_storeu_si128(cast[pointer](addr tmp[0]), x9)
-      of 10: mm_storeu_si128(cast[pointer](addr tmp[0]), x10)
-      of 11: mm_storeu_si128(cast[pointer](addr tmp[0]), x11)
-      of 12: mm_storeu_si128(cast[pointer](addr tmp[0]), x12)
-      of 13: mm_storeu_si128(cast[pointer](addr tmp[0]), x13)
-      of 14: mm_storeu_si128(cast[pointer](addr tmp[0]), x14)
-      else: mm_storeu_si128(cast[pointer](addr tmp[0]), x15)
+      of 0: tmp = storeU32x4(x0)
+      of 1: tmp = storeU32x4(x1)
+      of 2: tmp = storeU32x4(x2)
+      of 3: tmp = storeU32x4(x3)
+      of 4: tmp = storeU32x4(x4)
+      of 5: tmp = storeU32x4(x5)
+      of 6: tmp = storeU32x4(x6)
+      of 7: tmp = storeU32x4(x7)
+      of 8: tmp = storeU32x4(x8)
+      of 9: tmp = storeU32x4(x9)
+      of 10: tmp = storeU32x4(x10)
+      of 11: tmp = storeU32x4(x11)
+      of 12: tmp = storeU32x4(x12)
+      of 13: tmp = storeU32x4(x13)
+      of 14: tmp = storeU32x4(x14)
+      else: tmp = storeU32x4(x15)
       lane = 0
       while lane < 4:
         offset = outOffset + lane * chachaBlockLen + word * 4
-        storeWordNative(outBytes, offset, tmp[lane])
+        storeWordLe(outBytes, offset, tmp[lane])
         lane = lane + 1
       word = word + 1
 
@@ -418,7 +430,7 @@ when defined(avx2):
       lane = 0
       while lane < 8:
         offset = outOffset + lane * chachaBlockLen + word * 4
-        storeWordNative(outBytes, offset, tmp[lane])
+        storeWordLe(outBytes, offset, tmp[lane])
         lane = lane + 1
       word = word + 1
 
@@ -455,6 +467,14 @@ proc xchacha20StreamSimd*(key, nonce: openArray[byte], length: int,
       discard
   of xcbSse2:
     when defined(sse2):
+      while offset + (chachaBlockLen * 4) <= length:
+        chacha20Blocks4(subkey, chachaNonce, counter, rs, offset)
+        counter = counter + 4'u32
+        offset = offset + chachaBlockLen * 4
+    else:
+      discard
+  of xcbNeon:
+    when defined(neon) or defined(arm64) or defined(aarch64):
       while offset + (chachaBlockLen * 4) <= length:
         chacha20Blocks4(subkey, chachaNonce, counter, rs, offset)
         counter = counter + 4'u32

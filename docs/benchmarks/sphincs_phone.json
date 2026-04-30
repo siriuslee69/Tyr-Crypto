@@ -1,0 +1,92 @@
+{
+  "metadata": {
+    "generated_local": "2026-04-26T21:26:13+00:00",
+    "generated_utc": "2026-04-26T21:26:13Z",
+    "device_label": "motorola_edge_50_fusion",
+    "device_kind": "phone",
+    "device_model": "motorola_edge_50_fusion",
+    "device_os": "Android",
+    "profile": "mobile",
+    "loop_scale": 1.0,
+    "phase": "both",
+    "compiled_backend": "native_neon",
+    "features": [
+      "arm64",
+      "neon",
+      "release",
+      "otterTiming"
+    ]
+  },
+  "rows": [
+    {
+      "kind": "summary",
+      "device_label": "motorola_edge_50_fusion",
+      "device_kind": "phone",
+      "family": "sphincs",
+      "variant": "sphincsShake128fSimple",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "sign_verify",
+      "loops": 1,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 116415469,
+      "avg_ns_per_call": 116415469.0,
+      "avg_ns_per_op": 116415469.0
+    },
+    {
+      "kind": "function",
+      "device_label": "motorola_edge_50_fusion",
+      "device_kind": "phone",
+      "family": "sphincs",
+      "variant": "sphincsShake128fSimple",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "sign_verify_hotspots",
+      "group_name": "sphincs.shake128f",
+      "function_name": "sphincs.shake128f",
+      "loops": 1,
+      "warmup": 0,
+      "call_count": 1,
+      "total_ticks": 117011042,
+      "avg_ticks": 117011042,
+      "max_ticks": 117011042
+    },
+    {
+      "kind": "function",
+      "device_label": "motorola_edge_50_fusion",
+      "device_kind": "phone",
+      "family": "sphincs",
+      "variant": "sphincsShake128fSimple",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "sign_verify_hotspots",
+      "group_name": "sphincs.shake128f",
+      "function_name": "sha3.shake256Into",
+      "loops": 1,
+      "warmup": 0,
+      "call_count": 208,
+      "total_ticks": 396249,
+      "avg_ticks": 1905,
+      "max_ticks": 10782
+    },
+    {
+      "kind": "function",
+      "device_label": "motorola_edge_50_fusion",
+      "device_kind": "phone",
+      "family": "sphincs",
+      "variant": "sphincsShake128fSimple",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "sign_verify_hotspots",
+      "group_name": "sphincs.shake128f",
+      "function_name": "sha3.shake256ChunksInto",
+      "loops": 1,
+      "warmup": 0,
+      "call_count": 3,
+      "total_ticks": 2241,
+      "avg_ticks": 747,
+      "max_ticks": 1042
+    }
+  ]
+}

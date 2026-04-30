@@ -5,15 +5,19 @@ import ./util
 import ./gf
 import ./root
 
-proc synd*(p: McElieceParams; f: openArray[GF]; L: openArray[GF]; r: openArray[byte]; outS: var seq[GF]) =
+proc synd*(p: McElieceParams; f: openArray[GF]; L: openArray[GF]; r: openArray[byte]; outS: var seq[GF];
+    bitLimit: int = -1) =
   ## Compute the 2*sysT syndrome for received word r (bit-packed) with Goppa poly f and support L.
   assert f.len >= p.sysT + 1
   assert L.len >= p.sysN
+  let limit = if bitLimit < 0: p.sysN else: bitLimit
+  assert limit <= p.sysN
+  assert r.len * 8 >= limit
   outS.setLen(2 * p.sysT)
   for j in 0 ..< 2 * p.sysT:
     outS[j] = 0
 
-  for i in 0 ..< p.sysN:
+  for i in 0 ..< limit:
     let c = GF((r[i div 8] shr (i mod 8)) and 1)
     let mask = GF(0) - c
     let e = evalPoly(p, f, L[i])

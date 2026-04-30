@@ -8,8 +8,10 @@ import ../../../sha3
 import ../../../../helpers/otter_support
 import std/[typetraits, volatile]
 
-when defined(sse2) or defined(avx2):
+when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   import simd_nexus/simd/base_operations
+when defined(neon) or defined(arm64) or defined(aarch64):
+  import simd_nexus/simd/generic_i32
 when defined(avx2):
   import nimsimd/avx as navx
   import nimsimd/avx2 as navx2
@@ -56,7 +58,7 @@ const
   dilithiumEtaCtBytesEta2 = dilithiumEtaCtBlocksEta2 * shake256RateBytes
   dilithiumEtaCtBytesEta4 = dilithiumEtaCtBlocksEta4 * shake256RateBytes
 
-when defined(sse2) or defined(avx2):
+when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   const
     dilithiumUniform4xInitBytes = ((768 + shake128RateBytes - 1) div shake128RateBytes) *
       shake128RateBytes
@@ -111,6 +113,50 @@ when defined(sse2):
       va = i32x4(mm_loadu_si128(cast[pointer](unsafeAddr a.coeffs[i])))
       va = va shl dilithiumD
       mm_storeu_si128(cast[pointer](unsafeAddr a.coeffs[i]), M128i(va))
+      i = i + 4
+    while i < dilithiumN:
+      a.coeffs[i] = a.coeffs[i] shl dilithiumD
+      i = i + 1
+
+when defined(neon) or defined(arm64) or defined(aarch64):
+  proc polyAddSimdNeon(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
+    var
+      i: int = 0
+      va: uint32x4
+      vb: uint32x4
+    i = 0
+    while i + 4 <= dilithiumN:
+      va = loadI32x4At[uint32x4](a.coeffs, i)
+      vb = loadI32x4At[uint32x4](b.coeffs, i)
+      storeI32x4At[uint32x4](va + vb, c.coeffs, i)
+      i = i + 4
+    while i < dilithiumN:
+      c.coeffs[i] = a.coeffs[i] + b.coeffs[i]
+      i = i + 1
+
+  proc polySubSimdNeon(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
+    var
+      i: int = 0
+      va: uint32x4
+      vb: uint32x4
+    i = 0
+    while i + 4 <= dilithiumN:
+      va = loadI32x4At[uint32x4](a.coeffs, i)
+      vb = loadI32x4At[uint32x4](b.coeffs, i)
+      storeI32x4At[uint32x4](va - vb, c.coeffs, i)
+      i = i + 4
+    while i < dilithiumN:
+      c.coeffs[i] = a.coeffs[i] - b.coeffs[i]
+      i = i + 1
+
+  proc polyShiftLSimdNeon(a: var DilithiumPoly) {.inline.} =
+    var
+      i: int = 0
+      va: uint32x4
+    i = 0
+    while i + 4 <= dilithiumN:
+      va = loadI32x4At[uint32x4](a.coeffs, i)
+      storeI32x4At[uint32x4](va shl dilithiumD, a.coeffs, i)
       i = i + 4
     while i < dilithiumN:
       a.coeffs[i] = a.coeffs[i] shl dilithiumD
@@ -489,6 +535,8 @@ proc polyAdd*(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline, raises: [].} 
     polyAddSimdAvx2(c, a, b)
   elif defined(sse2):
     polyAddSimdSse(c, a, b)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    polyAddSimdNeon(c, a, b)
   else:
     var
       i: int = 0
@@ -502,6 +550,8 @@ proc polySub*(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline, raises: [].} 
     polySubSimdAvx2(c, a, b)
   elif defined(sse2):
     polySubSimdSse(c, a, b)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    polySubSimdNeon(c, a, b)
   else:
     var
       i: int = 0
@@ -515,6 +565,8 @@ proc polyShiftL*(a: var DilithiumPoly) {.inline, raises: [].} =
     polyShiftLSimdAvx2(a)
   elif defined(sse2):
     polyShiftLSimdSse(a)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    polyShiftLSimdNeon(a)
   else:
     var
       i: int = 0
@@ -745,7 +797,7 @@ proc initShake128NonceState(S: var Sha3State,
   input[dilithiumSeedBytes + 1] = byte((nonce shr 8) and 0xff'u16)
   shake128AbsorbOnce(S, input)
 
-when defined(sse2) or defined(avx2):
+when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   proc initShake128NonceMsg(msg: var array[dilithiumSeedBytes + 2, byte],
       seed: array[dilithiumSeedBytes, byte], nonce: uint16) {.inline, raises: [].} =
     var
@@ -768,7 +820,7 @@ proc initShake256NonceState(S: var Sha3State,
   input[dilithiumCrhBytes + 1] = byte((nonce shr 8) and 0xff'u16)
   shake256AbsorbOnce(S, input)
 
-when defined(sse2) or defined(avx2):
+when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   proc initShake256NonceMsg(msg: var array[dilithiumCrhBytes + 2, byte],
       seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
     var
@@ -832,6 +884,39 @@ when defined(avx2):
           ctr[lane] = ctr[lane] + rejUniform(polys[lane][].coeffs, ctr[lane],
             dilithiumN - ctr[lane], extraBufs[lane])
         lane = lane + 1
+
+when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
+  proc polyUniform2xSeed(a0, a1: var DilithiumPoly,
+      seed: array[dilithiumSeedBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
+    var
+      states: array[2, Sha3State]
+      msgs: array[2, array[dilithiumSeedBytes + 2, byte]]
+      initBufs: array[2, array[dilithiumUniform4xInitBytes, byte]]
+      extraBufs: array[2, array[shake128RateBytes, byte]]
+      polys: array[2, ptr DilithiumPoly]
+      ctr: array[2, int]
+      lane: int = 0
+    polys = [addr a0, addr a1]
+    initShake128NonceMsg(msgs[0], seed, nonce0)
+    initShake128NonceMsg(msgs[1], seed, nonce1)
+    shake128AbsorbOnceSse2x(states, msgs)
+    shake128SqueezeBlocksSse2x(states, initBufs)
+    lane = 0
+    while lane < 2:
+      ctr[lane] = rejUniform(polys[lane][].coeffs, 0, dilithiumN, initBufs[lane])
+      lane = lane + 1
+    while ctr[0] < dilithiumN or ctr[1] < dilithiumN:
+      shake128SqueezeBlocksSse2x(states, extraBufs)
+      lane = 0
+      while lane < 2:
+        if ctr[lane] < dilithiumN:
+          ctr[lane] = ctr[lane] + rejUniform(polys[lane][].coeffs, ctr[lane],
+            dilithiumN - ctr[lane], extraBufs[lane])
+        lane = lane + 1
+    clearSensitivePlainData(states)
+    clearSensitivePlainData(msgs)
+    clearSensitivePlainData(initBufs)
+    clearSensitivePlainData(extraBufs)
 
 proc polyUniform*(a: var DilithiumPoly,
     seed: array[dilithiumSeedBytes, byte], nonce: uint16) {.inline, raises: [].} =
@@ -924,7 +1009,7 @@ when defined(avx2):
       return
     polyUniformEta4xCtSeedEta4(p, a0, a1, a2, a3, seed, nonce0, nonce1, nonce2, nonce3)
 
-when defined(sse2) or defined(avx2):
+when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   proc polyUniformEta2xCtSeedEta2(p: DilithiumParams, a0, a1: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
     var
@@ -1015,7 +1100,7 @@ when defined(avx2):
     polyZUnpack(p, a2, bufs[2].toOpenArray(0, p.polyZPackedBytes - 1))
     polyZUnpack(p, a3, bufs[3].toOpenArray(0, p.polyZPackedBytes - 1))
 
-when defined(sse2) or defined(avx2):
+when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   proc polyUniformGamma12xSeed(p: DilithiumParams, a0, a1: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
     var
@@ -1351,6 +1436,22 @@ proc polyveclUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecL,
         seed, nn + 4'u16, nn + 5'u16, nn + 6'u16, 0'u16)
       clearSensitivePlainData(tmp)
       return
+  when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+    if p.l == 4:
+      polyUniformEta2xCtSeed(p, v.vec[0], v.vec[1], seed, nn, nn + 1'u16)
+      polyUniformEta2xCtSeed(p, v.vec[2], v.vec[3], seed, nn + 2'u16, nn + 3'u16)
+      return
+    if p.l == 5:
+      polyUniformEta2xCtSeed(p, v.vec[0], v.vec[1], seed, nn, nn + 1'u16)
+      polyUniformEta2xCtSeed(p, v.vec[2], v.vec[3], seed, nn + 2'u16, nn + 3'u16)
+      polyUniformEtaSeed(p, v.vec[4], seed, nn + 4'u16)
+      return
+    if p.l == 7:
+      polyUniformEta2xCtSeed(p, v.vec[0], v.vec[1], seed, nn, nn + 1'u16)
+      polyUniformEta2xCtSeed(p, v.vec[2], v.vec[3], seed, nn + 2'u16, nn + 3'u16)
+      polyUniformEta2xCtSeed(p, v.vec[4], v.vec[5], seed, nn + 4'u16, nn + 5'u16)
+      polyUniformEtaSeed(p, v.vec[6], seed, nn + 6'u16)
+      return
   while i < p.l:
     polyUniformEta(p, v.vec[i], seed, nn)
     nn = nn + 1'u16
@@ -1387,6 +1488,22 @@ proc polyveclUniformGamma1BaseNonce*(p: DilithiumParams, v: var DilithiumPolyVec
     if p.l == 7:
       polyUniformGamma14xSeed(p, v.vec[0], v.vec[1], v.vec[2], v.vec[3],
         seed, nonceNow, nonceNow + 1'u16, nonceNow + 2'u16, nonceNow + 3'u16)
+      polyUniformGamma12xSeed(p, v.vec[4], v.vec[5], seed, nonceNow + 4'u16, nonceNow + 5'u16)
+      polyUniformGamma1Seed(p, v.vec[6], seed, nonceNow + 6'u16)
+      return
+  when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+    if p.l == 4:
+      polyUniformGamma12xSeed(p, v.vec[0], v.vec[1], seed, nonceNow, nonceNow + 1'u16)
+      polyUniformGamma12xSeed(p, v.vec[2], v.vec[3], seed, nonceNow + 2'u16, nonceNow + 3'u16)
+      return
+    if p.l == 5:
+      polyUniformGamma12xSeed(p, v.vec[0], v.vec[1], seed, nonceNow, nonceNow + 1'u16)
+      polyUniformGamma12xSeed(p, v.vec[2], v.vec[3], seed, nonceNow + 2'u16, nonceNow + 3'u16)
+      polyUniformGamma1Seed(p, v.vec[4], seed, nonceNow + 4'u16)
+      return
+    if p.l == 7:
+      polyUniformGamma12xSeed(p, v.vec[0], v.vec[1], seed, nonceNow, nonceNow + 1'u16)
+      polyUniformGamma12xSeed(p, v.vec[2], v.vec[3], seed, nonceNow + 2'u16, nonceNow + 3'u16)
       polyUniformGamma12xSeed(p, v.vec[4], v.vec[5], seed, nonceNow + 4'u16, nonceNow + 5'u16)
       polyUniformGamma1Seed(p, v.vec[6], seed, nonceNow + 6'u16)
       return
@@ -1471,6 +1588,22 @@ proc polyveckUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecK,
         seed, nn, nn + 1'u16, nn + 2'u16, nn + 3'u16)
       polyUniformEta4xCtSeed(p, v.vec[4], v.vec[5], v.vec[6], v.vec[7],
         seed, nn + 4'u16, nn + 5'u16, nn + 6'u16, nn + 7'u16)
+      return
+  when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+    if p.k == 4:
+      polyUniformEta2xCtSeed(p, v.vec[0], v.vec[1], seed, nn, nn + 1'u16)
+      polyUniformEta2xCtSeed(p, v.vec[2], v.vec[3], seed, nn + 2'u16, nn + 3'u16)
+      return
+    if p.k == 6:
+      polyUniformEta2xCtSeed(p, v.vec[0], v.vec[1], seed, nn, nn + 1'u16)
+      polyUniformEta2xCtSeed(p, v.vec[2], v.vec[3], seed, nn + 2'u16, nn + 3'u16)
+      polyUniformEta2xCtSeed(p, v.vec[4], v.vec[5], seed, nn + 4'u16, nn + 5'u16)
+      return
+    if p.k == 8:
+      polyUniformEta2xCtSeed(p, v.vec[0], v.vec[1], seed, nn, nn + 1'u16)
+      polyUniformEta2xCtSeed(p, v.vec[2], v.vec[3], seed, nn + 2'u16, nn + 3'u16)
+      polyUniformEta2xCtSeed(p, v.vec[4], v.vec[5], seed, nn + 4'u16, nn + 5'u16)
+      polyUniformEta2xCtSeed(p, v.vec[6], v.vec[7], seed, nn + 6'u16, nn + 7'u16)
       return
   while i < p.k:
     polyUniformEta(p, v.vec[i], seed, nn)
@@ -1561,10 +1694,10 @@ proc polyvecMatrixExpandRowInto*(p: DilithiumParams, row: var DilithiumPolyVecL,
     rho: array[dilithiumSeedBytes, byte], rowIndex: int) {.inline, otterBench, raises: [].} =
   var
     j: int = 0
+    baseNonce: uint16 = uint16(rowIndex shl 8)
   row = initPolyVecL(p)
   when defined(avx2):
     var
-      baseNonce: uint16 = uint16(rowIndex shl 8)
       tmp: DilithiumPoly
     if p.l == 4:
       polyUniform4xSeed(row.vec[0], row.vec[1], row.vec[2], row.vec[3],
@@ -1580,6 +1713,22 @@ proc polyvecMatrixExpandRowInto*(p: DilithiumParams, row: var DilithiumPolyVecL,
         rho, baseNonce, baseNonce + 1'u16, baseNonce + 2'u16, baseNonce + 3'u16)
       polyUniform4xSeed(row.vec[4], row.vec[5], row.vec[6], tmp,
         rho, baseNonce + 4'u16, baseNonce + 5'u16, baseNonce + 6'u16, 0'u16)
+      return
+  when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+    if p.l == 4:
+      polyUniform2xSeed(row.vec[0], row.vec[1], rho, baseNonce, baseNonce + 1'u16)
+      polyUniform2xSeed(row.vec[2], row.vec[3], rho, baseNonce + 2'u16, baseNonce + 3'u16)
+      return
+    if p.l == 5:
+      polyUniform2xSeed(row.vec[0], row.vec[1], rho, baseNonce, baseNonce + 1'u16)
+      polyUniform2xSeed(row.vec[2], row.vec[3], rho, baseNonce + 2'u16, baseNonce + 3'u16)
+      polyUniform(row.vec[4], rho, baseNonce + 4'u16)
+      return
+    if p.l == 7:
+      polyUniform2xSeed(row.vec[0], row.vec[1], rho, baseNonce, baseNonce + 1'u16)
+      polyUniform2xSeed(row.vec[2], row.vec[3], rho, baseNonce + 2'u16, baseNonce + 3'u16)
+      polyUniform2xSeed(row.vec[4], row.vec[5], rho, baseNonce + 4'u16, baseNonce + 5'u16)
+      polyUniform(row.vec[6], rho, baseNonce + 6'u16)
       return
   while j < p.l:
     polyUniform(row.vec[j], rho, uint16((rowIndex shl 8) + j))

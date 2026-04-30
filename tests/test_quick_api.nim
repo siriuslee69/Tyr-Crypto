@@ -1,8 +1,6 @@
 import std/unittest
 
 import ../src/protocols/wrapper/basic_api
-import ../src/protocols/wrapper/helpers/algorithms
-import ../src/protocols/wrapper/helpers/signature_support
 
 suite "quick api":
   test "algorithm layouts expose single-algorithm metadata":
@@ -17,8 +15,18 @@ suite "quick api":
     check layoutOf(akKyber1TyrOpen).keyLayouts[0].size == 3168
     check layoutOf(akMcEliece1Send).keyLayouts[0].size == 1047319
     check layoutOf(akMcEliece2Open).keyLayouts[0].size == 14120
-    check layoutOf(akFrodo0Send).keyLayouts[0].size == 15632
-    check layoutOf(akFrodo0Send).outputBytes == 24
+    check layoutOf(akFrodo0AesSend).keyLayouts[0].size == 9616
+    check layoutOf(akFrodo0AesSend).outputBytes == 16
+    check layoutOf(akFrodo0ShakeSend).keyLayouts[0].size == 9616
+    check layoutOf(akFrodo0ShakeSend).outputBytes == 16
+    check layoutOf(akFrodo1AesSend).keyLayouts[0].size == 15632
+    check layoutOf(akFrodo1AesSend).outputBytes == 24
+    check layoutOf(akFrodo1ShakeSend).keyLayouts[0].size == 15632
+    check layoutOf(akFrodo1ShakeSend).outputBytes == 24
+    check layoutOf(akFrodo2AesSend).keyLayouts[0].size == 21520
+    check layoutOf(akFrodo2AesSend).outputBytes == 32
+    check layoutOf(akFrodo2ShakeSend).keyLayouts[0].size == 21520
+    check layoutOf(akFrodo2ShakeSend).outputBytes == 32
     check layoutOf(akDilithium0Sign).keyLayouts[0].size == 2560
     check layoutOf(akDilithium0Sign).outputBytes == 2420
     check layoutOf(akDilithium1Verify).keyLayouts[0].size == 1952
@@ -43,8 +51,18 @@ suite "quick api":
     check layoutOf(akMcEliece2TyrOpen).keyLayouts[0].size == 14120
     check layoutOf(akNtruPrime0Send).keyLayouts[0].size == 1158
     check layoutOf(akNtruPrime0Open).keyLayouts[0].size == 1763
-    check layoutOf(akFrodo0TyrSend).keyLayouts[0].size == 15632
-    check layoutOf(akFrodo0TyrOpen).keyLayouts[0].size == 31296
+    check layoutOf(akFrodo0AesTyrSend).keyLayouts[0].size == 9616
+    check layoutOf(akFrodo0AesTyrOpen).keyLayouts[0].size == 19888
+    check layoutOf(akFrodo0ShakeTyrSend).keyLayouts[0].size == 9616
+    check layoutOf(akFrodo0ShakeTyrOpen).keyLayouts[0].size == 19888
+    check layoutOf(akFrodo1AesTyrSend).keyLayouts[0].size == 15632
+    check layoutOf(akFrodo1AesTyrOpen).keyLayouts[0].size == 31296
+    check layoutOf(akFrodo1ShakeTyrSend).keyLayouts[0].size == 15632
+    check layoutOf(akFrodo1ShakeTyrOpen).keyLayouts[0].size == 31296
+    check layoutOf(akFrodo2AesTyrSend).keyLayouts[0].size == 21520
+    check layoutOf(akFrodo2AesTyrOpen).keyLayouts[0].size == 43088
+    check layoutOf(akFrodo2ShakeTyrSend).keyLayouts[0].size == 21520
+    check layoutOf(akFrodo2ShakeTyrOpen).keyLayouts[0].size == 43088
     check layoutOf(akBike0Send).keyLayouts[0].size == 1541
     check layoutOf(akBike0Open).keyLayouts[0].size == 5223
 

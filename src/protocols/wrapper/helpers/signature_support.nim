@@ -7,6 +7,7 @@
 import ../../common
 import ../../bindings/liboqs
 import ../../bindings/libsodium
+import ../../custom_crypto/falcon as custom_falcon
 import ./algorithms
 
 const
@@ -75,14 +76,14 @@ proc requireSignatureLibs(alg: SignatureAlgorithm) =
     if not ensureLibSodiumLoaded():
       raiseUnavailable("libsodium", "hasLibsodium")
     ensureSodiumInitialised()
-    if not ensureLibOqsLoaded():
-      raiseUnavailable("liboqs", "hasLibOqs")
     return
   case alg
   of saEd25519:
     if not ensureLibSodiumLoaded():
       raiseUnavailable("libsodium", "hasLibsodium")
     ensureSodiumInitialised()
+  of saFalcon512, saFalcon1024:
+    discard
   of saEd448:
     raiseUnavailable("OpenSSL", "hasOpenSSL3")
   else:
@@ -120,6 +121,8 @@ proc signatureAvailable*(alg: SignatureAlgorithm): bool =
       if not ensureLibSodiumLoaded():
         return false
       ensureSodiumInitialised()
+      true
+    of saFalcon512, saFalcon1024:
       true
     of saEd448:
       false
@@ -162,6 +165,14 @@ proc signatureKeypair*(alg: SignatureAlgorithm): SignatureKeypair =
     result.secretKey = newSeq[uint8](ed25519SecretKeyBytes)
     if crypto_sign_ed25519_keypair(addr result.publicKey[0], addr result.secretKey[0]) != 0:
       raiseOperation("libsodium", "crypto_sign_ed25519_keypair failed")
+  of saFalcon512:
+    let kp = custom_falcon.falconTyrKeypair(custom_falcon.falcon512)
+    result.publicKey = kp.publicKey
+    result.secretKey = kp.secretKey
+  of saFalcon1024:
+    let kp = custom_falcon.falconTyrKeypair(custom_falcon.falcon1024)
+    result.publicKey = kp.publicKey
+    result.secretKey = kp.secretKey
   of saEd448:
     raiseUnavailable("OpenSSL", "hasOpenSSL3")
   else:
@@ -200,6 +211,10 @@ proc signMessage*(alg: SignatureAlgorithm; msg, secretKey: seq[uint8]): seq[uint
     let msgPtr = ptrOrZero(msg, tmp)
     if crypto_sign_ed25519_detached(addr result[0], addr sigLen, msgPtr, culonglong(msg.len), unsafeAddr secretKey[0]) != 0:
       raiseOperation("libsodium", "crypto_sign_ed25519_detached failed")
+  of saFalcon512:
+    result = custom_falcon.falconTyrSign(custom_falcon.falcon512, msg, secretKey)
+  of saFalcon1024:
+    result = custom_falcon.falconTyrSign(custom_falcon.falcon1024, msg, secretKey)
   of saEd448:
     raiseUnavailable("OpenSSL", "hasOpenSSL3")
   else:
@@ -243,6 +258,10 @@ proc verifyMessage*(alg: SignatureAlgorithm; msg, signature, publicKey: seq[uint
     var tmp: uint8
     let msgPtr = ptrOrZero(msg, tmp)
     result = crypto_sign_ed25519_verify_detached(unsafeAddr signature[0], msgPtr, culonglong(msg.len), unsafeAddr publicKey[0]) == 0
+  of saFalcon512:
+    result = custom_falcon.falconTyrVerify(custom_falcon.falcon512, msg, signature, publicKey)
+  of saFalcon1024:
+    result = custom_falcon.falconTyrVerify(custom_falcon.falcon1024, msg, signature, publicKey)
   of saEd448:
     raiseUnavailable("OpenSSL", "hasOpenSSL3")
   else:

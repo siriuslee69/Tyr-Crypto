@@ -7,6 +7,7 @@ import ./pk_gen
 import ./controlbits
 import ./encrypt
 import ./decrypt
+import ../../../../helpers/otter_support
 import ../../../sha3
 import ../../../random
 
@@ -57,7 +58,7 @@ proc encodeGoppaPolynomial(f: openArray[GF]): seq[byte] =
   for i in 0 ..< f.len:
     storeGF(result.toOpenArray(i * 2, i * 2 + 1), f[i])
 
-proc mcelieceTyrKeypair*(v: McElieceVariant; seed: seq[byte] = @[]): McElieceTyrKeypair =
+proc mcelieceTyrKeypair*(v: McElieceVariant; seed: seq[byte] = @[]): McElieceTyrKeypair {.otterTrace.} =
   ## Generate a McEliece keypair (optionally seeded for reproducibility).
   var
     p = params(v)
@@ -110,12 +111,16 @@ proc mcelieceTyrKeypair*(v: McElieceVariant; seed: seq[byte] = @[]): McElieceTyr
     for i in 0 ..< 32:
       storedSeed[i] = seedMaterial[i + 1]
     clearSensitiveWords(stream)
-    stream = shake256(seedMaterial, buildKeypairStreamLength(p))
+    otterSpan("mceliece.keypair.shake256"):
+      stream = shake256(seedMaterial, buildKeypairStreamLength(p))
     for i in 0 ..< 32:
       seedMaterial[i + 1] = stream[nextSeedOffset + i]
 
     parseGoppaPolynomial(p, stream.toOpenArray(fOffset, nextSeedOffset - 1), fWords)
-    if not genpolyGen(p, irr, fWords):
+    var genpolyOk: bool = false
+    otterSpan("mceliece.keypair.genpoly"):
+      genpolyOk = genpolyGen(p, irr, fWords)
+    if not genpolyOk:
       continue
 
     for i in 0 ..< p.sysT:
@@ -125,14 +130,19 @@ proc mcelieceTyrKeypair*(v: McElieceVariant; seed: seq[byte] = @[]): McElieceTyr
     for i in 0 ..< perm.len:
       perm[i] = load4(stream.toOpenArray(permOffset + i * 4, permOffset + i * 4 + 3))
 
-    if not pkGen(p, g, perm, pi, pk, pivots):
+    var pkOk: bool = false
+    otterSpan("mceliece.keypair.pkGen"):
+      pkOk = pkGen(p, g, perm, pi, pk, pivots)
+    if not pkOk:
       continue
 
-    when defined(danger):
-      controlBits = controlBitsFromPermutationUnchecked(pi, p.gfBits)
-    else:
-      controlBits = controlBitsFromPermutation(pi, p.gfBits)
-    irrBytes = encodeGoppaPolynomial(irr)
+    otterSpan("mceliece.keypair.controlBits"):
+      when defined(danger):
+        controlBits = controlBitsFromPermutationUnchecked(pi, p.gfBits)
+      else:
+        controlBits = controlBitsFromPermutation(pi, p.gfBits)
+    otterSpan("mceliece.keypair.encodeIrr"):
+      irrBytes = encodeGoppaPolynomial(irr)
     result.variant = v
     result.publicKey = pk
     result.secretKey = newSeq[byte](secretKeyBytes(p))
@@ -169,7 +179,7 @@ proc buildDecapPreimage(p: McElieceParams; okMask: uint16; e, c, sk: openArray[b
   for i in 0 ..< p.syndBytes:
     result[1 + p.sysN div 8 + i] = c[i]
 
-proc mcelieceTyrEncaps*(v: McElieceVariant, pk: openArray[byte]): McElieceTyrCipher =
+proc mcelieceTyrEncaps*(v: McElieceVariant, pk: openArray[byte]): McElieceTyrCipher {.otterTrace.} =
   ## Encapsulate against a McEliece public key and derive the shared secret.
   var
     p = params(v)
@@ -179,11 +189,14 @@ proc mcelieceTyrEncaps*(v: McElieceVariant, pk: openArray[byte]): McElieceTyrCip
     clearSensitiveWords(enc.errorVec)
     clearSensitiveWords(preimage)
   assert pk.len == publicKeyBytes(p)
-  enc = encryptError(p, pk)
-  preimage = buildEncapPreimage(p, enc.errorVec, enc.syndrome)
+  otterSpan("mceliece.encaps.encryptError"):
+    enc = encryptError(p, pk)
+  otterSpan("mceliece.encaps.buildPreimage"):
+    preimage = buildEncapPreimage(p, enc.errorVec, enc.syndrome)
   result.variant = v
   result.ciphertext = enc.syndrome
-  result.sharedSecret = shake256(preimage, sharedKeyBytes())
+  otterSpan("mceliece.encaps.shake256"):
+    result.sharedSecret = shake256(preimage, sharedKeyBytes())
 
 proc mcelieceTyrTryDecaps*(v: McElieceVariant, sk, ct: openArray[byte]): tuple[sharedSecret: seq[byte], ok: bool] =
   ## Decapsulate and return the derived shared secret plus a success flag.
@@ -196,11 +209,14 @@ proc mcelieceTyrTryDecaps*(v: McElieceVariant, sk, ct: openArray[byte]): tuple[s
     clearSensitiveWords(preimage)
   assert ct.len == ciphertextBytes(p)
   assert sk.len == secretKeyBytes(p)
-  dec = decodeErrorVector(p, sk.toOpenArray(40, sk.len - 1), ct)
-  preimage = buildDecapPreimage(p, dec.okMask, dec.errorVec, ct, sk)
-  result.sharedSecret = shake256(preimage, sharedKeyBytes())
+  otterSpan("mceliece.decaps.decodeErrorVector"):
+    dec = decodeErrorVector(p, sk.toOpenArray(40, sk.len - 1), ct)
+  otterSpan("mceliece.decaps.buildPreimage"):
+    preimage = buildDecapPreimage(p, dec.okMask, dec.errorVec, ct, sk)
+  otterSpan("mceliece.decaps.shake256"):
+    result.sharedSecret = shake256(preimage, sharedKeyBytes())
   result.ok = dec.ok
 
-proc mcelieceTyrDecaps*(v: McElieceVariant, sk, ct: openArray[byte]): seq[byte] =
+proc mcelieceTyrDecaps*(v: McElieceVariant, sk, ct: openArray[byte]): seq[byte] {.otterTrace.} =
   ## Decapsulate and return the derived shared secret bytes.
   result = mcelieceTyrTryDecaps(v, sk, ct).sharedSecret

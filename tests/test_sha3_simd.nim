@@ -205,3 +205,29 @@ suite "sha3 simd":
         custom_sha3.shake256Into(scalarOut, shakeMsgs[lane])
         check simdOut[lane] == scalarOut
         lane = lane + 1
+
+  when defined(neon) or defined(arm64) or defined(aarch64):
+    test "NEON2x Keccak permutation matches reference":
+      var
+        ss: array[2, custom_sha3.Sha3State]
+        rs: array[2, custom_sha3.Sha3State]
+        i: int = 0
+      ss[0] = buildSha3State(0x2122232425262728'u64)
+      ss[1] = buildSha3State(0x3132333435363738'u64)
+      rs = ss
+      i = 0
+      while i < rs.len:
+        keccakF1600Ref(rs[i])
+        i = i + 1
+      custom_sha3.keccakF1600Neon2x(ss)
+      check ss == rs
+
+    test "NEON2x SHA3 hash batch matches scalar":
+      var
+        msgs: array[2, seq[byte]]
+        outs: array[2, seq[byte]]
+      msgs[0] = @[byte 3, 1, 4, 1, 5, 9, 2, 6]
+      msgs[1] = @[byte 2, 7, 1, 8, 2, 8, 1, 8]
+      outs = custom_sha3.sha3HashNeon2x(msgs, 32)
+      check outs[0] == custom_sha3.sha3Hash(msgs[0], 32)
+      check outs[1] == custom_sha3.sha3Hash(msgs[1], 32)

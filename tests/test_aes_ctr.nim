@@ -97,3 +97,14 @@ suite "aes ctr":
       let c0 = aesCtrXor(key, nonce, msg, acbScalar)
       let c1 = aesCtrXor(key, nonce, msg, acbAvx2)
       check c0 == c1
+
+  when defined(neon) or defined(arm64) or defined(aarch64):
+    test "neon matches scalar":
+      let key = toBytes("0123456789abcdef0123456789abcdef")
+      let nonce = toBytes("abcdefghijklmnop")
+      var msg = newSeq[uint8](64)
+      for i in 0 ..< msg.len:
+        msg[i] = uint8((i * 11) mod 256)
+      let c0 = aesCtrXor(key, nonce, msg, acbScalar)
+      let c1 = aesCtrXor(key, nonce, msg, acbNeon)
+      check c0 == c1

@@ -59,3 +59,29 @@ suite "poly1305 simd":
       while i < 4:
         check copyTag(outs[i]) == custom_poly1305.poly1305Tag(keys[i], msgs[i])
         i = i + 1
+
+  when defined(neon) or defined(arm64) or defined(aarch64):
+    test "NEON2x batch matches scalar":
+      var
+        keys: array[2, array[custom_poly1305.poly1305KeyBytes, byte]]
+        msgs: array[2, seq[byte]]
+        outs: array[2, custom_poly1305.Poly1305Tag]
+        i: int = 0
+        j: int = 0
+      i = 0
+      while i < 2:
+        j = 0
+        while j < custom_poly1305.poly1305KeyBytes:
+          keys[i][j] = uint8((i * 31 + j * 3) mod 256)
+          j = j + 1
+        msgs[i] = newSeq[byte](40)
+        j = 0
+        while j < msgs[i].len:
+          msgs[i][j] = uint8((i * 19 + j * 7) mod 256)
+          j = j + 1
+        i = i + 1
+      outs = custom_poly1305.poly1305MacNeon2x(keys, msgs)
+      i = 0
+      while i < 2:
+        check copyTag(outs[i]) == custom_poly1305.poly1305Tag(keys[i], msgs[i])
+        i = i + 1
