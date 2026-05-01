@@ -1,0 +1,72 @@
+{
+  "metadata": {
+    "generated_local": "2026-05-01T13:29:10+00:00",
+    "generated_utc": "2026-05-01T13:29:10Z",
+    "device_label": "infinix_saber_heap",
+    "device_kind": "phone",
+    "device_model": "Infinix",
+    "device_os": "Android",
+    "profile": "mobile",
+    "loop_scale": 8.0,
+    "phase": "summary",
+    "compiled_backend": "native_neon",
+    "features": [
+      "arm64",
+      "neon",
+      "release",
+      "otterTiming",
+      "ntruMulToom4K2Default",
+      "saberHeapBuffers"
+    ]
+  },
+  "rows": [
+    {
+      "kind": "summary",
+      "device_label": "infinix_saber_heap",
+      "device_kind": "phone",
+      "family": "saber",
+      "variant": "lightSaber",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "roundtrip",
+      "loops": 8,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 2351923,
+      "avg_ns_per_call": 293990.375,
+      "avg_ns_per_op": 293990.375
+    },
+    {
+      "kind": "summary",
+      "device_label": "infinix_saber_heap",
+      "device_kind": "phone",
+      "family": "saber",
+      "variant": "saber",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "roundtrip",
+      "loops": 8,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 3178384,
+      "avg_ns_per_call": 397298.0,
+      "avg_ns_per_op": 397298.0
+    },
+    {
+      "kind": "summary",
+      "device_label": "infinix_saber_heap",
+      "device_kind": "phone",
+      "family": "saber",
+      "variant": "fireSaber",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "roundtrip",
+      "loops": 8,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 4340000,
+      "avg_ns_per_call": 542500.0,
+      "avg_ns_per_op": 542500.0
+    }
+  ]
+}

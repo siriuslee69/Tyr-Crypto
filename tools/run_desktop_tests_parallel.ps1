@@ -103,11 +103,31 @@ $groups = @(
     Tests = @("test_bike_tyr.nim", "test_bike_kat.nim")
   },
   [pscustomobject]@{
+    Name = "ntru"
+    Tests = @("test_ntru_tyr.nim")
+  },
+  [pscustomobject]@{
+    Name = "saber"
+    Tests = @("test_saber_tyr.nim")
+  },
+  [pscustomobject]@{
     Name = "dilithium"
     Tests = @("test_dilithium_tyr.nim", "test_dilithium_kat.nim")
   },
   [pscustomobject]@{
-    Name = "falcon"
+    Name = "falcon512"
+    Aliases = @("falcon")
+    Env = @{
+      TYR_FALCON_TEST_VARIANT = "512"
+    }
+    Tests = @("test_falcon_tyr.nim")
+  },
+  [pscustomobject]@{
+    Name = "falcon1024"
+    Aliases = @("falcon")
+    Env = @{
+      TYR_FALCON_TEST_VARIANT = "1024"
+    }
     Tests = @("test_falcon_tyr.nim")
   },
   [pscustomobject]@{
@@ -120,6 +140,29 @@ $groups = @(
   }
 )
 
+function Test-GroupSelected {
+  param(
+    [object]$Group,
+    [hashtable]$Wanted
+  )
+
+  $groupName = $Group.Name.ToLowerInvariant()
+  if ($Wanted.ContainsKey($groupName)) {
+    return $true
+  }
+
+  if ($Group.PSObject.Properties.Name -contains "Aliases") {
+    foreach ($alias in $Group.Aliases) {
+      $aliasName = ([string]$alias).ToLowerInvariant()
+      if ($Wanted.ContainsKey($aliasName)) {
+        return $true
+      }
+    }
+  }
+
+  return $false
+}
+
 if ($Only.Trim().Length -gt 0) {
   $wanted = @{}
   foreach ($name in ($Only -split ",")) {
@@ -128,7 +171,7 @@ if ($Only.Trim().Length -gt 0) {
       $wanted[$trimmed] = $true
     }
   }
-  $groups = @($groups | Where-Object { $wanted.ContainsKey($_.Name.ToLowerInvariant()) })
+  $groups = @($groups | Where-Object { Test-GroupSelected -Group $_ -Wanted $wanted })
   if ($groups.Count -eq 0) {
     throw "No test groups matched -Only '$Only'"
   }
@@ -145,11 +188,12 @@ function Start-TestGroupJob {
     [string]$LogRoot,
     [string[]]$Defines,
     [string[]]$ChildFlags,
+    [hashtable]$GroupEnv,
     [switch]$Full
   )
 
   $scriptBlock = {
-    param($GroupName, $Tests, $RepoRoot, $LogRoot, $Defines, $ChildFlags, $Full)
+    param($GroupName, $Tests, $RepoRoot, $LogRoot, $Defines, $ChildFlags, $GroupEnv, $Full)
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = "Stop"
@@ -158,6 +202,9 @@ function Start-TestGroupJob {
     $env:NIMBLE_DIR = (Join-Path $RepoRoot ".nimble_cache")
     $env:LIBOQS_AUTO_BUILD = "yes"
     $env:LIBSODIUM_AUTO_BUILD = "yes"
+    foreach ($entry in $GroupEnv.GetEnumerator()) {
+      Set-Item -Path ("Env:{0}" -f $entry.Key) -Value ([string]$entry.Value)
+    }
 
     $start = Get-Date
     $logPath = Join-Path $LogRoot ("$GroupName.log")
@@ -218,6 +265,7 @@ function Start-TestGroupJob {
     $LogRoot,
     $Defines,
     $ChildFlags,
+    $GroupEnv,
     [bool]$Full
   )
 }
@@ -236,8 +284,12 @@ $results = @()
 while ($pending.Count -gt 0 -or $running.Count -gt 0) {
   while ($pending.Count -gt 0 -and $running.Count -lt $MaxParallel) {
     $group = $pending.Dequeue()
+    $groupEnv = @{}
+    if ($group.PSObject.Properties.Name -contains "Env" -and $null -ne $group.Env) {
+      $groupEnv = $group.Env
+    }
     Write-Host "[$($group.Name)] queued"
-    $running += Start-TestGroupJob -Group $group -RepoRoot $repoRoot -LogRoot $logRoot -Defines $defines -ChildFlags $childFlags -Full:$Full
+    $running += Start-TestGroupJob -Group $group -RepoRoot $repoRoot -LogRoot $logRoot -Defines $defines -ChildFlags $childFlags -GroupEnv $groupEnv -Full:$Full
   }
 
   $completed = Wait-Job -Job $running -Any

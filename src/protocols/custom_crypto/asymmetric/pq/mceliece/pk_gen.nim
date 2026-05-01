@@ -94,6 +94,8 @@ proc storeColumnBlock(mat: var openArray[byte], rowStart, blockIdx, tail: int, v
       ((int(tmp[j]) shl tail) or (int(tmp[j - 1]) shr (8 - tail))) and 0xFF)
 
 proc batchInvertNonZero(vals: var seq[GF], prefix: var seq[GF], n: int) {.inline.} =
+  ## Paper note: the Classic McEliece implementation guide uses Montgomery's
+  ## trick here: one inversion plus prefix/suffix products replaces many GF inversions.
   if n <= 0:
     return
 
@@ -113,6 +115,8 @@ proc batchInvertNonZero(vals: var seq[GF], prefix: var seq[GF], n: int) {.inline
 when defined(avx2):
   proc fillMatrixTransposedAvx(p: McElieceParams; L: openArray[GF];
       inv: var seq[GF]; mat: var seq[byte]; fullRowBytes: int) =
+    ## Paper note: public-key generation follows the Classic McEliece bit-matrix
+    ## layout, but AVX2 fills 64 support positions through a 64x64 transpose.
     var
       inRows: array[64, uint64]
       outRows: array[64, uint64]
@@ -159,6 +163,8 @@ when defined(avx2):
 
 proc xorRowMasked(mat: var seq[byte], dstStart, srcStart, fullRowBytes: int,
     mask: byte) {.inline.} =
+  ## Paper note: Gaussian elimination uses masked row XORs, matching the
+  ## constant-time public-key generation style from the Classic McEliece guide.
   let maskWord = 0'u64 - uint64(mask and 1'u8)
 
   when defined(avx2):
@@ -366,10 +372,13 @@ proc pkGen*(p: McElieceParams, g: openArray[GF], perm: openArray[uint32],
   otterSpan("mceliece.pkGen.rootEval"):
     rootEval(p, g, L, inv)
   otterSpan("mceliece.pkGen.batchInvert"):
+    ## Paper note: this is the pkGen call site for the batched GF inverse step.
     batchInvertNonZero(inv, invPrefix, p.sysN)
 
   otterSpan("mceliece.pkGen.fillMatrix"):
     when defined(avx2):
+      ## Paper note: the AVX2 fill path writes the systematic matrix bits via
+      ## 64x64 transpose blocks instead of scalar bit extraction.
       fillMatrixTransposedAvx(p, L, inv, mat, fullRowBytes)
     else:
       for i in 0 ..< p.sysT:
@@ -392,6 +401,8 @@ proc pkGen*(p: McElieceParams, g: openArray[GF], perm: openArray[uint32],
           inv[j] = gfMul(inv[j], L[j])
 
   otterSpan("mceliece.pkGen.eliminate"):
+    ## Paper note: elimination below calls `xorRowMasked`, so row swaps/XORs are
+    ## masked and lane-packed where the target ISA supports it.
     for i in 0 ..< (p.pkNRows + 7) div 8:
       for j in 0 ..< 8:
         row = i * 8 + j

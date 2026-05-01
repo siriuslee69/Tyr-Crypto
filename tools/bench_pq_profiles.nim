@@ -14,7 +14,8 @@ type
     bsKyber,
     bsFrodo,
     bsDilithium,
-    bsFalcon
+    bsFalcon512,
+    bsFalcon1024
 
   EnvBackup = object
     key: string
@@ -53,7 +54,8 @@ const
     "LIBOQS_MINIMAL_BUILD",
     "LIBOQS_EXTRA_CMAKE_ARGS",
     "NIMBLE_DIR",
-    "PATH"
+    "PATH",
+    "TYR_FALCON_BENCH_VARIANT"
   ]
 
 proc toolDir(): string =
@@ -123,8 +125,10 @@ proc suiteName(a: BenchSuite): string =
     result = "frodo"
   of bsDilithium:
     result = "dilithium"
-  of bsFalcon:
-    result = "falcon"
+  of bsFalcon512:
+    result = "falcon512"
+  of bsFalcon1024:
+    result = "falcon1024"
 
 proc suiteTestPath(a: BenchSuite): string =
   ## a: benchmark suite.
@@ -137,12 +141,22 @@ proc suiteTestPath(a: BenchSuite): string =
     result = "tests/test_sigma_perf_frodo_profile.nim"
   of bsDilithium:
     result = "tests/test_sigma_perf_dilithium.nim"
-  of bsFalcon:
+  of bsFalcon512, bsFalcon1024:
     result = "tests/test_sigma_perf_falcon.nim"
 
 proc suiteUsesFrodo(a: BenchSuite): bool =
   ## a: benchmark suite.
   result = a in [bsPq, bsFrodo]
+
+proc suiteFalconVariant(a: BenchSuite): string =
+  ## a: benchmark suite.
+  case a
+  of bsFalcon512:
+    result = "512"
+  of bsFalcon1024:
+    result = "1024"
+  else:
+    result = ""
 
 proc buildRoot(a: BenchMode): string =
   ## a: benchmark mode.
@@ -252,6 +266,8 @@ proc addSuiteToken(S: var seq[BenchSuite], a: string) =
     appendSuite(S, bsKyber)
     appendSuite(S, bsFrodo)
     appendSuite(S, bsDilithium)
+    appendSuite(S, bsFalcon512)
+    appendSuite(S, bsFalcon1024)
     return
   if t == "pq":
     appendSuite(S, bsPq)
@@ -266,7 +282,14 @@ proc addSuiteToken(S: var seq[BenchSuite], a: string) =
     appendSuite(S, bsDilithium)
     return
   if t == "falcon":
-    appendSuite(S, bsFalcon)
+    appendSuite(S, bsFalcon512)
+    appendSuite(S, bsFalcon1024)
+    return
+  if t == "falcon512" or t == "falcon-512":
+    appendSuite(S, bsFalcon512)
+    return
+  if t == "falcon1024" or t == "falcon-1024":
+    appendSuite(S, bsFalcon1024)
     return
   raise newException(ValueError, "unknown suite: " & a)
 
@@ -278,7 +301,8 @@ proc setDefaultSuites(S: var seq[BenchSuite]) =
   appendSuite(S, bsKyber)
   appendSuite(S, bsFrodo)
   appendSuite(S, bsDilithium)
-  appendSuite(S, bsFalcon)
+  appendSuite(S, bsFalcon512)
+  appendSuite(S, bsFalcon1024)
 
 proc printHelp() =
   echo "bench_pq_profiles.nim"
@@ -286,8 +310,7 @@ proc printHelp() =
   echo ""
   echo "Options:"
   echo "  --mode=scalar|avx2|all"
-  echo "  --suite=pq|kyber|frodo|dilithium|all"
-  echo "         plus falcon"
+  echo "  --suite=pq|kyber|frodo|dilithium|falcon|falcon512|falcon1024|all"
   echo "  --no-rebuild"
   echo "  --dry-run"
   echo "  --logs-dir=<dir>"
@@ -503,16 +526,23 @@ proc setBuildEnv(a: BenchMode, rebuild: bool) =
   else:
     delEnv("LIBOQS_OVERWRITE_BUILD")
 
-proc setBenchEnv(a: BenchMode) =
+proc setBenchEnv(a: BenchMode, b: BenchSuite) =
   ## a: benchmark mode.
+  ## b: benchmark suite.
   var
     root: string = ""
     binDir: string = ""
+    falconVariant: string = ""
   root = buildRoot(a)
   binDir = profileBinDir(a)
   putEnv("LIBOQS_BUILD_ROOT", root)
   putEnv("LIBOQS_LIB_DIRS", binDir)
   putEnv("NIMBLE_DIR", replaceSlash(repoNimbleDir()))
+  falconVariant = suiteFalconVariant(b)
+  if falconVariant.len > 0:
+    putEnv("TYR_FALCON_BENCH_VARIANT", falconVariant)
+  else:
+    delEnv("TYR_FALCON_BENCH_VARIANT")
   prependPath(binDir)
 
 proc buildProfile(a: BenchMode, cfg: CliConfig): StepResult =
@@ -546,7 +576,7 @@ proc runBench(a: BenchMode, b: BenchSuite, cfg: CliConfig): StepResult =
     "bench_sigma_" & suiteName(b) & "_" & modeName(a) & ".log")
   backups = backupEnv(envKeys)
   try:
-    setBenchEnv(a)
+    setBenchEnv(a, b)
     result.exitCode = runLogged(benchCommand(a, b), result.logPath, cfg.dryRun)
   finally:
     restoreEnv(backups)

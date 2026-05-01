@@ -3,7 +3,7 @@
 ## | -> Direct correctness checks for the vendored Falcon API |
 ## ============================================================
 
-import std/unittest
+import std/[os, strutils, unittest]
 
 import ../src/protocols/custom_crypto/falcon
 import ../src/protocols/custom_crypto/asymmetric/pq/falcon/format
@@ -34,8 +34,33 @@ proc resetFalconDeterministic(base: int) =
   falconDeterministicBase = base
   falconDeterministicOffset = 0
 
+proc selectedFalconTestVariant(): string =
+  result = getEnv("TYR_FALCON_TEST_VARIANT").strip().toLowerAscii()
+
+proc runFalcon512Tests(): bool =
+  var
+    token: string = selectedFalconTestVariant()
+  result = token.len == 0 or token == "all" or token == "512" or
+    token == "falcon512" or token == "falcon-512"
+
+proc runFalcon1024Tests(): bool =
+  var
+    token: string = selectedFalconTestVariant()
+  result = token.len == 0 or token == "all" or token == "1024" or
+    token == "falcon1024" or token == "falcon-1024"
+
+template falcon512Test(testName: string, body: untyped) =
+  if runFalcon512Tests():
+    test testName:
+      body
+
+template falcon1024Test(testName: string, body: untyped) =
+  if runFalcon1024Tests():
+    test testName:
+      body
+
 suite "falcon tyr":
-  test "falcon512 scalar roundtrip succeeds":
+  falcon512Test "falcon512 scalar roundtrip succeeds":
     var
       msg = newSeq[byte](96)
       kp: FalconTyrKeypair
@@ -51,7 +76,7 @@ suite "falcon tyr":
     sig = falconTyrSign(falcon512, msg, kp.secretKey, falconScalar)
     check falconTyrVerify(falcon512, msg, sig, kp.publicKey, falconScalar)
 
-  test "falcon1024 scalar roundtrip succeeds":
+  falcon1024Test "falcon1024 scalar roundtrip succeeds":
     var
       msg = newSeq[byte](192)
       kp: FalconTyrKeypair
@@ -67,7 +92,7 @@ suite "falcon tyr":
     sig = falconTyrSign(falcon1024, msg, kp.secretKey, falconScalar)
     check falconTyrVerify(falcon1024, msg, sig, kp.publicKey, falconScalar)
 
-  test "falcon512 scalar prepared roundtrip succeeds":
+  falcon512Test "falcon512 scalar prepared roundtrip succeeds":
     var
       msg = newSeq[byte](120)
       kp: FalconTyrKeypair
@@ -86,7 +111,7 @@ suite "falcon tyr":
     sig = falconTyrSignPrepared(prepared, msg)
     check falconTyrVerify(falcon512, msg, sig, kp.publicKey, falconScalar)
 
-  test "falcon1024 scalar prepared roundtrip succeeds":
+  falcon1024Test "falcon1024 scalar prepared roundtrip succeeds":
     var
       msg = newSeq[byte](208)
       kp: FalconTyrKeypair
@@ -105,7 +130,7 @@ suite "falcon tyr":
     sig = falconTyrSignPrepared(prepared, msg)
     check falconTyrVerify(falcon1024, msg, sig, kp.publicKey, falconScalar)
 
-  test "pure Nim Falcon-512 verify accepts scalar signature":
+  falcon512Test "pure Nim Falcon-512 verify accepts scalar signature":
     var
       msg = newSeq[byte](112)
       kp: FalconTyrKeypair
@@ -121,7 +146,7 @@ suite "falcon tyr":
     sig = falconTyrSign(falcon512, msg, kp.secretKey, falconScalar)
     check falconVerifyPure(falcon512, msg, sig, kp.publicKey)
 
-  test "pure Nim Falcon-1024 verify accepts scalar signature":
+  falcon1024Test "pure Nim Falcon-1024 verify accepts scalar signature":
     var
       msg = newSeq[byte](224)
       kp: FalconTyrKeypair
@@ -137,7 +162,7 @@ suite "falcon tyr":
     sig = falconTyrSign(falcon1024, msg, kp.secretKey, falconScalar)
     check falconVerifyPure(falcon1024, msg, sig, kp.publicKey)
 
-  test "pure Nim Falcon-512 prepared sign matches scalar prepared sign":
+  falcon512Test "pure Nim Falcon-512 prepared sign matches scalar prepared sign":
     var
       msg = newSeq[byte](160)
       nonce = newSeq[byte](falconNonceLen)
@@ -166,7 +191,7 @@ suite "falcon tyr":
     check sigPure == sigScalar
     check falconVerifyPure(falcon512, msg, sigPure, kp.publicKey)
 
-  test "pure Nim Falcon-1024 prepared sign matches scalar prepared sign":
+  falcon1024Test "pure Nim Falcon-1024 prepared sign matches scalar prepared sign":
     var
       msg = newSeq[byte](240)
       nonce = newSeq[byte](falconNonceLen)
@@ -196,7 +221,7 @@ suite "falcon tyr":
     check falconVerifyPure(falcon1024, msg, sigPure, kp.publicKey)
 
   when falconCompileHasSimd:
-    test "scalar and simd outputs match under deterministic randomness":
+    falcon512Test "scalar and simd outputs match under deterministic randomness":
       var
         msg = newSeq[byte](144)
         kpScalar: FalconTyrKeypair
@@ -223,7 +248,7 @@ suite "falcon tyr":
       check falconTyrVerify(falcon512, msg, sigScalar, kpScalar.publicKey, falconScalar)
       check falconTyrVerify(falcon512, msg, sigSimd, kpSimd.publicKey, falconSimd)
 
-    test "scalar and simd prepared outputs match under deterministic randomness":
+    falcon512Test "scalar and simd prepared outputs match under deterministic randomness":
       var
         msg = newSeq[byte](176)
         kpScalar: FalconTyrKeypair

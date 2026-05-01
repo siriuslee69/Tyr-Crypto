@@ -1208,6 +1208,8 @@ proc mkgauss(rng: var FalconShake256, logn: int): int =
   value
 
 proc polySmallSqnorm*(f: openArray[int8], logn: int): uint32 =
+  ## Paper note: Falcon keygen's small-polynomial norm bound is from the Falcon
+  ## spec; this scalar path keeps the constant overflow-sentinel behavior.
   let n = mknSize(logn)
   var
     s = 0'u32
@@ -2210,6 +2212,8 @@ proc falconKeygenFromShake*(v: FalconVariant, rng: var FalconShake256): tuple[pu
     falconIfft(rt2, logn)
     u = 0
     when falconCompileHasSimd:
+      ## Paper note: this is Tyr's applied Falcon keygen optimization: accumulate
+      ## the floating norm in two `FalconFpr` lanes, then finish scalar tails.
       if useFalconSimd():
         var acc = zeroFalconSimd2()
         while u + 2 <= n:

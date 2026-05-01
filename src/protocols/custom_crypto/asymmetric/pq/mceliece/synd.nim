@@ -10,6 +10,8 @@ proc synd*(p: McElieceParams; f: openArray[GF]; L: openArray[GF]; r: openArray[b
   ## Compute the 2*sysT syndrome for received word r (bit-packed) with Goppa poly f and support L.
   assert f.len >= p.sysT + 1
   assert L.len >= p.sysN
+  ## Paper note: the optional public `bitLimit` lets callers skip ciphertext
+  ## zero-padding bits while preserving the Classic McEliece syndrome formula.
   let limit = if bitLimit < 0: p.sysN else: bitLimit
   assert limit <= p.sysN
   assert r.len * 8 >= limit

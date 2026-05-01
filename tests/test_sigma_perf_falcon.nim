@@ -13,16 +13,16 @@ when defined(hasLibOqs):
   import ../src/protocols/bindings/liboqs
 
 const
-  keypairLoops = 5
-  prepareLoops = 10
-  signLoops = 10
-  preparedSignLoops = 10
-  verifyLoops = 30
-  warmKeypair = 1
-  warmPrepare = 1
-  warmSign = 1
-  warmPreparedSign = 1
-  warmVerify = 2
+  keypairLoops = 2
+  prepareLoops = 3
+  signLoops = 3
+  preparedSignLoops = 3
+  verifyLoops = 8
+  warmKeypair = 0
+  warmPrepare = 0
+  warmSign = 0
+  warmPreparedSign = 0
+  warmVerify = 1
 
 type
   BenchGroup = object
@@ -101,6 +101,17 @@ proc methodName(v: custom_falcon.FalconVariant): string =
     "Falcon-512"
   of custom_falcon.falcon1024:
     "Falcon-1024"
+
+proc falconBenchVariantEnabled(v: custom_falcon.FalconVariant): bool =
+  var
+    token: string = getEnv("TYR_FALCON_BENCH_VARIANT").strip().toLowerAscii()
+  if token.len == 0 or token == "all":
+    return true
+  case v
+  of custom_falcon.falcon512:
+    result = token == "512" or token == "falcon512" or token == "falcon-512"
+  of custom_falcon.falcon1024:
+    result = token == "1024" or token == "falcon1024" or token == "falcon-1024"
 
 proc buildCustomKeypair(name: string, v: custom_falcon.FalconVariant, seedBase: int): BenchAlgo =
   let p = custom_falcon.falconParamsTable[v]
@@ -373,6 +384,8 @@ suite "Sigma Falcon performance":
         fillPattern(msgLong, 0x55)
 
         for v in [custom_falcon.falcon512, custom_falcon.falcon1024]:
+          if not falconBenchVariantEnabled(v):
+            continue
           appendGroup(groups, methodName(v) & " keypair", keypairLoops, warmKeypair, @[
             buildCustomKeypair(tyrBackendLabel() & "_" & methodName(v).toLowerAscii() & "_keypair",
               v, 0x10 + ord(v) * 17),

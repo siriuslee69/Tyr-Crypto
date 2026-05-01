@@ -65,6 +65,14 @@ task test_gimli_avx, "Run Gimli AVX tests":
 task test_blake3_simd, "Run Blake3 SIMD tests":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_blake3_simd").replace('\\', '/') & " --passC:\"-mavx2\" --passL:\"-mavx2\" -d:avx2 -r tests/test_blake3_simd.nim")
 
+task test_ntru_saber, "Run NTRU and SABER KAT/roundtrip tests":
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_ntru_tyr").replace('\\', '/') & " -r tests/test_ntru_tyr.nim")
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_saber_tyr").replace('\\', '/') & " -r tests/test_saber_tyr.nim")
+
+task test_ntru_saber_avx2, "Run NTRU/SABER tests with AVX2 enabled where supported":
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_ntru_tyr_avx2").replace('\\', '/') & " -d:avx2 --passC:\"-mavx2 -mbmi2\" --passL:\"-mavx2\" -r tests/test_ntru_tyr.nim")
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_saber_tyr_avx2").replace('\\', '/') & " -d:avx2 --passC:\"-mavx2\" --passL:\"-mavx2\" -r tests/test_saber_tyr.nim")
+
 task test_neon_checks, "Compile-check the ARM64/NEON SIMD coverage matrix":
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_xchacha20").replace('\\', '/') & " tests/test_xchacha20_simd.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_blake3").replace('\\', '/') & " tests/test_blake3_simd.nim")
@@ -77,6 +85,8 @@ task test_neon_checks, "Compile-check the ARM64/NEON SIMD coverage matrix":
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_kyber").replace('\\', '/') & " tests/test_kyber_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_frodo").replace('\\', '/') & " tests/test_frodo_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_bike").replace('\\', '/') & " tests/test_bike_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_ntru").replace('\\', '/') & " tests/test_ntru_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_saber").replace('\\', '/') & " tests/test_saber_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_dilithium").replace('\\', '/') & " tests/test_dilithium_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_sphincs").replace('\\', '/') & " tests/test_sphincs_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_mceliece").replace('\\', '/') & " tests/test_mceliece_tyr.nim")
@@ -91,6 +101,8 @@ task test_simd_matrix, "Run the host SIMD/runtime suite and the ARM64/NEON compi
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_poly1305_matrix").replace('\\', '/') & " -r tests/test_poly1305_simd.nim")
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_gimli_matrix").replace('\\', '/') & " -r tests/test_gimli_sse.nim")
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_x25519_matrix").replace('\\', '/') & " -r tests/test_x25519_simd.nim")
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_ntru_matrix_avx2").replace('\\', '/') & " -d:avx2 --passC:\"-mavx2 -mbmi2\" --passL:\"-mavx2\" -r tests/test_ntru_tyr.nim")
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_saber_matrix_avx2").replace('\\', '/') & " -d:avx2 --passC:\"-mavx2\" --passL:\"-mavx2\" -r tests/test_saber_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_xchacha20").replace('\\', '/') & " tests/test_xchacha20_simd.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_blake3").replace('\\', '/') & " tests/test_blake3_simd.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_sha3").replace('\\', '/') & " tests/test_sha3_simd.nim")
@@ -102,6 +114,8 @@ task test_simd_matrix, "Run the host SIMD/runtime suite and the ARM64/NEON compi
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_kyber").replace('\\', '/') & " tests/test_kyber_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_frodo").replace('\\', '/') & " tests/test_frodo_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_bike").replace('\\', '/') & " tests/test_bike_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_ntru").replace('\\', '/') & " tests/test_ntru_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_saber").replace('\\', '/') & " tests/test_saber_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_dilithium").replace('\\', '/') & " tests/test_dilithium_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_sphincs").replace('\\', '/') & " tests/test_sphincs_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_mceliece").replace('\\', '/') & " tests/test_mceliece_tyr.nim")

@@ -40,16 +40,16 @@ const
   dilithiumKeypairWarmup = 2
   dilithiumSignWarmup = 2
   dilithiumVerifyWarmup = 3
-  falconKeypairLoops = 5
-  falconPrepareLoops = 10
-  falconSignLoops = 10
-  falconSignPreparedLoops = 10
-  falconVerifyLoops = 30
-  falconKeypairWarmup = 1
-  falconPrepareWarmup = 1
-  falconSignWarmup = 1
-  falconSignPreparedWarmup = 1
-  falconVerifyWarmup = 2
+  falconKeypairLoops = 2
+  falconPrepareLoops = 3
+  falconSignLoops = 3
+  falconSignPreparedLoops = 3
+  falconVerifyLoops = 8
+  falconKeypairWarmup = 0
+  falconPrepareWarmup = 0
+  falconSignWarmup = 0
+  falconSignPreparedWarmup = 0
+  falconVerifyWarmup = 1
   sphincsKeypairLoops = 2
   sphincsSignLoops = 2
   sphincsVerifyLoops = 5
@@ -752,6 +752,17 @@ proc buildFalconVerifySpec(v: custom_falcon.FalconVariant, b: custom_falcon.Falc
 proc falconRowName(v: FalconBenchVariant, b: custom_falcon.FalconBackend): string =
   result = v.name & "_" & custom_falcon.backendName(b)
 
+proc falconBenchVariantEnabled(v: FalconBenchVariant): bool =
+  var
+    token: string = getEnv("TYR_FALCON_BENCH_VARIANT").strip().toLowerAscii()
+  if token.len == 0 or token == "all":
+    return true
+  if v.name == "falcon512":
+    return token == "512" or token == "falcon512" or token == "falcon-512"
+  if v.name == "falcon1024":
+    return token == "1024" or token == "falcon1024" or token == "falcon-1024"
+  result = false
+
 proc appendFrodoKeypairSpecs(S: var seq[BenchSpec]) =
   var i: int = 0
   i = 0
@@ -782,6 +793,9 @@ proc appendFalconKeypairSpecs(S: var seq[BenchSpec], notes: var seq[string]) =
     rowName: string
   i = 0
   while i < falconBenchVariants.len:
+    if not falconBenchVariantEnabled(falconBenchVariants[i]):
+      i = i + 1
+      continue
     rowName = falconRowName(falconBenchVariants[i], custom_falcon.falconScalar)
     addOpsSpec(S, rowName, falconKeypairLoops, falconKeypairWarmup,
       buildFalconKeypairSpec(falconBenchVariants[i].variant, custom_falcon.falconScalar, rowName).run)
@@ -789,6 +803,9 @@ proc appendFalconKeypairSpecs(S: var seq[BenchSpec], notes: var seq[string]) =
   if custom_falcon.backendAvailable(custom_falcon.falconSimd):
     i = 0
     while i < falconBenchVariants.len:
+      if not falconBenchVariantEnabled(falconBenchVariants[i]):
+        i = i + 1
+        continue
       rowName = falconRowName(falconBenchVariants[i], custom_falcon.falconSimd)
       addOpsSpec(S, rowName, falconKeypairLoops, falconKeypairWarmup,
         buildFalconKeypairSpec(falconBenchVariants[i].variant, custom_falcon.falconSimd, rowName).run)
@@ -802,6 +819,9 @@ proc appendFalconSignSpecs(S: var seq[BenchSpec], notes: var seq[string]) =
     rowName: string
   i = 0
   while i < falconBenchVariants.len:
+    if not falconBenchVariantEnabled(falconBenchVariants[i]):
+      i = i + 1
+      continue
     rowName = falconRowName(falconBenchVariants[i], custom_falcon.falconScalar)
     addOpsSpec(S, rowName, falconSignLoops, falconSignWarmup,
       buildFalconSignSpec(falconBenchVariants[i].variant, custom_falcon.falconScalar, rowName).run)
@@ -809,6 +829,9 @@ proc appendFalconSignSpecs(S: var seq[BenchSpec], notes: var seq[string]) =
   if custom_falcon.backendAvailable(custom_falcon.falconSimd):
     i = 0
     while i < falconBenchVariants.len:
+      if not falconBenchVariantEnabled(falconBenchVariants[i]):
+        i = i + 1
+        continue
       rowName = falconRowName(falconBenchVariants[i], custom_falcon.falconSimd)
       addOpsSpec(S, rowName, falconSignLoops, falconSignWarmup,
         buildFalconSignSpec(falconBenchVariants[i].variant, custom_falcon.falconSimd, rowName).run)
@@ -822,6 +845,9 @@ proc appendFalconVerifySpecs(S: var seq[BenchSpec], notes: var seq[string]) =
     rowName: string
   i = 0
   while i < falconBenchVariants.len:
+    if not falconBenchVariantEnabled(falconBenchVariants[i]):
+      i = i + 1
+      continue
     rowName = falconRowName(falconBenchVariants[i], custom_falcon.falconScalar)
     addOpsSpec(S, rowName, falconVerifyLoops, falconVerifyWarmup,
       buildFalconVerifySpec(falconBenchVariants[i].variant, custom_falcon.falconScalar, rowName).run)
@@ -829,6 +855,9 @@ proc appendFalconVerifySpecs(S: var seq[BenchSpec], notes: var seq[string]) =
   if custom_falcon.backendAvailable(custom_falcon.falconSimd):
     i = 0
     while i < falconBenchVariants.len:
+      if not falconBenchVariantEnabled(falconBenchVariants[i]):
+        i = i + 1
+        continue
       rowName = falconRowName(falconBenchVariants[i], custom_falcon.falconSimd)
       addOpsSpec(S, rowName, falconVerifyLoops, falconVerifyWarmup,
         buildFalconVerifySpec(falconBenchVariants[i].variant, custom_falcon.falconSimd, rowName).run)
@@ -842,6 +871,9 @@ proc appendFalconPrepareSpecs(S: var seq[BenchSpec], notes: var seq[string]) =
     rowName: string
   i = 0
   while i < falconBenchVariants.len:
+    if not falconBenchVariantEnabled(falconBenchVariants[i]):
+      i = i + 1
+      continue
     rowName = falconRowName(falconBenchVariants[i], custom_falcon.falconScalar)
     addOpsSpec(S, rowName, falconPrepareLoops, falconPrepareWarmup,
       buildFalconPrepareSpec(falconBenchVariants[i].variant, custom_falcon.falconScalar, rowName).run)
@@ -849,6 +881,9 @@ proc appendFalconPrepareSpecs(S: var seq[BenchSpec], notes: var seq[string]) =
   if custom_falcon.backendAvailable(custom_falcon.falconSimd):
     i = 0
     while i < falconBenchVariants.len:
+      if not falconBenchVariantEnabled(falconBenchVariants[i]):
+        i = i + 1
+        continue
       rowName = falconRowName(falconBenchVariants[i], custom_falcon.falconSimd)
       addOpsSpec(S, rowName, falconPrepareLoops, falconPrepareWarmup,
         buildFalconPrepareSpec(falconBenchVariants[i].variant, custom_falcon.falconSimd, rowName).run)
@@ -862,6 +897,9 @@ proc appendFalconPreparedSignSpecs(S: var seq[BenchSpec], notes: var seq[string]
     rowName: string
   i = 0
   while i < falconBenchVariants.len:
+    if not falconBenchVariantEnabled(falconBenchVariants[i]):
+      i = i + 1
+      continue
     rowName = falconRowName(falconBenchVariants[i], custom_falcon.falconScalar)
     addOpsSpec(S, rowName, falconSignPreparedLoops, falconSignPreparedWarmup,
       buildFalconSignPreparedSpec(falconBenchVariants[i].variant, custom_falcon.falconScalar, rowName).run)
@@ -869,6 +907,9 @@ proc appendFalconPreparedSignSpecs(S: var seq[BenchSpec], notes: var seq[string]
   if custom_falcon.backendAvailable(custom_falcon.falconSimd):
     i = 0
     while i < falconBenchVariants.len:
+      if not falconBenchVariantEnabled(falconBenchVariants[i]):
+        i = i + 1
+        continue
       rowName = falconRowName(falconBenchVariants[i], custom_falcon.falconSimd)
       addOpsSpec(S, rowName, falconSignPreparedLoops, falconSignPreparedWarmup,
         buildFalconSignPreparedSpec(falconBenchVariants[i].variant, custom_falcon.falconSimd, rowName).run)

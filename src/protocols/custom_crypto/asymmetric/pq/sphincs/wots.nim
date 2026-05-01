@@ -11,11 +11,15 @@ import ./util
 when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64) or defined(avx2):
   proc applyWotsHashStep(node: var array[spxN, byte], ctx: SphincsCtx,
       A: var SphincsAddress, hashAddr: uint32) {.inline.} =
+    ## Paper note: scalar WOTS steps remain available for lanes that cannot be
+    ## safely batched at the same public chain address.
     setHashAddr(A, hashAddr)
     thash(node, node, 1, ctx, A)
 
   proc applyWotsHashStep2(nodes: var array[2, array[spxN, byte]], ctx: SphincsCtx,
       addrs: var array[2, SphincsAddress], hashAddr: uint32) =
+    ## Paper note: two WOTS chains at the same public hash address are batched
+    ## through `thash1Batch2`, preserving the SPHINCS+ chain schedule.
     setHashAddr(addrs[0], hashAddr)
     setHashAddr(addrs[1], hashAddr)
     thash1Batch2(nodes, nodes, ctx, addrs)
@@ -23,6 +27,8 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64) or def
 when defined(avx2):
   proc applyWotsHashStep2(nodes: var array[4, array[spxN, byte]], ctx: SphincsCtx,
       addrs: array[4, SphincsAddress], lane0, lane1: int, hashAddr: uint32) =
+    ## Paper note: AVX2 verifier code batches only active lane pairs when four
+    ## WOTS chains are not at the same public step.
     var
       pairNodes: array[2, array[spxN, byte]]
       pairAddrs: array[2, SphincsAddress]
@@ -38,6 +44,8 @@ when defined(avx2):
 
   proc applyWotsHashStep4(nodes: var array[4, array[spxN, byte]], ctx: SphincsCtx,
       addrs: var array[4, SphincsAddress], hashAddr: uint32) =
+    ## Paper note: full 4-lane WOTS batching applies only when all lanes share
+    ## this exact public hash address.
     var
       lane: int = 0
     lane = 0
@@ -94,6 +102,8 @@ proc chainLengths*(output: var openArray[uint32], msg: openArray[byte]) =
 
 proc wotsPkFromSig*(pk: var openArray[byte], sig, msg: openArray[byte],
     ctx: SphincsCtx, A: var SphincsAddress) =
+  ## Paper note: verifier-side batching groups public WOTS chain steps; it is a
+  ## performance path and not the Multi-Armed SPHINCS+ signing variant.
   var
     lengths: array[spxWotsLen, uint32]
     i: int = 0

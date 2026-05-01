@@ -6,6 +6,9 @@ import ./fpr
 import ./params
 
 when falconCompileHasSimd:
+  ## Paper note: Falcon's spec and precision paper keep the FFT/LDL structure;
+  ## Tyr only adds a portable two-lane `FalconFpr` backend here, not the full
+  ## specialized AVX2 sampler design from other Falcon implementations.
   import simd_nexus/simd/base_operations
   import simd_nexus/simd/generic_f64
 

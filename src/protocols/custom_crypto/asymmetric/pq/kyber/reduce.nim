@@ -34,6 +34,10 @@ proc barrettReduce*(a: int16): int16 {.inline.} =
   result = a - t
 
 when defined(avx2):
+  ## Paper note: these AVX2 reduction helpers vectorize the same Montgomery and
+  ## Barrett formulas used by Kyber, in the implementation style discussed in
+  ## `2022-0112_kyber_dilithium_speed_memory_cortex_m4.pdf` and the AVX2 NTT
+  ## paper `2018-0039_vectorized_ntt_implementations.pdf`.
   proc low16ToI32x8(v: navx.M256i): navx.M256i {.inline.} =
     result = navx2.mm256_slli_epi32(v, 16)
     result = navx2.mm256_srai_epi32(result, 16)

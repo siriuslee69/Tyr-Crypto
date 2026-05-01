@@ -17,6 +17,10 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
 {.push boundChecks: off.}
 
 when defined(sse2):
+  ## Paper note: coefficient-lane add/sub follows the fixed public-lane SIMD
+  ## style from `2021-0986_neon_ntt_dilithium_kyber_saber.pdf` and
+  ## `2018-0039_vectorized_ntt_implementations.pdf`, without changing Kyber's
+  ## reference arithmetic schedule.
   proc polyAddSimdSse(r: var Poly, a, b: Poly) =
     var
       i: int = 0
@@ -52,6 +56,9 @@ when defined(sse2):
       i = i + 1
 
 when defined(avx2):
+  ## Paper note: AVX2 handles public coefficient positions in 16-lane chunks,
+  ## matching the vectorized-NTT implementation pattern stored in
+  ## `docs/research/pq_non_ntru_saber/papers/2018-0039_vectorized_ntt_implementations.pdf`.
   proc polyAddSimdAvx2(r: var Poly, a, b: Poly) =
     var
       i: int = 0
@@ -87,6 +94,8 @@ when defined(avx2):
       i = i + 1
 
 when defined(neon) or defined(arm64) or defined(aarch64):
+  ## Paper note: this is the ARM128 version of the same public coefficient
+  ## lane idea described in `2021-0986_neon_ntt_dilithium_kyber_saber.pdf`.
   proc polyAddSimdNeon(r: var Poly, a, b: Poly) =
     var
       i: int = 0
@@ -409,6 +418,8 @@ proc polyReduce*(r: var Poly) {.inline.} =
 
 proc polyAdd*(r: var Poly, a, b: Poly) {.inline.} =
   ## Add two polynomials without immediate modular reduction.
+  ## Paper note: the backend split differs from PQClean clean by selecting the
+  ## measured SIMD coefficient-lane helpers above when the target supports them.
   when defined(avx2):
     polyAddSimdAvx2(r, a, b)
   elif defined(sse2):
@@ -425,6 +436,8 @@ proc polyAdd*(r: var Poly, a, b: Poly) {.inline.} =
 
 proc polySub*(r: var Poly, a, b: Poly) {.inline.} =
   ## Subtract two polynomials without immediate modular reduction.
+  ## Paper note: subtraction uses the same fixed public-lane SIMD dispatch as
+  ## addition; no secret value controls the backend or lane order.
   when defined(avx2):
     polySubSimdAvx2(r, a, b)
   elif defined(sse2):

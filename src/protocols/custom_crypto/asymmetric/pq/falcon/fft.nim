@@ -130,6 +130,8 @@ proc falconIfft*(f: var openArray[FalconFpr], logn: int) =
       inc i
 
 proc polyAdd*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int) =
+  ## Paper note: the SIMD branch below is the first FFT helper using Tyr's
+  ## two-lane `FalconFpr` abstraction; the Falcon algorithm remains spec-compatible.
   let n = mkn(logn)
   var u = 0
   when falconCompileHasSimd:
@@ -174,6 +176,8 @@ proc polyAdjFft*(a: var openArray[FalconFpr], logn: int) =
     inc u
 
 proc polyMulFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int) =
+  ## Paper note: complex FFT-domain multiplication is unchanged from Falcon, but
+  ## packed two coefficient lanes follow the performance direction of optimized Falcon FFT code.
   let
     n = mkn(logn)
     hn = n shr 1
@@ -266,6 +270,8 @@ proc polyMulconst*(a: var openArray[FalconFpr], x: FalconFpr, logn: int) =
     inc u
 
 proc polyDivFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int) =
+  ## Paper note: this vectorizes Falcon's complex division formula over two
+  ## independent FFT slots; it is a local performance optimization, not a sampler change.
   let
     n = mkn(logn)
     hn = n shr 1
@@ -295,6 +301,8 @@ proc polyDivFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int
     inc u
 
 proc polyInvnorm2Fft*(d: var openArray[FalconFpr], a, b: openArray[FalconFpr], logn: int) =
+  ## Paper note: keygen uses this inverse norm in Falcon's NTRU-solving flow;
+  ## the SIMD branch batches the same squared-norm denominator over two FFT slots.
   let
     n = mkn(logn)
     hn = n shr 1
@@ -329,6 +337,8 @@ proc polyInvnorm2Fft*(d: var openArray[FalconFpr], a, b: openArray[FalconFpr], l
     inc u
 
 proc polyAddMuladjFft*(d: var openArray[FalconFpr], F, G, f, g: openArray[FalconFpr], logn: int) =
+  ## Paper note: this is Falcon's FFT-domain `F*adj(f)+G*adj(g)` helper with
+  ## two-lane packing for the repeated complex products.
   let
     n = mkn(logn)
     hn = n shr 1
@@ -412,6 +422,8 @@ proc polyDivAutoadjFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], lo
     inc u
 
 proc polyLDLFft*(g00: openArray[FalconFpr], g01, g11: var openArray[FalconFpr], logn: int) =
+  ## Paper note: Falcon's LDL tree construction is preserved; the SIMD block
+  ## just batches the complex division and update that dominate this helper.
   let
     n = mkn(logn)
     hn = n shr 1
@@ -457,6 +469,8 @@ proc polyLDLFft*(g00: openArray[FalconFpr], g01, g11: var openArray[FalconFpr], 
     inc u
 
 proc polyLDLmvFft*(d11, l10: var openArray[FalconFpr], g00, g01, g11: openArray[FalconFpr], logn: int) =
+  ## Paper note: this mirrors `polyLDLFft` for move-output use sites and keeps
+  ## the same Falcon LDL arithmetic in two-lane form.
   let
     n = mkn(logn)
     hn = n shr 1

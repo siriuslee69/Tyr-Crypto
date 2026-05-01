@@ -143,6 +143,9 @@ proc karatsubaAdd3(C: var seq[uint64], cOff: int, mid: seq[uint64], qLen: int) =
 
 proc karatsuba(C: var seq[uint64], cOff: int, A, B: seq[uint64], aOff, bOff,
     qLen, qPad: int, sec: var seq[uint64], secOff: int) =
+  ## Paper note: BIKE's current spec uses GF(2) polynomial multiplication over
+  ## padded r-bit words; this recursive Karatsuba tree is the local performance
+  ## implementation before reduction modulo `x^r - 1`.
   var
     half: int = 0
     alah: seq[uint64] = @[]
@@ -179,6 +182,8 @@ proc toPadSeq(A: BikePadPoly): seq[uint64] =
 
 proc gf2xModMul*(A, B: BikePadPoly): BikePadPoly =
   ## Multiply two padded BIKE polynomials modulo `x^r - 1`.
+  ## Paper note: this is the concrete BIKE-spec multiplication call site that
+  ## uses the Karatsuba product above and then folds the double-size product.
   otterSpan("bike.gf2xModMul"):
     var
       c: seq[uint64] = @[]
@@ -238,6 +243,8 @@ proc repeatedSquaring(A: BikePadPoly, numSqrs: int): BikePadPoly =
 
 proc gf2xModInv*(A: BikePadPoly): BikePadPoly =
   ## Invert a BIKE-L1 polynomial modulo `x^r - 1`.
+  ## Paper note: inversion follows the BIKE exponentiation/squaring schedule from
+  ## the spec, with repeated squaring and GF(2) multiplications using `gf2xModMul`.
   otterSpan("bike.gf2xModInv"):
     var
       f: BikePadPoly = @[]

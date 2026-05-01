@@ -72,6 +72,8 @@ proc thash*(outBytes: var openArray[byte], input: openArray[byte], inblocks: int
     ctx: SphincsCtx, A: SphincsAddress) =
   ## Match liboqs clean's exact stack buffer sizes and keep the dominant
   ## one-block SPHINCS hashes on the fixed-shape SHAKE256 fast path.
+  ## Paper note: `2022-1726_sphincs_sha_extensions.pdf` and SLH-DSA hash-unit
+  ## work motivate this fixed-shape fast path; Tyr preserves the SPHINCS+ input layout.
   case inblocks
   of 1:
     var buf: array[spxN + spxAddrBytes + spxN, byte]
@@ -118,6 +120,8 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
   proc thash1Batch2*(outBytes: var array[2, array[spxN, byte]],
       input: var array[2, array[spxN, byte]], ctx: SphincsCtx,
       A: array[2, SphincsAddress]) =
+    ## Paper note: two independent WOTS/FORS one-block hashes are packed into
+    ## parallel lanes; this is hash batching, not the Multi-Armed SPHINCS+ design.
     shake256OneBlock64Sse2xLanesInto(outBytes,
       broadcastSeedU64x2(ctx.pubSeed, 0),
       broadcastSeedU64x2(ctx.pubSeed, 8),
@@ -131,6 +135,8 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
 
   proc prfAddrBatch2*(outBytes: var array[2, array[spxN, byte]], ctx: SphincsCtx,
       A: array[2, SphincsAddress]) =
+    ## Paper note: PRF-address batching uses the same two-lane SHAKE input shape
+    ## for WOTS leaf generation where addresses are public and fixed-width.
     shake256OneBlock64Sse2xLanesInto(outBytes,
       broadcastSeedU64x2(ctx.pubSeed, 0),
       broadcastSeedU64x2(ctx.pubSeed, 8),
@@ -146,6 +152,8 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     proc thash1Batch4*(outBytes: var array[4, array[spxN, byte]],
         input: var array[4, array[spxN, byte]], ctx: SphincsCtx,
         A: array[4, SphincsAddress]) =
+      ## Paper note: AVX2 extends the one-block SPHINCS+ hash batching to four
+      ## lanes; reviewed side-channel-resistant SPHINCS+ papers were not adopted here.
       shake256OneBlock64Avx4xLanesInto(outBytes,
         broadcastSeedU64x4(ctx.pubSeed, 0),
         broadcastSeedU64x4(ctx.pubSeed, 8),
@@ -159,6 +167,8 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
 
     proc prfAddrBatch4*(outBytes: var array[4, array[spxN, byte]], ctx: SphincsCtx,
         A: array[4, SphincsAddress]) =
+      ## Paper note: four-lane PRF-address batching feeds the WOTS signing leaf
+      ## batches without changing the SPHINCS+ address or seed layout.
       shake256OneBlock64Avx4xLanesInto(outBytes,
         broadcastSeedU64x4(ctx.pubSeed, 0),
         broadcastSeedU64x4(ctx.pubSeed, 8),

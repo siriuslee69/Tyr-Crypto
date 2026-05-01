@@ -20,6 +20,10 @@ when defined(neon) or defined(arm64) or defined(aarch64):
 
 type
   ## Cached twiddle-scaled odd coefficients for one NTT-domain polynomial.
+  ## Paper note: the cache is the local Nim analogue of the mul-cache style used
+  ## in optimized Kyber implementations; see
+  ## `2021-0986_neon_ntt_dilithium_kyber_saber.pdf` and
+  ## `2018-0039_vectorized_ntt_implementations.pdf`.
   PolyMulCache* = array[kyberN div 2, int16]
   ## Cached twiddle-scaled odd coefficients for one Kyber vector.
   PolyVecMulCache* = array[kyberMaxK, PolyMulCache]
@@ -35,6 +39,9 @@ proc storeBaseMulAccReducedChunk4(dst: ptr int16, evenTerms, oddTerms: array[4, 
     lane = lane + 1
 
 when defined(sse2):
+  ## Paper note: this SSE2 path fuses cached twiddle terms with pairwise
+  ## multiply-add lanes, differing from clean PQClean by avoiding repeated
+  ## odd-coefficient twiddle multiplication in the hot polyvec accumulator.
   proc baseMulCachedTermsChunk4Sse2(aPtr, bPtr, cachePtr: ptr int16,
       acc0, acc1: var array[4, int32]) {.inline.} =
     var
@@ -77,6 +84,9 @@ when defined(neon) or defined(arm64) or defined(aarch64):
   func vget_high_s16(a: NeonI16x8): NeonI16x4 {.importc, header: "arm_neon.h".}
   func vmull_s16(a, b: NeonI16x4): int32x4 {.importc, header: "arm_neon.h".}
 
+  ## Paper note: NEON uses signed widening multiplies for the same cached
+  ## base-multiply accumulator idea documented for ARM in
+  ## `2021-0986_neon_ntt_dilithium_kyber_saber.pdf`.
   proc maddPairwiseChunk4Neon(aVec, bVec: NeonI16x8, acc: var array[4, int32]) {.inline.} =
     var
       lo: int32x4 = vmull_s16(vget_low_s16(aVec), vget_low_s16(bVec))
@@ -115,6 +125,9 @@ when defined(neon) or defined(arm64) or defined(aarch64):
     maddPairwiseChunk4Neon(aVec, oddVec, acc1)
 
 when defined(avx2):
+  ## Paper note: AVX2 packs four NTT base multiplications into one cached
+  ## multiply-add chunk; this is the vectorized-NTT/mulcache idea applied at
+  ## Tyr's Nim polyvec boundary instead of copying the upstream C layout.
   proc baseMulCachedTermsChunk8(aPtr, bPtr, cachePtr: ptr int16, acc0, acc1: var navx.M256i) {.inline.} =
     var
       aVec: navx.M256i = navx2.mm256_loadu_si256(cast[pointer](aPtr))
@@ -439,6 +452,8 @@ proc polyvecMulCacheCompute*(p: KyberParams, x: var PolyVecMulCache, a: PolyVec)
 proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyVec,
     bCache: var PolyVecMulCache) {.inline.} =
   ## Multiply and accumulate two Kyber polynomial vectors using a cached second operand.
+  ## Paper note: this differs from the clean reference accumulator by consuming
+  ## `PolyVecMulCache` across fixed public `k` cases, then reducing once.
   var
     i: int = 0
     t0: int32 = 0

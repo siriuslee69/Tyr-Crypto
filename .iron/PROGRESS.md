@@ -1,4 +1,4 @@
-Commit Message: complete remaining asymmetric SSE2 and NEON SIMD paths
+Commit Message: annotate non-NTRU/SABER PQ paper-backed optimizations
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -35,6 +35,18 @@ Implemented:
 - Pure Nim ML-DSA-44/65/87 backend with Tyr typed signature materials and local liboqs/KAT validation.
 - Pure Nim SPHINCS+-SHAKE-128f-simple backend with Tyr typed signature materials and local liboqs/KAT validation.
 - Pure Nim BIKE-L1 backend with Tyr typed KEM materials and local liboqs/KAT validation.
+- Pure Nim NTRU KEM support for HPS-2048-509, HPS-2048-677, HPS-4096-821, and HRSS-701 with NIST KAT DRBG replay and liboqs/PQClean KAT hash validation.
+- Pure Nim SABER KEM support for LightSaber, Saber, and FireSaber with official SABER `.rsp` vector validation.
+- PQClean reference NTRU/SABER bindings moved into `src/protocols/bindings`, with the used reference sources moved under `submodules/pqclean_*_ref`.
+- NTRU/SABER polynomial reduction now has pure Nim SIMD hooks for AVX2/SSE2 and ARM64/NEON compile paths, while the KEM APIs dispatch through the Nim core by default.
+- ARM64/NEON compile checks now include NTRU/SABER mobile-target coverage through the pure Nim backends.
+- NTRU/SABER now have OtterBench instrumentation on the public KEM wrappers and main core hot paths, and focused desktop plus three-phone benchmark JSONs are included in `docs/benchmarks`.
+- NTRU/SABER security and optimization papers are stored and indexed under `docs/research/ntru_saber`, with implementation findings and next-step guidance.
+- NTRU mod-3 reduction now uses the lower-leakage branchless form from the NTRU side-channel literature, and the shared PQ wipe helper uses volatile stores for transient secret byte buffers.
+- NTRU's KAT-compatible Toom-4 plus two-level Karatsuba pure-Nim multiplier is now the default, with exact Toom, coefficient, temp/reduce, and row-style trial variants kept behind benchmark flags.
+- SABER's tested split-loop and Toom multiplier variants are retained only as opt-in benchmark flags because they were KAT-correct but slower than the existing temp/reduce path.
+- NTRU/SABER desktop and three-phone OtterBench JSON/HTML reports have been refreshed under `docs/benchmarks`, with experimental optimization trial JSONs archived under `docs/research/ntru_saber/benchmarks`.
+- Non-NTRU/SABER PQ research papers are stored and indexed under `docs/research/pq_non_ntru_saber`, with source comments tying paper-backed optimization and hardening notes to exact code hotspots.
 - Frodo hot matrix-dot loops now use optional SSE2/AVX2 SIMD via SIMD-Nexus-backed 16-bit multiply-low helpers.
 - Kyber polynomial add/sub now use optional SSE2/AVX2 SIMD coefficient lanes with scalar tails.
 - Dilithium polynomial add/sub/shift-left now use optional SSE2/AVX2 SIMD coefficient lanes with scalar tails.
@@ -57,10 +69,29 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- The scalar-vs-AVX2 Tyr/liboqs comparison flow existed only as manual shell history, which made reproducing apples-to-apples PQ benchmark runs slow and error-prone.
+- Non-NTRU/SABER PQ implementations needed a paper-backed audit pass that excludes NTRU/SABER, stores the relevant research PDFs, and annotates the actual optimized or hardened code paths without changing behavior.
 
 Fix attempt and result:
-- Added an orchestration tool that sets the same liboqs profile env vars and Tyr `danger`/SIMD flags used in the manual comparison runs, writes per-step logs under `build/`, and exposes the flow as `nimble bench_pq_profiles`.
+- Downloaded and indexed scheme specs plus performance/hardening papers for Kyber, Dilithium, Frodo, BIKE, Falcon, Classic McEliece, and SPHINCS+. Added `Paper note` comments next to the SIMD, streaming, batching, masked, and fixed-work paths that differ from clean/reference-style implementations; NTRU/SABER source was left out of this pass as requested.
+
+Verification:
+- `git diff --check` passed; it only reported existing LF-to-CRLF warnings from Git on this Windows checkout.
+- `nim check --nimcache:build\nimcache_pq_research_kyber tests\test_kyber_tyr.nim` passed.
+- `nim check --nimcache:build\nimcache_pq_research_dilithium tests\test_dilithium_tyr.nim` passed.
+- `nim check --nimcache:build\nimcache_pq_research_frodo tests\test_frodo_tyr.nim` passed.
+- `nim check --nimcache:build\nimcache_pq_research_bike tests\test_bike_tyr.nim` passed.
+- `nim check --nimcache:build\nimcache_pq_research_falcon tests\test_falcon_tyr.nim` passed.
+- `nim check --nimcache:build\nimcache_pq_research_mceliece tests\test_mceliece_tyr.nim` passed.
+- `nim check --nimcache:build\nimcache_pq_research_sphincs tests\test_sphincs_tyr.nim` passed.
+- `nim c --nimcache:build/nimcache_test_ntru_tyr -r tests/test_ntru_tyr.nim` passed after fixing the volatile wipe pointer path.
+- `nimble test_ntru_saber` passed.
+- `nimble test_ntru_saber_avx2` passed.
+- NTRU rollback/trial builds `-d:ntruMulToom4K2`, `-d:ntruMulToom4`, and `-d:ntruMulCoeff` passed focused KAT/roundtrip test runs after the K2 default promotion.
+- SABER `-d:saberMulToom4Cached` passed focused official-vector tests after the cached-Toom path was added.
+- `nim check` passed for default NTRU, `-d:ntruMulTmp`, `-d:ntruIsoSample`, and `tools/collect_asymmetric_benchmarks.nim`.
+- NTRU rollback/trial builds `-d:ntruMulTmp`, `-d:ntruMulRows`, `-d:ntruMulRowsUnroll4`, and `-d:ntruIsoSample` passed their focused test runs; the two row variants had to be rerun sequentially because parallel runs shared the same temp KAT filename.
+- SABER trial builds `-d:saberMulRows`, `-d:saberMulRowsUnroll4`, and `-d:saberMulCoeff` passed focused SABER KAT/vector tests.
+- Final OtterBench runs completed for the Windows AVX2 workstation plus connected Infinix X6871, motorola edge 50 fusion, and moto g56 5G Android/NEON devices.
 
 ## 2026-04-04 First-pass Audit
 Readiness: Not production ready yet—the repo still ships tracked binaries, the autopush automation never reads the audit log, and environment tooling keeps claiming missing headers even when the submodules are present.
@@ -728,4 +759,83 @@ Docs update:
 - Regenerated:
   - `docs/benchmarks/asymmetric_bench_report_full.html`
   - `docs/benchmarks/asymmetric_bench_report_desktop_only.html`
+
+## 2026-05-01 Falcon Split + Frodo Hybrid Probe Pass
+Summary: checked the literature direction for further PQ SIMD work, split Falcon desktop tests/benchmarks by variant, tried deeper Frodo hybrid SSE/AVX ideas, rejected the measured regressions, and refreshed desktop plus three-phone validation.
+
+Implemented:
+- Falcon:
+  - split `tools/run_desktop_tests_parallel.ps1` into `falcon512` and `falcon1024` groups, both still selectable through `-Only falcon`.
+  - added `TYR_FALCON_TEST_VARIANT` filtering in `tests/test_falcon_tyr.nim` so each process runs only its assigned variant.
+  - reduced Falcon benchmark loop/warmup counts in `tests/test_sigma_perf_falcon.nim` and `tools/bench_custom_crypto_table.nim`.
+  - split `tools/bench_pq_profiles.nim` Falcon suites into `falcon512` and `falcon1024`.
+  - added `--only=falcon512` / `--only=falcon1024` support to `tools/collect_asymmetric_benchmarks.nim`.
+- Frodo:
+  - factored AES stream accumulation dispatch through host wrappers so the AVX2/SSE2/NEON choice is centralized.
+  - added an opt-in `-d:frodoAvx2SaStripeSse` probe path for the AVX2 build to force the smaller SSE128 `s*A` stripe kernel.
+  - tried vectorizing the small `mulBs` dot products and an 8-lane `mulAddSbPlusE` row kernel, then reverted both from the default path after measurement.
+
+Literature/source scan notes:
+- Falcon literature and implementations point toward batched/vectorized Gaussian sampling and careful AVX/SSE transition handling; this repo's current portable Falcon SIMD path is intentionally 2-lane f64 SSE2/NEON, not a full AVX2 Falcon rewrite.
+- Frodo's remaining slow area is still matrix generation plus matrix multiply, especially SHAKE matrix generation. The local SSE128-for-small-loop idea was worth measuring, but this pass did not find a default-safe win.
+
+Rejected experiments:
+- Frodo AVX2 build using the SSE128 `s*A` stripe path regressed all desktop Frodo variants in the probe:
+  - `frodo640aes`: 1.395 ms -> 1.850 ms.
+  - `frodo976aes`: 2.358 ms -> 3.231 ms.
+  - `frodo1344aes`: 3.904 ms -> 5.751 ms.
+- Frodo `mulAddSbPlusE` 8-lane SSE/NEON-shaped row kernel regressed desktop AVX2 summary timings by roughly 2-12% and was removed from the default path.
+- Frodo `mulBs` SIMD dot-product refactor was mixed/noisy and was reverted to the stable scalar unroll.
+
+Benchmark notes:
+- Current Frodo desktop summary rerun after reverting the unstable dot experiments:
+  - `frodo640aes`: 1.244 ms.
+  - `frodo976aes`: 2.602 ms.
+  - `frodo1344aes`: 4.151 ms.
+  - `frodo640shake`: 11.297 ms.
+  - `frodo976shake`: 26.661 ms.
+  - `frodo1344shake`: 45.266 ms.
+- Focused Frodo phone summary benchmarks:
+  - Infinix X6871: `frodo1344aes` 86.685 ms, `frodo1344shake` 93.241 ms.
+  - Edge 50 Fusion: `frodo1344aes` 113.409 ms, `frodo1344shake` 125.000 ms.
+  - Moto G56 5G: `frodo1344aes` 123.576 ms, `frodo1344shake` 133.107 ms.
+- Split Falcon desktop collector:
+  - Falcon-512 sign/verify rows: about 12.06-12.31 s per operation depending on scalar/prepared mode.
+  - Falcon-1024 sign/verify rows: about 84.40-86.19 s per operation depending on scalar/prepared mode.
+
+Verification:
+- Focused compile/runtime checks:
+  - `nim check -d:sse2 -d:avx2 -d:aesni tests\test_frodo_tyr.nim` (pass)
+  - `nim check --cpu:arm64 -d:neon tests\test_frodo_tyr.nim` (pass)
+  - `nim c -d:release -r tests\test_frodo_tyr.nim` (pass)
+  - `nim check tests\test_falcon_tyr.nim` (pass)
+  - `nim check tests\test_sigma_perf_falcon.nim` (pass)
+  - `nim check tools\bench_pq_profiles.nim` (pass)
+  - `nim check tools\collect_asymmetric_benchmarks.nim` (pass)
+- Regular desktop parallel suite:
+  - `powershell -File tools/run_desktop_tests_parallel.ps1 -Only core,custom_crypto,sha3,poly1305,aes,gimli,blake3,xchacha20,random,hmac,otp,x25519,kyber,frodo,bike,dilithium,falcon,sphincs,mceliece -MaxParallel 6 -ChildNimFlags=-d:release`
+  - all 20 selected non-NTRU/SABER groups passed; longest group was `falcon1024` at 921s.
+- Android:
+  - `powershell -File tools/build_android_harness.ps1 -HarnessTarget asymmetric_full -Release` (pass)
+  - Infinix X6871 / `124312552Q103525`: asymmetric-full harness pass, `exit=0`.
+  - Motorola Edge 50 Fusion / `ZY22K9DZG9`: asymmetric-full harness pass, `exit=0`.
+  - Moto G56 5G / `ZY32M27XLK`: asymmetric-full harness pass, `exit=0`.
+
+Docs update:
+- Copied new benchmark JSONs into `docs/benchmarks`:
+  - `frodo_desktop_deep_final.json`
+  - `frodo_infinix_deep_final.json`
+  - `frodo_edge50_deep_final.json`
+  - `frodo_motog56_deep_final.json`
+  - `frodo_desktop_hybrid_sse128_rejected.json`
+  - `falcon512_desktop_split.json`
+  - `falcon1024_desktop_split.json`
+- Regenerated:
+  - `docs/benchmarks/asymmetric_bench_report_full.html`
+  - `docs/benchmarks/asymmetric_bench_report_desktop_only.html`
+
+Current conclusion:
+- The deeper Frodo SSE/AVX hybrid idea was measured and rejected for this machine; the default Frodo compute path remains the previous stable AVX2/NEON dispatch.
+- Falcon is still expensive, but the test and benchmark tooling can now run 512 and 1024 independently, which prevents the old combined Falcon process from dominating every run.
+- NTRU/SABER files were intentionally left untouched while the parallel implementation work continues.
 

@@ -70,6 +70,10 @@ when defined(avx2):
 
 {.push boundChecks: off, overflowChecks: off.}
 when defined(sse2):
+  ## Paper note: these public coefficient-lane add/sub/shift helpers follow the
+  ## SIMD arithmetic direction in `2021-0986_neon_ntt_dilithium_kyber_saber.pdf`
+  ## and `2022-0112_kyber_dilithium_speed_memory_cortex_m4.pdf`, while keeping
+  ## the reference Dilithium polynomial operations unchanged.
   proc polyAddSimdSse(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
@@ -119,6 +123,8 @@ when defined(sse2):
       i = i + 1
 
 when defined(neon) or defined(arm64) or defined(aarch64):
+  ## Paper note: ARM128 lanes are the local portable NEON version of the public
+  ## polynomial arithmetic batching discussed in `2021-0986_neon_ntt_dilithium_kyber_saber.pdf`.
   proc polyAddSimdNeon(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
@@ -163,6 +169,8 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       i = i + 1
 
 when defined(avx2):
+  ## Paper note: the eight-lane Montgomery product is the AVX2-side companion to
+  ## the vectorized NTT/reduction style in `2018-0039_vectorized_ntt_implementations.pdf`.
   proc montgomeryReduceProdVec8Avx2(a, b: navx.M256i): navx.M256i {.inline.} =
     var
       oddA: navx.M256i
@@ -531,6 +539,8 @@ proc polyCaddq*(a: var DilithiumPoly) {.inline, raises: [].} =
     i = i + 1
 
 proc polyAdd*(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline, raises: [].} =
+  ## Paper note: this dispatch is where Tyr differs from clean reference code by
+  ## selecting fixed public SIMD coefficient lanes when the target supports them.
   when defined(avx2):
     polyAddSimdAvx2(c, a, b)
   elif defined(sse2):
@@ -546,6 +556,8 @@ proc polyAdd*(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline, raises: [].} 
       i = i + 1
 
 proc polySub*(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline, raises: [].} =
+  ## Paper note: subtraction uses the same backend split as addition, so the
+  ## arithmetic is reference-compatible but packed per target ISA.
   when defined(avx2):
     polySubSimdAvx2(c, a, b)
   elif defined(sse2):
@@ -582,6 +594,8 @@ proc polyInvnttTomont*(a: var DilithiumPoly) {.inline, otterBench, raises: [].} 
   invnttTomont(a.coeffs)
 
 proc polyPointwiseMontgomery*(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline, otterBench, raises: [].} =
+  ## Paper note: the AVX2 branch packs eight independent Montgomery products,
+  ## matching the lane-level multiplication/reduction strategy from the AVX2 NTT paper.
   when defined(avx2):
     polyPointwiseMontgomerySimdAvx2(c, a, b)
   else:
@@ -741,6 +755,10 @@ proc etaValueEta4(t: uint32): int32 {.inline, raises: [].} =
 
 proc appendEtaCt(dst: var array[dilithiumN, int32], ctr: var int,
     value: int32, accept: int32) {.inline, raises: [].} =
+  ## Paper note: `2024-1149_dilithium_sampling_implementation_analysis.pdf` and
+  ## `2025-0214_dilithium_rejection_sampling_side_channel.pdf` motivate keeping
+  ## the eta prefix path fixed-work and using masked stores instead of branching
+  ## on rejected nibbles.
   var
     room: int32 = ctMaskLtSmall(uint32(ctr), uint32(dilithiumN))
     idx: int = ctSelectInt(dilithiumN - 1, ctr, room)
@@ -774,6 +792,8 @@ proc fillEtaCtPrefix[INBYTES: static[int]](p: DilithiumParams, a: var DilithiumP
 
 proc finishEtaCtPrefix[INBYTES: static[int]](p: DilithiumParams, a: var DilithiumPoly,
     S: var Sha3State, buf: var array[INBYTES, byte]) {.inline, raises: [].} =
+  ## Paper note: this completes the fixed-work eta prefix and only falls back to
+  ## scalar rejection sampling after the public fixed budget is exhausted.
   var
     ctr: int = 0
   ctr = fillEtaCtPrefix(p, a, buf)
@@ -854,6 +874,9 @@ proc polyUniformSeed(a: var DilithiumPoly,
     ctr = ctr + rejUniform(a.coeffs, ctr, dilithiumN - ctr, buf.toOpenArray(0, bufLen - 1))
 
 when defined(avx2):
+  ## Paper note: four-way SHAKE128 expansion is a performance batching of public
+  ## matrix/nonces, in the same family as vectorized Dilithium implementations;
+  ## each lane still runs the reference rejection sampler for exact output.
   proc polyUniform4xSeed(a0, a1, a2, a3: var DilithiumPoly,
       seed: array[dilithiumSeedBytes, byte], nonce0, nonce1, nonce2,
       nonce3: uint16) {.inline, otterBench, raises: [].} =
@@ -886,6 +909,8 @@ when defined(avx2):
         lane = lane + 1
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
+  ## Paper note: this 2-lane SHAKE path is the scalar-compatible fallback for
+  ## targets without AVX2 4x Keccak, preserving the same per-lane nonce schedule.
   proc polyUniform2xSeed(a0, a1: var DilithiumPoly,
       seed: array[dilithiumSeedBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
     var
@@ -959,6 +984,8 @@ proc polyUniformEta*(p: DilithiumParams, a: var DilithiumPoly,
   polyUniformEtaSeed(p, a, seed, nonce)
 
 when defined(avx2):
+  ## Paper note: the 4x eta functions combine AVX2 SHAKE batching with the
+  ## fixed-work eta prefix above; they are not the variable-work reference loop.
   proc polyUniformEta4xCtSeedEta2(p: DilithiumParams, a0, a1, a2, a3: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1, nonce2,
       nonce3: uint16) {.inline, otterBench, raises: [].} =
@@ -1010,6 +1037,9 @@ when defined(avx2):
     polyUniformEta4xCtSeedEta4(p, a0, a1, a2, a3, seed, nonce0, nonce1, nonce2, nonce3)
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
+  ## Paper note: the 2x eta functions use the same masked fixed-prefix fill for
+  ## SSE2/NEON-class targets, then fall back per lane only if the fixed prefix
+  ## did not produce enough accepted coefficients.
   proc polyUniformEta2xCtSeedEta2(p: DilithiumParams, a0, a1: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
     var
@@ -1082,6 +1112,8 @@ proc polyUniformGamma1Seed*(p: DilithiumParams, a: var DilithiumPoly,
   polyZUnpack(p, a, buf.toOpenArray(0, p.polyZPackedBytes - 1))
 
 when defined(avx2):
+  ## Paper note: gamma1 sampling is batched only at the SHAKE/output-unpack layer,
+  ## a performance optimization that preserves the CRYSTALS-Dilithium distribution.
   proc polyUniformGamma14xSeed(p: DilithiumParams, a0, a1, a2, a3: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1, nonce2,
       nonce3: uint16) {.inline, otterBench, raises: [].} =
@@ -1414,6 +1446,8 @@ proc polyW1Pack*(p: DilithiumParams, r: var seq[byte], a: DilithiumPoly) =
 
 proc polyveclUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecL,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
+  ## Paper note: vector secrets consume the fixed-work 4x/2x eta samplers above,
+  ## so the side-channel hardening applies at the vector entry point too.
   var
     i: int = 0
     nn: uint16 = nonce
@@ -1472,6 +1506,8 @@ proc polyveclUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecL,
 
 proc polyveclUniformGamma1BaseNonce*(p: DilithiumParams, v: var DilithiumPolyVecL,
     seed: array[dilithiumCrhBytes, byte], baseNonce: uint16) {.inline, otterBench, raises: [].} =
+  ## Paper note: this selects the batched gamma1 SHAKE paths for public nonce
+  ## groups, reducing sponge setup overhead without changing rejection behavior.
   var
     i: int = 0
     nonceNow: uint16 = baseNonce
@@ -1550,6 +1586,8 @@ proc polyveclPointwisePolyMontgomery*(r: var DilithiumPolyVecL, a: DilithiumPoly
     polyPointwiseMontgomery(r.vec[i], a, v.vec[i])
 
 proc polyveclPointwiseAccMontgomery*(w: var DilithiumPoly, u, v: DilithiumPolyVecL) {.inline, otterBench, raises: [].} =
+  ## Paper note: the AVX2 branch fuses vector pointwise products and accumulation
+  ## in fixed public coefficient lanes, following the vectorized NTT implementation style.
   when defined(avx2):
     polyveclPointwiseAccMontgomerySimdAvx2(w, u, v)
   else:
@@ -1570,6 +1608,8 @@ proc polyveclChkNorm*(v: DilithiumPolyVecL, B: int32): bool {.inline, raises: []
 
 proc polyveckUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecK,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
+  ## Paper note: K-vector eta sampling reuses the same fixed-prefix batched
+  ## samplers, keeping secret-vector generation aligned with the leakage papers.
   var
     i: int = 0
     nn: uint16 = nonce
@@ -1692,6 +1732,8 @@ proc polyveckPackW1*(p: DilithiumParams, r: var seq[byte], w1: DilithiumPolyVecK
 
 proc polyvecMatrixExpandRowInto*(p: DilithiumParams, row: var DilithiumPolyVecL,
     rho: array[dilithiumSeedBytes, byte], rowIndex: int) {.inline, otterBench, raises: [].} =
+  ## Paper note: matrix rows use 4x/2x public SHAKE expansion here; this is the
+  ## concrete matrix-expansion difference from a clean one-polynomial-at-a-time reference.
   var
     j: int = 0
     baseNonce: uint16 = uint16(rowIndex shl 8)

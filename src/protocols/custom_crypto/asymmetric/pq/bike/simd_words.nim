@@ -11,6 +11,8 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
   proc xorWords128*(dst: var openArray[uint64], A, B: openArray[uint64],
       n: int): int {.inline.} =
     ## XOR qwords in 128-bit lanes and return the first scalar tail index.
+    ## Paper note: BIKE's spec and `2020-0117_bike_constant_time_decoder.pdf`
+    ## operate on public-length word arrays; this helper packs that XOR step in 128-bit lanes.
     var
       i: int = 0
     when defined(neon) or defined(arm64) or defined(aarch64):
@@ -37,6 +39,8 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
   proc addBitSliceWords128*(U: var openArray[uint64],
       rotated: var openArray[uint64], n: int): int {.inline.} =
     ## Apply one BIKE bit-sliced adder step in 128-bit qword lanes.
+    ## Paper note: this is the lane-packed carry step used by the constant-time
+    ## BIKE UPC decoder from `2020-0117_bike_constant_time_decoder.pdf`.
     var
       i: int = 0
     when defined(neon) or defined(arm64) or defined(aarch64):
@@ -69,6 +73,8 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
   proc fullSubtractWords128*(U: var openArray[uint64],
       br: var openArray[uint64], lsbMask: uint64, n: int): int {.inline.} =
     ## Apply one BIKE full-subtractor bit-slice in 128-bit qword lanes.
+    ## Paper note: this vectorizes the threshold subtractor from the BIKE
+    ## bit-sliced decoder while keeping all word counts public.
     var
       i: int = 0
     when defined(neon) or defined(arm64) or defined(aarch64):

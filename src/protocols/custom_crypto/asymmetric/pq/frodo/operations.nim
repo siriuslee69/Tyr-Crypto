@@ -84,6 +84,9 @@ proc shakeWordsLeIntoForParams(p: FrodoParams, dst: var openArray[uint16], A: op
     shake256WordsLeInto(dst, A)
 
 proc useOptimizedAesStreamPath(p: FrodoParams): bool {.inline.} =
+  ## Paper note: FrodoKEM's public matrix A can be regenerated from seed_A.
+  ## This gate selects the streaming AES path instead of materializing A, per
+  ## `2016-0659_frodo_take_off_the_ring.pdf` and the FrodoKEM standard proposal.
   result = p.matrixGenerator == fmgAes128 and p.nbar == 8 and
     p.stripeStep == 8 and (p.n mod 8) == 0
 
@@ -124,6 +127,8 @@ proc dotModQ16Scalar(A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
   result = uint16(acc)
 
 when defined(sse2):
+  ## Paper note: this is a local SIMD dot-kernel optimization for Frodo's 16-bit
+  ## matrix products; it preserves the reference mod-q low-word arithmetic.
   proc dotModQ16Sse(A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
     var
       i: int = 0
@@ -150,6 +155,8 @@ when defined(sse2):
     result = sum
 
 when defined(avx2):
+  ## Paper note: AVX2 widens the same public-length dot products to 16 packed
+  ## 16-bit lanes, reducing the streamed matrix multiply cost.
   proc dotModQ16Avx2(A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
     var
       i: int = 0
@@ -189,6 +196,8 @@ when defined(neon) or defined(arm64) or defined(aarch64):
     result = uint16(acc)
 
   proc dotModQ16Neon(A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
+    ## Paper note: NEON uses the same low-word dot-product shape as the SSE/AVX
+    ## Frodo kernels, implemented as a portable target-specific backend.
     var
       i: int = 0
       acc: uint16x8 = vmovq_n_u16(0'u16)
@@ -263,6 +272,8 @@ when defined(sse2):
 
   proc dot4ColsSse(s: openArray[uint16], sOff, strideN, colBase: int,
       aColsT: openArray[uint16], outSums: var array[4, uint16]) =
+    ## Paper note: streamed Frodo column stripes are multiplied four columns at
+    ## a time with SSE2 madd lanes; this is the hot `s*A` kernel.
     var
       acc0 = nsse2.mm_setzero_si128()
       acc1 = nsse2.mm_setzero_si128()
@@ -367,6 +378,8 @@ when defined(avx2):
 
   proc dot4ColsAvx2(s: openArray[uint16], sOff, strideN, colBase: int,
       aColsT: openArray[uint16], outSums: var array[4, uint16]) =
+    ## Paper note: AVX2 uses 16-lane madd accumulation for the streamed Frodo
+    ## column-stripe multiply, avoiding a full materialized A matrix.
     var
       acc0 = navx.mm256_setzero_si256()
       acc1 = navx.mm256_setzero_si256()
@@ -413,6 +426,7 @@ when defined(avx2):
 
   proc dot4RowsAvx2(aRows: openArray[uint16], s: openArray[uint16], sOff, strideN: int,
       outSums: var array[4, uint16]) =
+    ## Paper note: this is the matching four-row AVX2 kernel for `A*s+e`.
     var
       acc0 = navx.mm256_setzero_si256()
       acc1 = navx.mm256_setzero_si256()
@@ -550,6 +564,8 @@ proc decodeAesBlocksLe(dst: var openArray[uint16], blocks: openArray[AesBlock]) 
 
 proc decodeAesBlocksLeTransposedModQ(p: FrodoParams, dstT: var openArray[uint16],
     blocks: openArray[AesBlock], n: int) =
+  ## Paper note: the streamed `s*A` path decodes AES-generated public A blocks
+  ## directly into transposed/reduced column stripes, avoiding the full A buffer.
   var
     row: int = 0
     lane: int = 0
@@ -617,6 +633,8 @@ proc generateFourRowsBulkDynamic(ctx: Aes128Ctx,
     blocksIn: var openArray[AesBlock],
     blocksOut: var openArray[AesBlock],
     rowStart, n: int, dst: var openArray[uint16]) =
+  ## Paper note: four public A rows are generated in bulk from seed_A so
+  ## `A*s+e` can stream matrix rows instead of loading a materialized matrix.
   updateFourRowBlocks(blocksIn, rowStart, n)
   encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
   decodeAesBlocksLe(dst, blocksOut)
@@ -633,6 +651,8 @@ proc generateColStripeBulkTDynamic(p: FrodoParams, ctx: Aes128Ctx,
     blocksIn: var openArray[AesBlock],
     blocksOut: var openArray[AesBlock],
     colStart, n: int, dstT: var openArray[uint16]) =
+  ## Paper note: eight public A columns are generated and transposed in one pass
+  ## for streamed `s*A+e`, matching the FrodoKEM public-matrix construction.
   updateColStripeBlocks(blocksIn, colStart, n)
   encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
   decodeAesBlocksLeTransposedModQ(p, dstT, blocksOut, n)
@@ -650,6 +670,8 @@ when defined(aesni):
       blocksIn: var openArray[AesBlock],
       blocksOut: var openArray[AesBlock],
       rowStart, n: int, dst: var openArray[uint16]) =
+    ## Paper note: AES-NI accelerates the same public seed_A row generation used
+    ## by the streamed Frodo matrix path.
     updateFourRowBlocks(blocksIn, rowStart, n)
     encryptBlocks(ctx, blocksIn, blocksOut)
     decodeAesBlocksLe(dst, blocksOut)
@@ -658,6 +680,8 @@ when defined(aesni):
       blocksIn: var openArray[AesBlock],
       blocksOut: var openArray[AesBlock],
       colStart, n: int, dstT: var openArray[uint16]) =
+    ## Paper note: AES-NI also feeds the transposed public column stripes for
+    ## `s*A+e`, with reduction during decode.
     updateColStripeBlocks(blocksIn, colStart, n)
     encryptBlocks(ctx, blocksIn, blocksOut)
     decodeAesBlocksLeTransposedModQ(p, dstT, blocksOut, n)
@@ -922,6 +946,8 @@ when defined(aesni):
 when defined(avx2):
   proc accumulateAsBlock4x8Avx2(aRows: openArray[uint16],
       s: openArray[uint16], result: var openArray[uint16], outOff, strideN: int) =
+    ## Paper note: this accumulates four generated A rows against eight secret
+    ## columns with AVX2 madd, the core streamed `A*s+e` performance path.
     var
       sums {.align: 32.}: array[32, uint32]
       col: int = 0
@@ -971,6 +997,8 @@ when defined(avx2):
 
   proc accumulateSaStripe8Avx2(aColsT: openArray[uint16],
       s: openArray[uint16], result: var openArray[uint16], colStart, strideN: int) =
+    ## Paper note: this is the AVX2 core for transposed eight-column stripes in
+    ## streamed `s*A+e`, using public-length loops and local reduction.
     var
       sums {.align: 32.}: array[32, uint32]
       row: int = 0
@@ -1168,6 +1196,34 @@ proc accumulateSaStripe8Scalar(aColsT: openArray[uint16],
       col = col + 1
     row = row + 1
 
+proc accumulateAsBlock4x8Host(aRows: openArray[uint16],
+    s: openArray[uint16], result: var openArray[uint16], outOff, strideN: int) {.inline.} =
+  ## Paper note: this dispatch is the exact call boundary where streamed Frodo
+  ## row products pick AVX2/NEON/SSE2/scalar accumulation.
+  when defined(avx2):
+    accumulateAsBlock4x8Avx2(aRows, s, result, outOff, strideN)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    accumulateAsBlock4x8Neon(aRows, s, result, outOff, strideN)
+  elif defined(sse2):
+    accumulateAsBlock4x8Sse(aRows, s, result, outOff, strideN)
+  else:
+    accumulateAsBlock4x8Scalar(aRows, s, result, outOff, strideN)
+
+proc accumulateSaStripe8Host(aColsT: openArray[uint16],
+    s: openArray[uint16], result: var openArray[uint16], colStart, strideN: int) {.inline.} =
+  ## Paper note: this dispatch is the column-stripe analogue for streamed `s*A`,
+  ## including the retained SSE-on-AVX2 trial flag for benchmark comparison.
+  when defined(avx2) and defined(sse2) and defined(frodoAvx2SaStripeSse):
+    accumulateSaStripe8Sse(aColsT, s, result, colStart, strideN)
+  elif defined(avx2):
+    accumulateSaStripe8Avx2(aColsT, s, result, colStart, strideN)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    accumulateSaStripe8Neon(aColsT, s, result, colStart, strideN)
+  elif defined(sse2):
+    accumulateSaStripe8Sse(aColsT, s, result, colStart, strideN)
+  else:
+    accumulateSaStripe8Scalar(aColsT, s, result, colStart, strideN)
+
 proc generateMatrixA(p: FrodoParams, seedA: openArray[byte]): seq[uint16] =
   ## Generate the Frodo matrix `A` row-wise for the selected parameter set.
   otterSpan("frodo.generateMatrixA"):
@@ -1247,6 +1303,8 @@ proc mulAddAsPlusE(p: FrodoParams, A, s, e: openArray[uint16]): seq[uint16] =
 
 proc mulAddAsPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray[uint16]): seq[uint16] =
   ## Compute `A * s + e` while generating each matrix row on demand.
+  ## Paper note: this is the main Frodo difference from a clean reference path:
+  ## it streams public AES rows from seed_A, with OpenSSL/AES-NI backends when available.
   otterSpan("frodo.mulAddAsPlusEStream"):
     if seedA.len != p.bytesSeedA:
       raise newException(ValueError, "invalid Frodo seed_A length")
@@ -1275,14 +1333,7 @@ proc mulAddAsPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
       while i < p.n:
         generateFourRowsBulkDynamic(ctx, blocksIn, blocksOut, i, p.n, aRow)
         reduceWordsModQ(p, aRow)
-        when defined(avx2):
-          accumulateAsBlock4x8Avx2(aRow, s, result, i * p.nbar, p.n)
-        elif defined(neon) or defined(arm64) or defined(aarch64):
-          accumulateAsBlock4x8Neon(aRow, s, result, i * p.nbar, p.n)
-        elif defined(sse2):
-          accumulateAsBlock4x8Sse(aRow, s, result, i * p.nbar, p.n)
-        else:
-          accumulateAsBlock4x8Scalar(aRow, s, result, i * p.nbar, p.n)
+        accumulateAsBlock4x8Host(aRow, s, result, i * p.nbar, p.n)
         i = i + 4
       reduceWordsModQ(p, result)
       return result
@@ -1299,14 +1350,7 @@ proc mulAddAsPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
       while i < p.n:
         generateFourRowsBulkDynamic(ctx, blocksIn, blocksOut, i, p.n, aRow)
         reduceWordsModQ(p, aRow)
-        when defined(avx2):
-          accumulateAsBlock4x8Avx2(aRow, s, result, i * p.nbar, p.n)
-        elif defined(neon) or defined(arm64) or defined(aarch64):
-          accumulateAsBlock4x8Neon(aRow, s, result, i * p.nbar, p.n)
-        elif defined(sse2):
-          accumulateAsBlock4x8Sse(aRow, s, result, i * p.nbar, p.n)
-        else:
-          accumulateAsBlock4x8Scalar(aRow, s, result, i * p.nbar, p.n)
+        accumulateAsBlock4x8Host(aRow, s, result, i * p.nbar, p.n)
         i = i + frodoRowsPerWideBlock
     else:
       var
@@ -1321,14 +1365,7 @@ proc mulAddAsPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
       while i < p.n:
         generateFourRowsBulkDynamic(ctx, blocksIn, blocksOut, i, p.n, aRow)
         reduceWordsModQ(p, aRow)
-        when defined(avx2):
-          accumulateAsBlock4x8Avx2(aRow, s, result, i * p.nbar, p.n)
-        elif defined(neon) or defined(arm64) or defined(aarch64):
-          accumulateAsBlock4x8Neon(aRow, s, result, i * p.nbar, p.n)
-        elif defined(sse2):
-          accumulateAsBlock4x8Sse(aRow, s, result, i * p.nbar, p.n)
-        else:
-          accumulateAsBlock4x8Scalar(aRow, s, result, i * p.nbar, p.n)
+        accumulateAsBlock4x8Host(aRow, s, result, i * p.nbar, p.n)
         i = i + 4
     reduceWordsModQ(p, result)
 
@@ -1364,6 +1401,8 @@ proc mulAddSaPlusE(p: FrodoParams, A, s, e: openArray[uint16]): seq[uint16] =
 
 proc mulAddSaPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray[uint16]): seq[uint16] =
   ## Compute `s * A + e` while generating each matrix stripe on demand.
+  ## Paper note: this streams transposed public A column stripes from seed_A,
+  ## reducing memory traffic while preserving the FrodoKEM matrix equation.
   otterSpan("frodo.mulAddSaPlusEStream"):
     if seedA.len != p.bytesSeedA:
       raise newException(ValueError, "invalid Frodo seed_A length")
@@ -1391,14 +1430,7 @@ proc mulAddSaPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
       kk = 0
       while kk < p.n:
         generateColStripeBulkTDynamic(p, ctx, blocksIn, blocksOut, kk, p.n, aColsT)
-        when defined(avx2):
-          accumulateSaStripe8Avx2(aColsT, s, result, kk, p.n)
-        elif defined(neon) or defined(arm64) or defined(aarch64):
-          accumulateSaStripe8Neon(aColsT, s, result, kk, p.n)
-        elif defined(sse2):
-          accumulateSaStripe8Sse(aColsT, s, result, kk, p.n)
-        else:
-          accumulateSaStripe8Scalar(aColsT, s, result, kk, p.n)
+        accumulateSaStripe8Host(aColsT, s, result, kk, p.n)
         kk = kk + p.stripeStep
       reduceWordsModQ(p, result)
       return result
@@ -1414,14 +1446,7 @@ proc mulAddSaPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
       kk = 0
       while kk < p.n:
         generateColStripeBulkTDynamic(p, ctx, blocksIn, blocksOut, kk, p.n, aColsT)
-        when defined(avx2):
-          accumulateSaStripe8Avx2(aColsT, s, result, kk, p.n)
-        elif defined(neon) or defined(arm64) or defined(aarch64):
-          accumulateSaStripe8Neon(aColsT, s, result, kk, p.n)
-        elif defined(sse2):
-          accumulateSaStripe8Sse(aColsT, s, result, kk, p.n)
-        else:
-          accumulateSaStripe8Scalar(aColsT, s, result, kk, p.n)
+        accumulateSaStripe8Host(aColsT, s, result, kk, p.n)
         kk = kk + p.stripeStep
     else:
       var
@@ -1435,14 +1460,7 @@ proc mulAddSaPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
       kk = 0
       while kk < p.n:
         generateColStripeBulkTDynamic(p, ctx, blocksIn, blocksOut, kk, p.n, aColsT)
-        when defined(avx2):
-          accumulateSaStripe8Avx2(aColsT, s, result, kk, p.n)
-        elif defined(neon) or defined(arm64) or defined(aarch64):
-          accumulateSaStripe8Neon(aColsT, s, result, kk, p.n)
-        elif defined(sse2):
-          accumulateSaStripe8Sse(aColsT, s, result, kk, p.n)
-        else:
-          accumulateSaStripe8Scalar(aColsT, s, result, kk, p.n)
+        accumulateSaStripe8Host(aColsT, s, result, kk, p.n)
         kk = kk + p.stripeStep
     reduceWordsModQ(p, result)
 
@@ -1460,6 +1478,8 @@ proc mulAddSaPlusEStreamPair(p: FrodoParams, seedA: seq[byte], seWords: seq[uint
 
 proc mulBs(p: FrodoParams, b, s: openArray[uint16]): seq[uint16] =
   ## Compute `b * s`.
+  ## Paper note: this hot nbar-by-nbar product is unrolled locally after
+  ## benchmarking; no separate paper algorithm replaces the FrodoKEM reference equation here.
   otterSpan("frodo.mulBs"):
     var
       i: int = 0
@@ -1489,6 +1509,8 @@ proc mulBs(p: FrodoParams, b, s: openArray[uint16]): seq[uint16] =
 
 proc mulAddSbPlusE(p: FrodoParams, b, s, e: openArray[uint16]): seq[uint16] =
   ## Compute `s * b + e`.
+  ## Paper note: like `mulBs`, this keeps the reference FrodoKEM operation and
+  ## only applies local loop unrolling rather than a distinct published algorithm.
   otterSpan("frodo.mulAddSbPlusE"):
     var
       j: int = 0

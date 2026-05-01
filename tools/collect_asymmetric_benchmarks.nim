@@ -6,6 +6,8 @@
 import std/[algorithm, json, math, monotimes, os, parseopt, strformat, strutils, tables, times]
 
 import ../src/protocols/custom_crypto/[kyber, frodo, bike, mceliece, dilithium, falcon, sphincs]
+import ../src/protocols/custom_crypto/ntru as custom_ntru
+import ../src/protocols/custom_crypto/saber as custom_saber
 import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_pass1, x25519_pass2, x25519_pass3, x25519_pass4]
 import ../src/protocols/custom_crypto/asymmetric/pq/kyber/[params as kyber_params, operations as kyber_ops, indcpa]
 import ../src/protocols/custom_crypto/asymmetric/pq/frodo/params as frodo_params
@@ -80,9 +82,51 @@ proc featureList(): seq[string] =
     result.add("release")
   when defined(otterTiming):
     result.add("otterTiming")
+  when defined(frodoAvx2SaStripeSse):
+    result.add("frodoAvx2SaStripeSse")
+  when defined(ntruMulTmp):
+    result.add("ntruMulTmp")
+  when defined(ntruMulRows):
+    result.add("ntruMulRows")
+  when defined(ntruMulRowsUnroll4):
+    result.add("ntruMulRowsUnroll4")
+  when defined(ntruMulCoeff):
+    result.add("ntruMulCoeff")
+  when defined(ntruMulToom4):
+    result.add("ntruMulToom4")
+  when defined(ntruMulToom4K2):
+    result.add("ntruMulToom4K2")
+  when not defined(ntruMulTmp) and not defined(ntruMulRows) and
+      not defined(ntruMulRowsUnroll4) and not defined(ntruMulCoeff) and
+      not defined(ntruMulToom4) and not defined(ntruMulToom4K2):
+    result.add("ntruMulToom4K2Default")
+  when defined(ntruIsoSample):
+    result.add("ntruIsoSample")
+  when defined(saberMulRows):
+    result.add("saberMulRows")
+  when defined(saberMulRowsUnroll4):
+    result.add("saberMulRowsUnroll4")
+  when defined(saberMulCoeff):
+    result.add("saberMulCoeff")
+  when defined(saberMulToom4):
+    result.add("saberMulToom4")
+  when defined(saberMulToom4Mod):
+    result.add("saberMulToom4Mod")
+  when defined(saberMulToom4Cached):
+    result.add("saberMulToom4Cached")
+  when defined(saberMulNttScalar):
+    result.add("saberMulNttScalar")
+  when defined(saberHeapBuffers):
+    result.add("saberHeapBuffers")
+  else:
+    result.add("saberStackBuffersDefault")
+  when defined(saberStackBuffers):
+    result.add("saberStackBuffers")
 
 proc compiledBackendLabel(): string =
-  when defined(avx2):
+  when defined(avx2) and defined(sse2) and defined(frodoAvx2SaStripeSse):
+    result = "native_avx2_sse128_sa"
+  elif defined(avx2):
     result = "native_avx2"
   elif defined(neon) or defined(arm64) or defined(aarch64):
     result = "native_neon"
@@ -231,6 +275,31 @@ proc benchLoops(profile: BenchProfile, family, variant, mode: string): tuple[loo
         result.loops = 1
     return
 
+  if family == "ntru":
+    result.warmup = 0
+    if profile == bpDesktop:
+      case variant
+      of "ntruHps4096821", "ntruHrss701":
+        result.loops = 1
+      else:
+        result.loops = 2
+    else:
+      result.loops = 1
+    return
+
+  if family == "saber":
+    if profile == bpDesktop:
+      result.warmup = 1
+      case variant
+      of "fireSaber":
+        result.loops = 2
+      else:
+        result.loops = 4
+    else:
+      result.warmup = 0
+      result.loops = 1
+    return
+
   if family == "bike":
     if profile == bpDesktop:
       result.loops = 12
@@ -301,6 +370,18 @@ proc functionLoops(profile: BenchProfile, family: string): tuple[loops, warmup: 
       result.loops = 1
       result.warmup = 0
     return
+  if family == "ntru":
+    result.loops = 1
+    result.warmup = 0
+    return
+  if family == "saber":
+    if profile == bpDesktop:
+      result.loops = 1
+      result.warmup = 0
+    else:
+      result.loops = 1
+      result.warmup = 0
+    return
   if family == "bike":
     if profile == bpDesktop:
       result.loops = 3
@@ -350,7 +431,19 @@ proc applyScale(cfg: var tuple[loops, warmup: int], scale: float) =
 proc familyEnabled(onlyFamilies: seq[string], family: string): bool =
   if onlyFamilies.len == 0:
     return true
+  if family == "falcon" and ("falcon512" in onlyFamilies or "falcon-512" in onlyFamilies or
+      "falcon1024" in onlyFamilies or "falcon-1024" in onlyFamilies):
+    return true
   result = family.toLowerAscii() in onlyFamilies
+
+proc falconVariantEnabled(onlyFamilies: seq[string], v: FalconVariant): bool =
+  if onlyFamilies.len == 0 or "falcon" in onlyFamilies:
+    return true
+  case v
+  of falcon512:
+    result = "falcon512" in onlyFamilies or "falcon-512" in onlyFamilies
+  of falcon1024:
+    result = "falcon1024" in onlyFamilies or "falcon-1024" in onlyFamilies
 
 proc implEnabled(onlyImplementations: seq[string], implementation: string): bool =
   if onlyImplementations.len == 0:
@@ -761,6 +854,26 @@ proc makeFrodoRoundtripBench(v: FrodoVariant): BenchProc =
     let shared = frodoTyrDecaps(v, kp.secretKey, env.ciphertext)
     doAssert shared == env.sharedSecret
 
+proc makeNtruRoundtripBench(v: custom_ntru.NtruVariant): BenchProc =
+  var
+    keySeed = patternSeq(48, 0x33 + ord(v) * 5)
+    encSeed = patternSeq(48, 0x73 + ord(v) * 7)
+  result = proc() =
+    let kp = custom_ntru.ntruTyrKeypair(v, keySeed)
+    let env = custom_ntru.ntruTyrEncaps(v, kp.publicKey, encSeed)
+    let shared = custom_ntru.ntruTyrDecaps(v, kp.secretKey, env.ciphertext)
+    doAssert shared == env.sharedSecret
+
+proc makeSaberRoundtripBench(v: custom_saber.SaberVariant): BenchProc =
+  var
+    keySeed = patternSeq(48, 0x35 + ord(v) * 5)
+    encSeed = patternSeq(48, 0x75 + ord(v) * 7)
+  result = proc() =
+    let kp = custom_saber.saberTyrKeypair(v, keySeed)
+    let env = custom_saber.saberTyrEncaps(v, kp.publicKey, encSeed)
+    let shared = custom_saber.saberTyrDecaps(v, kp.secretKey, env.ciphertext)
+    doAssert shared == env.sharedSecret
+
 proc makeBikeRoundtripBench(v: BikeVariant): BenchProc =
   var
     keyRnd = patternSeq(bike_params.bikeKeypairRandomBytes, 0x25 + ord(v) * 9)
@@ -915,6 +1028,23 @@ proc collectSummaryRows(rows: var seq[JsonNode], deviceLabel, deviceKind: string
       addSummaryRow(rows, deviceLabel, deviceKind, "frodo", $v, "tyr", compiledBackendLabel(), "roundtrip",
         cfg.loops, cfg.warmup, cfg.opsPerCall, makeFrodoRoundtripBench(v))
 
+  if familyEnabled(onlyFamilies, "ntru"):
+    trace(verbose, "summary:ntru")
+    for v in [custom_ntru.ntruHps2048509, custom_ntru.ntruHps2048677,
+        custom_ntru.ntruHps4096821, custom_ntru.ntruHrss701]:
+      cfg = benchLoops(profile, "ntru", $v, "roundtrip")
+      applyScale(cfg, scale)
+      addSummaryRow(rows, deviceLabel, deviceKind, "ntru", $v, "tyr", compiledBackendLabel(), "roundtrip",
+        cfg.loops, cfg.warmup, cfg.opsPerCall, makeNtruRoundtripBench(v))
+
+  if familyEnabled(onlyFamilies, "saber"):
+    trace(verbose, "summary:saber")
+    for v in [custom_saber.lightSaber, custom_saber.saber, custom_saber.fireSaber]:
+      cfg = benchLoops(profile, "saber", $v, "roundtrip")
+      applyScale(cfg, scale)
+      addSummaryRow(rows, deviceLabel, deviceKind, "saber", $v, "tyr", compiledBackendLabel(), "roundtrip",
+        cfg.loops, cfg.warmup, cfg.opsPerCall, makeSaberRoundtripBench(v))
+
   if familyEnabled(onlyFamilies, "bike"):
     trace(verbose, "summary:bike")
     cfg = benchLoops(profile, "bike", "bikeL1", "roundtrip")
@@ -941,6 +1071,8 @@ proc collectSummaryRows(rows: var seq[JsonNode], deviceLabel, deviceKind: string
   if familyEnabled(onlyFamilies, "falcon"):
     trace(verbose, "summary:falcon")
     for v in [falcon512, falcon1024]:
+      if not falconVariantEnabled(onlyFamilies, v):
+        continue
       cfg = benchLoops(profile, "falcon", $v, "sign_verify")
       applyScale(cfg, scale)
       addSummaryRow(rows, deviceLabel, deviceKind, "falcon", $v, "scalar", "scalar", "sign_verify",
@@ -1009,6 +1141,23 @@ proc collectFunctionRows(rows: var seq[JsonNode], deviceLabel, deviceKind: strin
       addFunctionRows(rows, deviceLabel, deviceKind, "frodo", $v, "tyr", compiledBackendLabel(),
         "roundtrip_hotspots", "frodo." & $v, cfg.loops, cfg.warmup, makeFrodoRoundtripBench(v))
 
+  if familyEnabled(onlyFamilies, "ntru"):
+    trace(verbose, "functions:ntru")
+    for v in [custom_ntru.ntruHps2048509, custom_ntru.ntruHps2048677,
+        custom_ntru.ntruHps4096821, custom_ntru.ntruHrss701]:
+      cfg = functionLoops(profile, "ntru")
+      applyScale(cfg, scale)
+      addFunctionRows(rows, deviceLabel, deviceKind, "ntru", $v, "tyr", compiledBackendLabel(),
+        "roundtrip_hotspots", "ntru." & $v, cfg.loops, cfg.warmup, makeNtruRoundtripBench(v))
+
+  if familyEnabled(onlyFamilies, "saber"):
+    trace(verbose, "functions:saber")
+    for v in [custom_saber.lightSaber, custom_saber.saber, custom_saber.fireSaber]:
+      cfg = functionLoops(profile, "saber")
+      applyScale(cfg, scale)
+      addFunctionRows(rows, deviceLabel, deviceKind, "saber", $v, "tyr", compiledBackendLabel(),
+        "roundtrip_hotspots", "saber." & $v, cfg.loops, cfg.warmup, makeSaberRoundtripBench(v))
+
   if familyEnabled(onlyFamilies, "bike"):
     trace(verbose, "functions:bike")
     cfg = functionLoops(profile, "bike")
@@ -1035,6 +1184,8 @@ proc collectFunctionRows(rows: var seq[JsonNode], deviceLabel, deviceKind: strin
   if familyEnabled(onlyFamilies, "falcon"):
     trace(verbose, "functions:falcon")
     for v in [falcon512, falcon1024]:
+      if not falconVariantEnabled(onlyFamilies, v):
+        continue
       cfg = functionLoops(profile, "falcon")
       applyScale(cfg, scale)
       addFunctionRows(rows, deviceLabel, deviceKind, "falcon", $v, "scalar", "scalar",

@@ -109,6 +109,8 @@ Current local/custom implementations include:
 - AES-CTR
 - HChaCha20 / XChaCha20
 - Classic McEliece `6688128f`, `6960119f`, `8192128f`
+- NTRU HPS/HRSS KEMs: `ntruhps2048509`, `ntruhps2048677`, `ntruhps4096821`, `ntruhrss701`
+- SABER KEMs: `lightsaber`, `saber`, `firesaber`
 - OTP helpers
 
 ## Optional Backend Paths
@@ -132,6 +134,10 @@ Some surfaces still depend on optional native libraries:
   - AES-GCM binding/tests
 
 Missing optional libraries should raise explicit `LibraryUnavailableError`, not silently fall back.
+
+PQClean reference bindings for NTRU/SABER live under `src/protocols/bindings`; the normal custom NTRU/SABER APIs use the pure-Nim implementations under `custom_crypto/asymmetric/pq/`.
+
+NTRU now defaults to a KAT-compatible pure-Nim Toom-4 plus two-level Karatsuba multiplier ported from the PQClean performance shape. The exact-int64 Toom-4 path remains available with `-d:ntruMulToom4`, the previous coefficient path with `-d:ntruMulCoeff`, the original temp/reduce path with `-d:ntruMulTmp`, and the row-style trials with `-d:ntruMulRows` / `-d:ntruMulRowsUnroll4`. SABER kept its original temp/reduce multiplier because the tested split-loop and Toom variants regressed; those experiments remain opt-in via `-d:saberMulToom4`, `-d:saberMulToom4Mod`, and `-d:saberMulToom4Cached`.
 
 ## Workspace Dependencies
 The repo uses local workspace helper repos in addition to the native-library submodules:
@@ -275,6 +281,7 @@ The suite currently includes:
 - wrapper-layer dispatch tests
 - wasm bridge tests
 - pure-Nim `mceliece0Tyr` roundtrip coverage
+- pure-Nim NTRU and SABER roundtrip/KAT coverage, including AVX2 parity where supported
 
 ## Android Harness
 - `tests/android_harness`

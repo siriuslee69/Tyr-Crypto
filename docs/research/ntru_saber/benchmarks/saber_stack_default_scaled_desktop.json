@@ -1,0 +1,73 @@
+{
+  "metadata": {
+    "generated_local": "2026-05-01T15:27:19+02:00",
+    "generated_utc": "2026-05-01T13:27:19Z",
+    "device_label": "desktop_avx2_saber_promoted_scaled",
+    "device_kind": "desktop",
+    "device_model": "Windows x64 workstation",
+    "device_os": "Windows",
+    "profile": "desktop",
+    "loop_scale": 32.0,
+    "phase": "summary",
+    "compiled_backend": "native_avx2",
+    "features": [
+      "amd64",
+      "sse2",
+      "avx2",
+      "release",
+      "otterTiming",
+      "ntruMulToom4K2Default",
+      "saberStackBuffersDefault"
+    ]
+  },
+  "rows": [
+    {
+      "kind": "summary",
+      "device_label": "desktop_avx2_saber_promoted_scaled",
+      "device_kind": "desktop",
+      "family": "saber",
+      "variant": "lightSaber",
+      "implementation": "tyr",
+      "backend": "native_avx2",
+      "operation": "roundtrip",
+      "loops": 128,
+      "warmup": 32,
+      "ops_per_call": 1,
+      "total_ns": 19001700,
+      "avg_ns_per_call": 148450.78125,
+      "avg_ns_per_op": 148450.78125
+    },
+    {
+      "kind": "summary",
+      "device_label": "desktop_avx2_saber_promoted_scaled",
+      "device_kind": "desktop",
+      "family": "saber",
+      "variant": "saber",
+      "implementation": "tyr",
+      "backend": "native_avx2",
+      "operation": "roundtrip",
+      "loops": 128,
+      "warmup": 32,
+      "ops_per_call": 1,
+      "total_ns": 24884000,
+      "avg_ns_per_call": 194406.25,
+      "avg_ns_per_op": 194406.25
+    },
+    {
+      "kind": "summary",
+      "device_label": "desktop_avx2_saber_promoted_scaled",
+      "device_kind": "desktop",
+      "family": "saber",
+      "variant": "fireSaber",
+      "implementation": "tyr",
+      "backend": "native_avx2",
+      "operation": "roundtrip",
+      "loops": 64,
+      "warmup": 32,
+      "ops_per_call": 1,
+      "total_ns": 16510600,
+      "avg_ns_per_call": 257978.125,
+      "avg_ns_per_op": 257978.125
+    }
+  ]
+}

@@ -85,6 +85,8 @@ proc rotateRightPort*(inS: BikeSyndrome, bitsCount: int): BikeSyndrome =
 
 proc bitSlicedAdderPort*(U: var BikeUpc, rotated: var BikeSyndrome, numSlices: int) =
   ## Add one rotated syndrome into the UPC bit-slice accumulator.
+  ## Paper note: this is the UPC bit-sliced adder described in
+  ## `2020-0117_bike_constant_time_decoder.pdf`, with optional 128-bit word lanes.
   var
     j: int = 0
     i: int = 0
@@ -102,6 +104,8 @@ proc bitSlicedAdderPort*(U: var BikeUpc, rotated: var BikeSyndrome, numSlices: i
     j = j + 1
 
 proc bitSliceFullSubtractPort*(U: var BikeUpc, vIn: int) =
+  ## Paper note: this subtracts the decoder threshold in bit-sliced form, so the
+  ## candidate masks are derived without branches on secret syndrome positions.
   var
     br: seq[uint64] = @[]
     j: int = 0
@@ -178,6 +182,8 @@ proc mul64High(a, b: uint64): uint64 =
   result = aHi * bHi + ((aHi * bLo + aLo * bHi) shr 32)
 
 proc getThreshold(S: BikeSyndrome): int =
+  ## Paper note: the threshold formula comes from the BIKE decoder parameters;
+  ## it is computed from syndrome weight and clamped with a mask.
   var
     syndromeWeight: uint64 = 0
     thr: uint64 = 0
@@ -217,6 +223,8 @@ proc fillPotentialMask(dst: var BikeRawPoly, lastSlice: BikePadPoly) =
 
 proc findErr1(E, blackE, grayE: var BikeRawError, S: BikeSyndrome,
     wlist: BikeDualIndexList, threshold: int) =
+  ## Paper note: this is the black/gray first-pass error search from the
+  ## constant-time BIKE decoder, built from rotated-syndrome UPC counts.
   var
     slot: int = 0
     j: int = 0

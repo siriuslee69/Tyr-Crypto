@@ -30,6 +30,9 @@ proc wotsGenLeafX1(leaf: var openArray[byte], ctx: SphincsCtx, leafIdx: uint32,
   setKeypairAddr(info.leafAddr, leafIdx)
   setKeypairAddr(info.pkAddr, leafIdx)
   when defined(avx2):
+    ## Paper note: this is the applied SPHINCS+ hash-batching optimization from
+    ## the SHA/SLH-DSA performance papers, with masked signature capture rather
+    ## than the signer redesign from side-channel-resistant SPHINCS+ papers.
     ## Keep the WOTS signing leaf path in 4-lane batches now that the shared
     ## AVX2 Keccak core is cheaper than four scalar one-block SHAKE calls.
     while i + 4 <= spxWotsLen:
@@ -86,6 +89,8 @@ proc wotsGenLeafX1(leaf: var openArray[byte], ctx: SphincsCtx, leafIdx: uint32,
       i = i + 4
       nodeOffset = nodeOffset + (4 * spxN)
   when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+    ## Paper note: the 2-lane path is the SSE2/NEON analogue of the AVX2 WOTS
+    ## leaf batching above and keeps lane addresses explicit.
     while i + 2 <= spxWotsLen:
       var
         nodes: array[2, array[spxN, byte]]
