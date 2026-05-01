@@ -5,7 +5,17 @@ Date: 2026-05-01
 Scope: pure-Nim PQ implementations under `src/protocols/custom_crypto/asymmetric/pq`,
 excluding `ntru` and `saber`.
 
-### Stored Papers
+### Research Document Manifest
+
+Paper lifecycle is controlled by `papers.lock.json`. PDFs with explicit
+redistribution terms stay tracked; PDFs without clear redistribution terms are
+ignored local-cache files and can be restored with `download_papers.ps1`.
+License notes are in `LICENSES.md`.
+
+Restore ignored cache files on Windows with:
+`powershell -ExecutionPolicy Bypass -File docs/research/pq_non_ntru_saber/download_papers.ps1`.
+
+### Papers
 
 | Area | Paper / spec | Local copy | Upstream |
 | --- | --- | --- | --- |
@@ -24,11 +34,11 @@ excluding `ntru` and `saber`.
 | SPHINCS+ | Side Channel Resistant SPHINCS+ | [2024-0500_side_channel_resistant_sphincs.pdf](papers/2024-0500_side_channel_resistant_sphincs.pdf) | https://eprint.iacr.org/2024/500 |
 | Dilithium | Dilithium sampling implementation and leakage analysis | [2024-1149_dilithium_sampling_implementation_analysis.pdf](papers/2024-1149_dilithium_sampling_implementation_analysis.pdf) | https://eprint.iacr.org/2024/1149 |
 | Dilithium | Recent rejection-sampling side-channel work | [2025-0214_dilithium_rejection_sampling_side_channel.pdf](papers/2025-0214_dilithium_rejection_sampling_side_channel.pdf) | https://eprint.iacr.org/2025/214 |
-| BIKE | BIKE specification v5.2 | [bike_spec_2024_10_10_v5_2.pdf](papers/bike_spec_2024_10_10_v5_2.pdf) | https://bikesuite.org/files/v5.2/BIKE_Spec.2024.10.10.1.pdf |
-| Frodo | FrodoKEM standard proposal | [frodokem_standard_proposal_2025_09_29.pdf](papers/frodokem_standard_proposal_2025_09_29.pdf) | https://frodokem.org/files/FrodoKEM_standard_proposal_20250929.pdf |
-| Falcon | Falcon specification | [falcon_spec.pdf](papers/falcon_spec.pdf) | https://falcon-sign.info/falcon.pdf |
-| Classic McEliece | Classic McEliece specification | [classic_mceliece_spec_2022_10_23.pdf](papers/classic_mceliece_spec_2022_10_23.pdf) | https://classic.mceliece.org/mceliece-spec-20221023.pdf |
-| Classic McEliece | Classic McEliece implementation guide | [classic_mceliece_implementation_guide_2022_10_23.pdf](papers/classic_mceliece_implementation_guide_2022_10_23.pdf) | https://classic.mceliece.org/mceliece-impl-20221023.pdf |
+| BIKE | BIKE specification v5.2 | cache only, ignored | https://bikesuite.org/files/v5.2/BIKE_Spec.2024.10.10.1.pdf |
+| Frodo | FrodoKEM standard proposal | cache only, ignored | https://frodokem.org/files/FrodoKEM_standard_proposal_20250929.pdf |
+| Falcon | Falcon specification | cache only, ignored | https://falcon-sign.info/falcon.pdf |
+| Classic McEliece | Classic McEliece specification | cache only, ignored | https://classic.mceliece.org/mceliece-spec-20221023.pdf |
+| Classic McEliece | Classic McEliece implementation guide | cache only, ignored | https://classic.mceliece.org/mceliece-impl-20221023.pdf |
 
 ### Applied Mapping
 

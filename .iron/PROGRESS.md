@@ -1,4 +1,4 @@
-Commit Message: add NTRU/SABER paper cache lock and license policy
+Commit Message: add non-NTRU/SABER paper cache lock and license policy
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -48,6 +48,7 @@ Implemented:
 - SABER's tested split-loop and Toom multiplier variants are retained only as opt-in benchmark flags because they were KAT-correct but slower than the existing temp/reduce path.
 - NTRU/SABER desktop and three-phone OtterBench JSON/HTML reports have been refreshed under `docs/benchmarks`, with experimental optimization trial JSONs archived under `docs/research/ntru_saber/benchmarks`.
 - Non-NTRU/SABER PQ research papers are stored and indexed under `docs/research/pq_non_ntru_saber`, with source comments tying paper-backed optimization and hardening notes to exact code hotspots.
+- Non-NTRU/SABER PQ research PDFs now have a checksum lock, downloader, ignore policy, and license notes so ambiguous specification PDFs stay local-cache only.
 - Frodo hot matrix-dot loops now use optional SSE2/AVX2 SIMD via SIMD-Nexus-backed 16-bit multiply-low helpers.
 - Kyber polynomial add/sub now use optional SSE2/AVX2 SIMD coefficient lanes with scalar tails.
 - Dilithium polynomial add/sub/shift-left now use optional SSE2/AVX2 SIMD coefficient lanes with scalar tails.
@@ -70,14 +71,15 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- NTRU/SABER research PDFs needed a redistribution-safe repo policy: keep clearly licensed documents, avoid committing ambiguous PDFs, and keep local copies intact.
+- Non-NTRU/SABER PQ research PDFs needed the same redistribution-safe repo policy as the NTRU/SABER papers: keep clearly licensed documents, avoid committing ambiguous PDFs, and keep local copies intact.
 
 Fix attempt and result:
-- Added `docs/research/ntru_saber/papers.lock.json`, `download_papers.ps1`, and `LICENSES.md`. `.gitignore` now ignores unclassified NTRU/SABER research PDFs by default while whitelisting CC-BY/NIST documents. The ambiguous PDFs were removed from the git index with `git rm --cached` and remain present locally.
+- Added `docs/research/pq_non_ntru_saber/papers.lock.json`, `download_papers.ps1`, and `LICENSES.md`. `.gitignore` now ignores unclassified non-NTRU/SABER research PDFs by default while whitelisting CC-BY/CC0 ePrint documents. Five ambiguous specification PDFs were removed from the git index with `git rm --cached` and remain present locally.
 
 Verification:
 - `git diff --check` passed; it only reported existing LF-to-CRLF warnings from Git on this Windows checkout.
 - `powershell -ExecutionPolicy Bypass -File docs\research\ntru_saber\download_papers.ps1 -IncludeTracked` verified all paper/supporting-document hashes.
+- `powershell -ExecutionPolicy Bypass -File docs\research\pq_non_ntru_saber\download_papers.ps1 -IncludeTracked` verified all non-NTRU/SABER paper/spec hashes.
 - `nim check --nimcache:build\nimcache_pq_research_kyber tests\test_kyber_tyr.nim` passed.
 - `nim check --nimcache:build\nimcache_pq_research_dilithium tests\test_dilithium_tyr.nim` passed.
 - `nim check --nimcache:build\nimcache_pq_research_frodo tests\test_frodo_tyr.nim` passed.

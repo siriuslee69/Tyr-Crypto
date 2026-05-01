@@ -47,6 +47,18 @@ this workspace. It is not legal advice.
 - PDFs without explicit redistribution terms are local cache only, ignored by
   git, and reproducible through `docs/research/ntru_saber/download_papers.ps1`.
 
+## Non-NTRU/SABER PQ Research Documents
+
+- Paper metadata and checksums are recorded in
+  `docs/research/pq_non_ntru_saber/papers.lock.json`.
+- Detailed research-document license notes are in
+  `docs/research/pq_non_ntru_saber/LICENSES.md`.
+- IACR ePrint papers listed there are treated as `CC-BY-4.0` or `CC0-1.0`
+  according to the individual ePrint page license link.
+- Standalone algorithm/specification PDFs without explicit redistribution terms
+  are local cache only, ignored by git, and reproducible through
+  `docs/research/pq_non_ntru_saber/download_papers.ps1`.
+
 ## Practical Interpretation For This Repo
 
 - You can treat original Tyr-Crypto code as `Unlicense`.

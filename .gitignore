@@ -13,8 +13,8 @@ iron/iron_config.md
 
 # Research-paper PDF policy:
 # - PDFs without explicit redistribution terms are local cache only.
-# - Whitelisted CC-BY/NIST documents stay trackable and are documented in
-#   docs/research/ntru_saber/LICENSES.md.
+# - Whitelisted CC-BY/CC0/NIST documents stay trackable and are documented in
+#   per-folder LICENSES.md files under docs/research.
 docs/research/ntru_saber/papers/*.pdf
 docs/research/ntru_saber/supporting/*.pdf
 !docs/research/ntru_saber/papers/2017-0667_high_speed_key_encapsulation_from_ntru.pdf
@@ -34,3 +34,19 @@ docs/research/ntru_saber/supporting/*.pdf
 !docs/research/ntru_saber/papers/2022_tches_verified_ntt_multiplications_ntru_saber.pdf
 !docs/research/ntru_saber/papers/2024-0548_isochronous_fixed_weight_sampling_ntru.pdf
 !docs/research/ntru_saber/supporting/nist_ir_8413_upd1_pqc_round3_report.pdf
+docs/research/pq_non_ntru_saber/papers/*.pdf
+!docs/research/pq_non_ntru_saber/papers/2016-0659_frodo_take_off_the_ring.pdf
+!docs/research/pq_non_ntru_saber/papers/2017-0633_crystals_dilithium.pdf
+!docs/research/pq_non_ntru_saber/papers/2017-0634_crystals_kyber.pdf
+!docs/research/pq_non_ntru_saber/papers/2018-0039_vectorized_ntt_implementations.pdf
+!docs/research/pq_non_ntru_saber/papers/2019-0267_falcon_gaussian_sampling_precision.pdf
+!docs/research/pq_non_ntru_saber/papers/2020-0117_bike_constant_time_decoder.pdf
+!docs/research/pq_non_ntru_saber/papers/2021-0986_neon_ntt_dilithium_kyber_saber.pdf
+!docs/research/pq_non_ntru_saber/papers/2022-0112_kyber_dilithium_speed_memory_cortex_m4.pdf
+!docs/research/pq_non_ntru_saber/papers/2022-1726_sphincs_sha_extensions.pdf
+!docs/research/pq_non_ntru_saber/papers/2023-0636_multi_armed_sphincs.pdf
+!docs/research/pq_non_ntru_saber/papers/2023-1962_ntt_multiplication_survey.pdf
+!docs/research/pq_non_ntru_saber/papers/2024-0367_accelerating_slh_dsa_hash_unit.pdf
+!docs/research/pq_non_ntru_saber/papers/2024-0500_side_channel_resistant_sphincs.pdf
+!docs/research/pq_non_ntru_saber/papers/2024-1149_dilithium_sampling_implementation_analysis.pdf
+!docs/research/pq_non_ntru_saber/papers/2025-0214_dilithium_rejection_sampling_side_channel.pdf
