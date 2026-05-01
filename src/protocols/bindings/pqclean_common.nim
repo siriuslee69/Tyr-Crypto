@@ -5,9 +5,10 @@
 import ../custom_crypto/aes_core
 import ../custom_crypto/random
 
-{.compile: "../../../submodules/pqclean_common_ref/aes.c".}
-{.compile: "../../../submodules/pqclean_common_ref/fips202.c".}
-{.compile: "../../../submodules/pqclean_common_ref/tyr_pq_randombytes.c".}
+{.passC: "-Isubmodules/pqclean/common".}
+{.compile: "../../../submodules/pqclean/common/aes.c".}
+{.compile: "../../../submodules/pqclean/common/fips202.c".}
+{.compile: "pqclean/tyr_pq_randombytes.c".}
 when defined(windows):
   {.passL: "-lbcrypt".}
 

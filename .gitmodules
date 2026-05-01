@@ -25,3 +25,7 @@
 [submodule "simd_nexus"]
 	path = submodules/simd_nexus
 	url = https://github.com/siriuslee69/SIMD-Nexus.git
+[submodule "pqclean"]
+	path = submodules/pqclean
+	url = https://github.com/PQClean/PQClean.git
+	ignore = dirty

@@ -4,55 +4,55 @@
 
 import ./pqclean_common
 
-{.compile: "../../../submodules/pqclean_saber_ref/lightsaber_clean/cbd.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/lightsaber_clean/kem.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/lightsaber_clean/pack_unpack.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/lightsaber_clean/poly.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/lightsaber_clean/poly_mul.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/lightsaber_clean/SABER_indcpa.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/lightsaber_clean/verify.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/clean/cbd.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/clean/kem.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/clean/pack_unpack.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/clean/poly.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/clean/poly_mul.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/clean/SABER_indcpa.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/clean/verify.c".}
 
-{.compile: "../../../submodules/pqclean_saber_ref/saber_clean/cbd.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/saber_clean/kem.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/saber_clean/pack_unpack.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/saber_clean/poly.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/saber_clean/poly_mul.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/saber_clean/SABER_indcpa.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/saber_clean/verify.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/saber/clean/cbd.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/saber/clean/kem.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/saber/clean/pack_unpack.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/saber/clean/poly.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/saber/clean/poly_mul.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/saber/clean/SABER_indcpa.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/saber/clean/verify.c".}
 
-{.compile: "../../../submodules/pqclean_saber_ref/firesaber_clean/cbd.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/firesaber_clean/kem.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/firesaber_clean/pack_unpack.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/firesaber_clean/poly.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/firesaber_clean/poly_mul.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/firesaber_clean/SABER_indcpa.c".}
-{.compile: "../../../submodules/pqclean_saber_ref/firesaber_clean/verify.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/firesaber/clean/cbd.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/firesaber/clean/kem.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/firesaber/clean/pack_unpack.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/firesaber/clean/poly.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/firesaber/clean/poly_mul.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/firesaber/clean/SABER_indcpa.c".}
+{.compile: "../../../submodules/pqclean/crypto_kem/firesaber/clean/verify.c".}
 
 when defined(avx2):
   {.passC: "-mavx2".}
-  {.compile: "../../../submodules/pqclean_saber_ref/lightsaber_avx2/cbd.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/lightsaber_avx2/kem.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/lightsaber_avx2/pack_unpack.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/lightsaber_avx2/poly.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/lightsaber_avx2/poly_mul.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/lightsaber_avx2/SABER_indcpa.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/lightsaber_avx2/verify.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/avx2/cbd.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/avx2/kem.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/avx2/pack_unpack.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/avx2/poly.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/avx2/poly_mul.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/avx2/SABER_indcpa.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/lightsaber/avx2/verify.c".}
 
-  {.compile: "../../../submodules/pqclean_saber_ref/saber_avx2/cbd.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/saber_avx2/kem.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/saber_avx2/pack_unpack.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/saber_avx2/poly.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/saber_avx2/poly_mul.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/saber_avx2/SABER_indcpa.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/saber_avx2/verify.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/saber/avx2/cbd.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/saber/avx2/kem.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/saber/avx2/pack_unpack.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/saber/avx2/poly.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/saber/avx2/poly_mul.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/saber/avx2/SABER_indcpa.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/saber/avx2/verify.c".}
 
-  {.compile: "../../../submodules/pqclean_saber_ref/firesaber_avx2/cbd.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/firesaber_avx2/kem.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/firesaber_avx2/pack_unpack.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/firesaber_avx2/poly.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/firesaber_avx2/poly_mul.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/firesaber_avx2/SABER_indcpa.c".}
-  {.compile: "../../../submodules/pqclean_saber_ref/firesaber_avx2/verify.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/firesaber/avx2/cbd.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/firesaber/avx2/kem.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/firesaber/avx2/pack_unpack.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/firesaber/avx2/poly.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/firesaber/avx2/poly_mul.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/firesaber/avx2/SABER_indcpa.c".}
+  {.compile: "../../../submodules/pqclean/crypto_kem/firesaber/avx2/verify.c".}
 
 proc lightSaberCleanKeypair*(pk, sk: ptr uint8): cint {.cdecl,
   importc: "PQCLEAN_LIGHTSABER_CLEAN_crypto_kem_keypair".}

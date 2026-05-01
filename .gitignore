@@ -11,6 +11,17 @@ iron/iron_config.md
 .iron/.local*
 !.iron/.local*.template
 
+# Android harness generated artifacts
+tests/android_harness/.gradle/
+tests/android_harness/build/
+tests/android_harness/app/build/
+tests/android_harness/.cxx/
+tests/android_harness/app/.cxx/
+tests/android_harness/local.properties
+tests/android_harness/captures/
+tests/android_harness/**/*.bin
+tests/android_harness/app/src/main/jniLibs/**/*.so
+
 # Research-paper PDF policy:
 # - PDFs without explicit redistribution terms are local cache only.
 # - Whitelisted CC-BY/CC0/NIST documents stay trackable and are documented in

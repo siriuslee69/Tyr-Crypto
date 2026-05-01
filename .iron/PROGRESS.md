@@ -1,4 +1,4 @@
-Commit Message: add non-NTRU/SABER paper cache lock and license policy
+Commit Message: ignore Android harness generated artifacts
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -37,7 +37,7 @@ Implemented:
 - Pure Nim BIKE-L1 backend with Tyr typed KEM materials and local liboqs/KAT validation.
 - Pure Nim NTRU KEM support for HPS-2048-509, HPS-2048-677, HPS-4096-821, and HRSS-701 with NIST KAT DRBG replay and liboqs/PQClean KAT hash validation.
 - Pure Nim SABER KEM support for LightSaber, Saber, and FireSaber with official SABER `.rsp` vector validation.
-- PQClean reference NTRU/SABER bindings moved into `src/protocols/bindings`, with the used reference sources moved under `submodules/pqclean_*_ref`.
+- PQClean reference NTRU/SABER bindings moved into `src/protocols/bindings`, with the used reference sources now coming from the pinned `submodules/pqclean` submodule.
 - NTRU/SABER polynomial reduction now has pure Nim SIMD hooks for AVX2/SSE2 and ARM64/NEON compile paths, while the KEM APIs dispatch through the Nim core by default.
 - ARM64/NEON compile checks now include NTRU/SABER mobile-target coverage through the pure Nim backends.
 - NTRU/SABER now have OtterBench instrumentation on the public KEM wrappers and main core hot paths, and focused desktop plus three-phone benchmark JSONs are included in `docs/benchmarks`.
@@ -64,6 +64,8 @@ Implemented:
 - Added `nimble test_neon_checks` and `nimble test_simd_matrix` so NEON coverage is a first-class runnable path instead of living only in manual notes.
 - Added `tests/test_android_custom_crypto.nim` as an Android-targeted custom/SIMD subset.
 - Added `tests/android_harness` plus build/run scripts to package and execute the native test harness inside a minimal Android app.
+- Android harness Gradle caches, generated `.bin` files, app build outputs, local properties, and built `jniLibs` native libraries are now ignored; the previously tracked generated harness artifacts were removed from the index only.
+- Replaced the copied `submodules/pqclean_*_ref` source snapshots with the real upstream PQClean submodule pinned to the `round3` tag.
 
 Working on:
 - Argon2 pure Nim implementation or dedicated binding wrapper.
@@ -71,15 +73,24 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- Non-NTRU/SABER PQ research PDFs needed the same redistribution-safe repo policy as the NTRU/SABER papers: keep clearly licensed documents, avoid committing ambiguous PDFs, and keep local copies intact.
+- The Android harness had generated Gradle cache files and built native test libraries tracked in git.
 
 Fix attempt and result:
-- Added `docs/research/pq_non_ntru_saber/papers.lock.json`, `download_papers.ps1`, and `LICENSES.md`. `.gitignore` now ignores unclassified non-NTRU/SABER research PDFs by default while whitelisting CC-BY/CC0 ePrint documents. Five ambiguous specification PDFs were removed from the git index with `git rm --cached` and remain present locally.
+- Added scoped Android-harness ignore rules for Gradle caches, app build output, generated `.bin` files, local properties, and built `jniLibs` `.so` files. Removed the already-tracked generated files from the index with `git rm --cached` so local Android build outputs remain on disk but stop being GitHub payload.
 
 Verification:
+- `git ls-files "*.bin" "*.so" "*.dll" "*.dylib" "*.o" "*.obj" "*.a" "*.lib" "*.pdb" "*.apk" "*.aab" "*.aar" "*.jar" "*.class" "*.dex" "*.log" "*.tmp" "*.temp" "*.zip" "*.tar" "*.tgz" "*.gz" "*.7z" "*.rar"` now only reports the intentional Android Gradle wrapper JAR.
+- `git ls-files | rg "(^|[\\/])(build|\.gradle|\.cxx|\.externalNativeBuild|\.nimcache|nimcache|\.nimble_cache|node_modules|dist|coverage|target|out|tmp|temp|\.cache)([\\/]|$)"` reports no tracked cache/build directories.
+- `git check-ignore -v` confirms Android `.gradle` `.bin`, generated `jniLibs/*.so`, and `local.properties` paths are ignored.
 - `git diff --check` passed; it only reported existing LF-to-CRLF warnings from Git on this Windows checkout.
 - `powershell -ExecutionPolicy Bypass -File docs\research\ntru_saber\download_papers.ps1 -IncludeTracked` verified all paper/supporting-document hashes.
 - `powershell -ExecutionPolicy Bypass -File docs\research\pq_non_ntru_saber\download_papers.ps1 -IncludeTracked` verified all non-NTRU/SABER paper/spec hashes.
+- `nim check --nimcache:build\nimcache_check_pqclean_common_submodule src\protocols\bindings\pqclean_common.nim` passed.
+- `nim check --nimcache:build\nimcache_check_pqclean_ntru_submodule src\protocols\bindings\pqclean_ntru.nim` passed.
+- `nim check --nimcache:build\nimcache_check_pqclean_saber_submodule src\protocols\bindings\pqclean_saber.nim` passed.
+- `nim c --nimcache:build\nimcache_c_pqclean_common_submodule2 src\protocols\bindings\pqclean_common.nim` passed.
+- `nim c --nimcache:build\nimcache_c_pqclean_ntru_submodule2 src\protocols\bindings\pqclean_ntru.nim` passed after adding the PQClean common include path.
+- `nim c --nimcache:build\nimcache_c_pqclean_saber_submodule2 src\protocols\bindings\pqclean_saber.nim` passed after adding the PQClean common include path.
 - `nim check --nimcache:build\nimcache_pq_research_kyber tests\test_kyber_tyr.nim` passed.
 - `nim check --nimcache:build\nimcache_pq_research_dilithium tests\test_dilithium_tyr.nim` passed.
 - `nim check --nimcache:build\nimcache_pq_research_frodo tests\test_frodo_tyr.nim` passed.

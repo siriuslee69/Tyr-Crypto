@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "aes.h"
+#include "../../../../submodules/pqclean/common/aes.h"
 
 #if defined(_WIN32)
 #include <windows.h>

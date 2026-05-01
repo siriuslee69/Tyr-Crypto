@@ -135,7 +135,7 @@ Some surfaces still depend on optional native libraries:
 
 Missing optional libraries should raise explicit `LibraryUnavailableError`, not silently fall back.
 
-PQClean reference bindings for NTRU/SABER live under `src/protocols/bindings`; the normal custom NTRU/SABER APIs use the pure-Nim implementations under `custom_crypto/asymmetric/pq/`.
+PQClean reference bindings for NTRU/SABER live under `src/protocols/bindings` and point at the pinned `submodules/pqclean` submodule; the normal custom NTRU/SABER APIs use the pure-Nim implementations under `custom_crypto/asymmetric/pq/`.
 
 NTRU now defaults to a KAT-compatible pure-Nim Toom-4 plus two-level Karatsuba multiplier ported from the PQClean performance shape. The exact-int64 Toom-4 path remains available with `-d:ntruMulToom4`, the previous coefficient path with `-d:ntruMulCoeff`, the original temp/reduce path with `-d:ntruMulTmp`, and the row-style trials with `-d:ntruMulRows` / `-d:ntruMulRowsUnroll4`. SABER kept its original temp/reduce multiplier because the tested split-loop and Toom variants regressed; those experiments remain opt-in via `-d:saberMulToom4`, `-d:saberMulToom4Mod`, and `-d:saberMulToom4Cached`.
 

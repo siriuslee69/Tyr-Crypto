@@ -19,6 +19,10 @@ this workspace. It is not legal advice.
     their own license files inside `submodules/liboqs/src`
 - `submodules/openssl`
   - top-level license: Apache-2.0
+- `submodules/pqclean`
+  - top-level license: CC0-1.0
+  - caveat: individual scheme folders can include their own license files
+    inherited from upstream submissions
 
 ## Additional License Caveats Found In Checked-Out Trees
 
