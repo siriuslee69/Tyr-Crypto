@@ -11,3 +11,26 @@ iron/iron_config.md
 .iron/.local*
 !.iron/.local*.template
 
+# Research-paper PDF policy:
+# - PDFs without explicit redistribution terms are local cache only.
+# - Whitelisted CC-BY/NIST documents stay trackable and are documented in
+#   docs/research/ntru_saber/LICENSES.md.
+docs/research/ntru_saber/papers/*.pdf
+docs/research/ntru_saber/supporting/*.pdf
+!docs/research/ntru_saber/papers/2017-0667_high_speed_key_encapsulation_from_ntru.pdf
+!docs/research/ntru_saber/papers/2018-1018_faster_multiplication_z2m_cortex_m4.pdf
+!docs/research/ntru_saber/papers/2019-1309_saberx4_high_throughput_software.pdf
+!docs/research/ntru_saber/papers/2020-0733_saber_side_channel_resistant_implementation.pdf
+!docs/research/ntru_saber/papers/2020-0992_single_trace_message_encoding_lattice_kems.pdf
+!docs/research/ntru_saber/papers/2020-1397_ntt_multiplication_ntt_unfriendly_rings.pdf
+!docs/research/ntru_saber/papers/2021-0079_masked_ind_cca_secure_saber_attack.pdf
+!docs/research/ntru_saber/papers/2021-0104_attacking_defending_masked_poly_comparison.pdf
+!docs/research/ntru_saber/papers/2021-0718_generic_sca_cca_attacks_ntru_kems.pdf
+!docs/research/ntru_saber/papers/2021-0790_side_channel_assisted_attack_on_ntru.pdf
+!docs/research/ntru_saber/papers/2021-0986_neon_ntt_faster_dilithium_kyber_saber.pdf
+!docs/research/ntru_saber/papers/2021-1452_lightweight_sca_resistant_saber.pdf
+!docs/research/ntru_saber/papers/2022-0494_single_trace_omega_small_sampling_ntru.pdf
+!docs/research/ntru_saber/papers/2022-0919_side_channel_attacks_lattice_kems.pdf
+!docs/research/ntru_saber/papers/2022_tches_verified_ntt_multiplications_ntru_saber.pdf
+!docs/research/ntru_saber/papers/2024-0548_isochronous_fixed_weight_sampling_ntru.pdf
+!docs/research/ntru_saber/supporting/nist_ir_8413_upd1_pqc_round3_report.pdf

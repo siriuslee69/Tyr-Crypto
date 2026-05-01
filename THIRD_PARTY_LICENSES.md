@@ -32,6 +32,21 @@ this workspace. It is not legal advice.
 - Other nested directories under `submodules/liboqs/` and `submodules/openssl/`
   also carry their own `LICENSE`, `COPYING`, or `NOTICE` files.
 
+## NTRU/SABER Research Documents
+
+- Paper metadata and checksums are recorded in
+  `docs/research/ntru_saber/papers.lock.json`.
+- Detailed research-document license notes are in
+  `docs/research/ntru_saber/LICENSES.md`.
+- IACR ePrint papers listed there are treated as `CC-BY-4.0` only when the
+  individual ePrint page exposes the CC BY license link.
+- The tracked TCHES paper is treated as `CC-BY-4.0` because the article page
+  and PDF identify that license.
+- The tracked NIST IR 8413 update follows NIST technical-series publication
+  terms.
+- PDFs without explicit redistribution terms are local cache only, ignored by
+  git, and reproducible through `docs/research/ntru_saber/download_papers.ps1`.
+
 ## Practical Interpretation For This Repo
 
 - You can treat original Tyr-Crypto code as `Unlicense`.

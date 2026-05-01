@@ -1,4 +1,4 @@
-Commit Message: annotate non-NTRU/SABER PQ paper-backed optimizations
+Commit Message: add NTRU/SABER paper cache lock and license policy
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -42,6 +42,7 @@ Implemented:
 - ARM64/NEON compile checks now include NTRU/SABER mobile-target coverage through the pure Nim backends.
 - NTRU/SABER now have OtterBench instrumentation on the public KEM wrappers and main core hot paths, and focused desktop plus three-phone benchmark JSONs are included in `docs/benchmarks`.
 - NTRU/SABER security and optimization papers are stored and indexed under `docs/research/ntru_saber`, with implementation findings and next-step guidance.
+- NTRU/SABER research PDFs now have a checksum lock, downloader, ignore policy, and license notes so ambiguous documents stay local-cache only.
 - NTRU mod-3 reduction now uses the lower-leakage branchless form from the NTRU side-channel literature, and the shared PQ wipe helper uses volatile stores for transient secret byte buffers.
 - NTRU's KAT-compatible Toom-4 plus two-level Karatsuba pure-Nim multiplier is now the default, with exact Toom, coefficient, temp/reduce, and row-style trial variants kept behind benchmark flags.
 - SABER's tested split-loop and Toom multiplier variants are retained only as opt-in benchmark flags because they were KAT-correct but slower than the existing temp/reduce path.
@@ -69,13 +70,14 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- Non-NTRU/SABER PQ implementations needed a paper-backed audit pass that excludes NTRU/SABER, stores the relevant research PDFs, and annotates the actual optimized or hardened code paths without changing behavior.
+- NTRU/SABER research PDFs needed a redistribution-safe repo policy: keep clearly licensed documents, avoid committing ambiguous PDFs, and keep local copies intact.
 
 Fix attempt and result:
-- Downloaded and indexed scheme specs plus performance/hardening papers for Kyber, Dilithium, Frodo, BIKE, Falcon, Classic McEliece, and SPHINCS+. Added `Paper note` comments next to the SIMD, streaming, batching, masked, and fixed-work paths that differ from clean/reference-style implementations; NTRU/SABER source was left out of this pass as requested.
+- Added `docs/research/ntru_saber/papers.lock.json`, `download_papers.ps1`, and `LICENSES.md`. `.gitignore` now ignores unclassified NTRU/SABER research PDFs by default while whitelisting CC-BY/NIST documents. The ambiguous PDFs were removed from the git index with `git rm --cached` and remain present locally.
 
 Verification:
 - `git diff --check` passed; it only reported existing LF-to-CRLF warnings from Git on this Windows checkout.
+- `powershell -ExecutionPolicy Bypass -File docs\research\ntru_saber\download_papers.ps1 -IncludeTracked` verified all paper/supporting-document hashes.
 - `nim check --nimcache:build\nimcache_pq_research_kyber tests\test_kyber_tyr.nim` passed.
 - `nim check --nimcache:build\nimcache_pq_research_dilithium tests\test_dilithium_tyr.nim` passed.
 - `nim check --nimcache:build\nimcache_pq_research_frodo tests\test_frodo_tyr.nim` passed.

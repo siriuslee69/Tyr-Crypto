@@ -4,7 +4,17 @@ Date: 2026-05-01
 
 Scope: pure-Nim NTRU and SABER implementations in `src/protocols/custom_crypto/asymmetric/pq`.
 
-### Stored Papers
+### Research Document Manifest
+
+Paper lifecycle is now controlled by `papers.lock.json`. PDFs with explicit
+redistribution terms stay tracked; PDFs without clear redistribution terms are
+ignored local-cache files and can be restored with `download_papers.ps1`.
+License notes are in `LICENSES.md`.
+
+Restore ignored cache files on Windows with:
+`powershell -ExecutionPolicy Bypass -File docs/research/ntru_saber/download_papers.ps1`.
+
+### Papers
 
 | Area | Paper | Local copy | Upstream |
 | --- | --- | --- | --- |
@@ -20,8 +30,8 @@ Scope: pure-Nim NTRU and SABER implementations in `src/protocols/custom_crypto/a
 | NTRU side channels | A Side-Channel Assisted Attack on NTRU | [2021-0790_side_channel_assisted_attack_on_ntru.pdf](papers/2021-0790_side_channel_assisted_attack_on_ntru.pdf) | https://eprint.iacr.org/2021/790 |
 | ARM64 performance | Neon NTT: Faster Dilithium, Kyber, and Saber on Cortex-A72 and Apple M1 | [2021-0986_neon_ntt_faster_dilithium_kyber_saber.pdf](papers/2021-0986_neon_ntt_faster_dilithium_kyber_saber.pdf) | https://eprint.iacr.org/2021/986 |
 | SABER side channels | Lightweight Implementation of Saber Resistant Against Side-Channel Attacks | [2021-1452_lightweight_sca_resistant_saber.pdf](papers/2021-1452_lightweight_sca_resistant_saber.pdf) | https://eprint.iacr.org/2021/1452 |
-| ARM64 performance | Optimized Software Implementations Using NEON-Based Special Instructions of ARMv8 | [2021_nist_pqc_optimized_armv8_neon_ntru_saber.pdf](papers/2021_nist_pqc_optimized_armv8_neon_ntru_saber.pdf) | https://csrc.nist.gov/CSRC/media/Events/third-pqc-standardization-conference/documents/accepted-papers/nguyen-optimized-software-gmu-pqc2021.pdf |
-| ARM64 performance | Fast NEON-Based Multiplication for Lattice-Based NIST Post-Quantum Cryptography Finalists | [2021_pqcrypto_fast_neon_based_multiplication.pdf](papers/2021_pqcrypto_fast_neon_based_multiplication.pdf) | https://people-ece.vse.gmu.edu/~kgaj/publications/conferences/GMU_PQCrypto_2021_NEON.pdf |
+| ARM64 performance | Optimized Software Implementations Using NEON-Based Special Instructions of ARMv8 | cache only, ignored | https://csrc.nist.gov/CSRC/media/Events/third-pqc-standardization-conference/documents/accepted-papers/nguyen-optimized-software-gmu-pqc2021.pdf |
+| ARM64 performance | Fast NEON-Based Multiplication for Lattice-Based NIST Post-Quantum Cryptography Finalists | cache only, ignored | https://people-ece.vse.gmu.edu/~kgaj/publications/conferences/GMU_PQCrypto_2021_NEON.pdf |
 | NTRU sampling side channels | Single-Trace Side-Channel Attacks on omega-Small Polynomial Sampling | [2022-0494_single_trace_omega_small_sampling_ntru.pdf](papers/2022-0494_single_trace_omega_small_sampling_ntru.pdf) | https://eprint.iacr.org/2022/494 |
 | SABER side channels | Side-Channel Attacks on Lattice-Based KEMs Are Not Prevented by Higher-Order Masking | [2022-0919_side_channel_attacks_lattice_kems.pdf](papers/2022-0919_side_channel_attacks_lattice_kems.pdf) | https://eprint.iacr.org/2022/919 |
 | Verified NTT kernels | Verified NTT Multiplications for NISTPQC KEM Lattice Finalists: Kyber, SABER, and NTRU | [2022_tches_verified_ntt_multiplications_ntru_saber.pdf](papers/2022_tches_verified_ntt_multiplications_ntru_saber.pdf) | https://tches.iacr.org/index.php/TCHES/article/view/9838 |
@@ -31,8 +41,8 @@ Scope: pure-Nim NTRU and SABER implementations in `src/protocols/custom_crypto/a
 
 | Material | Local copy | Upstream |
 | --- | --- | --- |
-| NTRU specification | [ntru_spec_20190330.pdf](supporting/ntru_spec_20190330.pdf) | https://ntru.org/f/ntru-20190330.pdf |
-| SABER round-3 specification | [saber_round3_spec.pdf](supporting/saber_round3_spec.pdf) | https://www.esat.kuleuven.be/cosic/pqcrypto/saber/files/saberspecround3.pdf |
+| NTRU specification | cache only, ignored | https://ntru.org/f/ntru-20190330.pdf |
+| SABER round-3 specification | cache only, ignored | https://www.esat.kuleuven.be/cosic/pqcrypto/saber/files/saberspecround3.pdf |
 | NIST PQC round-3 report | [nist_ir_8413_upd1_pqc_round3_report.pdf](supporting/nist_ir_8413_upd1_pqc_round3_report.pdf) | https://nvlpubs.nist.gov/nistpubs/ir/2022/NIST.IR.8413-upd1.pdf |
 
 ### Reference Source Snapshots
