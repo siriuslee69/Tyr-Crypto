@@ -53,6 +53,7 @@ suite "primitives api":
     let msg = toBytes("dispatch poly1305 msg")
     let tag = hmacCreate(maPoly1305, key, msg, 16)
     check hmacAuth(maPoly1305, key, msg, tag, 16)
+    check hmacCreate(maPoly1305, key, msg).len == 16
 
   when defined(hasLibsodium):
     test "x25519 asymEnc and asymDec roundtrip":

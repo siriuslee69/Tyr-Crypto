@@ -3,6 +3,28 @@ import ../src/protocols/custom_crypto/otp
 import ./helpers
 
 suite "otp custom crypto":
+  test "rfc4226 hotp matches published sha1 vectors":
+    let
+      secret = toBytes("12345678901234567890")
+      expected = [
+        "755224", "287082", "359152", "969429", "338314",
+        "254676", "287922", "162583", "399871", "520489"
+      ]
+    for i in 0 ..< expected.len:
+      check hotpRfc4226(secret, uint64(i), 6) == expected[i]
+      check hotpRfc(secret, uint64(i), 6) == expected[i]
+
+  test "rfc6238 totp matches published sha1 vectors":
+    let
+      secret = toBytes("12345678901234567890")
+      times = [59'i64, 1111111109'i64, 1111111111'i64, 1234567890'i64,
+        2000000000'i64, 20000000000'i64]
+      expected = ["94287082", "07081804", "14050471", "89005924",
+        "69279037", "65353130"]
+    for i in 0 ..< expected.len:
+      check totpRfc6238(secret, times[i], 30'i64, 8, 0'i64) == expected[i]
+      check totpRfc(secret, times[i], 30'i64, 8, 0'i64) == expected[i]
+
   test "hotp is deterministic and length-bounded":
     let secret = toBytes("otp-secret-seed-0123456789")
     for algo in OtpAlgo:

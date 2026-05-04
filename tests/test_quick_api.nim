@@ -2,6 +2,10 @@ import std/unittest
 
 import ../src/protocols/wrapper/basic_api
 
+when defined(hasLibsodium):
+  import ../src/protocols/wrapper/helpers/algorithms
+  import ../src/protocols/wrapper/helpers/signature_support
+
 suite "quick api":
   test "algorithm layouts expose single-algorithm metadata":
     let layout = layoutOf(akXChaCha20Cipher)
@@ -41,6 +45,10 @@ suite "quick api":
     check layoutOf(akDilithium2TyrVerify).keyLayouts[1].size == 4627
     check layoutOf(akEd448Sign).keyLayouts[0].size == 57
     check layoutOf(akEd448Sign).outputBytes == 114
+    check layoutOf(akSphincsShake128fSimpleSign).keyLayouts[0].size == 64
+    check layoutOf(akSphincsShake128fSimpleSign).outputBytes == 17088
+    check layoutOf(akSphincsShake128fSimpleTyrSign).keyLayouts[0].size == 64
+    check layoutOf(akSphincsShake128fSimpleTyrSign).outputBytes == 17088
     check layoutOf(akSphincsHaraka128fSimpleSign).keyLayouts[0].size == 64
     check layoutOf(akSphincsHaraka128fSimpleSign).outputBytes == 17088
     check layoutOf(akSphincsHaraka128fSimpleTyrSign).keyLayouts[0].size == 64

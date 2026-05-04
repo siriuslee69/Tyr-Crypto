@@ -387,6 +387,7 @@ when defined(avx2):
   proc polyChkNormSimdAvx2(a: DilithiumPoly, B: int32): bool {.inline, otterBench.} =
     var
       i: int = 0
+      bad: int = 0
       coeffVec: navx.M256i
       signVec: navx.M256i
       absVec: navx.M256i
@@ -403,15 +404,15 @@ when defined(avx2):
       absVec = navx2.mm256_sub_epi32(coeffVec, absVec)
       cmpVec = navx2.mm256_cmpgt_epi32(absVec, boundVec)
       if navx2.mm256_testz_si256(cmpVec, cmpVec) == 0:
-        return true
+        bad = 1
       i = i + 8
     while i < dilithiumN:
       var t: int32 = a.coeffs[i] shr 31
       t = a.coeffs[i] - (t and (2 * a.coeffs[i]))
       if t >= B:
-        return true
+        bad = 1
       i = i + 1
-    result = false
+    result = bad != 0
 
   proc polyAddSimdAvx2(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
@@ -667,6 +668,7 @@ proc polyChkNorm*(a: DilithiumPoly, B: int32): bool {.otterBench, raises: [].} =
     var
       i: int = 0
       t: int32 = 0
+      bad: int = 0
     if B > (dilithiumQ - 1) div 8:
       return true
     i = 0
@@ -674,9 +676,9 @@ proc polyChkNorm*(a: DilithiumPoly, B: int32): bool {.otterBench, raises: [].} =
       t = a.coeffs[i] shr 31
       t = a.coeffs[i] - (t and (2 * a.coeffs[i]))
       if t >= B:
-        return true
+        bad = 1
       i = i + 1
-    result = false
+    result = bad != 0
 
 proc rejUniform(dst: var array[dilithiumN, int32], offset, need: int,
     buf: openArray[byte]): int {.inline, raises: [].} =
@@ -1601,10 +1603,11 @@ proc polyveclPointwiseAccMontgomery*(w: var DilithiumPoly, u, v: DilithiumPolyVe
       i = i + 1
 
 proc polyveclChkNorm*(v: DilithiumPolyVecL, B: int32): bool {.inline, raises: [].} =
+  var bad: bool = false
   for i in 0 ..< v.used:
     if polyChkNorm(v.vec[i], B):
-      return true
-  result = false
+      bad = true
+  result = bad
 
 proc polyveckUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecK,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
@@ -1697,10 +1700,11 @@ proc polyveckPointwisePolyMontgomery*(r: var DilithiumPolyVecK, a: DilithiumPoly
     polyPointwiseMontgomery(r.vec[i], a, v.vec[i])
 
 proc polyveckChkNorm*(v: DilithiumPolyVecK, B: int32): bool {.inline, raises: [].} =
+  var bad: bool = false
   for i in 0 ..< v.used:
     if polyChkNorm(v.vec[i], B):
-      return true
-  result = false
+      bad = true
+  result = bad
 
 proc polyveckPower2Round*(v1, v0: var DilithiumPolyVecK, v: DilithiumPolyVecK) {.inline, raises: [].} =
   for i in 0 ..< v.used:

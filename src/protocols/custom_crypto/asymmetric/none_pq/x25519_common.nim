@@ -5,8 +5,6 @@
 import std/[typetraits, volatile]
 
 import ../../[blake3, random]
-when defined(hasLibsodium):
-  import ../../../bindings/libsodium
 
 const
   x25519KeyBytes* = 32
@@ -144,7 +142,7 @@ proc hasSmallOrder*(input: X25519Bytes32): bool {.inline.} =
   i = 0
   while i < smallOrderBlocklist.len:
     compare[i] = compare[i] or ((input[31] and 0x7f'u8) xor smallOrderBlocklist[i][31])
-    folded = folded or uint32(compare[i] - 1'u8)
+    folded = folded or (uint32(compare[i]) - 1'u32)
     inc i
   result = ((folded shr 8) and 1'u32) == 1'u32
 
@@ -155,29 +153,18 @@ proc fillFromSeq(dst: var X25519Bytes32, src: openArray[byte]) =
     inc i
 
 proc randomSecret32*(): X25519Bytes32 =
-  let buf = cryptoRandomBytes(x25519KeyBytes)
+  var buf = cryptoRandomBytes(x25519KeyBytes)
+  defer:
+    secureClearBytes(buf)
   fillFromSeq(result, buf)
 
 proc deriveSeedSecretCompat*(seed: openArray[byte]): X25519Bytes32 =
   if seed.len != x25519KeyBytes:
     raise newException(ValueError, "invalid X25519 seed length")
-  when defined(hasLibsodium):
-    if ensureLibSodiumLoaded():
-      ensureSodiumInitialised()
-      if crypto_generichash_blake2b(
-          addr result[0],
-          csize_t(x25519KeyBytes),
-          unsafeAddr seed[0],
-          culonglong(seed.len),
-          nil,
-          0) != 0:
-        raise newException(ValueError, "crypto_generichash_blake2b failed for X25519 seed derivation")
-    else:
-      let digest = blake3Hash(seed, x25519KeyBytes)
-      fillFromSeq(result, digest)
-  else:
-    let digest = blake3Hash(seed, x25519KeyBytes)
-    fillFromSeq(result, digest)
+  var digest = blake3Hash(seed, x25519KeyBytes)
+  defer:
+    secureClearBytes(digest)
+  fillFromSeq(result, digest)
 
 proc buildShared*(raw: X25519ScalarMultProc, secretKey, publicKey: openArray[byte]): seq[byte] =
   let

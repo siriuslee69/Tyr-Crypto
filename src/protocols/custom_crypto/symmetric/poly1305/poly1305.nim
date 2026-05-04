@@ -27,15 +27,15 @@ proc store32Le(A: var openArray[byte], o: int, v: uint32) {.inline.} =
   A[o + 3] = byte((v shr 24) and 0xff'u32)
 
 proc constantTimeEqual(A, B: openArray[byte]): bool =
-  if A.len != B.len:
-    return false
   var
-    diff: uint8 = 0
+    diff: uint = if A.len == B.len: 0'u else: 1'u
     i: int = 0
+    b: byte = 0
   while i < A.len:
-    diff = diff or (A[i] xor B[i])
+    b = if i < B.len: B[i] else: 0'u8
+    diff = diff or uint(A[i] xor b)
     i = i + 1
-  result = diff == 0'u8
+  result = diff == 0'u
 
 proc finalizeTag(h0In, h1In, h2In, h3In, h4In: uint64,
     pad0, pad1, pad2, pad3: uint32): Poly1305Tag =

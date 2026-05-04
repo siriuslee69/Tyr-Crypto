@@ -11,6 +11,14 @@ suite "xchacha20 simd":
     let stream1 = xchacha20StreamSimd(key, nonce, 128, 1'u32, xcbAuto)
     check stream1 == stream0
 
+  test "simd stream refuses counter wrap before backend dispatch":
+    let
+      key = toBytes("0123456789abcdef0123456789abcdef")
+      nonce = toBytes("abcdefghijklmnopqrstuvwx")
+    check xchacha20StreamSimd(key, nonce, 64, uint32.high, xcbAuto).len == 64
+    expect ValueError:
+      discard xchacha20StreamSimd(key, nonce, 65, uint32.high, xcbAuto)
+
   when defined(sse2):
     test "sse2 matches scalar":
       let key = toBytes("0123456789abcdef0123456789abcdef")

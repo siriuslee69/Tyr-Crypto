@@ -53,9 +53,9 @@ suite "multi kex triple":
         sendM.receiverPublicKey[i] = receiverM.publicKey[i]
       for i in 0 ..< 14120:
         openM.receiverSecretKey[i] = receiverM.secretKey[i]
-      check open(seal(sendX), openX) != @[]
-      check open(seal(sendK), openK) != @[]
-      check open(seal(sendM), openM) != @[]
+      check open(seal(sendX), openX).len > 0
+      check open(seal(sendK), openK).len > 0
+      check open(seal(sendM), openM).len > 0
 
     test "custom hybrid variants roundtrip":
       let receiverX = asymKeypair(kaX25519)

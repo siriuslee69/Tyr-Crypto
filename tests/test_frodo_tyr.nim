@@ -151,8 +151,7 @@ when defined(hasLibOqs):
       let nimKp = custom_frodo.frodoTyrKeypairDerand(variant, keypairRandom)
       let nimEnv = custom_frodo.frodoTyrEncapsDerand(variant, nimKp.publicKey, encapsRandom)
       check asymDec(alg, nimKp.secretKey,
-        AsymCipher(ciphertext: nimEnv.ciphertext, senderPublicKey: @[],
-          sharedSecret: nimEnv.sharedSecret)) == nimEnv.sharedSecret
+        initAsymCipher(nimEnv.ciphertext, @[], nimEnv.sharedSecret)) == nimEnv.sharedSecret
 
       kem = OQS_KEM_new(oqsAlg.cstring)
       if kem == nil:

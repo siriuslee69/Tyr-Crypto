@@ -467,7 +467,7 @@ const
   oqsSigFalcon512* = "Falcon-512"
   oqsSigFalcon1024* = "Falcon-1024"
   oqsSigSphincsShake128fSimple* = "SPHINCS+-SHAKE-128f-simple"
-  oqsSigSphincsHaraka128fSimple* = "SPHINCS+-SHAKE-128f-simple" ## current local backend binding for the kept 128f simple surface
+  oqsSigSphincsHaraka128fSimple* = oqsSigSphincsShake128fSimple ## compatibility alias for the kept 128f simple surface
 
 proc requireSuccess*(status: OqsStatus, action: string) =
   if status != oqsSuccess:

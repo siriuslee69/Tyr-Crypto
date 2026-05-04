@@ -36,6 +36,18 @@ proc requireChaCha20Inputs(key, nonce: openArray[byte]) {.inline.} =
   if nonce.len != 12:
     raise newException(ValueError, "ChaCha20 requires a 12-byte nonce")
 
+proc requireChaCha20BlockRange*(initialCounter: uint32, byteLen: int) =
+  ## The IETF ChaCha20 counter is 32-bit; refuse transforms that would wrap it.
+  if byteLen < 0:
+    raise newException(ValueError, "length must be non-negative")
+  if byteLen == 0:
+    return
+  let
+    blocks = (uint64(byteLen - 1) div uint64(chacha20BlockSize)) + 1'u64
+    available = uint64(uint32.high) - uint64(initialCounter) + 1'u64
+  if blocks > available:
+    raise newException(ValueError, "ChaCha20 block counter would wrap")
+
 proc initChaCha20State(key, nonce: openArray[byte]): ChaCha20State {.inline.} =
   var
     i: int = 0
@@ -98,6 +110,7 @@ proc chacha20Xor*(key, nonce: openArray[byte], initialCounter: uint32, input: op
     blockBytes: array[chacha20BlockSize, byte]
     baseState: ChaCha20State
   requireChaCha20Inputs(key, nonce)
+  requireChaCha20BlockRange(initialCounter, input.len)
   baseState = initChaCha20State(key, nonce)
 
   result = newSeq[byte](input.len)
@@ -127,6 +140,7 @@ proc chacha20XorInPlace*(key, nonce: openArray[byte], initialCounter: uint32, bu
     blockBytes: array[chacha20BlockSize, byte]
     baseState: ChaCha20State
   requireChaCha20Inputs(key, nonce)
+  requireChaCha20BlockRange(initialCounter, buffer.len)
   baseState = initChaCha20State(key, nonce)
   blockCounter = initialCounter
   offset = 0

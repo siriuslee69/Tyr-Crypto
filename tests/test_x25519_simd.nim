@@ -82,6 +82,25 @@ suite "x25519 simd":
         check toSeqBytes(out4[lane]) == x25519_pass4.x25519TyrShared(sk, pk)
         lane = lane + 1
 
+    test "SSE2x batch isolates small-order lanes":
+      var
+        secretKeys: array[2, X25519Bytes32]
+        publicKeys: array[2, X25519Bytes32]
+        out3: array[2, X25519Bytes32]
+        out4: array[2, X25519Bytes32]
+        ok3: array[2, bool]
+        ok4: array[2, bool]
+      buildDeterministicInputs2(secretKeys, publicKeys)
+      publicKeys[0] = smallOrderBlocklist[0]
+      ok3 = x25519_pass3.x25519ScalarmultBatchSse2x(out3, secretKeys, publicKeys)
+      ok4 = x25519_pass4.x25519ScalarmultBatchSse2x(out4, secretKeys, publicKeys)
+      check not ok3[0]
+      check not ok4[0]
+      check ok3[1]
+      check ok4[1]
+      check toSeqBytes(out3[1]) == x25519_pass3.x25519TyrShared(toSeqBytes(secretKeys[1]), toSeqBytes(publicKeys[1]))
+      check toSeqBytes(out4[1]) == x25519_pass4.x25519TyrShared(toSeqBytes(secretKeys[1]), toSeqBytes(publicKeys[1]))
+
   when defined(neon) or defined(arm64) or defined(aarch64):
     test "NEON2x batch matches scalar across all passes":
       var
@@ -116,6 +135,25 @@ suite "x25519 simd":
         check toSeqBytes(out4[lane]) == x25519_pass4.x25519TyrShared(sk, pk)
         lane = lane + 1
 
+    test "NEON2x batch isolates small-order lanes":
+      var
+        secretKeys: array[2, X25519Bytes32]
+        publicKeys: array[2, X25519Bytes32]
+        out3: array[2, X25519Bytes32]
+        out4: array[2, X25519Bytes32]
+        ok3: array[2, bool]
+        ok4: array[2, bool]
+      buildDeterministicInputs2(secretKeys, publicKeys)
+      publicKeys[0] = smallOrderBlocklist[0]
+      ok3 = x25519_pass3.x25519ScalarmultBatchNeon2x(out3, secretKeys, publicKeys)
+      ok4 = x25519_pass4.x25519ScalarmultBatchNeon2x(out4, secretKeys, publicKeys)
+      check not ok3[0]
+      check not ok4[0]
+      check ok3[1]
+      check ok4[1]
+      check toSeqBytes(out3[1]) == x25519_pass3.x25519TyrShared(toSeqBytes(secretKeys[1]), toSeqBytes(publicKeys[1]))
+      check toSeqBytes(out4[1]) == x25519_pass4.x25519TyrShared(toSeqBytes(secretKeys[1]), toSeqBytes(publicKeys[1]))
+
   when defined(avx2):
     test "AVX4x batch matches scalar across all passes":
       var
@@ -148,4 +186,26 @@ suite "x25519 simd":
         check toSeqBytes(out2[lane]) == x25519_pass2.x25519TyrShared(sk, pk)
         check toSeqBytes(out3[lane]) == x25519_pass3.x25519TyrShared(sk, pk)
         check toSeqBytes(out4[lane]) == x25519_pass4.x25519TyrShared(sk, pk)
+        lane = lane + 1
+
+    test "AVX4x batch isolates small-order lanes":
+      var
+        secretKeys: array[4, X25519Bytes32]
+        publicKeys: array[4, X25519Bytes32]
+        out3: array[4, X25519Bytes32]
+        out4: array[4, X25519Bytes32]
+        ok3: array[4, bool]
+        ok4: array[4, bool]
+        lane: int = 1
+      buildDeterministicInputs4(secretKeys, publicKeys)
+      publicKeys[0] = smallOrderBlocklist[0]
+      ok3 = x25519_pass3.x25519ScalarmultBatchAvx4x(out3, secretKeys, publicKeys)
+      ok4 = x25519_pass4.x25519ScalarmultBatchAvx4x(out4, secretKeys, publicKeys)
+      check not ok3[0]
+      check not ok4[0]
+      while lane < 4:
+        check ok3[lane]
+        check ok4[lane]
+        check toSeqBytes(out3[lane]) == x25519_pass3.x25519TyrShared(toSeqBytes(secretKeys[lane]), toSeqBytes(publicKeys[lane]))
+        check toSeqBytes(out4[lane]) == x25519_pass4.x25519TyrShared(toSeqBytes(secretKeys[lane]), toSeqBytes(publicKeys[lane]))
         lane = lane + 1

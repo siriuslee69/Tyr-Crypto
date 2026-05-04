@@ -409,8 +409,12 @@ proc dilithiumTyrSign*(v: DilithiumVariant, msg: openArray[byte], sk: openArray[
 proc dilithiumTyrVerify*(v: DilithiumVariant, msg, sig, pk: openArray[byte],
     ctx: openArray[byte] = @[]): bool {.otterBench, otterTrace.} =
   ## Verify a signature with the pure-Nim ML-DSA backend.
+  let p: DilithiumParams = params(v)
+  if sig.len != p.signatureBytes:
+    return false
+  if pk.len != p.publicKeyBytes:
+    return false
   var
-    p: DilithiumParams = params(v)
     pkp: DilithiumPublicKeyState = unpackPk(p, pk)
     sigp: DilithiumSignatureState = unpackSig(p, sig)
     pre: array[257, byte]
@@ -424,10 +428,6 @@ proc dilithiumTyrVerify*(v: DilithiumVariant, msg, sig, pk: openArray[byte],
     z: DilithiumPolyVecL
     packedW1: array[dilithiumMaxK * 192, byte]
     c2: array[dilithiumMaxCtildeBytes, byte]
-  if sig.len != p.signatureBytes:
-    return false
-  if pk.len != p.publicKeyBytes:
-    return false
   if not sigp.ok:
     return false
   z = sigp.z

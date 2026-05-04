@@ -9,7 +9,7 @@ type
   FalconRandombytesCallback* = proc (random_array: ptr uint8,
     bytes_to_read: csize_t) {.cdecl.}
 
-var falconRandombytesCallback: FalconRandombytesCallback = nil
+var falconRandombytesCallback {.threadvar.}: FalconRandombytesCallback
 
 proc falconSetRandombytesCallback*(cb: FalconRandombytesCallback) =
   falconRandombytesCallback = cb

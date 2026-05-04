@@ -148,6 +148,31 @@ proc clearExpandedSecret*(expanded: var FalconExpandedSecret) =
   expanded.tree.setLen(0)
   expanded.logn = 0
 
+proc fprSeqIsFinite(A: openArray[FalconFpr]): bool =
+  var i = 0
+  while i < A.len:
+    if not fprIsFinite(A[i]):
+      return false
+    i = i + 1
+  true
+
+proc validateExpandedSecret*(expanded: FalconExpandedSecret, logn: int): bool =
+  if logn < 1 or logn >= fprInvSigma.len:
+    return false
+  if expanded.logn != logn:
+    return false
+  let n = mkn(logn)
+  if expanded.b00.len != n or expanded.b01.len != n or
+      expanded.b10.len != n or expanded.b11.len != n:
+    return false
+  if expanded.tree.len != ffLDLTreeSize(logn):
+    return false
+  result = fprSeqIsFinite(expanded.b00) and
+    fprSeqIsFinite(expanded.b01) and
+    fprSeqIsFinite(expanded.b10) and
+    fprSeqIsFinite(expanded.b11) and
+    fprSeqIsFinite(expanded.tree)
+
 proc expandPrivateKey*(expanded: var FalconExpandedSecret, decoded: FalconDecodedSecret) {.otterBench.} =
   let logn = decoded.logn
   var
@@ -528,14 +553,15 @@ proc encodeDetachedSignature(v: FalconVariant, nonce: openArray[byte], s2: openA
   copyBytes(result, 1, nonce)
   let used = compEncode(result.toOpenArray(1 + falconNonceLen, result.high), s2, p.logn)
   if used == 0:
-    raise newException(ValueError, "Falcon signature encoding failed")
+    result.setLen(0)
+    return
   result.setLen(1 + falconNonceLen + used)
 
 proc falconSignPreparedDerand*(prepared: FalconExpandedSecret, msg, nonce, seed: openArray[byte],
     v: FalconVariant): seq[byte] {.otterBench.} =
   let p = params(v)
-  if prepared.logn != p.logn:
-    raise newException(ValueError, "prepared Falcon secret does not match variant")
+  if not validateExpandedSecret(prepared, p.logn):
+    raise newException(ValueError, "invalid prepared Falcon secret for variant")
   if nonce.len != falconNonceLen:
     raise newException(ValueError, "Falcon nonce must be 40 bytes")
   if seed.len != falconSignSeedBytes:
@@ -549,8 +575,13 @@ proc falconSignPreparedDerand*(prepared: FalconExpandedSecret, msg, nonce, seed:
     secureClearSeqData(sig)
   hashNonceMessageToPointCt(hm, nonce, msg, p.logn)
   initFalconShake256(rng, seed)
-  signTreeRaw(sig, rng, prepared, hm)
-  result = encodeDetachedSignature(v, nonce, sig)
+  while true:
+    signTreeRaw(sig, rng, prepared, hm)
+    result = encodeDetachedSignature(v, nonce, sig)
+    if result.len > 0:
+      return
+    secureClearSeqData(sig)
+    sig.setLen(0)
 
 proc falconSignPrepared*(prepared: FalconExpandedSecret, msg: openArray[byte], v: FalconVariant): seq[byte] {.otterBench.} =
   var

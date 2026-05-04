@@ -66,4 +66,5 @@ type
     saDilithium2 ## original Dilithium5 / standardized ML-DSA-87
     saFalcon512
     saFalcon1024
+    saSPHINCSPlusShake128fSimple
     saSPHINCSPlusHaraka128fSimple

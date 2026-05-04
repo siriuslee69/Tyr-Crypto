@@ -111,6 +111,7 @@ proc xchacha20Stream*(key, nonce: openArray[byte], length: int,
     raise newException(ValueError, "XChaCha20 requires a 32-byte key")
   if nonce.len != xchacha20NonceSize:
     raise newException(ValueError, "XChaCha20 requires a 24-byte nonce")
+  requireChaCha20BlockRange(initialCounter, length)
   subkey = deriveXChaCha20Key(key, nonce)
   chachaNonce = buildChaChaNonce(nonce)
   result = newSeq[byte](length)

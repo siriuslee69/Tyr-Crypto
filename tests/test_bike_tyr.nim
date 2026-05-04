@@ -85,7 +85,7 @@ suite "bike tyr":
       openM.receiverSecretKey[i] = kp.secretKey[i]
       i = i + 1
     let env0 = custom_bike.bikeTyrEncapsDerand(custom_bike.bikeL1, kp.publicKey, encapsRandom)
-    let env = AsymCipher(ciphertext: env0.ciphertext, senderPublicKey: @[], sharedSecret: env0.sharedSecret)
+    let env = initAsymCipher(env0.ciphertext, @[], env0.sharedSecret)
     check open(env, openM) == env.sharedSecret
 
   when defined(hasLibOqs):
@@ -165,5 +165,5 @@ suite "bike tyr":
         while i < openM.receiverSecretKey.len:
           openM.receiverSecretKey[i] = sk[i]
           i = i + 1
-        let oqsEnv = AsymCipher(ciphertext: ct, senderPublicKey: @[], sharedSecret: shared)
+        let oqsEnv = initAsymCipher(ct, @[], shared)
         check open(oqsEnv, openM) == oqsEnv.sharedSecret

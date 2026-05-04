@@ -456,6 +456,9 @@ tyr_x25519_ref10_scalarmult(unsigned char *q,
     unsigned int bit = 0;
 
     if (has_small_order(p)) {
+        if (q != NULL) {
+            secure_memzero(q, 32);
+        }
         return -1;
     }
     for (i = 0; i < 32; i++) {

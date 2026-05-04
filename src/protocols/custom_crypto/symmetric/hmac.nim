@@ -19,8 +19,21 @@ const
   hmacConstB* = 0x5c'u8
   blake3HmacBlockLen* = 64
   gimliHmacBlockLen* = 48
-  poly1305HmacBlockLen* = 64
   poly1305HmacOutLen* = 16
+
+proc sha3HmacBlockLen*(outLen: int): int =
+  ## Return the Keccak rate in bytes for the selected SHA3 output size.
+  case outLen
+  of 28:
+    result = 144
+  of 32:
+    result = 136
+  of 48:
+    result = 104
+  of 64:
+    result = 72
+  else:
+    raise newException(ValueError, "sha3 hmac output length must be 28, 32, 48, or 64 bytes")
 
 proc appendBytes(dst: var seq[byte], src: openArray[byte]) =
   ## dst: destination byte sequence.
@@ -200,8 +213,11 @@ proc gimliKeyedHashAdapter(key, input: openArray[byte], outLen: int): seq[byte] 
   ## input: message bytes.
   ## outLen: requested output length.
   var
-    nonce: seq[byte] = @[]
+    nonce: seq[byte] = newSeq[byte](24)
   result = gimliTag(key, nonce, input, outLen)
+
+proc gimliHashAdapter(input: openArray[byte], outLen: int): seq[byte] =
+  result = gimliXof(@[], @[], input, outLen)
 
 proc sha3HashAdapter(input: openArray[byte], outLen: int): seq[byte] =
   ## input: message bytes.
@@ -212,16 +228,6 @@ proc sha3Hash*(input: openArray[byte], outLen: int = 32): seq[byte] =
   ## input: message bytes.
   ## outLen: output length. Must be one of 28, 32, 48, or 64.
   result = customSha3.sha3Hash(input, outLen)
-
-proc poly1305KeyedHashAdapter(key, input: openArray[byte], outLen: int): seq[byte] =
-  ## key: Poly1305 one-time key bytes.
-  ## input: message bytes.
-  ## outLen: requested output length.
-  if key.len != customPoly1305.poly1305KeyBytes:
-    raise newException(ValueError, "poly1305 keyed hash requires a 32-byte key")
-  if outLen != poly1305HmacOutLen:
-    raise newException(ValueError, "poly1305 keyed hash requires a 16-byte output length")
-  result = customPoly1305.poly1305Tag(key, input)
 
 proc blake3CustomHmac*(key, msg: openArray[byte], outLen: int = outLenDefault,
     blockLen: int = blake3HmacBlockLen, constA: uint8 = hmacConstA,
@@ -257,28 +263,34 @@ proc gimliCustomHmac*(key, msg: openArray[byte],
   ## constA: inner xor constant.
   ## constB: outer xor constant.
   result = customHmacFromKeyedHash(key, msg, blockLen, outLen,
-    gimliKeyedHashAdapter, nil, 0, constA, constB)
+    gimliKeyedHashAdapter, gimliHashAdapter, 32, constA, constB)
 
 proc poly1305CustomHmac*(key, msg: openArray[byte],
-    outLen: int = poly1305HmacOutLen, blockLen: int = poly1305HmacBlockLen,
+    outLen: int = poly1305HmacOutLen, blockLen: int = 0,
     constA: uint8 = hmacConstA, constB: uint8 = hmacConstB): seq[byte] =
-  ## key: Poly1305 HMAC key bytes.
+  ## key: Poly1305 one-time key bytes.
   ## msg: message bytes.
   ## outLen: requested output length. Must be `16`.
-  ## blockLen: HMAC block length for key normalization.
-  ## constA: inner xor constant.
-  ## constB: outer xor constant.
-  result = customHmacFromKeyedHash(key, msg, blockLen, outLen,
-    poly1305KeyedHashAdapter, blake3HashAdapter, 32, constA, constB)
+  discard blockLen
+  discard constA
+  discard constB
+  if key.len != customPoly1305.poly1305KeyBytes:
+    raise newException(ValueError, "poly1305 keyed hash requires a 32-byte key")
+  if outLen != poly1305HmacOutLen:
+    raise newException(ValueError, "poly1305 keyed hash requires a 16-byte output length")
+  result = customPoly1305.poly1305Tag(key, msg)
 
 proc sha3CustomHmac*(key, msg: openArray[byte], outLen: int = 32,
-    blockLen: int = blake3HmacBlockLen, constA: uint8 = hmacConstA,
+    blockLen: int = 0, constA: uint8 = hmacConstA,
     constB: uint8 = hmacConstB): seq[byte] =
   ## key: SHA3 HMAC key bytes.
   ## msg: message bytes.
   ## outLen: requested output length. Supported: `28`, `32`, `48`, `64`.
-  ## blockLen: HMAC block length for key normalization.
+  ## blockLen: optional HMAC block length override; `0` uses the SHA3 rate.
   ## constA: inner xor constant.
   ## constB: outer xor constant.
-  result = customHmacFromHash(key, msg, blockLen, outLen,
+  let resolvedBlockLen =
+    if blockLen == 0: sha3HmacBlockLen(outLen)
+    else: blockLen
+  result = customHmacFromHash(key, msg, resolvedBlockLen, outLen,
     sha3HashAdapter, constA, constB)

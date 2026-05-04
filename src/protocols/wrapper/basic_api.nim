@@ -69,6 +69,10 @@ type
     akDilithium2TyrVerify, ## original Dilithium5 / standardized ML-DSA-87
     akEd448Sign,
     akEd448Verify,
+    akSphincsShake128fSimpleSign,
+    akSphincsShake128fSimpleVerify,
+    akSphincsShake128fSimpleTyrSign,
+    akSphincsShake128fSimpleTyrVerify,
     akSphincsHaraka128fSimpleSign,
     akSphincsHaraka128fSimpleVerify,
     akSphincsHaraka128fSimpleTyrSign,
@@ -147,10 +151,14 @@ type
     keyLayouts*: array[maxKeyLayouts, KeyLayout]
     outputBytes*: int
 
-  ## Generic asymmetric/KEM envelope returned by `seal` and `asymEnc`.
-  AsymCipher* = object
+  ## Public asymmetric/KEM envelope that is safe to serialize or send.
+  AsymEnvelope* = object
     ciphertext*: seq[uint8]
     senderPublicKey*: seq[uint8]
+
+  ## Local asymmetric/KEM result returned by `seal` and `asymEnc`.
+  AsymCipher* = object
+    envelope*: AsymEnvelope
     sharedSecret*: seq[uint8]
 
   ## Generic public/secret keypair returned by `asymKeypair`.
@@ -181,7 +189,7 @@ type
   gimlihmacM* = object
     key*: array[32, byte]
     outLen*: uint16
-  ## Material for Poly1305-backed HMAC creation.
+  ## Material for Poly1305 one-time tag creation.
   poly1305hmacM* = object
     key*: array[32, byte]
     outLen*: uint16
@@ -199,7 +207,7 @@ type
     key*: array[32, byte]
     tag*: seq[byte]
     outLen*: uint16
-  ## Material for Poly1305-backed HMAC verification.
+  ## Material for Poly1305 one-time tag verification.
   poly1305hmacVerifyM* = object
     key*: array[32, byte]
     tag*: seq[byte]
@@ -234,14 +242,14 @@ type
   ## Material for Falcon-512 signature verification.
   falcon0VerifyM* = object
     publicKey*: array[897, byte]
-    signature*: array[752, byte]
+    signature*: seq[byte]
   ## Material for Falcon-1024 signing.
   falcon1SignM* = object
     secretKey*: array[2305, byte]
   ## Material for Falcon-1024 signature verification.
   falcon1VerifyM* = object
     publicKey*: array[1793, byte]
-    signature*: array[1462, byte]
+    signature*: seq[byte]
   ## Material for tier-0 Dilithium signing.
   dilithium0SignM* = object
     ## original Dilithium2 / standardized ML-DSA-44
@@ -303,21 +311,35 @@ type
   ed448VerifyM* = object
     publicKey*: array[57, byte]
     signature*: array[114, byte]
+  ## Material for the SHAKE 128f SPHINCS+ signing surface.
+  sphincsShake128fSimpleSignM* = object
+    secretKey*: array[64, byte]
+  ## Material for the SHAKE 128f SPHINCS+ verification surface.
+  sphincsShake128fSimpleVerifyM* = object
+    publicKey*: array[32, byte]
+    signature*: array[17088, byte]
+  ## Material for the pure-Nim Tyr SHAKE 128f simple SPHINCS+ signing path.
+  sphincsShake128fSimpleTyrSignM* = object
+    secretKey*: array[64, byte]
+  ## Material for the pure-Nim Tyr SHAKE 128f simple SPHINCS+ verification path.
+  sphincsShake128fSimpleTyrVerifyM* = object
+    publicKey*: array[32, byte]
+    signature*: array[17088, byte]
   ## Material for the Haraka 128f SPHINCS+ signing surface.
+  ## Compatibility alias surface; the local backend binding is SHAKE-128f-simple.
   sphincsHaraka128fSimpleSignM* = object
-    ## The Haraka 128f simple parameter set uses the same fixed key/signature
-    ## lengths as the other SPHINCS+ 128f simple backends.
     secretKey*: array[64, byte]
   ## Material for the Haraka 128f SPHINCS+ verification surface.
+  ## Compatibility alias surface; the local backend binding is SHAKE-128f-simple.
   sphincsHaraka128fSimpleVerifyM* = object
     publicKey*: array[32, byte]
     signature*: array[17088, byte]
   ## Material for the pure-Nim Tyr 128f simple SPHINCS+ signing path.
-  ## Current local backend binding targets SPHINCS+-SHAKE-128f-simple.
+  ## Compatibility alias surface for the SHAKE-128f-simple backend.
   sphincsHaraka128fSimpleTyrSignM* = object
     secretKey*: array[64, byte]
   ## Material for the pure-Nim Tyr 128f simple SPHINCS+ verification path.
-  ## Current local backend binding targets SPHINCS+-SHAKE-128f-simple.
+  ## Compatibility alias surface for the SHAKE-128f-simple backend.
   sphincsHaraka128fSimpleTyrVerifyM* = object
     publicKey*: array[32, byte]
     signature*: array[17088, byte]
@@ -545,17 +567,17 @@ const algorithmLayouts*: array[AlgorithmKind, AlgorithmLayout] = [
   buildLayout(akBlake3KeyedHash, okHash, variableLayoutSize, kkSym -> 32),
   buildLayout(akBlake3Hmac, okHmac, digestBytes, kkSym -> 32),
   buildLayout(akGimliHmac, okHmac, digestBytes, kkSym -> 32),
-  buildLayout(akPoly1305Hmac, okHmac, digestBytes, kkSym -> 32),
+  buildLayout(akPoly1305Hmac, okHmac, 16, kkSym -> 32),
   buildLayout(akSha3Hmac, okHmac, digestBytes, kkSym -> 32),
   buildLayout(akXChaCha20Cipher, okCipher, variableLayoutSize, kkSym -> 32, kkNonce -> 24),
   buildLayout(akAesCtrCipher, okCipher, variableLayoutSize, kkSym -> 32, kkNonce -> 16),
   buildLayout(akGimliStreamCipher, okCipher, variableLayoutSize, kkSym -> 32, kkNonce -> 24),
   buildLayout(akEd25519Sign, okSign, 64, kkSecretKey -> 64),
   buildLayout(akEd25519Verify, okVerify, 1, kkPublicKey -> 32, kkSignature -> 64),
-  buildLayout(akFalcon0Sign, okSign, 752, kkSecretKey -> 1281),
-  buildLayout(akFalcon0Verify, okVerify, 1, kkPublicKey -> 897, kkSignature -> 752),
-  buildLayout(akFalcon1Sign, okSign, 1462, kkSecretKey -> 2305),
-  buildLayout(akFalcon1Verify, okVerify, 1, kkPublicKey -> 1793, kkSignature -> 1462),
+  buildLayout(akFalcon0Sign, okSign, variableLayoutSize, kkSecretKey -> 1281),
+  buildLayout(akFalcon0Verify, okVerify, 1, kkPublicKey -> 897, kkSignature -> variableLayoutSize),
+  buildLayout(akFalcon1Sign, okSign, variableLayoutSize, kkSecretKey -> 2305),
+  buildLayout(akFalcon1Verify, okVerify, 1, kkPublicKey -> 1793, kkSignature -> variableLayoutSize),
   buildLayout(akDilithium0Sign, okSign, 2420, kkSecretKey -> 2560),
   buildLayout(akDilithium0Verify, okVerify, 1, kkPublicKey -> 1312, kkSignature -> 2420),
   buildLayout(akDilithium1Sign, okSign, 3309, kkSecretKey -> 4032),
@@ -570,6 +592,10 @@ const algorithmLayouts*: array[AlgorithmKind, AlgorithmLayout] = [
   buildLayout(akDilithium2TyrVerify, okVerify, 1, kkPublicKey -> 2592, kkSignature -> 4627),
   buildLayout(akEd448Sign, okSign, 114, kkSecretKey -> 57),
   buildLayout(akEd448Verify, okVerify, 1, kkPublicKey -> 57, kkSignature -> 114),
+  buildLayout(akSphincsShake128fSimpleSign, okSign, 17088, kkSecretKey -> 64),
+  buildLayout(akSphincsShake128fSimpleVerify, okVerify, 1, kkPublicKey -> 32, kkSignature -> 17088),
+  buildLayout(akSphincsShake128fSimpleTyrSign, okSign, 17088, kkSecretKey -> 64),
+  buildLayout(akSphincsShake128fSimpleTyrVerify, okVerify, 1, kkPublicKey -> 32, kkSignature -> 17088),
   buildLayout(akSphincsHaraka128fSimpleSign, okSign, 17088, kkSecretKey -> 64),
   buildLayout(akSphincsHaraka128fSimpleVerify, okVerify, 1, kkPublicKey -> 32, kkSignature -> 17088),
   buildLayout(akSphincsHaraka128fSimpleTyrSign, okSign, 17088, kkSecretKey -> 64),
@@ -667,6 +693,14 @@ proc algorithmOf*(T: typedesc[dilithium2TyrSignM]): AlgorithmKind = akDilithium2
 proc algorithmOf*(T: typedesc[dilithium2TyrVerifyM]): AlgorithmKind = akDilithium2TyrVerify
 proc algorithmOf*(T: typedesc[ed448SignM]): AlgorithmKind = akEd448Sign
 proc algorithmOf*(T: typedesc[ed448VerifyM]): AlgorithmKind = akEd448Verify
+proc algorithmOf*(T: typedesc[sphincsShake128fSimpleSignM]): AlgorithmKind =
+  akSphincsShake128fSimpleSign
+proc algorithmOf*(T: typedesc[sphincsShake128fSimpleVerifyM]): AlgorithmKind =
+  akSphincsShake128fSimpleVerify
+proc algorithmOf*(T: typedesc[sphincsShake128fSimpleTyrSignM]): AlgorithmKind =
+  akSphincsShake128fSimpleTyrSign
+proc algorithmOf*(T: typedesc[sphincsShake128fSimpleTyrVerifyM]): AlgorithmKind =
+  akSphincsShake128fSimpleTyrVerify
 proc algorithmOf*(T: typedesc[sphincsHaraka128fSimpleSignM]): AlgorithmKind =
   akSphincsHaraka128fSimpleSign
 proc algorithmOf*(T: typedesc[sphincsHaraka128fSimpleVerifyM]): AlgorithmKind =
@@ -739,23 +773,45 @@ proc toDigest32(input: openArray[byte]): HashDigest32 =
   for i in 0 ..< digestBytes:
     result[i] = input[i]
 
+proc initAsymEnvelope*(ciphertext, senderPublicKey: seq[uint8]): AsymEnvelope =
+  result.ciphertext = ciphertext
+  result.senderPublicKey = senderPublicKey
+
+proc initAsymCipher*(ciphertext, senderPublicKey, sharedSecret: seq[uint8]): AsymCipher =
+  result.envelope = initAsymEnvelope(ciphertext, senderPublicKey)
+  result.sharedSecret = sharedSecret
+
+proc ciphertext*(cipher: AsymCipher): seq[uint8] {.inline.} =
+  ## Compatibility accessor for code that reads `cipher.ciphertext`.
+  result = cipher.envelope.ciphertext
+
+proc senderPublicKey*(cipher: AsymCipher): seq[uint8] {.inline.} =
+  ## Compatibility accessor for code that reads `cipher.senderPublicKey`.
+  result = cipher.envelope.senderPublicKey
+
 proc hmacLen(outLen: uint16): int =
   if outLen == 0'u16:
     result = digestBytes
   else:
     result = int(outLen)
 
+proc poly1305Len(outLen: uint16): int =
+  if outLen == 0'u16:
+    result = 16
+  else:
+    result = int(outLen)
+
 proc constantTimeEqual(a, b: openArray[uint8]): bool =
   var
-    diff: uint8 = 0
+    diff: uint = if a.len == b.len: 0'u else: 1'u
     i: int = 0
-  if a.len != b.len:
-    return false
+    bByte: uint8 = 0
   i = 0
   while i < a.len:
-    diff = diff or (a[i] xor b[i])
+    bByte = if i < b.len: b[i] else: 0'u8
+    diff = diff or uint(a[i] xor bByte)
     i = i + 1
-  result = diff == 0'u8
+  result = diff == 0'u
 
 proc kyberAlgId(variant: KyberTier): string =
   case variant
@@ -940,6 +996,15 @@ proc x25519KeypairFromSeed(seed: openArray[uint8]): tuple[pk, sk: seq[uint8]] =
       if seed.len > 0: unsafeAddr seed[0] else: nil) != 0:
     raiseOperation("libsodium", "crypto_kx_seed_keypair failed")
   result = (pk: pk, sk: sk)
+
+proc x25519PublicKeyFromSecret(secretKey: openArray[uint8]): seq[uint8] =
+  if secretKey.len != x25519KeyBytes:
+    raise newException(ValueError, "invalid X25519 secret key length")
+  result = newSeq[uint8](x25519KeyBytes)
+  if crypto_scalarmult_curve25519_base(
+      addr result[0],
+      if secretKey.len > 0: unsafeAddr secretKey[0] else: nil) != 0:
+    raiseOperation("libsodium", "crypto_scalarmult_curve25519_base failed")
 
 proc x25519Shared(secretKey, publicKey: openArray[uint8]): seq[uint8] =
   if secretKey.len != x25519KeyBytes or publicKey.len != x25519KeyBytes:
@@ -1154,22 +1219,32 @@ proc symDec*(alg: StreamCipherAlgorithm, key, nonce, cipher: seq[uint8]): seq[ui
   ## Decrypt or stream-XOR `cipher` with the selected primitive cipher.
   result = symEnc(alg, key, nonce, cipher)
 
-proc hmacCreate*(alg: MacAlgorithm, key, msg: seq[uint8], outLen: int = 32): seq[uint8] =
+proc macOutLen(alg: MacAlgorithm, outLen: int): int =
+  if outLen > 0:
+    return outLen
+  case alg
+  of maPoly1305:
+    result = 16
+  else:
+    result = digestBytes
+
+proc hmacCreate*(alg: MacAlgorithm, key, msg: seq[uint8], outLen: int = 0): seq[uint8] =
   ## Create a detached MAC/tag with the selected keyed hash backend.
+  let resolvedOutLen = macOutLen(alg, outLen)
   case alg
   of maBlake3:
-    result = blake3CustomHmac(key, msg, outLen)
+    result = blake3CustomHmac(key, msg, resolvedOutLen)
   of maGimli:
-    result = gimliCustomHmac(key, msg, outLen)
+    result = gimliCustomHmac(key, msg, resolvedOutLen)
   of maPoly1305:
-    result = poly1305CustomHmac(key, msg, outLen)
+    result = poly1305CustomHmac(key, msg, resolvedOutLen)
   of maSha3:
-    result = sha3CustomHmac(key, msg, outLen)
+    result = sha3CustomHmac(key, msg, resolvedOutLen)
 
-proc hmacAuth*(alg: MacAlgorithm, key, msg, tag: seq[uint8], outLen: int = 32): bool =
+proc hmacAuth*(alg: MacAlgorithm, key, msg, tag: seq[uint8], outLen: int = 0): bool =
   ## Verify a detached MAC/tag with the selected keyed hash backend.
   var expected: seq[uint8] = @[]
-  expected = hmacCreate(alg, key, msg, outLen)
+  expected = hmacCreate(alg, key, msg, macOutLen(alg, outLen))
   result = constantTimeEqual(expected, tag)
 
 proc asymEnc*(alg: KemAlgorithm, receiverPublicKey: seq[uint8],
@@ -1189,13 +1264,15 @@ proc asymEnc*(alg: KemAlgorithm, receiverPublicKey: seq[uint8],
       else:
         kp0 = x25519Keypair()
     elif senderPublicKey.len > 0 and senderSecretKey.len > 0:
+      let derivedPublicKey = x25519PublicKeyFromSecret(senderSecretKey)
+      if not constantTimeEqual(derivedPublicKey, senderPublicKey):
+        raise newException(ValueError,
+          "x25519 senderPublicKey does not match senderSecretKey")
       kp0 = (pk: senderPublicKey, sk: senderSecretKey)
     else:
       raise newException(ValueError,
         "x25519 dispatch requires both senderPublicKey and senderSecretKey, or neither")
-    result.senderPublicKey = kp0.pk
-    result.ciphertext = @[]
-    result.sharedSecret = x25519Shared(kp0.sk, receiverPublicKey)
+    result = initAsymCipher(@[], kp0.pk, x25519Shared(kp0.sk, receiverPublicKey))
   of kaKyber0, kaKyber1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
       kaFrodo0Aes, kaFrodo0Shake, kaFrodo1Aes, kaFrodo1Shake, kaFrodo2Aes,
       kaFrodo2Shake, kaNtruPrime0, kaBike0:
@@ -1204,12 +1281,10 @@ proc asymEnc*(alg: KemAlgorithm, receiverPublicKey: seq[uint8],
       kem0 = kemEncaps(algId, receiverPublicKey, seed)
     else:
       kem0 = kemEncaps(algId, receiverPublicKey)
-    result.ciphertext = kem0.ciphertext
-    result.senderPublicKey = @[]
-    result.sharedSecret = kem0.shared
+    result = initAsymCipher(kem0.ciphertext, @[], kem0.shared)
 
 proc asymDec*(alg: KemAlgorithm, receiverSecretKey: seq[uint8],
-    cipher: AsymCipher): seq[uint8] =
+    cipher: AsymEnvelope): seq[uint8] =
   ## Recover the shared secret from a previously returned asymmetric envelope.
   var algId: string = ""
   case alg
@@ -1220,6 +1295,11 @@ proc asymDec*(alg: KemAlgorithm, receiverSecretKey: seq[uint8],
       kaFrodo2Shake, kaNtruPrime0, kaBike0:
     algId = kemAlgIdForDispatch(alg)
     result = kemDecaps(algId, cipher.ciphertext, receiverSecretKey)
+
+proc asymDec*(alg: KemAlgorithm, receiverSecretKey: seq[uint8],
+    cipher: AsymCipher): seq[uint8] =
+  ## Recover the shared secret using a local `AsymCipher` result.
+  result = asymDec(alg, receiverSecretKey, cipher.envelope)
 
 proc asymSign*(alg: SignatureAlgorithm, msg, secretKey: seq[uint8]): seq[uint8] =
   ## Create a detached signature with the selected signature backend.
@@ -1277,7 +1357,7 @@ proc hmac*(message: openArray[byte], m: gimlihmacM): seq[byte] =
   result = hmacCreate(maGimli, toSeqBytes(m.key), toSeqBytes(message), hmacLen(m.outLen))
 
 proc hmac*(message: openArray[byte], m: poly1305hmacM): seq[byte] =
-  result = hmacCreate(maPoly1305, toSeqBytes(m.key), toSeqBytes(message), hmacLen(m.outLen))
+  result = hmacCreate(maPoly1305, toSeqBytes(m.key), toSeqBytes(message), poly1305Len(m.outLen))
 
 proc hmac*(message: openArray[byte], m: sha3hmacM): seq[byte] =
   result = hmacCreate(maSha3, toSeqBytes(m.key), toSeqBytes(message), hmacLen(m.outLen))
@@ -1290,7 +1370,7 @@ proc authenticate*(message: openArray[byte], m: gimlihmacVerifyM): bool =
   result = hmacAuth(maGimli, toSeqBytes(m.key), toSeqBytes(message), m.tag, hmacLen(m.outLen))
 
 proc authenticate*(message: openArray[byte], m: poly1305hmacVerifyM): bool =
-  result = hmacAuth(maPoly1305, toSeqBytes(m.key), toSeqBytes(message), m.tag, hmacLen(m.outLen))
+  result = hmacAuth(maPoly1305, toSeqBytes(m.key), toSeqBytes(message), m.tag, poly1305Len(m.outLen))
 
 proc authenticate*(message: openArray[byte], m: sha3hmacVerifyM): bool =
   result = hmacAuth(maSha3, toSeqBytes(m.key), toSeqBytes(message), m.tag, hmacLen(m.outLen))
@@ -1370,11 +1450,26 @@ proc verify*(message: openArray[byte], m: ed448VerifyM): bool =
   result = asymVerify(saEd448, toSeqBytes(message),
     toSeqBytes(m.signature), toSeqBytes(m.publicKey))
 
+proc sign*(message: openArray[byte], m: sphincsShake128fSimpleSignM): seq[byte] =
+  result = asymSign(saSPHINCSPlusShake128fSimple, toSeqBytes(message), toSeqBytes(m.secretKey))
+
+proc verify*(message: openArray[byte], m: sphincsShake128fSimpleVerifyM): bool =
+  result = asymVerify(saSPHINCSPlusShake128fSimple, toSeqBytes(message),
+    toSeqBytes(m.signature), toSeqBytes(m.publicKey))
+
+proc sign*(message: openArray[byte], m: sphincsShake128fSimpleTyrSignM): seq[byte] =
+  result = customSphincs.sphincsTyrSignDerand(customSphincs.sphincsShake128fSimple,
+    toSeqBytes(message), toSeqBytes(m.secretKey), cryptoRandomBytes(16))
+
+proc verify*(message: openArray[byte], m: sphincsShake128fSimpleTyrVerifyM): bool =
+  result = customSphincs.sphincsTyrVerify(customSphincs.sphincsShake128fSimple,
+    toSeqBytes(message), toSeqBytes(m.signature), toSeqBytes(m.publicKey))
+
 proc sign*(message: openArray[byte], m: sphincsHaraka128fSimpleSignM): seq[byte] =
-  result = asymSign(saSPHINCSPlusHaraka128fSimple, toSeqBytes(message), toSeqBytes(m.secretKey))
+  result = asymSign(saSPHINCSPlusShake128fSimple, toSeqBytes(message), toSeqBytes(m.secretKey))
 
 proc verify*(message: openArray[byte], m: sphincsHaraka128fSimpleVerifyM): bool =
-  result = asymVerify(saSPHINCSPlusHaraka128fSimple, toSeqBytes(message),
+  result = asymVerify(saSPHINCSPlusShake128fSimple, toSeqBytes(message),
     toSeqBytes(m.signature), toSeqBytes(m.publicKey))
 
 proc sign*(message: openArray[byte], m: sphincsHaraka128fSimpleTyrSignM): seq[byte] =
@@ -1409,30 +1504,30 @@ proc seal*(m: x25519SendM): AsymCipher =
   ## Encapsulate or derive a shared secret using typed X25519 send material.
   result = asymEnc(kaX25519, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: x25519OpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: x25519OpenM): seq[byte] =
   ## Recover a shared secret using typed X25519 open material.
   result = asymDec(kaX25519, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: kyber0SendM): AsymCipher =
   result = asymEnc(kaKyber0, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: kyber0OpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: kyber0OpenM): seq[byte] =
   result = asymDec(kaKyber0, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: kyber1SendM): AsymCipher =
   result = asymEnc(kaKyber1, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: kyber1OpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: kyber1OpenM): seq[byte] =
   result = asymDec(kaKyber1, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: kyber0TyrSendM): AsymCipher =
   ## Encapsulate with the pure-Nim Tyr Kyber tier-0 backend.
   var env = customKyber.kyberTyrEncaps(customKyber.kyber768, toSeqBytes(m.receiverPublicKey))
-  result.ciphertext = env.ciphertext
-  result.senderPublicKey = @[]
+  result.envelope.ciphertext = env.ciphertext
+  result.envelope.senderPublicKey = @[]
   result.sharedSecret = env.sharedSecret
 
-proc open*(env: AsymCipher, m: kyber0TyrOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: kyber0TyrOpenM): seq[byte] =
   ## Decapsulate with the pure-Nim Tyr Kyber tier-0 backend.
   result = customKyber.kyberTyrDecaps(customKyber.kyber768,
     toSeqBytes(m.receiverSecretKey), env.ciphertext)
@@ -1440,11 +1535,11 @@ proc open*(env: AsymCipher, m: kyber0TyrOpenM): seq[byte] =
 proc seal*(m: kyber1TyrSendM): AsymCipher =
   ## Encapsulate with the pure-Nim Tyr Kyber tier-1 backend.
   var env = customKyber.kyberTyrEncaps(customKyber.kyber1024, toSeqBytes(m.receiverPublicKey))
-  result.ciphertext = env.ciphertext
-  result.senderPublicKey = @[]
+  result.envelope.ciphertext = env.ciphertext
+  result.envelope.senderPublicKey = @[]
   result.sharedSecret = env.sharedSecret
 
-proc open*(env: AsymCipher, m: kyber1TyrOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: kyber1TyrOpenM): seq[byte] =
   ## Decapsulate with the pure-Nim Tyr Kyber tier-1 backend.
   result = customKyber.kyberTyrDecaps(customKyber.kyber1024,
     toSeqBytes(m.receiverSecretKey), env.ciphertext)
@@ -1452,30 +1547,30 @@ proc open*(env: AsymCipher, m: kyber1TyrOpenM): seq[byte] =
 proc seal*(m: mceliece0SendM): AsymCipher =
   result = asymEnc(kaMcEliece0, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: mceliece0OpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: mceliece0OpenM): seq[byte] =
   result = asymDec(kaMcEliece0, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: mceliece1SendM): AsymCipher =
   result = asymEnc(kaMcEliece1, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: mceliece1OpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: mceliece1OpenM): seq[byte] =
   result = asymDec(kaMcEliece1, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: mceliece2SendM): AsymCipher =
   result = asymEnc(kaMcEliece2, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: mceliece2OpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: mceliece2OpenM): seq[byte] =
   result = asymDec(kaMcEliece2, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: mceliece0TyrSendM): AsymCipher =
   ## Encapsulate with the pure-Nim Tyr McEliece tier-0 backend.
   var env = customMcEliece.mcelieceTyrEncaps(customMcEliece.mceliece6688128f,
     toSeqBytes(m.receiverPublicKey))
-  result.ciphertext = env.ciphertext
-  result.senderPublicKey = @[]
+  result.envelope.ciphertext = env.ciphertext
+  result.envelope.senderPublicKey = @[]
   result.sharedSecret = env.sharedSecret
 
-proc open*(env: AsymCipher, m: mceliece0TyrOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: mceliece0TyrOpenM): seq[byte] =
   ## Decapsulate with the pure-Nim Tyr McEliece tier-0 backend.
   result = customMcEliece.mcelieceTyrDecaps(customMcEliece.mceliece6688128f,
     toSeqBytes(m.receiverSecretKey), env.ciphertext)
@@ -1484,11 +1579,11 @@ proc seal*(m: mceliece1TyrSendM): AsymCipher =
   ## Encapsulate with the pure-Nim Tyr McEliece tier-1 backend.
   var env = customMcEliece.mcelieceTyrEncaps(customMcEliece.mceliece6960119f,
     toSeqBytes(m.receiverPublicKey))
-  result.ciphertext = env.ciphertext
-  result.senderPublicKey = @[]
+  result.envelope.ciphertext = env.ciphertext
+  result.envelope.senderPublicKey = @[]
   result.sharedSecret = env.sharedSecret
 
-proc open*(env: AsymCipher, m: mceliece1TyrOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: mceliece1TyrOpenM): seq[byte] =
   ## Decapsulate with the pure-Nim Tyr McEliece tier-1 backend.
   result = customMcEliece.mcelieceTyrDecaps(customMcEliece.mceliece6960119f,
     toSeqBytes(m.receiverSecretKey), env.ciphertext)
@@ -1497,117 +1592,156 @@ proc seal*(m: mceliece2TyrSendM): AsymCipher =
   ## Encapsulate with the pure-Nim Tyr McEliece tier-2 backend.
   var env = customMcEliece.mcelieceTyrEncaps(customMcEliece.mceliece8192128f,
     toSeqBytes(m.receiverPublicKey))
-  result.ciphertext = env.ciphertext
-  result.senderPublicKey = @[]
+  result.envelope.ciphertext = env.ciphertext
+  result.envelope.senderPublicKey = @[]
   result.sharedSecret = env.sharedSecret
 
-proc open*(env: AsymCipher, m: mceliece2TyrOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: mceliece2TyrOpenM): seq[byte] =
   ## Decapsulate with the pure-Nim Tyr McEliece tier-2 backend.
   result = customMcEliece.mcelieceTyrDecaps(customMcEliece.mceliece8192128f,
     toSeqBytes(m.receiverSecretKey), env.ciphertext)
 
 proc buildFrodoTyrSeal(v: customFrodo.FrodoVariant, pk: openArray[byte]): AsymCipher =
   var env = customFrodo.frodoTyrEncaps(v, toSeqBytes(pk))
-  result.ciphertext = env.ciphertext
-  result.senderPublicKey = @[]
+  result.envelope.ciphertext = env.ciphertext
+  result.envelope.senderPublicKey = @[]
   result.sharedSecret = env.sharedSecret
 
 proc buildFrodoTyrOpen(v: customFrodo.FrodoVariant, sk: openArray[byte],
-    env: AsymCipher): seq[byte] =
+    env: AsymEnvelope): seq[byte] =
   result = customFrodo.frodoTyrDecaps(v, toSeqBytes(sk), env.ciphertext)
 
 proc seal*(m: frodo0AesSendM): AsymCipher =
   result = asymEnc(kaFrodo0Aes, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: frodo0AesOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: frodo0AesOpenM): seq[byte] =
   result = asymDec(kaFrodo0Aes, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: frodo0ShakeSendM): AsymCipher =
   result = asymEnc(kaFrodo0Shake, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: frodo0ShakeOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: frodo0ShakeOpenM): seq[byte] =
   result = asymDec(kaFrodo0Shake, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: frodo1AesSendM): AsymCipher =
   result = asymEnc(kaFrodo1Aes, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: frodo1AesOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: frodo1AesOpenM): seq[byte] =
   result = asymDec(kaFrodo1Aes, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: frodo1ShakeSendM): AsymCipher =
   result = asymEnc(kaFrodo1Shake, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: frodo1ShakeOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: frodo1ShakeOpenM): seq[byte] =
   result = asymDec(kaFrodo1Shake, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: frodo2AesSendM): AsymCipher =
   result = asymEnc(kaFrodo2Aes, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: frodo2AesOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: frodo2AesOpenM): seq[byte] =
   result = asymDec(kaFrodo2Aes, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: frodo2ShakeSendM): AsymCipher =
   result = asymEnc(kaFrodo2Shake, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: frodo2ShakeOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: frodo2ShakeOpenM): seq[byte] =
   result = asymDec(kaFrodo2Shake, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: frodo0AesTyrSendM): AsymCipher =
   result = buildFrodoTyrSeal(customFrodo.frodo640aes, m.receiverPublicKey)
 
-proc open*(env: AsymCipher, m: frodo0AesTyrOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: frodo0AesTyrOpenM): seq[byte] =
   result = buildFrodoTyrOpen(customFrodo.frodo640aes, m.receiverSecretKey, env)
 
 proc seal*(m: frodo0ShakeTyrSendM): AsymCipher =
   result = buildFrodoTyrSeal(customFrodo.frodo640shake, m.receiverPublicKey)
 
-proc open*(env: AsymCipher, m: frodo0ShakeTyrOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: frodo0ShakeTyrOpenM): seq[byte] =
   result = buildFrodoTyrOpen(customFrodo.frodo640shake, m.receiverSecretKey, env)
 
 proc seal*(m: frodo1AesTyrSendM): AsymCipher =
   result = buildFrodoTyrSeal(customFrodo.frodo976aes, m.receiverPublicKey)
 
-proc open*(env: AsymCipher, m: frodo1AesTyrOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: frodo1AesTyrOpenM): seq[byte] =
   result = buildFrodoTyrOpen(customFrodo.frodo976aes, m.receiverSecretKey, env)
 
 proc seal*(m: frodo1ShakeTyrSendM): AsymCipher =
   result = buildFrodoTyrSeal(customFrodo.frodo976shake, m.receiverPublicKey)
 
-proc open*(env: AsymCipher, m: frodo1ShakeTyrOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: frodo1ShakeTyrOpenM): seq[byte] =
   result = buildFrodoTyrOpen(customFrodo.frodo976shake, m.receiverSecretKey, env)
 
 proc seal*(m: frodo2AesTyrSendM): AsymCipher =
   result = buildFrodoTyrSeal(customFrodo.frodo1344aes, m.receiverPublicKey)
 
-proc open*(env: AsymCipher, m: frodo2AesTyrOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: frodo2AesTyrOpenM): seq[byte] =
   result = buildFrodoTyrOpen(customFrodo.frodo1344aes, m.receiverSecretKey, env)
 
 proc seal*(m: frodo2ShakeTyrSendM): AsymCipher =
   result = buildFrodoTyrSeal(customFrodo.frodo1344shake, m.receiverPublicKey)
 
-proc open*(env: AsymCipher, m: frodo2ShakeTyrOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: frodo2ShakeTyrOpenM): seq[byte] =
   result = buildFrodoTyrOpen(customFrodo.frodo1344shake, m.receiverSecretKey, env)
 
 proc seal*(m: ntruprime0SendM): AsymCipher =
   result = asymEnc(kaNtruPrime0, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: ntruprime0OpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: ntruprime0OpenM): seq[byte] =
   result = asymDec(kaNtruPrime0, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: bike0SendM): AsymCipher =
   result = asymEnc(kaBike0, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymCipher, m: bike0OpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: bike0OpenM): seq[byte] =
   result = asymDec(kaBike0, toSeqBytes(m.receiverSecretKey), env)
 
 proc seal*(m: bike0TyrSendM): AsymCipher =
   ## Encapsulate with the pure-Nim Tyr BIKE tier-0 backend.
   var env = customBike.bikeTyrEncaps(customBike.bikeL1, toSeqBytes(m.receiverPublicKey))
-  result.ciphertext = env.ciphertext
-  result.senderPublicKey = @[]
+  result.envelope.ciphertext = env.ciphertext
+  result.envelope.senderPublicKey = @[]
   result.sharedSecret = env.sharedSecret
 
-proc open*(env: AsymCipher, m: bike0TyrOpenM): seq[byte] =
+proc open*(env: AsymEnvelope, m: bike0TyrOpenM): seq[byte] =
   ## Decapsulate with the pure-Nim Tyr BIKE tier-0 backend.
   result = customBike.bikeTyrDecaps(customBike.bikeL1,
     toSeqBytes(m.receiverSecretKey), env.ciphertext)
+
+proc open*[T](cipher: AsymCipher, m: T): seq[byte] =
+  ## Recover a shared secret from the public envelope inside a local result.
+  result = open(cipher.envelope, m)
+
+proc seal*[A, B](a: A, b: B): array[2, AsymCipher] =
+  ## Convenience helper for composing two independent KEM/ECDH sends.
+  result[0] = seal(a)
+  result[1] = seal(b)
+
+proc seal*[A, B, C](a: A, b: B, c: C): array[3, AsymCipher] =
+  ## Convenience helper for composing three independent KEM/ECDH sends.
+  result[0] = seal(a)
+  result[1] = seal(b)
+  result[2] = seal(c)
+
+proc open*[A, B](envs: array[2, AsymEnvelope], a: A, b: B): array[2, seq[byte]] =
+  ## Convenience helper for opening two public KEM/ECDH envelopes.
+  result[0] = open(envs[0], a)
+  result[1] = open(envs[1], b)
+
+proc open*[A, B](ciphers: array[2, AsymCipher], a: A, b: B): array[2, seq[byte]] =
+  ## Convenience helper for opening two local KEM/ECDH results.
+  result[0] = open(ciphers[0], a)
+  result[1] = open(ciphers[1], b)
+
+proc open*[A, B, C](envs: array[3, AsymEnvelope], a: A, b: B,
+    c: C): array[3, seq[byte]] =
+  ## Convenience helper for opening three public KEM/ECDH envelopes.
+  result[0] = open(envs[0], a)
+  result[1] = open(envs[1], b)
+  result[2] = open(envs[2], c)
+
+proc open*[A, B, C](ciphers: array[3, AsymCipher], a: A, b: B,
+    c: C): array[3, seq[byte]] =
+  ## Convenience helper for opening three local KEM/ECDH results.
+  result[0] = open(ciphers[0], a)
+  result[1] = open(ciphers[1], b)
+  result[2] = open(ciphers[2], c)

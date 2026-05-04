@@ -1,7 +1,7 @@
 import std/unittest
 
 import ../src/protocols/custom_crypto/x25519 as customX25519
-import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_pass1, x25519_pass2, x25519_pass3, x25519_pass4]
+import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_pass1, x25519_pass2, x25519_pass3, x25519_pass4]
 import ../src/protocols/bindings/libsodium
 import ./[crypto_vectors, helpers]
 
@@ -68,11 +68,17 @@ suite "custom x25519":
     check kp1.secretKey == kp3.secretKey
     check kp1.secretKey == kp4.secretKey
 
-  test "invalid small-order peers are rejected":
+  test "all small-order peers are detected and rejected":
     let secretKey = hexToBytes(curve25519Vector.skHex)
-    let zeroPeer = newSeq[byte](32)
-    expect(ValueError):
-      discard customX25519.x25519TyrShared(secretKey, zeroPeer)
+    for peer in smallOrderBlocklist:
+      check hasSmallOrder(peer)
+      var peerHighBit = peer
+      peerHighBit[31] = peerHighBit[31] or 0x80'u8
+      check hasSmallOrder(peerHighBit)
+      expect(ValueError):
+        discard customX25519.x25519TyrShared(secretKey, toSeqBytes(peer))
+      expect(ValueError):
+        discard customX25519.x25519TyrShared(secretKey, toSeqBytes(peerHighBit))
 
   when defined(hasLibsodium):
     test "passes match libsodium on a deterministic corpus":

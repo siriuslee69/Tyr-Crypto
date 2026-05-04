@@ -1,5 +1,5 @@
 import std/unittest
-import ../src/protocols/custom_crypto/[hmac, blake3]
+import ../src/protocols/custom_crypto/[hmac, blake3, poly1305]
 import ./helpers
 
 proc blake3ManualHashHmac(key, msg: openArray[byte], blockLen, outLen: int): seq[byte] =
@@ -106,3 +106,11 @@ suite "custom hmac":
     check a == b
     check a.len == 16
     check a != c
+
+  test "poly1305 custom mac is a direct one-time tag":
+    let
+      key = hexToBytes("4242424242424242424242424242424242424242424242424242424242424242")
+      msg = toBytes("poly1305 direct tag")
+      tag = poly1305CustomHmac(key, msg)
+    check tag == poly1305Tag(key, msg)
+    check tag.len == 16

@@ -1,5 +1,6 @@
 import std/bitops
 import ./xchacha20
+import ./chacha20
 
 const
   hchacha20InputSize = 16
@@ -442,6 +443,7 @@ proc xchacha20StreamSimd*(key, nonce: openArray[byte], length: int,
     raise newException(ValueError, "XChaCha20 requires a 32-byte key")
   if nonce.len != xchacha20.xchacha20NonceSize:
     raise newException(ValueError, "XChaCha20 requires a 24-byte nonce")
+  requireChaCha20BlockRange(initialCounter, length)
   var
     rs: ByteSeq = @[]
     subkey: array[32, byte]

@@ -38,6 +38,139 @@ proc counterBytes(counter: uint64): array[8, byte] {.inline.} =
     result[i] = byte((counter shr (i * 8)) and 0xff'u64)
     i.inc
 
+proc counterBytesBe(counter: uint64): array[8, byte] {.inline.} =
+  var i = 0
+  while i < 8:
+    result[7 - i] = byte((counter shr (i * 8)) and 0xff'u64)
+    i.inc
+
+proc load32Be(data: openArray[byte], offset: int): uint32 {.inline.} =
+  result =
+    (uint32(data[offset]) shl 24) or
+    (uint32(data[offset + 1]) shl 16) or
+    (uint32(data[offset + 2]) shl 8) or
+    uint32(data[offset + 3])
+
+proc store32Be(dst: var openArray[byte], offset: int; w: uint32) {.inline.} =
+  dst[offset] = byte((w shr 24) and 0xff'u32)
+  dst[offset + 1] = byte((w shr 16) and 0xff'u32)
+  dst[offset + 2] = byte((w shr 8) and 0xff'u32)
+  dst[offset + 3] = byte(w and 0xff'u32)
+
+proc rotl32(x: uint32, n: int): uint32 {.inline.} =
+  (x shl n) or (x shr (32 - n))
+
+proc sha1Digest(input: openArray[byte]): array[20, byte] =
+  var
+    h0 = 0x67452301'u32
+    h1 = 0xefcdab89'u32
+    h2 = 0x98badcfe'u32
+    h3 = 0x10325476'u32
+    h4 = 0xc3d2e1f0'u32
+    padded = newSeq[byte](input.len + 1)
+    bitLen = uint64(input.len) * 8'u64
+    offset = 0
+    i = 0
+  while i < input.len:
+    padded[i] = input[i]
+    i.inc
+  padded[input.len] = 0x80'u8
+  while (padded.len mod 64) != 56:
+    padded.add(0'u8)
+  i = 7
+  while i >= 0:
+    padded.add(byte((bitLen shr (i * 8)) and 0xff'u64))
+    i.dec
+  while offset < padded.len:
+    var
+      w: array[80, uint32]
+      a = h0
+      b = h1
+      c = h2
+      d = h3
+      e = h4
+      t = 0
+    while t < 16:
+      w[t] = load32Be(padded, offset + t * 4)
+      t.inc
+    while t < 80:
+      w[t] = rotl32(w[t - 3] xor w[t - 8] xor w[t - 14] xor w[t - 16], 1)
+      t.inc
+    t = 0
+    while t < 80:
+      var
+        f: uint32
+        k: uint32
+      if t < 20:
+        f = (b and c) or ((not b) and d)
+        k = 0x5a827999'u32
+      elif t < 40:
+        f = b xor c xor d
+        k = 0x6ed9eba1'u32
+      elif t < 60:
+        f = (b and c) or (b and d) or (c and d)
+        k = 0x8f1bbcdc'u32
+      else:
+        f = b xor c xor d
+        k = 0xca62c1d6'u32
+      let temp = rotl32(a, 5) + f + e + k + w[t]
+      e = d
+      d = c
+      c = rotl32(b, 30)
+      b = a
+      a = temp
+      t.inc
+    h0 = h0 + a
+    h1 = h1 + b
+    h2 = h2 + c
+    h3 = h3 + d
+    h4 = h4 + e
+    offset = offset + 64
+  store32Be(result, 0, h0)
+  store32Be(result, 4, h1)
+  store32Be(result, 8, h2)
+  store32Be(result, 12, h3)
+  store32Be(result, 16, h4)
+
+proc hmacSha1(key, msg: openArray[byte]): array[20, byte] =
+  var
+    keyBlock = newSeq[byte](64)
+    keyMaterial: seq[byte] = @[]
+    inner = newSeq[byte](64 + msg.len)
+    outer = newSeq[byte](64 + 20)
+    digest: array[20, byte]
+    i = 0
+  if key.len > 64:
+    let kh = sha1Digest(key)
+    keyMaterial = newSeq[byte](20)
+    while i < 20:
+      keyMaterial[i] = kh[i]
+      i.inc
+  else:
+    keyMaterial = newSeq[byte](key.len)
+    while i < key.len:
+      keyMaterial[i] = key[i]
+      i.inc
+  i = 0
+  while i < keyMaterial.len:
+    keyBlock[i] = keyMaterial[i]
+    i.inc
+  i = 0
+  while i < 64:
+    inner[i] = keyBlock[i] xor 0x36'u8
+    outer[i] = keyBlock[i] xor 0x5c'u8
+    i.inc
+  i = 0
+  while i < msg.len:
+    inner[64 + i] = msg[i]
+    i.inc
+  digest = sha1Digest(inner)
+  i = 0
+  while i < 20:
+    outer[64 + i] = digest[i]
+    i.inc
+  result = sha1Digest(outer)
+
 proc mixMaterial(secret: openArray[byte], counter: uint64; label: string;
     outLen: int): seq[byte] =
   ## Deterministic material expansion for backend-local state setup.
@@ -216,9 +349,14 @@ proc digestChaChaSimd(secret: openArray[byte], counter: uint64; b: OtpBackend): 
   let kn = chachaKeyNonce(secret, counter)
   result = xchacha20StreamSimd(kn.key, kn.nonce, 64, 0'u32, resolveXChaChaBackend(b))
 
-proc ensureDigestLen(ds: seq[byte]): seq[byte] =
+proc ensureDigestLen(ds: openArray[byte]): seq[byte] =
   if ds.len >= 20:
-    return ds
+    result = newSeq[byte](ds.len)
+    var j = 0
+    while j < ds.len:
+      result[j] = ds[j]
+      j.inc
+    return
   result = newSeq[byte](20)
   if ds.len == 0:
     return
@@ -227,14 +365,14 @@ proc ensureDigestLen(ds: seq[byte]): seq[byte] =
     result[i] = ds[i mod ds.len]
     i.inc
 
-proc pow10(n: int): uint32 =
-  result = 1'u32
+proc pow10(n: int): uint64 =
+  result = 1'u64
   var i = 0
   while i < n:
-    result = result * 10'u32
+    result = result * 10'u64
     i.inc
 
-proc otpFromDigest(ds: seq[byte], digits: int): string =
+proc otpFromDigest(ds: openArray[byte], digits: int): string =
   let digest = ensureDigestLen(ds)
   var offset = int(digest[^1] and 0x0f)
   if offset + 4 > digest.len:
@@ -245,7 +383,7 @@ proc otpFromDigest(ds: seq[byte], digits: int): string =
     (uint32(digest[offset + 2]) shl 8) or
     uint32(digest[offset + 3])
   let modBase = pow10(max(1, digits))
-  let n = code mod modBase
+  let n = uint64(code) mod modBase
   result = $n
   while result.len < digits:
     result = "0" & result
@@ -316,6 +454,20 @@ proc hotp*(algo: OtpAlgo; secret: openArray[byte]; counter: uint64;
   let d = min(10, max(4, digits))
   result = otpFromDigest(otpDigest(algo, secret, counter, b), d)
 
+proc hotpRfc4226*(secret: openArray[byte]; counter: uint64;
+    digits: int = 6): string =
+  ## RFC 4226 HOTP using HMAC-SHA1 and big-endian 64-bit counters.
+  let
+    d = min(10, max(4, digits))
+    cb = counterBytesBe(counter)
+    mac = hmacSha1(secret, cb)
+  result = otpFromDigest(mac, d)
+
+proc hotpRfc*(secret: openArray[byte]; counter: uint64;
+    digits: int = 6): string =
+  ## Alias for RFC 4226 HOTP.
+  result = hotpRfc4226(secret, counter, digits)
+
 proc hotpBatch*(algo: OtpAlgo; secret: openArray[byte];
     counters: openArray[uint64]; digits: int = 6;
     b: OtpBackend = obScalar): seq[string] =
@@ -344,6 +496,21 @@ proc totp*(algo: OtpAlgo; secret: openArray[byte]; unixTime: int64;
     raise newException(ValueError, "unixTime must be >= t0")
   let ctr = uint64((unixTime - t0) div stepSec)
   result = hotp(algo, secret, ctr, digits, b)
+
+proc totpRfc6238*(secret: openArray[byte]; unixTime: int64;
+    stepSec: int64 = 30'i64; digits: int = 6; t0: int64 = 0'i64): string =
+  ## RFC 6238 TOTP using the RFC 4226 HMAC-SHA1 HOTP primitive.
+  if stepSec <= 0:
+    raise newException(ValueError, "stepSec must be positive")
+  if unixTime < t0:
+    raise newException(ValueError, "unixTime must be >= t0")
+  let ctr = uint64((unixTime - t0) div stepSec)
+  result = hotpRfc4226(secret, ctr, digits)
+
+proc totpRfc*(secret: openArray[byte]; unixTime: int64;
+    stepSec: int64 = 30'i64; digits: int = 6; t0: int64 = 0'i64): string =
+  ## Alias for RFC 6238 TOTP.
+  result = totpRfc6238(secret, unixTime, stepSec, digits, t0)
 
 proc hotpSimd*(algo: OtpAlgo; secret: openArray[byte]; counter: uint64;
     digits: int = 6; b: OtpBackend = obSimdAuto): string =

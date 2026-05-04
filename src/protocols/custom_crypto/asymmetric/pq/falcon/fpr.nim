@@ -149,6 +149,9 @@ proc fprOf*(i: int64): FalconFpr {.inline.} =
 proc fprToFloat*(x: FalconFpr): float64 {.inline.} =
   cast[float64](x)
 
+proc fprIsFinite*(x: FalconFpr): bool {.inline.} =
+  ((uint64(x) shr 52) and 0x7ff'u64) != 0x7ff'u64
+
 proc floatToFpr*(x: float64): FalconFpr {.inline.} =
   cast[FalconFpr](x)
 

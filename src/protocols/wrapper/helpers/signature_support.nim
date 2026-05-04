@@ -104,8 +104,8 @@ when defined(hasLibOqs):
       result = oqsSigFalcon512
     of saFalcon1024:
       result = oqsSigFalcon1024
-    of saSPHINCSPlusHaraka128fSimple:
-      result = oqsSigSphincsHaraka128fSimple
+    of saSPHINCSPlusShake128fSimple, saSPHINCSPlusHaraka128fSimple:
+      result = oqsSigSphincsShake128fSimple
     else:
       result = ""
 

@@ -120,7 +120,7 @@ proc compress(cv: array[8, uint32], words: array[16, uint32], counter: uint64, b
 
   for i in 0 ..< 8:
     result[i] = state[i] xor state[i + 8]
-    result[i + 8] = result[i] xor cv[i]
+    result[i + 8] = state[i + 8] xor cv[i]
 
 proc blake3Compress*(cv: array[8, uint32], words: array[16, uint32], counter: uint64, blkLen, flags: uint32): array[16, uint32] =
   ## cv: chaining value words.
@@ -430,7 +430,7 @@ proc blake3Digest*(input: openArray[byte], mode: Blake3Mode = b3mHash,
     key: openArray[byte] = [], outLen: int = outLenDefault): seq[byte] =
   ## input: bytes to hash.
   ## mode: BLAKE3 mode selector.
-  ## key: 32-byte key required in keyed-hash mode.
+  ## key: 32-byte key required in keyed-hash and derive-key-material modes.
   ## outLen: output length.
   case mode
   of b3mHash:
@@ -439,8 +439,12 @@ proc blake3Digest*(input: openArray[byte], mode: Blake3Mode = b3mHash,
     result = hashInternal(input, iv, modeFlags(mode), outLen)
   of b3mKeyedHash:
     result = hashInternal(input, keyWords(key), modeFlags(mode), outLen)
-  of b3mDeriveKeyContext, b3mDeriveKeyMaterial:
-    raise newException(ValueError, "derive-key mode is not implemented")
+  of b3mDeriveKeyContext:
+    if key.len != 0:
+      raise newException(ValueError, "blake3 derive-key context mode does not accept a key")
+    result = hashInternal(input, iv, modeFlags(mode), outLen)
+  of b3mDeriveKeyMaterial:
+    result = hashInternal(input, keyWords(key), modeFlags(mode), outLen)
 
 proc blake3Hash*(input: openArray[byte], outLen: int = outLenDefault): seq[byte] =
   ## Computes an unkeyed BLAKE3 hash with configurable output length (default 32 bytes).
@@ -450,6 +454,22 @@ proc blake3KeyedHash*(key, input: openArray[byte],
     outLen: int = outLenDefault): seq[byte] =
   ## Computes a keyed BLAKE3 hash for MAC/KDF-style use.
   result = blake3Digest(input, b3mKeyedHash, key, outLen)
+
+proc blake3DeriveKey*(context, material: openArray[byte],
+    outLen: int = outLenDefault): seq[byte] =
+  ## Derives key material using the standard two-phase BLAKE3 derive-key mode.
+  let contextKey = blake3Digest(context, b3mDeriveKeyContext, [], outLenDefault)
+  result = blake3Digest(material, b3mDeriveKeyMaterial, contextKey, outLen)
+
+proc stringToBytes(s: string): seq[byte] =
+  result = newSeq[byte](s.len)
+  for i, ch in s:
+    result[i] = byte(ord(ch))
+
+proc blake3DeriveKey*(context: string, material: openArray[byte],
+    outLen: int = outLenDefault): seq[byte] =
+  ## Convenience overload for BLAKE3's recommended textual context string.
+  result = blake3DeriveKey(stringToBytes(context), material, outLen)
 
 when isMainModule:
   let emptyHash = blake3Hash(@[])

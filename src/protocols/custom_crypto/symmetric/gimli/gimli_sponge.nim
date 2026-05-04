@@ -7,6 +7,8 @@ import ./gimli
 const
   gimliBlockLen = 48
   gimliTagLenDefault* = 16
+  gimliKeyBytes* = 32
+  gimliNonceBytes* = 24
 
 type
   ByteSeq = seq[uint8]
@@ -271,6 +273,10 @@ proc gimliXofDiscard*(ks, ns, ms: openArray[uint8], outLen: int) =
 ## ms: message bytes.
 ## outLen: output length.
 proc gimliTag*(ks, ns, ms: openArray[uint8], outLen: int): ByteSeq =
+  if ks.len != gimliKeyBytes:
+    raise newException(ValueError, "gimli tag requires a 32-byte key")
+  if ns.len != gimliNonceBytes:
+    raise newException(ValueError, "gimli tag requires a 24-byte nonce")
   result = gimliXof(ks, ns, ms, outLen)
 
 
@@ -291,6 +297,10 @@ proc gimliStreamXor*(ks, ns, input: openArray[uint8]): ByteSeq =
     ksBytes: ByteSeq = @[]
     outBytes: ByteSeq = @[]
     i: int = 0
+  if ks.len != gimliKeyBytes:
+    raise newException(ValueError, "gimli stream requires a 32-byte key")
+  if ns.len != gimliNonceBytes:
+    raise newException(ValueError, "gimli stream requires a 24-byte nonce")
   ksBytes = gimliXof(ks, ns, @[], input.len)
   outBytes.setLen(input.len)
   i = 0

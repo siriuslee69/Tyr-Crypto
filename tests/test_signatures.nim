@@ -70,8 +70,7 @@ suite "signatures wrapper":
       let falSig = digest.sign(falSignM)
       for i in 0 ..< 64:
         edVerifyM.signature[i] = edSig[i]
-      for i in 0 ..< 752:
-        falVerifyM.signature[i] = falSig[i]
+      falVerifyM.signature = falSig
       check digest.verify(edVerifyM)
       check digest.verify(falVerifyM)
   else:
