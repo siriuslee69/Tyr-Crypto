@@ -9,15 +9,69 @@ suite "primitives api":
     var
       key: seq[byte] = @[]
       nonce: seq[byte] = @[]
+      chachaNonce: seq[byte] = @[]
       msg: seq[byte] = @[]
       cipher: seq[byte] = @[]
       plain: seq[byte] = @[]
     key = hexToBytes("79c99798ac67300bbb2704c95c341e3245f3dcb21761b98e52ff45b24f304fc4")
     nonce = hexToBytes("b33ffd3096479bcfbc9aee49417688a0a2554f8d95389419")
+    chachaNonce = hexToBytes("000000090000004a00000000")
     msg = toBytes("dispatch xchacha20")
     cipher = symEnc(scaXChaCha20, key, nonce, msg)
     plain = symDec(scaXChaCha20, key, nonce, cipher)
     check plain == msg
+    cipher = symEnc(scaChaCha20, key, chachaNonce, msg)
+    plain = symDec(scaChaCha20, key, chachaNonce, cipher)
+    check plain == msg
+
+  test "nonce-prefixed stream ciphers roundtrip":
+    var
+      key: seq[byte] = @[]
+      nonce24: seq[byte] = @[]
+      nonce16: seq[byte] = @[]
+      nonce12: seq[byte] = @[]
+      msg: seq[byte] = @[]
+      payload: seq[byte] = @[]
+      i: int = 0
+    key = hexToBytes("79c99798ac67300bbb2704c95c341e3245f3dcb21761b98e52ff45b24f304fc4")
+    nonce24 = hexToBytes("b33ffd3096479bcfbc9aee49417688a0a2554f8d95389419")
+    nonce16 = toBytes("abcdefghijklmnop")
+    nonce12 = hexToBytes("000000090000004a00000000")
+    msg = toBytes("nonce prefix payload")
+
+    payload = symEncNoncePrefixed(scaXChaCha20, key, nonce24, msg)
+    check payload.len == nonce24.len + msg.len
+    i = 0
+    while i < nonce24.len:
+      check payload[i] == nonce24[i]
+      i = i + 1
+    check symDecNoncePrefixed(scaXChaCha20, key, payload) == msg
+
+    payload = symEncNoncePrefixed(scaChaCha20, key, nonce12, msg)
+    check payload.len == nonce12.len + msg.len
+    i = 0
+    while i < nonce12.len:
+      check payload[i] == nonce12[i]
+      i = i + 1
+    check symDecNoncePrefixed(scaChaCha20, key, payload) == msg
+
+    payload = symEncNoncePrefixed(scaAesCtr, key, nonce16, msg)
+    check payload.len == nonce16.len + msg.len
+    i = 0
+    while i < nonce16.len:
+      check payload[i] == nonce16[i]
+      i = i + 1
+    check symDecNoncePrefixed(scaAesCtr, key, payload) == msg
+
+    payload = symEncNoncePrefixed(scaGimliStream, key, nonce24, msg)
+    check payload.len == nonce24.len + msg.len
+    i = 0
+    while i < nonce24.len:
+      check payload[i] == nonce24[i]
+      i = i + 1
+    check symDecNoncePrefixed(scaGimliStream, key, payload) == msg
+    expect ValueError:
+      discard symDecNoncePrefixed(scaXChaCha20, key, nonce16)
 
   test "hmacCreate and hmacAuth with blake3":
     var

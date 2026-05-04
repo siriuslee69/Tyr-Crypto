@@ -39,6 +39,8 @@ proc algoName*(a: StreamCipherAlgorithm): string =
   case a
   of scaXChaCha20:
     result = "xchacha20"
+  of scaChaCha20:
+    result = "chacha20"
   of scaAesCtr:
     result = "aesCtr"
   of scaGimliStream:
@@ -48,6 +50,8 @@ proc parseBasicCipherAlgo*(s: string): StreamCipherAlgorithm =
   case s
   of "xchacha20":
     result = scaXChaCha20
+  of "chacha20":
+    result = scaChaCha20
   of "aesCtr":
     result = scaAesCtr
   of "gimliStream":
@@ -61,9 +65,11 @@ proc cipherNonceBytes*(a: StreamCipherAlgorithm): int =
     result = 24
   of scaAesCtr:
     result = 16
+  of scaChaCha20:
+    result = 12
 
 proc buildCapabilities*(): seq[WasmCapability] =
-  for a in [scaXChaCha20, scaAesCtr, scaGimliStream]:
+  for a in [scaXChaCha20, scaChaCha20, scaAesCtr, scaGimliStream]:
     result.add(WasmCapability(
       name: algoName(a),
       nonceBytes: cipherNonceBytes(a),

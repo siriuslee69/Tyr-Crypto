@@ -9,6 +9,9 @@ suite "public api surface":
       msg = toBytes("public surface")
       key = hexToBytes("4242424242424242424242424242424242424242424242424242424242424242")
       polyTag: seq[byte] = @[]
+      chaKey: seq[byte] = @[]
+      chaNonce: seq[byte] = @[]
+      chaCipher: seq[byte] = @[]
       blake: HashDigest32
       gimli: HashDigest32
       sha3Digest: seq[byte] = @[]
@@ -22,6 +25,10 @@ suite "public api surface":
     polyTag = hmacCreate(maPoly1305, key, msg, 16)
     check polyTag.len == 16
     check hmacAuth(maPoly1305, key, msg, polyTag, 16)
+    chaKey = hexToBytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+    chaNonce = hexToBytes("000000090000004a00000000")
+    chaCipher = chacha20TyrXor(chaKey, chaNonce, msg)
+    check chacha20TyrXor(chaKey, chaNonce, chaCipher) == msg
 
     blake = hash(msg, blake3HashM())
     gimli = hash(msg, gimliHashM())

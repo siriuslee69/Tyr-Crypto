@@ -25,6 +25,7 @@ type
     scaXChaCha20
     scaAesCtr
     scaGimliStream
+    scaChaCha20
 
   ## MacAlgorithm: primitive hash/HMAC family selection.
   MacAlgorithm* = enum

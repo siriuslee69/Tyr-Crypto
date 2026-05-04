@@ -1,5 +1,5 @@
 import std/unittest
-import ../src/protocols/custom_crypto/[blake3, xchacha20, gimli_sponge]
+import ../src/protocols/custom_crypto/[blake3, chacha20, xchacha20, gimli_sponge]
 import ./helpers
 
 suite "custom crypto":
@@ -47,6 +47,17 @@ suite "custom crypto":
     check blake3DeriveKey(officialContext, @[], officialExpected.len) == officialExpected
     expect ValueError:
       discard blake3Digest(context, b3mDeriveKeyContext, contextKey)
+
+  test "ChaCha20 block and stream match RFC 8439 vector":
+    let
+      key = hexToBytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+      nonce = hexToBytes("000000090000004a00000000")
+      expected = hexToBytes(
+        "10f1e7e4d13b5915500fdd1fa32071c4c7d1f4c733c068030422aa9ac3d46c4ed2826446079faa0914c2d705d98b02a2b5129cd1de164eb9cbd083e8a2503c4e")
+      blockBytes = chacha20Block(key, nonce, 1'u32)
+    check toHex(blockBytes) == toHex(expected)
+    check chacha20Stream(key, nonce, expected.len, 1'u32) == expected
+    check chacha20Xor(key, nonce, 1'u32, newSeq[byte](expected.len)) == expected
 
   test "HChaCha20 matches libsodium vector":
     let key = hexToBytes("24f11cce8a1b3d61e441561a696c1c1b7e173d084fd4812425435a8896a013dc")

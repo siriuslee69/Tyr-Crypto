@@ -13,6 +13,9 @@ suite "quick api":
     check layout.keyLayoutCount == 2'u8
     check layout.keyLayouts[0].size == 32
     check layout.keyLayouts[1].size == 24
+    check layoutOf(akChaCha20Cipher).operationKind == okCipher
+    check layoutOf(akChaCha20Cipher).keyLayouts[0].size == 32
+    check layoutOf(akChaCha20Cipher).keyLayouts[1].size == 12
     check layoutOf(akKyber0Send).keyLayouts[0].size == 1184
     check layoutOf(akKyber1Open).keyLayouts[0].size == 3168
     check layoutOf(akKyber0TyrSend).keyLayouts[0].size == 1184
@@ -98,14 +101,35 @@ suite "quick api":
   test "single cipher encrypt decrypt works":
     var
       cipherMat: xchacha20cipherM
+      chachaMat: chacha20cipherM
       message = @[11'u8, 22'u8, 33'u8, 44'u8]
       cipher: seq[byte]
+      payload: seq[byte]
     for i in 0 ..< 32:
       cipherMat.key[i] = uint8((15 + i) mod 256)
+      chachaMat.key[i] = cipherMat.key[i]
     for i in 0 ..< 24:
       cipherMat.nonce[i] = uint8((45 + i) mod 256)
+    for i in 0 ..< 12:
+      chachaMat.nonce[i] = uint8((75 + i) mod 256)
     cipher = message.encrypt(cipherMat)
     check cipher.decrypt(cipherMat) == message
+    payload = message.encryptNoncePrefixed(cipherMat)
+    check payload.len == cipherMat.nonce.len + cipher.len
+    for i in 0 ..< cipherMat.nonce.len:
+      check payload[i] == cipherMat.nonce[i]
+    for i in 0 ..< cipherMat.nonce.len:
+      cipherMat.nonce[i] = 0'u8
+    check payload.decryptNoncePrefixed(cipherMat) == message
+    cipher = message.encrypt(chachaMat)
+    check cipher.decrypt(chachaMat) == message
+    payload = message.encryptNoncePrefixed(chachaMat)
+    check payload.len == chachaMat.nonce.len + cipher.len
+    for i in 0 ..< chachaMat.nonce.len:
+      check payload[i] == chachaMat.nonce[i]
+    for i in 0 ..< chachaMat.nonce.len:
+      chachaMat.nonce[i] = 0'u8
+    check payload.decryptNoncePrefixed(chachaMat) == message
 
   when defined(hasLibsodium):
     test "message hash verify works with typed material":

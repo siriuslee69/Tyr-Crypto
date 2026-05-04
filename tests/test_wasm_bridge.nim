@@ -23,6 +23,12 @@ suite "wasm JSON bridge":
     check response["ok"].getBool()
     check response["abiVersion"].getInt() == wasmAbiVersion
     check response["basicCiphers"].len > 0
+    var hasChaCha20: bool = false
+    for item in response["basicCiphers"]:
+      if item["name"].getStr() == "chacha20":
+        hasChaCha20 = true
+        check item["nonceBytes"].getInt() == 12
+    check hasChaCha20
 
   test "basic encrypt and decrypt roundtrip through JSON":
     var
@@ -44,6 +50,35 @@ suite "wasm JSON bridge":
     check encryptResponse["ok"].getBool()
     decryptRequest = %*{
       "algo": "xchacha20",
+      "key": wasmEncodeBytes(key),
+      "nonce": wasmEncodeBytes(nonce),
+      "payload": encryptResponse["payload"].getStr()
+    }
+    decryptResponse = parseJson(basicDecryptJson($decryptRequest))
+    check decryptResponse["ok"].getBool()
+    check wasmDecodeBytes(decryptResponse["payload"].getStr()) == message
+
+  test "basic chacha20 roundtrip through JSON":
+    var
+      key = newSeq[uint8](32)
+      nonce = newSeq[uint8](12)
+      message = @[byte 9, 8, 7, 6]
+      encryptRequest: JsonNode
+      decryptRequest: JsonNode
+      encryptResponse: JsonNode
+      decryptResponse: JsonNode
+    key[0] = 3
+    nonce[0] = 4
+    encryptRequest = %*{
+      "algo": "chacha20",
+      "key": wasmEncodeBytes(key),
+      "nonce": wasmEncodeBytes(nonce),
+      "message": wasmEncodeBytes(message)
+    }
+    encryptResponse = parseJson(basicEncryptJson($encryptRequest))
+    check encryptResponse["ok"].getBool()
+    decryptRequest = %*{
+      "algo": "chacha20",
       "key": wasmEncodeBytes(key),
       "nonce": wasmEncodeBytes(nonce),
       "payload": encryptResponse["payload"].getStr()

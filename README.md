@@ -79,6 +79,7 @@ Examples in [basic_api.nim](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/basic
 - `poly1305TyrHmacM`
 - `sha3TyrHmacM`
 - `xchacha20TyrCipherM`
+- `chacha20TyrCipherM`
 - `aesCtrTyrCipherM`
 - `gimliStreamTyrCipherM`
 - `mceliece0TyrSendM` / `mceliece0TyrOpenM`
@@ -95,6 +96,7 @@ The custom module facades also expose `Tyr`-suffixed proc aliases such as:
 - `sha3TyrHash`
 - `shake256Tyr`
 - `poly1305TyrTag`
+- `chacha20TyrXor`
 - `xchacha20TyrXor`
 - `aesCtrTyrXor`
 
@@ -107,7 +109,7 @@ Current local/custom implementations include:
 - SHAKE256
 - Poly1305
 - AES-CTR
-- HChaCha20 / XChaCha20
+- ChaCha20 / HChaCha20 / XChaCha20
 - Classic McEliece `6688128f`, `6960119f`, `8192128f`
 - NTRU HPS/HRSS KEMs: `ntruhps2048509`, `ntruhps2048677`, `ntruhps4096821`, `ntruhrss701`
 - SABER KEMs: `lightsaber`, `saber`, `firesaber`

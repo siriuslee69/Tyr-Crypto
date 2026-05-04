@@ -154,6 +154,16 @@ proc chacha20XorInPlace*(key, nonce: openArray[byte], initialCounter: uint32, bu
       i = i + 1
     offset += todo
 
+proc chacha20Stream*(key, nonce: openArray[byte], length: int,
+                     initialCounter: uint32 = 0'u32): seq[byte] =
+  ## Generates a ChaCha20 keystream of requested length.
+  if length < 0:
+    raise newException(ValueError, "length must be non-negative")
+  requireChaCha20Inputs(key, nonce)
+  requireChaCha20BlockRange(initialCounter, length)
+  result = newSeq[byte](length)
+  chacha20XorInPlace(key, nonce, initialCounter, result)
+
 when isMainModule:
   # RFC 8439 section 2.3.2 test vector
   const testKey: array[32, byte] = [

@@ -9,6 +9,7 @@ import ./protocols/custom_crypto/sphincs
 import ./protocols/custom_crypto/gimli_sponge
 import ./protocols/custom_crypto/sha3
 import ./protocols/custom_crypto/poly1305
+import ./protocols/custom_crypto/chacha20
 import ./protocols/custom_crypto/x25519
 import ./protocols/custom_crypto/dilithium
 import ./protocols/custom_crypto/falcon
@@ -28,6 +29,7 @@ export sphincs
 export gimli_sponge
 export sha3
 export poly1305
+export chacha20
 export x25519
 export dilithium
 export falcon

@@ -9,7 +9,7 @@ import ./helpers/algorithms
 import ../custom_crypto/random
 import ../bindings/liboqs
 import ../bindings/libsodium
-import ../custom_crypto/[xchacha20, aes_ctr, hmac]
+import ../custom_crypto/[chacha20, xchacha20, aes_ctr, hmac]
 import ../custom_crypto/blake3
 import ../custom_crypto/dilithium as customDilithium
 import ../custom_crypto/gimli_sponge
@@ -128,7 +128,8 @@ type
     akBike0TyrSend,
     akBike0TyrOpen,
     akBike0Send,
-    akBike0Open
+    akBike0Open,
+    akChaCha20Cipher
 
   ## Role of one material slot inside an algorithm layout.
   KeyKind* = enum
@@ -221,6 +222,10 @@ type
   xchacha20cipherM* = object
     key*: array[32, byte]
     nonce*: array[24, byte]
+  ## Material for ChaCha20 encryption and decryption.
+  chacha20cipherM* = object
+    key*: array[32, byte]
+    nonce*: array[12, byte]
   ## Material for AES-256-CTR encryption and decryption.
   aesCtrcipherM* = object
     key*: array[32, byte]
@@ -528,6 +533,8 @@ type
   sha3TyrHmacVerifyM* = sha3hmacVerifyM
   ## Tyr-suffixed alias for the local XChaCha20 cipher material.
   xchacha20TyrCipherM* = xchacha20cipherM
+  ## Tyr-suffixed alias for the local ChaCha20 cipher material.
+  chacha20TyrCipherM* = chacha20cipherM
   ## Tyr-suffixed alias for the local AES-CTR cipher material.
   aesCtrTyrCipherM* = aesCtrcipherM
   ## Tyr-suffixed alias for the local Gimli stream-cipher material.
@@ -651,7 +658,8 @@ const algorithmLayouts*: array[AlgorithmKind, AlgorithmLayout] = [
   buildLayout(akBike0TyrSend, okKemSend, 32, kkPublicKey -> 1541),
   buildLayout(akBike0TyrOpen, okKemOpen, 32, kkSecretKey -> 5223),
   buildLayout(akBike0Send, okKemSend, 32, kkPublicKey -> 1541),
-  buildLayout(akBike0Open, okKemOpen, 32, kkSecretKey -> 5223)
+  buildLayout(akBike0Open, okKemOpen, 32, kkSecretKey -> 5223),
+  buildLayout(akChaCha20Cipher, okCipher, variableLayoutSize, kkSym -> 32, kkNonce -> 12)
 ]
 
 proc layoutOf*(kind: AlgorithmKind): AlgorithmLayout =
@@ -671,6 +679,7 @@ proc algorithmOf*(T: typedesc[gimlihmacVerifyM]): AlgorithmKind = akGimliHmac
 proc algorithmOf*(T: typedesc[poly1305hmacVerifyM]): AlgorithmKind = akPoly1305Hmac
 proc algorithmOf*(T: typedesc[sha3hmacVerifyM]): AlgorithmKind = akSha3Hmac
 proc algorithmOf*(T: typedesc[xchacha20cipherM]): AlgorithmKind = akXChaCha20Cipher
+proc algorithmOf*(T: typedesc[chacha20cipherM]): AlgorithmKind = akChaCha20Cipher
 proc algorithmOf*(T: typedesc[aesCtrcipherM]): AlgorithmKind = akAesCtrCipher
 proc algorithmOf*(T: typedesc[gimliStreamCipherM]): AlgorithmKind = akGimliStreamCipher
 proc algorithmOf*(T: typedesc[ed25519SignM]): AlgorithmKind = akEd25519Sign
@@ -1214,10 +1223,77 @@ proc symEnc*(alg: StreamCipherAlgorithm, key, nonce, msg: seq[uint8]): seq[uint8
     result = aesCtrXor(key, nonce, msg, acbAuto)
   of scaGimliStream:
     result = gimliStreamXor(key, nonce, msg)
+  of scaChaCha20:
+    result = chacha20Xor(key, nonce, msg)
 
 proc symDec*(alg: StreamCipherAlgorithm, key, nonce, cipher: seq[uint8]): seq[uint8] =
   ## Decrypt or stream-XOR `cipher` with the selected primitive cipher.
   result = symEnc(alg, key, nonce, cipher)
+
+proc streamNonceLen*(alg: StreamCipherAlgorithm): int =
+  ## Return the nonce byte length expected by a primitive stream cipher.
+  case alg
+  of scaXChaCha20:
+    result = 24
+  of scaAesCtr:
+    result = 16
+  of scaGimliStream:
+    result = 24
+  of scaChaCha20:
+    result = 12
+
+proc prependNonce(nonce, cipher: seq[uint8]): seq[uint8] =
+  var
+    i: int = 0
+    offset: int = 0
+  result = newSeq[uint8](nonce.len + cipher.len)
+  i = 0
+  while i < nonce.len:
+    result[i] = nonce[i]
+    i = i + 1
+  offset = nonce.len
+  i = 0
+  while i < cipher.len:
+    result[offset + i] = cipher[i]
+    i = i + 1
+
+proc splitNoncePrefix(alg: StreamCipherAlgorithm, payload: seq[uint8],
+    nonce, cipher: var seq[uint8]) =
+  var
+    n: int = 0
+    i: int = 0
+  n = streamNonceLen(alg)
+  if payload.len < n:
+    raise newException(ValueError, "ciphertext is shorter than the nonce prefix")
+  nonce = newSeq[uint8](n)
+  cipher = newSeq[uint8](payload.len - n)
+  i = 0
+  while i < n:
+    nonce[i] = payload[i]
+    i = i + 1
+  i = 0
+  while i < cipher.len:
+    cipher[i] = payload[n + i]
+    i = i + 1
+
+proc symEncNoncePrefixed*(alg: StreamCipherAlgorithm, key, nonce,
+    msg: seq[uint8]): seq[uint8] =
+  ## Encrypt or stream-XOR `msg`, returning `nonce || ciphertext`.
+  var
+    cipher: seq[uint8] = @[]
+  if nonce.len != streamNonceLen(alg):
+    raise newException(ValueError, "invalid nonce length for nonce-prefixed ciphertext")
+  cipher = symEnc(alg, key, nonce, msg)
+  result = prependNonce(nonce, cipher)
+
+proc symDecNoncePrefixed*(alg: StreamCipherAlgorithm, key,
+    payload: seq[uint8]): seq[uint8] =
+  ## Decrypt or stream-XOR a `nonce || ciphertext` payload.
+  var
+    nonce: seq[uint8] = @[]
+    cipher: seq[uint8] = @[]
+  splitNoncePrefix(alg, payload, nonce, cipher)
+  result = symDec(alg, key, nonce, cipher)
 
 proc macOutLen(alg: MacAlgorithm, outLen: int): int =
   if outLen > 0:
@@ -1488,17 +1564,61 @@ proc decrypt*(payload: openArray[byte], m: xchacha20cipherM): seq[byte] =
   ## Decrypt or stream-XOR `payload` with typed XChaCha20 material.
   result = symDec(scaXChaCha20, toSeqBytes(m.key), toSeqBytes(m.nonce), toSeqBytes(payload))
 
+proc encryptNoncePrefixed*(message: openArray[byte], m: xchacha20cipherM): seq[byte] =
+  ## Encrypt typed XChaCha20 material, returning `nonce || ciphertext`.
+  result = symEncNoncePrefixed(scaXChaCha20, toSeqBytes(m.key),
+    toSeqBytes(m.nonce), toSeqBytes(message))
+
+proc decryptNoncePrefixed*(payload: openArray[byte], m: xchacha20cipherM): seq[byte] =
+  ## Decrypt a typed XChaCha20 `nonce || ciphertext` payload.
+  result = symDecNoncePrefixed(scaXChaCha20, toSeqBytes(m.key), toSeqBytes(payload))
+
+proc encrypt*(message: openArray[byte], m: chacha20cipherM): seq[byte] =
+  ## Encrypt or stream-XOR `message` with typed ChaCha20 material.
+  result = symEnc(scaChaCha20, toSeqBytes(m.key), toSeqBytes(m.nonce), toSeqBytes(message))
+
+proc decrypt*(payload: openArray[byte], m: chacha20cipherM): seq[byte] =
+  ## Decrypt or stream-XOR `payload` with typed ChaCha20 material.
+  result = symDec(scaChaCha20, toSeqBytes(m.key), toSeqBytes(m.nonce), toSeqBytes(payload))
+
+proc encryptNoncePrefixed*(message: openArray[byte], m: chacha20cipherM): seq[byte] =
+  ## Encrypt typed ChaCha20 material, returning `nonce || ciphertext`.
+  result = symEncNoncePrefixed(scaChaCha20, toSeqBytes(m.key),
+    toSeqBytes(m.nonce), toSeqBytes(message))
+
+proc decryptNoncePrefixed*(payload: openArray[byte], m: chacha20cipherM): seq[byte] =
+  ## Decrypt a typed ChaCha20 `nonce || ciphertext` payload.
+  result = symDecNoncePrefixed(scaChaCha20, toSeqBytes(m.key), toSeqBytes(payload))
+
 proc encrypt*(message: openArray[byte], m: aesCtrcipherM): seq[byte] =
   result = symEnc(scaAesCtr, toSeqBytes(m.key), toSeqBytes(m.nonce), toSeqBytes(message))
 
 proc decrypt*(payload: openArray[byte], m: aesCtrcipherM): seq[byte] =
   result = symDec(scaAesCtr, toSeqBytes(m.key), toSeqBytes(m.nonce), toSeqBytes(payload))
 
+proc encryptNoncePrefixed*(message: openArray[byte], m: aesCtrcipherM): seq[byte] =
+  ## Encrypt typed AES-CTR material, returning `nonce || ciphertext`.
+  result = symEncNoncePrefixed(scaAesCtr, toSeqBytes(m.key),
+    toSeqBytes(m.nonce), toSeqBytes(message))
+
+proc decryptNoncePrefixed*(payload: openArray[byte], m: aesCtrcipherM): seq[byte] =
+  ## Decrypt a typed AES-CTR `nonce || ciphertext` payload.
+  result = symDecNoncePrefixed(scaAesCtr, toSeqBytes(m.key), toSeqBytes(payload))
+
 proc encrypt*(message: openArray[byte], m: gimliStreamCipherM): seq[byte] =
   result = symEnc(scaGimliStream, toSeqBytes(m.key), toSeqBytes(m.nonce), toSeqBytes(message))
 
 proc decrypt*(payload: openArray[byte], m: gimliStreamCipherM): seq[byte] =
   result = symDec(scaGimliStream, toSeqBytes(m.key), toSeqBytes(m.nonce), toSeqBytes(payload))
+
+proc encryptNoncePrefixed*(message: openArray[byte], m: gimliStreamCipherM): seq[byte] =
+  ## Encrypt typed Gimli stream material, returning `nonce || ciphertext`.
+  result = symEncNoncePrefixed(scaGimliStream, toSeqBytes(m.key),
+    toSeqBytes(m.nonce), toSeqBytes(message))
+
+proc decryptNoncePrefixed*(payload: openArray[byte], m: gimliStreamCipherM): seq[byte] =
+  ## Decrypt a typed Gimli stream `nonce || ciphertext` payload.
+  result = symDecNoncePrefixed(scaGimliStream, toSeqBytes(m.key), toSeqBytes(payload))
 
 proc seal*(m: x25519SendM): AsymCipher =
   ## Encapsulate or derive a shared secret using typed X25519 send material.
