@@ -29,3 +29,9 @@
 	path = submodules/pqclean
 	url = https://github.com/PQClean/PQClean.git
 	ignore = dirty
+[submodule "ntru_sampling_ref_sources"]
+	path = submodules/ntru_sampling_ref_sources
+	url = https://github.com/dgazzoni/NTRU-sampling.git
+	branch = main
+	update = none
+	ignore = dirty

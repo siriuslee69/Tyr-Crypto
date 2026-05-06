@@ -1,4 +1,4 @@
-Commit Message: ignore Android harness generated artifacts
+Commit Message: convert NTRU sampling refs to submodule
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -73,10 +73,10 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- The Android harness had generated Gradle cache files and built native test libraries tracked in git.
+- `submodules/ntru_sampling_ref_sources` was tracked as a copied source snapshot even though it came from the upstream `NTRU-sampling` repository.
 
 Fix attempt and result:
-- Added scoped Android-harness ignore rules for Gradle caches, app build output, generated `.bin` files, local properties, and built `jniLibs` `.so` files. Removed the already-tracked generated files from the index with `git rm --cached` so local Android build outputs remain on disk but stop being GitHub payload.
+- Converted `submodules/ntru_sampling_ref_sources` to a gitlink submodule pointing at `https://github.com/dgazzoni/NTRU-sampling.git` on commit `3ca0c6bcf26d8e0394bdf4ff917e2fc405185ac2`. The local checkout keeps only the Windows-safe reference paths materialized because the upstream benchmark result filenames contain colons.
 
 Verification:
 - `git ls-files "*.bin" "*.so" "*.dll" "*.dylib" "*.o" "*.obj" "*.a" "*.lib" "*.pdb" "*.apk" "*.aab" "*.aar" "*.jar" "*.class" "*.dex" "*.log" "*.tmp" "*.temp" "*.zip" "*.tar" "*.tgz" "*.gz" "*.7z" "*.rar"` now only reports the intentional Android Gradle wrapper JAR.
@@ -853,4 +853,18 @@ Current conclusion:
 - The deeper Frodo SSE/AVX hybrid idea was measured and rejected for this machine; the default Frodo compute path remains the previous stable AVX2/NEON dispatch.
 - Falcon is still expensive, but the test and benchmark tooling can now run 512 and 1024 independently, which prevents the old combined Falcon process from dominating every run.
 - NTRU/SABER files were intentionally left untouched while the parallel implementation work continues.
+
+## 2026-05-06 NTRU Sampling Reference Submodule
+Summary: converted `submodules/ntru_sampling_ref_sources` from tracked copied source files into a proper submodule pointing at the upstream `NTRU-sampling` repository.
+
+Implemented:
+- Added `.gitmodules` metadata for `submodules/ntru_sampling_ref_sources` with upstream URL `https://github.com/dgazzoni/NTRU-sampling.git`, branch `main`, and gitlink commit `3ca0c6bcf26d8e0394bdf4ff917e2fc405185ac2`.
+- Removed the copied reference files from the Tyr superproject index so the path is represented by a `160000` submodule entry.
+- Kept the local submodule checkout sparse in this Windows workspace, materializing only the previously mirrored reference source files because upstream speed-result filenames contain colons.
+- Updated `docs/research/ntru_saber/README.md` to describe the submodule and the Windows-safe checkout constraint.
+
+Verification:
+- `git ls-files -s submodules/ntru_sampling_ref_sources` reports mode `160000` at `3ca0c6bcf26d8e0394bdf4ff917e2fc405185ac2`.
+- `git submodule status submodules/ntru_sampling_ref_sources` resolves the upstream submodule at `heads/main`.
+- `git -C submodules/ntru_sampling_ref_sources status --short --branch` is clean.
 

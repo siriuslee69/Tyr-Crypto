@@ -45,14 +45,16 @@ Restore ignored cache files on Windows with:
 | SABER round-3 specification | cache only, ignored | https://www.esat.kuleuven.be/cosic/pqcrypto/saber/files/saberspecround3.pdf |
 | NIST PQC round-3 report | [nist_ir_8413_upd1_pqc_round3_report.pdf](supporting/nist_ir_8413_upd1_pqc_round3_report.pdf) | https://nvlpubs.nist.gov/nistpubs/ir/2022/NIST.IR.8413-upd1.pdf |
 
-### Reference Source Snapshots
+### Reference Source Submodule
 
-The NTRU fixed-weight sampling follow-up also stores the selected source files from the `NTRU-sampling` implementation under `submodules/ntru_sampling_ref_sources`. The full upstream repository contains Windows-incompatible filenames in historical speed-result paths, so only the source files needed for review and porting were mirrored locally:
+The NTRU fixed-weight sampling follow-up is linked as the `submodules/ntru_sampling_ref_sources` submodule, pointing at `https://github.com/dgazzoni/NTRU-sampling.git` on `main`. The full upstream repository contains Windows-incompatible filenames in historical speed-result paths, so this Windows workspace materializes only the source files needed for review and porting:
 
 - `shuffling/ref/ntruhps*/sample.c`
 - `shuffling/opt_neon/ntruhps*/sample.c`
 - `speed/speed_sample_fixed_type.c`
 - `vector-polymul-ntru-ntrup/sort/crypto_sort.c`
+
+The submodule is configured with `update = none` in `.gitmodules` to avoid accidental full checkout of the invalid speed-result paths on Windows.
 
 ### Findings
 
