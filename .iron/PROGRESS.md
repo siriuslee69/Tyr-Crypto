@@ -1,4 +1,4 @@
-Commit Message: convert NTRU sampling refs to submodule
+Commit Message: convert Falcon PQClean refs to submodule
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -66,6 +66,7 @@ Implemented:
 - Added `tests/android_harness` plus build/run scripts to package and execute the native test harness inside a minimal Android app.
 - Android harness Gradle caches, generated `.bin` files, app build outputs, local properties, and built `jniLibs` native libraries are now ignored; the previously tracked generated harness artifacts were removed from the index only.
 - Replaced the copied `submodules/pqclean_*_ref` source snapshots with the real upstream PQClean submodule pinned to the `round3` tag.
+- Replaced the copied Falcon PQClean C reference snapshot under `src/protocols/custom_crypto/asymmetric/pq/falcon/upstream` with the pinned `submodules/pqclean_falcon_ref_sources` submodule.
 
 Working on:
 - Argon2 pure Nim implementation or dedicated binding wrapper.
@@ -73,12 +74,16 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- `submodules/ntru_sampling_ref_sources` was tracked as a copied source snapshot even though it came from the upstream `NTRU-sampling` repository.
+- `src/protocols/custom_crypto/asymmetric/pq/falcon/upstream/pqclean_falcon-*` was tracked as a copied PQClean C source snapshot, so GitHub counted the reference C as Tyr source code.
 
 Fix attempt and result:
-- Converted `submodules/ntru_sampling_ref_sources` to a gitlink submodule pointing at `https://github.com/dgazzoni/NTRU-sampling.git` on commit `3ca0c6bcf26d8e0394bdf4ff917e2fc405185ac2`. The local checkout keeps only the Windows-safe reference paths materialized because the upstream benchmark result filenames contain colons.
+- Added `submodules/pqclean_falcon_ref_sources` as a gitlink submodule pointing at `https://github.com/PQClean/PQClean.git` on commit `f81bd579`, which exactly matches the removed copied Falcon reference files.
+- Removed the tracked in-tree Falcon PQClean C copy. The active Falcon implementation remains the pure-Nim backend; current comparison benchmarks use liboqs, not this Falcon reference submodule.
 
 Verification:
+- `nim check --nimcache:build\nimcache_check_falcon_ref_submodule tests\test_falcon_tyr.nim` passed.
+- `git ls-files | rg "src/protocols/custom_crypto/asymmetric/pq/falcon/upstream/pqclean_falcon"` reports no tracked in-tree Falcon PQClean C snapshots.
+- `git submodule status submodules\pqclean_falcon_ref_sources` resolves to `f81bd579a96e877852d6c2692bfd5a7c4199c641` (`round3-170-gf81bd579`).
 - `git ls-files "*.bin" "*.so" "*.dll" "*.dylib" "*.o" "*.obj" "*.a" "*.lib" "*.pdb" "*.apk" "*.aab" "*.aar" "*.jar" "*.class" "*.dex" "*.log" "*.tmp" "*.temp" "*.zip" "*.tar" "*.tgz" "*.gz" "*.7z" "*.rar"` now only reports the intentional Android Gradle wrapper JAR.
 - `git ls-files | rg "(^|[\\/])(build|\.gradle|\.cxx|\.externalNativeBuild|\.nimcache|nimcache|\.nimble_cache|node_modules|dist|coverage|target|out|tmp|temp|\.cache)([\\/]|$)"` reports no tracked cache/build directories.
 - `git check-ignore -v` confirms Android `.gradle` `.bin`, generated `jniLibs/*.so`, and `local.properties` paths are ignored.

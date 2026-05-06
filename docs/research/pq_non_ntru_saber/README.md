@@ -15,6 +15,21 @@ License notes are in `LICENSES.md`.
 Restore ignored cache files on Windows with:
 `powershell -ExecutionPolicy Bypass -File docs/research/pq_non_ntru_saber/download_papers.ps1`.
 
+### Reference Sources
+
+Falcon's previous tracked C snapshot under
+`src/protocols/custom_crypto/asymmetric/pq/falcon/upstream/pqclean_falcon-*`
+has been replaced by the `submodules/pqclean_falcon_ref_sources` submodule.
+That submodule points at `https://github.com/PQClean/PQClean.git` and is pinned
+to commit `f81bd579`, the exact upstream commit that matched the removed copied
+files. The relevant upstream paths are `crypto_sign/falcon-512/{clean,avx2}` and
+`crypto_sign/falcon-1024/{clean,avx2}`.
+
+These Falcon sources are reference and porting material only. Tyr's active
+Falcon backend is the pure-Nim implementation in
+`src/protocols/custom_crypto/asymmetric/pq/falcon`, and the current comparison
+benchmarks use liboqs rather than compiling this Falcon reference submodule.
+
 ### Papers
 
 | Area | Paper / spec | Local copy | Upstream |
