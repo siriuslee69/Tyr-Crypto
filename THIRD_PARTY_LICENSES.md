@@ -24,6 +24,22 @@ this workspace. It is not legal advice.
   - caveat: individual scheme folders can include their own license files
     inherited from upstream submissions
 
+## Nimble Package Dependencies
+
+- `nimcrypto`
+  - package metadata license: MIT
+  - used for AES/GCM compatibility bindings and tests
+- `nimsimd`
+  - package metadata license: MIT
+  - used for x86 SIMD helper imports in local accelerated paths
+
+## Tracked Binary Exception
+
+- `tests/android_harness/gradle/wrapper/gradle-wrapper.jar`
+  - kept intentionally so the Android harness can bootstrap Gradle consistently
+  - Gradle is distributed under Apache-2.0; keep wrapper updates tied to the
+    corresponding `gradle-wrapper.properties` change
+
 ## Additional License Caveats Found In Checked-Out Trees
 
 - The checked-out `submodules/openssl/` tree contains nested helper, provider,
@@ -49,7 +65,7 @@ this workspace. It is not legal advice.
 - The tracked NIST IR 8413 update follows NIST technical-series publication
   terms.
 - PDFs without explicit redistribution terms are local cache only, ignored by
-  git, and reproducible through `docs/research/ntru_saber/download_papers.ps1`.
+  git, and reproducible through `docs/research/ntru_saber/download_papers.nim`.
 
 ## Non-NTRU/SABER PQ Research Documents
 
@@ -61,7 +77,7 @@ this workspace. It is not legal advice.
   according to the individual ePrint page license link.
 - Standalone algorithm/specification PDFs without explicit redistribution terms
   are local cache only, ignored by git, and reproducible through
-  `docs/research/pq_non_ntru_saber/download_papers.ps1`.
+  `docs/research/pq_non_ntru_saber/download_papers.nim`.
 
 ## Practical Interpretation For This Repo
 

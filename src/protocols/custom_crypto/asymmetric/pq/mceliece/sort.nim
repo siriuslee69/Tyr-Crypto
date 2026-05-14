@@ -1,12 +1,7 @@
 ## Constant-time bitonic sorts used by Classic McEliece controlbits logic.
 ## Pure-Nim port of PQClean int32_sort/uint64_sort (clean variants).
 
-{.compile: "sort_fast.c".}
-
 import ../../../../helpers/otter_support
-
-proc cUint64Sort(x: ptr uint64, n: clonglong) {.
-    importc: "tyr_mceliece_uint64_sort", cdecl.}
 
 {.push checks: off.}
 proc int32MinMax(a, b: var int32) {.inline.} =
@@ -78,11 +73,6 @@ proc int32SortRaw*(x: ptr UncheckedArray[int32], n: int) {.otterBench.} =
 proc int32Sort*(x: var openArray[int32]) =
   int32SortRaw(cast[ptr UncheckedArray[int32]](unsafeAddr x[0]), x.len)
 
-proc uint64SortRawC*(x: ptr UncheckedArray[uint64], n: int) =
-  if n < 2:
-    return
-  cUint64Sort(cast[ptr uint64](x), clonglong(n))
-
 proc uint64SortTop(n: int): int {.inline.} =
   var top: int = 1
   while top < n - top:
@@ -130,10 +120,15 @@ proc uint64SortRawNim*(x: ptr UncheckedArray[uint64], n: int) =
     uint64SortTailPass(x, n, top, p)
     p = p shr 1
 
+proc uint64SortRawC*(x: ptr UncheckedArray[uint64], n: int) =
+  ## Compatibility alias retained for old benchmark flags; now pure Nim.
+  uint64SortRawNim(x, n)
+
 proc uint64SortC*(x: var openArray[uint64]) =
+  ## Compatibility alias retained for old benchmark flags; now pure Nim.
   if x.len < 2:
     return
-  uint64SortRawC(cast[ptr UncheckedArray[uint64]](unsafeAddr x[0]), x.len)
+  uint64SortRawNim(cast[ptr UncheckedArray[uint64]](unsafeAddr x[0]), x.len)
 
 proc uint64SortNim*(x: var openArray[uint64]) =
   if x.len < 2:
@@ -142,8 +137,5 @@ proc uint64SortNim*(x: var openArray[uint64]) =
 
 ## In-place constant-time sort of uint64 values (bitonic network).
 proc uint64Sort*(x: var openArray[uint64]) =
-  when defined(mcelieceUseCSort) or defined(mcelieceUseCFast):
-    uint64SortC(x)
-  else:
-    uint64SortNim(x)
+  uint64SortNim(x)
 {.pop.}

@@ -1,52 +1,70 @@
 # Tyr-Crypto
+
 Experimental Nim crypto toolkit for the sibling repos in this workspace.
 
-## Warning
-This repository is not production-ready.
+## Production Scope
+This repo is production-ready in the project-hygiene sense defined by [.iron/conventions/PROJECTS.md](.iron/conventions/PROJECTS.md): dependencies are declared, native source dependencies live under `submodules/`, generated artifacts are ignored, docs/tests/build tasks are present, and raw config input has a sanitizer-backed parser.
 
-- It contains custom cryptographic implementations and repo-specific constructions.
-- APIs and internal layouts may still change.
-- If you need hardened production crypto, use audited upstream libraries and standardized protocols directly.
+This is still custom cryptographic code. Treat the local `Tyr` implementations as experimental unless the exact primitive, mode, and deployment environment have been independently reviewed for your use case.
 
 ## Current Shape
 `src/tyr_crypto.nim` exports the current public surface:
 
+- config loading from [tyr_config.nim](src/protocols/config/tyr_config.nim)
 - `algorithms`
-- `basic_api`
-- custom pure-Nim modules:
-  `random`, `blake3`, `gimli_sponge`, `sha3`, `poly1305`, `mceliece`, `otp`, `hmac`
+- [basic_api.nim](src/protocols/wrapper/basic_api.nim)
+- custom pure-Nim modules: `random`, `blake3`, `gimli_sponge`, `sha3`, `poly1305`, `mceliece`, `otp`, `hmac`
 - `signature_support`
+- [public_key_verify.nim](src/protocols/wrapper/public_key_verify.nim) for
+  OpenSSL-backed RSA/ECDSA detached verification and X.509 public-key
+  certificate checks
 
-The canonical wrapper layer is [basic_api.nim](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/basic_api.nim).
-There is no generic material/inference layer anymore.
+The canonical wrapper layer is [basic_api.nim](src/protocols/wrapper/basic_api.nim). There is no generic material/inference layer anymore.
 
-`custom_crypto/` now splits implementation code by primitive class:
+`custom_crypto/` splits implementation code by primitive class:
 
 - `symmetric/` for hashes, MACs, RNG, stream/block helpers, and OTP utilities
 - `asymmetric/pq/` for post-quantum KEM/signature implementations
-- `asymmetric/none_pq/` reserved for non-PQ asymmetric implementations
+- `asymmetric/none_pq/` for non-PQ asymmetric implementations
 
 The old top-level module names under `custom_crypto/` remain as compatibility facades.
 
 ## Repo Boundary
-This repo owns:
+```text
++----------------------------+--------------------------------------------+
+| Tyr-Crypto owns            | Tyr-Crypto does not own                    |
++----------------------------+--------------------------------------------+
+| typed crypto wrappers      | application protocols                      |
+| pure-Nim crypto helpers    | certificate policy                         |
+| optional native bindings   | transport/session orchestration            |
+| wasm/JS bridge             | account or database state                  |
+| regression/vector tests    | external key-management infrastructure     |
+| native dependency builders | app-specific authorization decisions       |
++----------------------------+--------------------------------------------+
+```
 
-- typed single-algorithm crypto wrappers
-- pure-Nim crypto helpers and experiments
-- optional native bindings and builders
-- wasm/JS bridge for the currently exported basic surfaces
-- regression/vector tests for the crypto primitives
+## Config
+The tracked [config.toml](config.toml) is parsed by [tyr_config.nim](src/protocols/config/tyr_config.nim). The parser accepts only the known scalar keys and rejects unsupported sections, unknown keys, oversized input, null bytes, unsafe scalar characters, and invalid numeric/boolean values.
 
-This repo does not own:
+```toml
+[tyr]
+allow_experimental_algorithms = true
+auto_build_native_backends = false
+max_input_bytes = 1073741824
+preferred_backend = "auto"
+```
 
-- application protocols
-- certificate policy
-- transport/session orchestration
-- account or database state
-- key management infrastructure outside these local wrappers
+Use `userconfig.toml.template` as the local-only user config template. The actual `userconfig.toml` file is ignored.
+
+```nim
+import tyr_crypto
+
+discard loadOptionalTyrConfig()
+discard loadOptionalTyrUserConfig()
+```
 
 ## Canonical API
-Use typed materials from [basic_api.nim](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/basic_api.nim).
+Use typed materials from [basic_api.nim](src/protocols/wrapper/basic_api.nim).
 
 Main operation families:
 
@@ -67,9 +85,9 @@ Main operation families:
 - `cryptoRand`
 
 ## `Tyr` Suffixes
-Local custom implementations now expose `Tyr`-suffixed names so they are easy to distinguish from backend-backed paths.
+Local custom implementations expose `Tyr`-suffixed names so they are easy to distinguish from backend-backed paths.
 
-Examples in [basic_api.nim](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/basic_api.nim):
+Examples in [basic_api.nim](src/protocols/wrapper/basic_api.nim):
 
 - `blake3TyrHashM`
 - `gimliTyrHashM`
@@ -86,19 +104,7 @@ Examples in [basic_api.nim](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/basic
 - `mceliece1TyrSendM` / `mceliece1TyrOpenM`
 - `mceliece2TyrSendM` / `mceliece2TyrOpenM`
 
-The old unsuffixed McEliece materials still exist and remain the `liboqs`-backed path.
-The `Tyr`-suffixed McEliece materials are the pure-Nim path.
-
-The custom module facades also expose `Tyr`-suffixed proc aliases such as:
-
-- `blake3TyrHash`
-- `gimliTyrXof`
-- `sha3TyrHash`
-- `shake256Tyr`
-- `poly1305TyrTag`
-- `chacha20TyrXor`
-- `xchacha20TyrXor`
-- `aesCtrTyrXor`
+The old unsuffixed McEliece materials still exist and remain the `liboqs`-backed path. The `Tyr`-suffixed McEliece materials are the pure-Nim path.
 
 ## Current Pure-Nim Algorithms
 Current local/custom implementations include:
@@ -118,48 +124,41 @@ Current local/custom implementations include:
 ## Optional Backend Paths
 Some surfaces still depend on optional native libraries:
 
-- `libsodium`
-  - X25519
-  - Ed25519
-  - some compatibility/authentication helpers
-- `liboqs`
-  - Kyber
-  - Frodo
-  - NTRU Prime
-  - BIKE
-  - Falcon
-  - Dilithium
-  - SPHINCS+
-- `OpenSSL`
-  - Ed448
-- `nimcrypto`
-  - AES-GCM binding/tests
+- `libsodium`: X25519, Ed25519, compatibility/authentication helpers
+- `liboqs`: Kyber, Frodo, NTRU Prime, BIKE, Falcon, Dilithium, SPHINCS+
+- `OpenSSL`: Ed448, RSA/ECDSA detached verification, X.509 chain/public-key
+  checks
+- `nimcrypto`: AES-GCM binding/tests
 
 Missing optional libraries should raise explicit `LibraryUnavailableError`, not silently fall back.
 
-PQClean reference bindings for NTRU/SABER live under `src/protocols/bindings` and point at the pinned `submodules/pqclean` submodule; the normal custom NTRU/SABER APIs use the pure-Nim implementations under `custom_crypto/asymmetric/pq/`.
-
-NTRU now defaults to a KAT-compatible pure-Nim Toom-4 plus two-level Karatsuba multiplier ported from the PQClean performance shape. The exact-int64 Toom-4 path remains available with `-d:ntruMulToom4`, the previous coefficient path with `-d:ntruMulCoeff`, the original temp/reduce path with `-d:ntruMulTmp`, and the row-style trials with `-d:ntruMulRows` / `-d:ntruMulRowsUnroll4`. SABER kept its original temp/reduce multiplier because the tested split-loop and Toom variants regressed; those experiments remain opt-in via `-d:saberMulToom4`, `-d:saberMulToom4Mod`, and `-d:saberMulToom4Cached`.
+PQClean reference bindings for NTRU/SABER live under `src/protocols/bindings` and point at the pinned `submodules/pqclean` submodule. The normal custom NTRU/SABER APIs use the pure-Nim implementations under `custom_crypto/asymmetric/pq/`.
 
 ## Workspace Dependencies
-The repo uses local workspace helper repos in addition to the native-library submodules:
+```text
++------------------------+---------------------------------------------+
+| Dependency             | Location                                    |
++------------------------+---------------------------------------------+
+| libsodium              | submodules/libsodium                        |
+| liboqs                 | submodules/liboqs                           |
+| OpenSSL                | submodules/openssl                          |
+| PQClean                | submodules/pqclean                          |
+| PQClean Falcon refs    | submodules/pqclean_falcon_ref_sources       |
+| NTRU sampling refs     | submodules/ntru_sampling_ref_sources        |
+| SIMD-Nexus             | submodules/simd_nexus or ../SIMD-Nexus      |
+| Sigma-BenchAndEval     | submodules/sigma_bench_and_eval             |
+| Otter-RepoEvaluation   | submodules/otter_repo_evaluation            |
++------------------------+---------------------------------------------+
+```
 
-- `SIMD-Nexus`
-  - SIMD helpers used by the local accelerated paths
-- `Sigma-BenchAndEval`
-  - benchmarking helpers for the Sigma perf tasks
-- `Otter-RepoEvaluation`
-  - timing instrumentation for `otterBench`, `otterSpan`, and the Otter perf tasks
-
-The `submodules/` folder is expected to mirror the shared workspace with local junctions during development.
-The corresponding manifest entries live in [.gitmodules](f:/CodingMain/Tyr-Crypto/.gitmodules).
+The corresponding manifest entries live in [.gitmodules](.gitmodules). Local path overrides belong in `.iron/.local.gitmodules.toml`, which is ignored.
 
 ## Quick Start
 ### Typed hash
 ```nim
 import tyr_crypto
 
-let digest = hash(@[byte 1, 2, 3], blake3TyrHashM())
+var digest = hash(@[byte 1, 2, 3], blake3TyrHashM())
 doAssert digest.len == 32
 ```
 
@@ -176,7 +175,7 @@ for i in 0 ..< m.key.len:
 for i in 0 ..< m.nonce.len:
   m.nonce[i] = 0x22'u8
 
-let cipher = encrypt(msg, m)
+var cipher = encrypt(msg, m)
 doAssert decrypt(cipher, m) == msg
 ```
 
@@ -184,7 +183,7 @@ doAssert decrypt(cipher, m) == msg
 ```nim
 import tyr_crypto
 
-let kp = asymKeypair(mceliece0TyrSendM)
+var kp = asymKeypair(mceliece0TyrSendM)
 
 var
   sendM: mceliece0TyrSendM
@@ -195,8 +194,8 @@ for i in 0 ..< sendM.receiverPublicKey.len:
 for i in 0 ..< openM.receiverSecretKey.len:
   openM.receiverSecretKey[i] = kp.secretKey[i]
 
-let env = seal(sendM)
-let shared = open(env, openM)
+var env = seal(sendM)
+var shared = open(env, openM)
 doAssert shared == env.sharedSecret
 ```
 
@@ -215,41 +214,30 @@ Current exported wasm/JS operations:
 
 Relevant files:
 
-- [types.nim](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/wasm/level0/types.nim)
-- [json_codec.nim](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/wasm/level1/json_codec.nim)
-- [json_api.nim](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/wasm/level2/json_api.nim)
-- [exports.nim](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/wasm/exports.nim)
-- [tyr_crypto.mjs](f:/CodingMain/Tyr-Crypto/bindings/js/tyr_crypto.mjs)
-- [tyr_crypto.d.ts](f:/CodingMain/Tyr-Crypto/bindings/js/tyr_crypto.d.ts)
+- [types.nim](src/protocols/wrapper/wasm/level0/types.nim)
+- [json_codec.nim](src/protocols/wrapper/wasm/level1/json_codec.nim)
+- [json_api.nim](src/protocols/wrapper/wasm/level2/json_api.nim)
+- [exports.nim](src/protocols/wrapper/wasm/exports.nim)
+- [tyr_crypto.mjs](bindings/js/tyr_crypto.mjs)
+- [tyr_crypto.d.ts](bindings/js/tyr_crypto.d.ts)
 
-## Layout
-- [src/tyr_crypto.nim](f:/CodingMain/Tyr-Crypto/src/tyr_crypto.nim)
-  public export surface
-- [basic_api.nim](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/basic_api.nim)
-  canonical typed wrapper API
-- [src/protocols/custom_crypto/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto)
-  compatibility facades plus the implementation roots below
-- [src/protocols/custom_crypto/symmetric/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto/symmetric)
-  symmetric/hash/MAC/random/OTP implementations
-- [src/protocols/custom_crypto/asymmetric/pq/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto/asymmetric/pq)
-  post-quantum KEM/signature implementations
-- [src/protocols/custom_crypto/asymmetric/none_pq/](f:/CodingMain/Tyr-Crypto/src/protocols/custom_crypto/asymmetric/none_pq)
-  reserved slot for future non-PQ asymmetric implementations
-- [src/protocols/bindings/](f:/CodingMain/Tyr-Crypto/src/protocols/bindings)
-  optional native bindings
-- [src/protocols/wrapper/wasm/](f:/CodingMain/Tyr-Crypto/src/protocols/wrapper/wasm)
-  wasm bridge
-- [.iron/meta/registry.nim](f:/CodingMain/Tyr-Crypto/.iron/meta/registry.nim)
-  primitive backend metadata
-- [tests/](f:/CodingMain/Tyr-Crypto/tests)
-  vectors and regression tests
+## Layout And Docs
+- [CODE_LAYOUT.md](docs/CODE_LAYOUT.md): source layout, dependency flow, naming table
+- [TESTS.md](docs/TESTS.md): test groups, defines, Android harness flow
+- [BENCHMARKS.md](docs/BENCHMARKS.md): Sigma/Otter entry points and artifact policy
+- [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md): local third-party license notes
+- [CONTRIBUTING.md](CONTRIBUTING.md): contributor workflow and review checklist
+- [.iron/conventions/](.iron/conventions): copied Proto-RepoTemplate conventions
 
 ## Commands
-Common repo commands from [tyr_crypto.nimble](f:/CodingMain/Tyr-Crypto/tyr_crypto.nimble):
+Common repo commands from [tyr_crypto.nimble](tyr_crypto.nimble):
 
 ```bash
+nimble check_core
+nimble check
 nimble test
 nimble test_all
+nimble test_config
 nimble test_wasm
 nimble test_gimli
 nimble test_blake3_simd
@@ -261,81 +249,82 @@ nimble build_android_harness_asymmetric_full
 nimble build_wasm
 nimble build_libsodium
 nimble build_liboqs
-nimble bench_pq_profiles
 nimble build_openssl
+nimble bench_pq_profiles
 ```
 
-Direct focused checks that are often useful:
+Direct focused checks:
 
 ```bash
+nimble check_core
 nim check src/tyr_crypto.nim
 nim check src/protocols/wrapper/basic_api.nim
-nim c --nimcache:build/nimcache_test_all -r tests/test_all.nim
+nim c --nimcache:build/nimcache_test_config -r tests/test_config.nim
 ```
 
 ## Current Validation Highlights
 The suite currently includes:
 
-- known-answer tests for BLAKE3, SHA3, and Poly1305
-- scalar/SIMD parity tests for BLAKE3, Gimli, SHA3, and Poly1305
-- ARM64/NEON compile-check coverage for the SIMD/custom-crypto matrix plus
-  X25519, Kyber, Dilithium, SPHINCS, and McEliece asymmetric paths
+- known-answer tests for BLAKE3, SHA3, Poly1305, and PQ algorithms with local vectors
+- scalar/SIMD parity tests for BLAKE3, Gimli, SHA3, Poly1305, X25519, and PQ hot paths
+- ARM64/NEON compile-check coverage through `nimble test_neon_checks`
 - wrapper-layer dispatch tests
+- config parser sanitization tests
 - wasm bridge tests
-- pure-Nim `mceliece0Tyr` roundtrip coverage
-- pure-Nim NTRU and SABER roundtrip/KAT coverage, including AVX2 parity where supported
+- Android native harness tests for custom/SIMD and asymmetric/PQ bundles
 
 ## Android Harness
-- `tests/android_harness`
-  - minimal Android app that executes the packaged native Tyr test binary and
-    writes the captured output to `files/last_test_output.txt`
-- `tests/test_android_custom_crypto.nim`
-  - Android-targeted subset covering custom crypto plus SIMD/NEON checks
-- `tests/test_android_asymmetric_fast.nim`
-  - Android-targeted reduced asymmetric/PQ subset for quicker phone validation,
-    including a Falcon-512 smoke subset instead of the full Falcon suite
-- `tests/test_android_asymmetric_crypto.nim`
-  - Android-targeted full asymmetric/PQ bundle including Frodo, SPHINCS+, and McEliece
-- `tools/build_android_harness.ps1`
-  - cross-compiles the selected ARM64 and x86_64 native harness binaries and builds the APK
-- `tools/run_android_harness.ps1`
-  - installs, launches, polls for completion, and prints the captured app output for one connected device
-
-Typical flow:
-```bash
-nimble build_android_harness
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_android_harness.ps1 -Serial ZY22K9DZG9
-```
-
-Asymmetric/PQ harness flows:
-```bash
+```text
 nimble build_android_harness_asymmetric_fast
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_android_harness.ps1 -Serial ZY22K9DZG9 -TimeoutSeconds 900
-
-nimble build_android_harness_asymmetric_full
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_android_harness.ps1 -Serial ZY22K9DZG9 -TimeoutSeconds 1200
+   |
+   v
+ignored Gradle/app/native build outputs
+   |
+   v
+nim r tools/run_android_harness.nim -- --serial:<device> --timeoutSeconds:900
+   |
+   v
+captured native output under app files
 ```
 
-Tracing support:
-- add `{.otterTrace.}` to top-level routines you want enter/leave markers for
-- compile with `-d:otterTrace`
-- on Android harness runs, `MainActivity` passes `TYR_OTTER_TRACE_PATH` to the native process
+Current workspace notes:
 
-Current result from this workspace:
-- Motorola `motorola_edge_50_fusion` ARM64 run passed the custom/SIMD harness,
-  including the NEON checks.
-- Motorola `motorola_edge_50_fusion` ARM64 direct native runs also passed both
-  the reduced asymmetric/PQ bundle and the full asymmetric/PQ bundle.
-- Motorola direct ARM64 focused runs also passed the new X25519 `NEON2x` batch
-  test and the McEliece roundtrip test after the latest phone-oriented NEON pass.
-- Host and Motorola revalidation also passed after the SPHINCS 2-lane batching
-  and Kyber SSE2 cached-basemul expansion pass.
-- The x86_64 emulator app launches, but the packaged x86_64 native harness exits
-  with code `139`, so the emulator path still needs follow-up.
+- Physical ARM64 phone harnesses have passed in prior validation runs.
+- The x86_64 emulator app launches, but the packaged x86_64 native harness has previously exited with code `139`; use physical ARM64 devices as the trusted Android signal until that emulator path is fixed.
 
-## Notes
-- Endianness is handled explicitly in the local implementations.
-- Constant-time comparisons are used where detached tags/signatures are checked in local code.
-- The custom algorithms are still experimental even when tests pass.
+## Maintainer Conventions
+This repo follows the copied Proto conventions in [.iron/conventions](.iron/conventions). The condensed local rules are:
 
-Read [CONTRIBUTING.md](f:/CodingMain/Tyr-Crypto/CONTRIBUTING.md) before changing behavior.
+```text
++------------------+--------------------------------------------------+
+| Area             | Rule                                             |
++------------------+--------------------------------------------------+
+| Language         | Nim unless a file is generated binding or asset  |
+| Flow             | perceive raw data -> build truth -> act          |
+| Inputs           | sanitize before public/user-facing API use       |
+| Layout           | src/protocols, tests, tools, docs, submodules    |
+| Native deps      | declare in nimble and keep source in submodules  |
+| Tests            | expose focused nimble tasks for common runs      |
+| Docs             | update README/docs/progress for larger changes   |
+| Artifacts        | keep build/runtime/cache output ignored          |
++------------------+--------------------------------------------------+
+```
+
+## Issue Playbook
+```text
++--------------------------------------+---------------------------------------------+
+| Issue                                | Workaround / status                         |
++--------------------------------------+---------------------------------------------+
+| Missing native backend               | Run the matching nimble build_* task or      |
+|                                      | compile without the -d:has* flag.           |
+| x86_64 Android emulator exit 139     | Validate Android on physical ARM64 devices. |
+| emcc missing for wasm build          | Install/activate Emscripten before           |
+|                                      | nimble build_wasm.                          |
+| Nimble user-cache permission errors  | Use repo-local caches through the provided   |
+|                                      | nimble tasks or explicit --nimcache:build/* |
+| Falcon tests dominate runtime        | Use --only:falcon512 or --only:falcon1024   |
+|                                      | in the Nim desktop test runner.             |
+| Ambiguous research PDF redistribution| Keep as ignored local cache; regenerate with |
+|                                      | docs/research/*/download_papers.nim.        |
++--------------------------------------+---------------------------------------------+
+```

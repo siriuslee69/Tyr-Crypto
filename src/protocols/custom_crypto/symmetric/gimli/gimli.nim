@@ -34,4 +34,9 @@ proc gimli_core_ref*(state: var Gimli_Block) =
     round.dec()
 
 proc gimliPermute*(state: var Gimli_Block) {.inline.} =
-  gimli_core_ref(state)
+  when defined(neon) or defined(arm64) or defined(aarch64):
+    gimliPermuteNeon(state)
+  elif defined(sse2):
+    gimliPermuteSse(state)
+  else:
+    gimli_core_ref(state)

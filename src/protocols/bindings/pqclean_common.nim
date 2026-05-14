@@ -8,9 +8,6 @@ import ../custom_crypto/random
 {.passC: "-Isubmodules/pqclean/common".}
 {.compile: "../../../submodules/pqclean/common/aes.c".}
 {.compile: "../../../submodules/pqclean/common/fips202.c".}
-{.compile: "pqclean/tyr_pq_randombytes.c".}
-when defined(windows):
-  {.passL: "-lbcrypt".}
 
 const
   pqKatEntropyBytes* = 48
@@ -24,13 +21,17 @@ type
     v*: array[16, byte]
     reseedCounter*: int
 
-proc tyrPqRandombytesSet(feed: ptr uint8, feedLen: csize_t) {.cdecl,
-    importc: "tyr_pq_randombytes_set".}
-proc tyrPqRandombytesSeedKat(seed48: ptr uint8) {.cdecl,
-    importc: "tyr_pq_randombytes_seed_kat".}
-proc tyrPqRandombytesClear() {.cdecl, importc: "tyr_pq_randombytes_clear".}
-proc tyrPqRandombytesRemaining*(): csize_t {.cdecl,
-    importc: "tyr_pq_randombytes_remaining".}
+var
+  pqFeedPtr {.threadvar.}: ptr UncheckedArray[uint8]
+  pqFeedLen {.threadvar.}: int
+  pqFeedPos {.threadvar.}: int
+  pqDrbg {.threadvar.}: PqNistDrbgState
+  pqDrbgReady {.threadvar.}: bool
+
+proc tyrPqRandombytesSet(feed: ptr uint8, feedLen: csize_t) {.cdecl.}
+proc tyrPqRandombytesSeedKat(seed48: ptr uint8) {.cdecl.}
+proc tyrPqRandombytesClear() {.cdecl.}
+proc tyrPqRandombytesRemaining*(): csize_t {.cdecl.}
 
 proc secureClearBytes*(A: var openArray[byte]) {.raises: [].} =
   ## Best-effort short-lived byte buffer wipe.
@@ -183,3 +184,125 @@ proc pqFeedFromOptionalSeed*(seed: openArray[byte],
     entropy = cryptoRandomBytes(pqKatSeedBytes)
     result = pqFeedFromKatSeed(entropy, n)
     secureClearBytes(entropy)
+
+proc clearThreadDrbg() =
+  secureClearBytes(pqDrbg.key)
+  secureClearBytes(pqDrbg.v)
+  pqDrbg.reseedCounter = 0
+  pqDrbgReady = false
+
+proc copyToOutput(outBytes: ptr UncheckedArray[uint8], offset: int,
+    A: openArray[byte]) =
+  var
+    i: int = 0
+  while i < A.len:
+    outBytes[offset + i] = uint8(A[i])
+    i = i + 1
+
+proc fillFromFeed(outBytes: ptr UncheckedArray[uint8], offset: var int,
+    remaining: var int) =
+  var
+    take: int = 0
+    i: int = 0
+  if pqFeedPtr.isNil or pqFeedPos >= pqFeedLen or remaining <= 0:
+    return
+  take = pqFeedLen - pqFeedPos
+  if take > remaining:
+    take = remaining
+  i = 0
+  while i < take:
+    outBytes[offset + i] = pqFeedPtr[pqFeedPos + i]
+    i = i + 1
+  pqFeedPos = pqFeedPos + take
+  offset = offset + take
+  remaining = remaining - take
+
+proc fillFromDrbg(outBytes: ptr UncheckedArray[uint8], offset: int,
+    remaining: int): bool =
+  var
+    bytes: seq[byte] = @[]
+  if remaining <= 0 or not pqDrbgReady:
+    return false
+  bytes = nistDrbgRandomBytes(pqDrbg, remaining)
+  copyToOutput(outBytes, offset, bytes)
+  secureClearBytes(bytes)
+  result = true
+
+proc fillFromSystem(outBytes: ptr UncheckedArray[uint8], offset, remaining: int) =
+  var
+    bytes: seq[byte] = @[]
+    i: int = 0
+  if remaining <= 0:
+    return
+  try:
+    bytes = cryptoRandomBytes(remaining)
+    copyToOutput(outBytes, offset, bytes)
+    secureClearBytes(bytes)
+  except CatchableError:
+    i = 0
+    while i < remaining:
+      outBytes[offset + i] = 0'u8
+      i = i + 1
+
+proc tyrPqRandombytesFill(outPtr: ptr uint8, outLen: csize_t) =
+  var
+    outBytes: ptr UncheckedArray[uint8]
+    offset: int = 0
+    remaining: int = int(outLen)
+  if outPtr.isNil or remaining <= 0:
+    return
+  outBytes = cast[ptr UncheckedArray[uint8]](outPtr)
+  fillFromFeed(outBytes, offset, remaining)
+  if fillFromDrbg(outBytes, offset, remaining):
+    return
+  fillFromSystem(outBytes, offset, remaining)
+
+proc tyrPqRandombytesSet(feed: ptr uint8, feedLen: csize_t) {.cdecl,
+    exportc: "tyr_pq_randombytes_set".} =
+  clearThreadDrbg()
+  pqFeedPtr = cast[ptr UncheckedArray[uint8]](feed)
+  pqFeedLen = int(feedLen)
+  pqFeedPos = 0
+
+proc tyrPqRandombytesSeedKat(seed48: ptr uint8) {.cdecl,
+    exportc: "tyr_pq_randombytes_seed_kat".} =
+  var
+    seed: array[pqKatSeedBytes, byte]
+    seedBytes: ptr UncheckedArray[uint8]
+    i: int = 0
+  pqFeedPtr = nil
+  pqFeedLen = 0
+  pqFeedPos = 0
+  clearThreadDrbg()
+  if seed48.isNil:
+    return
+  seedBytes = cast[ptr UncheckedArray[uint8]](seed48)
+  i = 0
+  while i < pqKatSeedBytes:
+    seed[i] = byte(seedBytes[i])
+    i = i + 1
+  pqDrbg = initNistDrbg(seed)
+  pqDrbgReady = true
+  secureClearBytes(seed)
+
+proc tyrPqRandombytesClear() {.cdecl,
+    exportc: "tyr_pq_randombytes_clear".} =
+  pqFeedPtr = nil
+  pqFeedLen = 0
+  pqFeedPos = 0
+  clearThreadDrbg()
+
+proc tyrPqRandombytesRemaining*(): csize_t {.cdecl,
+    exportc: "tyr_pq_randombytes_remaining".} =
+  if pqFeedPos >= pqFeedLen:
+    return csize_t(0)
+  result = csize_t(pqFeedLen - pqFeedPos)
+
+proc PQCLEAN_randombytes*(outPtr: ptr uint8, outLen: csize_t): cint {.cdecl,
+    exportc: "PQCLEAN_randombytes".} =
+  tyrPqRandombytesFill(outPtr, outLen)
+  result = 0
+
+proc randombytes*(outPtr: ptr uint8, outLen: csize_t) {.cdecl,
+    exportc: "randombytes".} =
+  tyrPqRandombytesFill(outPtr, outLen)

@@ -1,14 +1,9 @@
 ## Control-bit generation for Classic McEliece Benes networks.
 ## Pure-Nim port of the PQClean clean implementation.
 
-{.compile: "controlbits_fast.c".}
-
 import ../../../../helpers/otter_support
 import ./support
 import ./sort
-
-proc cControlBitsUnchecked(outPtr: ptr byte, piPtr: ptr int16, gfbits, n: int) {.
-    importc: "tyr_mceliece_controlbits_unchecked", cdecl.}
 
 {.push checks: off.}
 proc wrapU32ToI32(x: uint32): int32 {.inline.} =
@@ -264,15 +259,6 @@ proc cbRecursion(outBits: var openArray[byte], pos, step: int,
   cbRecursion(outBits, localPos + step, step * 2,
     cast[ptr UncheckedArray[int16]](unsafeAddr qPtr[half]), w - 1, half, temp)
 
-proc controlBitsFromPermutationUncheckedC*(pi: openArray[int16]; gfbits: int): seq[byte] =
-  ## Generate control bits without the post-generation self-check using the local C helper.
-  let n = 1 shl gfbits
-  let outLen = ((2 * gfbits - 1) * n div 2 + 7) div 8
-  assert pi.len == n, "pi length must be 2^gfbits"
-
-  result = newSeq[byte](outLen)
-  cControlBitsUnchecked(addr result[0], cast[ptr int16](unsafeAddr pi[0]), gfbits, n)
-
 proc controlBitsFromPermutationUncheckedNim*(pi: openArray[int16]; gfbits: int): seq[byte] {.otterBench.} =
   ## Generate control bits without the post-generation self-check using the pure-Nim port.
   let n = 1 shl gfbits
@@ -284,12 +270,13 @@ proc controlBitsFromPermutationUncheckedNim*(pi: openArray[int16]; gfbits: int):
   cbRecursion(result, 0, 1, cast[ptr UncheckedArray[int16]](unsafeAddr pi[0]),
     gfbits, n, cast[ptr UncheckedArray[int32]](addr temp[0]))
 
+proc controlBitsFromPermutationUncheckedC*(pi: openArray[int16]; gfbits: int): seq[byte] =
+  ## Compatibility alias retained for old benchmark flags; now pure Nim.
+  result = controlBitsFromPermutationUncheckedNim(pi, gfbits)
+
 proc controlBitsFromPermutationUnchecked*(pi: openArray[int16]; gfbits: int): seq[byte] =
   ## Generate control bits without the post-generation self-check.
-  when defined(mcelieceUseNimControlbits) or defined(mcelieceUseNimFast):
-    result = controlBitsFromPermutationUncheckedNim(pi, gfbits)
-  else:
-    result = controlBitsFromPermutationUncheckedC(pi, gfbits)
+  result = controlBitsFromPermutationUncheckedNim(pi, gfbits)
 
 proc controlBitsFromPermutation*(pi: openArray[int16]; gfbits: int): seq[byte] =
   ## Generate control bits for a Benes network for a permutation of size 2^gfbits.

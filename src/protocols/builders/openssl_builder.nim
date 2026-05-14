@@ -1,6 +1,6 @@
 when defined(hasOpenSSL3):
   import std/[os, osproc, strutils, terminal]
-  import fylgia_utils/io/responses
+  import protocols/io/responses
 
   const
     builderLibNames* = when defined(windows):

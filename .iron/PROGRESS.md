@@ -1,4 +1,4 @@
-Commit Message: convert Falcon PQClean refs to submodule
+Commit Message: make Tyr-Crypto production-ready per Proto project conventions
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -67,6 +67,19 @@ Implemented:
 - Android harness Gradle caches, generated `.bin` files, app build outputs, local properties, and built `jniLibs` native libraries are now ignored; the previously tracked generated harness artifacts were removed from the index only.
 - Replaced the copied `submodules/pqclean_*_ref` source snapshots with the real upstream PQClean submodule pinned to the `round3` tag.
 - Replaced the copied Falcon PQClean C reference snapshot under `src/protocols/custom_crypto/asymmetric/pq/falcon/upstream` with the pinned `submodules/pqclean_falcon_ref_sources` submodule.
+- Replaced tracked local `.inc`, `.c`, `.ps1`, `.cmd`, and `.bat` helper files with Nim modules or Nim script entry points where the repo already had a Nim implementation path.
+- Synced `.iron/conventions` from `Proto-RepoTemplate`, refreshed the legacy `.iron/CONVENTIONS.md`, and added the shared `metaPragmas.nim` template beside the repo-local registry metadata.
+- Added a sanitizer-backed `config.toml` / `userconfig.toml` parser in `src/protocols/config/tyr_config.nim`, exported it through `tyr_crypto`, and covered it with `tests/test_config.nim`.
+- Added production-readiness docs for code layout, tests, and benchmarks under `docs/`, rewrote README/CONTRIBUTING around relative links, issue playbook, conventions, and current production-scope language.
+- Tightened artifact ignores for native/runtime/build outputs while keeping the Android Gradle wrapper JAR as the only tracked binary exception.
+- Declared the actual Nimble package dependencies (`nimcrypto`, `nimsimd`) and removed unused UI package requirements from the package descriptor.
+- Added `nimble check_core` and `nimble test_config` tasks so core checks and config parser tests are runnable without flags.
+- Added missing `scaChaCha20` backend metadata to `.iron/meta/registry.nim`.
+- Added OpenSSL-backed RSA/ECDSA public-key signature verification helpers and
+  X.509 certificate-chain SubjectPublicKeyInfo verification helpers.
+- Fixed the OpenSSL 3 `EVP_DigestSignInit_ex` /
+  `EVP_DigestVerifyInit_ex` dynamic binding ABI to use the 7-argument OpenSSL
+  3 signature while keeping Tyr's existing wrapper call surface.
 
 Working on:
 - Argon2 pure Nim implementation or dedicated binding wrapper.
@@ -74,22 +87,52 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- `src/protocols/custom_crypto/asymmetric/pq/falcon/upstream/pqclean_falcon-*` was tracked as a copied PQClean C source snapshot, so GitHub counted the reference C as Tyr source code.
+- Delta KeyAuthority needed classical RSA/ECDSA detached verification and
+  X.509 public-key certificate validation. libsodium only covers Ed25519-style
+  signing here, so the correct local backend is OpenSSL; Tyr's existing
+  OpenSSL 3 digest init binding also had an ABI mismatch.
 
 Fix attempt and result:
-- Added `submodules/pqclean_falcon_ref_sources` as a gitlink submodule pointing at `https://github.com/PQClean/PQClean.git` on commit `f81bd579`, which exactly matches the removed copied Falcon reference files.
-- Removed the tracked in-tree Falcon PQClean C copy. The active Falcon implementation remains the pure-Nim backend; current comparison benchmarks use liboqs, not this Falcon reference submodule.
+- Added OpenSSL public-key/X.509 verify helpers, corrected the OpenSSL 3 digest
+  sign/verify init ABI, fixed the OpenSSL builder's Fylgia import path, and
+  verified the binding plus Delta's KeyAuthority RSA/ECDSA/X.509 protocol tests.
 
 Verification:
+- `git ls-files "*.inc" "*.c" "*.h" "*.bat" "*.cmd" "*.ps1" | rg -v "^submodules/"` reports no remaining tracked local C/include/shell helper files.
+- User-facing references to the removed `.ps1`, `.cmd`, and `.bat` helper entry points were cleared from `README.md`, `docs`, `THIRD_PARTY_LICENSES.md`, and `tyr_crypto.nimble`.
+- `nim check --nimcache:build\nimcache_check_pqclean_common_nim_random src\protocols\bindings\pqclean_common.nim` passed.
+- `nim check --nimcache:build\nimcache_check_mceliece_nim_helpers tests\test_mceliece_tyr.nim` passed.
+- `nim check --nimcache:build\nimcache_check_falcon_nim_tables tests\test_falcon_tyr.nim` passed.
+- `nim check --nimcache:build\nimcache_check_x25519_ref10_nim tests\test_x25519_perf.nim` passed.
+- `nim check` passed for the Nim Android harness, research downloader, desktop test runner, and Zig CC wrapper entry points.
+- `nim c --nimcache:build\nimcache_c_pqclean_common_nim_random src\protocols\bindings\pqclean_common.nim` passed.
+- `nim c --nimcache:build\nimcache_c_pqclean_ntru_nim_random src\protocols\bindings\pqclean_ntru.nim` passed.
+- `nim c --nimcache:build\nimcache_c_pqclean_saber_nim_random src\protocols\bindings\pqclean_saber.nim` passed.
+- `nim c --nimcache:build\nimcache_run_mceliece_nim_helpers -r tests\test_mceliece_tyr.nim` passed.
+- `nim r --nimcache:build\nimcache_run_desktop_runner_parallel_smoke tools\run_desktop_tests_parallel.nim -- --only:x25519,hmac --maxParallel:2` passed.
+- `nimble tasks` passed.
+- `git diff --check` passed.
 - `nim check --nimcache:build\nimcache_check_falcon_ref_submodule tests\test_falcon_tyr.nim` passed.
 - `git ls-files | rg "src/protocols/custom_crypto/asymmetric/pq/falcon/upstream/pqclean_falcon"` reports no tracked in-tree Falcon PQClean C snapshots.
 - `git submodule status submodules\pqclean_falcon_ref_sources` resolves to `f81bd579a96e877852d6c2692bfd5a7c4199c641` (`round3-170-gf81bd579`).
 - `git ls-files "*.bin" "*.so" "*.dll" "*.dylib" "*.o" "*.obj" "*.a" "*.lib" "*.pdb" "*.apk" "*.aab" "*.aar" "*.jar" "*.class" "*.dex" "*.log" "*.tmp" "*.temp" "*.zip" "*.tar" "*.tgz" "*.gz" "*.7z" "*.rar"` now only reports the intentional Android Gradle wrapper JAR.
 - `git ls-files | rg "(^|[\\/])(build|\.gradle|\.cxx|\.externalNativeBuild|\.nimcache|nimcache|\.nimble_cache|node_modules|dist|coverage|target|out|tmp|temp|\.cache)([\\/]|$)"` reports no tracked cache/build directories.
 - `git check-ignore -v` confirms Android `.gradle` `.bin`, generated `jniLibs/*.so`, and `local.properties` paths are ignored.
-- `git diff --check` passed; it only reported existing LF-to-CRLF warnings from Git on this Windows checkout.
-- `powershell -ExecutionPolicy Bypass -File docs\research\ntru_saber\download_papers.ps1 -IncludeTracked` verified all paper/supporting-document hashes.
-- `powershell -ExecutionPolicy Bypass -File docs\research\pq_non_ntru_saber\download_papers.ps1 -IncludeTracked` verified all non-NTRU/SABER paper/spec hashes.
+- `nim check --nimcache:build\nimcache_check_research_downloader docs\research\ntru_saber\download_papers.nim` passed.
+- `nim check --nimcache:build\nimcache_check_research_downloader_pq docs\research\pq_non_ntru_saber\download_papers.nim` passed.
+- `nim check --nimcache:build\nimcache_check_config src\protocols\config\tyr_config.nim` passed.
+- `nim check --nimcache:build\nimcache_check_public_config src\tyr_crypto.nim` passed.
+- `nim check --nimcache:build\nimcache_check_test_config tests\test_config.nim` passed.
+- `nimble test_config` passed.
+- `nim c --nimcache:build\nimcache_test_public_api_surface_config -r tests\test_public_api_surface.nim` passed.
+- `nim check --nimcache:build\nimcache_check_android_harness_tool tools\build_android_harness.nim` passed.
+- `nimble check_core` passed.
+- `nim check --nimcache:build\nimcache_check_test_all_config2 tests\test_all.nim` passed.
+- `nim check --nimcache:build\nimcache_check_public_key_verify -d:hasOpenSSL3 src\protocols\wrapper\public_key_verify.nim` passed.
+- `nim c --nimcache:build\nimcache_test_openssl -d:hasOpenSSL3 -r tests\test_openssl.nim` passed.
+- `nim r --nimcache:build\nimcache_run_desktop_runner_core2 tools\run_desktop_tests_parallel.nim -- --only:core --maxParallel:2` passed.
+- `git diff --check` passed.
+- `git ls-files "*.exe" "*.dll" "*.so" "*.dylib" "*.o" "*.obj" "*.a" "*.lib" "*.pdb" "*.apk" "*.aab" "*.aar" "*.jar" "*.class" "*.dex" "*.log" "*.tmp" "*.temp" "*.zip" "*.tar" "*.tgz" "*.gz" "*.7z" "*.rar"` reports only the intentional Android Gradle wrapper JAR.
 - `nim check --nimcache:build\nimcache_check_pqclean_common_submodule src\protocols\bindings\pqclean_common.nim` passed.
 - `nim check --nimcache:build\nimcache_check_pqclean_ntru_submodule src\protocols\bindings\pqclean_ntru.nim` passed.
 - `nim check --nimcache:build\nimcache_check_pqclean_saber_submodule src\protocols\bindings\pqclean_saber.nim` passed.

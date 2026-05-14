@@ -9,11 +9,11 @@ excluding `ntru` and `saber`.
 
 Paper lifecycle is controlled by `papers.lock.json`. PDFs with explicit
 redistribution terms stay tracked; PDFs without clear redistribution terms are
-ignored local-cache files and can be restored with `download_papers.ps1`.
+ignored local-cache files and can be restored with `download_papers.nim`.
 License notes are in `LICENSES.md`.
 
 Restore ignored cache files on Windows with:
-`powershell -ExecutionPolicy Bypass -File docs/research/pq_non_ntru_saber/download_papers.ps1`.
+`nim r docs/research/pq_non_ntru_saber/download_papers.nim`.
 
 ### Reference Sources
 

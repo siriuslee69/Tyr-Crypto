@@ -9,6 +9,7 @@ suite "registry helpers":
     for entry in info:
       check entry.provider.len > 0
     check cipherBackends(scaXChaCha20).len == 1
+    check cipherBackends(scaChaCha20).len == 1
     check cipherBackends(scaGimliStream).len == 1
 
   test "mac backends include metadata":

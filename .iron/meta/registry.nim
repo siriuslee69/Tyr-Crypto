@@ -21,6 +21,16 @@ proc cipherBackends*(alg: StreamCipherAlgorithm): seq[AlgoInfo] =
         requiresFlag: ""
       )
     ]
+  of scaChaCha20:
+    result = @[
+      AlgoInfo(
+        provider: "custom",
+        source: "Tyr-Crypto",
+        algorithmId: "chacha20",
+        notes: "ChaCha20 stream cipher with explicit 12-byte nonce handling.",
+        requiresFlag: ""
+      )
+    ]
   of scaAesCtr:
     result = @[
       AlgoInfo(

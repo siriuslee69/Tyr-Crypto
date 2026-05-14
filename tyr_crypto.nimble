@@ -2,21 +2,33 @@ import std/[os, strutils]
 
 # Package descriptor for the crypto bindings sub-project.
 
-import std/os
-
 version       = "0.1.0"
 author        = "siriuslee69"
 description   = "Bindings for classical and post-quantum cryptographic primitives."
 license       = "Unlicense"
 srcDir        = "src"
 bin           = @[]
-requires "nim >= 1.6.0", "owlkettle >= 3.0.0", "illwill >= 0.4.0", "nimsimd >= 0.4.0"
+requires "nim >= 1.6.0", "nimcrypto >= 0.6.0", "nimsimd >= 1.3.2"
 
 proc repoNimbleDir(): string =
   result = joinPath(getCurrentDir(), ".nimble_cache")
 
 proc repoNimcacheDir(name: string): string =
   result = joinPath(getCurrentDir(), "build", name)
+
+proc hostExeName(name: string): string =
+  when defined(windows):
+    result = name & ".exe"
+  else:
+    result = name
+
+proc repoToolExe(name: string): string =
+  result = joinPath(getCurrentDir(), "build", hostExeName(name)).replace('\\', '/')
+
+proc buildToolExe(name: string): string =
+  result = repoToolExe(name)
+  exec "nim c --nimcache:" & repoNimcacheDir("nimcache_tool_" & name).replace('\\', '/') &
+    " --out:" & result & " tools/" & name & ".nim"
 
 proc withRepoCaches(cmd: string): string =
   putEnv("NIMBLE_DIR", repoNimbleDir().replace('\\', '/'))
@@ -43,24 +55,32 @@ proc otterSrcDir(): string =
 
 task check, "Run nim check on core modules":
   exec withRepoCaches("nim check .iron/meta/registry.nim")
+  exec withRepoCaches("nim check --nimcache:" & repoNimcacheDir("nimcache_check_config").replace('\\', '/') & " src/protocols/config/tyr_config.nim")
+
+task check_core, "Run nim check on core modules without Nimble's built-in package check":
+  exec withRepoCaches("nim check .iron/meta/registry.nim")
+  exec withRepoCaches("nim check --nimcache:" & repoNimcacheDir("nimcache_check_config").replace('\\', '/') & " src/protocols/config/tyr_config.nim")
 
 task test, "Run the crypto bindings test suite":
-  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_desktop_tests_parallel.ps1")
+  exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_run_desktop_tests_parallel").replace('\\', '/') & " tools/run_desktop_tests_parallel.nim")
 
 task test_all, "Run the full crypto bindings test suite with libsodium, liboqs, and OpenSSL":
-  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_desktop_tests_parallel.ps1 -Full")
+  exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_run_desktop_tests_parallel").replace('\\', '/') & " tools/run_desktop_tests_parallel.nim -- --full")
 
 task test_all_threads_on, "Run test_all with threads enabled":
-  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_desktop_tests_parallel.ps1 -Full -ChildNimFlags '--gc:orc --threads:on'")
+  exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_run_desktop_tests_parallel").replace('\\', '/') & " tools/run_desktop_tests_parallel.nim -- --full --childNimFlags:\"--gc:orc --threads:on\"")
 
 task test_all_threads_off, "Run test_all with threads disabled":
-  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_desktop_tests_parallel.ps1 -Full -ChildNimFlags '--gc:orc --threads:off'")
+  exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_run_desktop_tests_parallel").replace('\\', '/') & " tools/run_desktop_tests_parallel.nim -- --full --childNimFlags:\"--gc:orc --threads:off\"")
 
 task test_gimli, "Run Gimli SSE tests":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_gimli").replace('\\', '/') & " -r tests/test_gimli_sse.nim")
 
 task test_gimli_avx, "Run Gimli AVX tests":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_gimli_avx").replace('\\', '/') & " --passC:\"-mavx2\" --passL:\"-mavx2\" -d:avx2 -r tests/test_gimli_sse.nim")
+
+task test_config, "Run config parser tests":
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_config").replace('\\', '/') & " -r tests/test_config.nim")
 
 task test_blake3_simd, "Run Blake3 SIMD tests":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_blake3_simd").replace('\\', '/') & " --passC:\"-mavx2\" --passL:\"-mavx2\" -d:avx2 -r tests/test_blake3_simd.nim")
@@ -125,13 +145,13 @@ task test_wasm, "Run wasm bridge regression tests":
   exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_wasm_test").replace('\\', '/') & " tests/test_wasm_bridge.nim")
 
 task build_android_harness, "Cross-compile the Android native test binaries and build the harness APK":
-  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/build_android_harness.ps1")
+  exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_build_android_harness").replace('\\', '/') & " tools/build_android_harness.nim")
 
 task build_android_harness_asymmetric_fast, "Build the Android harness APK with the reduced asymmetric/PQ native test bundle":
-  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/build_android_harness.ps1 -HarnessTarget asymmetric_fast -Release")
+  exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_build_android_harness").replace('\\', '/') & " tools/build_android_harness.nim -- --harnessTarget:asymmetric_fast --release")
 
 task build_android_harness_asymmetric_full, "Build the Android harness APK with the full asymmetric/PQ native test bundle":
-  exec withRepoCaches("powershell -NoProfile -ExecutionPolicy Bypass -File tools/build_android_harness.ps1 -HarnessTarget asymmetric_full -Release")
+  exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_build_android_harness").replace('\\', '/') & " tools/build_android_harness.nim -- --harnessTarget:asymmetric_full --release")
 
 task test_pin, "Run interactive pin + key unwrap test.":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_pin").replace('\\', '/') & " -d:hasLibsodium -r tests/test_pin_key_interactive.nim")
@@ -218,6 +238,7 @@ task build_liboqs_frodo_ossl, "Build an OpenSSL-backed Frodo-focused liboqs prof
   exec "nim r tools/prepare_liboqs_header.nim"
 
 task build_liboqs_dilithium_scalar_zig, "Build a scalar Zig-backed liboqs profile focused on ML-DSA":
+  let zigccWrapper = buildToolExe("zigcc_wrapper")
   putEnv("LIBOQS_PROFILE_NAME", "dilithium_scalar_zig")
   putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_dilithium_scalar_zig_mingw"))
   putEnv("LIBOQS_OVERWRITE_BUILD", "1")
@@ -229,9 +250,9 @@ task build_liboqs_dilithium_scalar_zig, "Build a scalar Zig-backed liboqs profil
   putEnv("LIBOQS_OPT_TARGET", "generic")
   putEnv("LIBOQS_MINIMAL_BUILD", "SIG_ml_dsa_44;SIG_ml_dsa_65;SIG_ml_dsa_87")
   putEnv("LIBOQS_CMAKE_GENERATOR", "MinGW Makefiles")
-  putEnv("LIBOQS_CMAKE_C_COMPILER", joinPath(getCurrentDir(), "tools", "zigcc_wrapper.cmd"))
+  putEnv("LIBOQS_CMAKE_C_COMPILER", zigccWrapper)
   putEnv("LIBOQS_CMAKE_C_COMPILER_ARG1", "")
-  putEnv("LIBOQS_CMAKE_ASM_COMPILER", joinPath(getCurrentDir(), "tools", "zigcc_wrapper.cmd"))
+  putEnv("LIBOQS_CMAKE_ASM_COMPILER", zigccWrapper)
   putEnv("LIBOQS_CMAKE_ASM_COMPILER_ARG1", "")
   putEnv("LIBOQS_EXTRA_CMAKE_ARGS", "-DOQS_ENABLE_SIG_ml_dsa_44_avx2=OFF -DOQS_ENABLE_SIG_ml_dsa_65_avx2=OFF -DOQS_ENABLE_SIG_ml_dsa_87_avx2=OFF -DOQS_ENABLE_SHA3_xkcp_low_avx2=OFF -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY -DCMAKE_SH=CMAKE_SH-NOTFOUND")
   exec "nim r tools/ensure_env.nim -- --submodules --builddirs"

@@ -11,7 +11,7 @@ const
   falconMqR = 4091'u32
   falconMqR2 = 10952'u32
 
-include ./vrfy_tables.inc
+include ./vrfy_tables
 
 proc mqConvSmall(x: int): uint32 {.inline.} =
   var y = uint32(x)

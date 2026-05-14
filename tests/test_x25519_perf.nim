@@ -1,6 +1,6 @@
 import std/[monotimes, strformat, strutils, times, unittest]
 
-import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_pass1, x25519_pass2, x25519_pass3, x25519_pass4, x25519_ref10_c]
+import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_pass1, x25519_pass2, x25519_pass3, x25519_pass4, x25519_ref10_nim]
 import ../src/protocols/bindings/libsodium
 
 const

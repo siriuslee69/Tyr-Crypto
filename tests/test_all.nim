@@ -4,6 +4,7 @@ putEnv("LIBOQS_AUTO_BUILD", "yes")
 putEnv("LIBSODIUM_AUTO_BUILD", "yes")
 
 include "test_common"
+include "test_config"
 include "test_registry"
 include "test_libsodium"
 include "test_nimcrypto"

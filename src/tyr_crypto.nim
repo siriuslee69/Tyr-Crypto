@@ -3,6 +3,7 @@
 ## ----------------------------------------
 
 import ./protocols/wrapper/helpers/algorithms
+import ./protocols/config/tyr_config
 import ./protocols/custom_crypto/random
 import ./protocols/custom_crypto/blake3
 import ./protocols/custom_crypto/sphincs
@@ -18,11 +19,13 @@ import ./protocols/custom_crypto/frodo
 import ./protocols/custom_crypto/kyber
 import ./protocols/custom_crypto/mceliece
 import ./protocols/wrapper/basic_api
+import ./protocols/wrapper/public_key_verify
 import ./protocols/custom_crypto/otp
 import ./protocols/custom_crypto/hmac
 import ./protocols/wrapper/helpers/signature_support
 
 export algorithms
+export tyr_config
 export random
 export blake3
 export sphincs
@@ -38,6 +41,7 @@ export frodo
 export kyber
 export mceliece
 export basic_api
+export public_key_verify
 export otp
 export hmac
 export signature_support

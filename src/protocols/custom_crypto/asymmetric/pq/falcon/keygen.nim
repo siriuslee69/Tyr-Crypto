@@ -33,7 +33,7 @@ type
     neg: bool
     words: seq[uint32]
 
-include ./keygen_consts.inc
+include ./keygen_consts
 
 template mknSize(logn: int): int =
   1 shl logn

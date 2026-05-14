@@ -1,0 +1,5 @@
+# Copy to userconfig.toml for local-only developer preferences.
+
+[user]
+profile_name = "local"
+benchmark_device = ""

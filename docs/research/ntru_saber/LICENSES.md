@@ -3,7 +3,7 @@
 Date: 2026-05-01
 
 This file is a repo-maintenance summary, not legal advice. The executable
-manifest is `papers.lock.json`; use `download_papers.ps1` to restore ignored
+manifest is `papers.lock.json`; use `download_papers.nim` to restore ignored
 local-cache PDFs.
 
 ## Policy
@@ -57,4 +57,4 @@ from the git index and ignored:
 - `supporting/saber_round3_spec.pdf`
 
 These files are still reproducible from `papers.lock.json` and
-`download_papers.ps1`.
+`download_papers.nim`.

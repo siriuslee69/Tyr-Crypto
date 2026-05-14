@@ -255,4 +255,4 @@ proc fprExpmP63*(x, ccs: FalconFpr): uint64 =
   y = y + uint64(z1) * uint64(y1)
   y
 
-include ./fpr_gm_tab.inc
+include ./fpr_gm_tab

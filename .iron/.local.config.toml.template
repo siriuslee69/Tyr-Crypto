@@ -1,4 +1,4 @@
 # This will contain configuration data for iron.
 
 [config]
-val1 = 23
+root = "F:/CodingMain/Tyr-Crypto"
