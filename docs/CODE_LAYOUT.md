@@ -45,7 +45,7 @@ src/tyr_crypto.nim
 custom_crypto/
    |
    +--> symmetric/
-   |       +--> aes, blake3, chacha, gimli, hmac, otp, poly1305, random, sha3
+   |       +--> aes, blake3, chacha, gimli, hmac, kdf, otp, poly1305, random, sha3
    |
    +--> asymmetric/
            +--> none_pq/x25519*

@@ -1,6 +1,19 @@
 import std/unittest
-import ../src/protocols/custom_crypto/[blake3, chacha20, xchacha20, gimli_sponge]
+import ../src/protocols/custom_crypto/[blake3, chacha20, xchacha20, gimli_sponge, kdf]
 import ./helpers
+
+proc tinyKdfGenerator(input: openArray[uint8], blockIndex: uint64,
+    outLen: int): seq[uint8] =
+  var
+    i: int = 0
+    seedByte: int = 0
+  if input.len > 0:
+    seedByte = int(input[0])
+  result = newSeq[uint8](outLen)
+  i = 0
+  while i < outLen:
+    result[i] = uint8((seedByte + int(blockIndex) * 17 + i) and 0xff)
+    i = i + 1
 
 suite "custom crypto":
   test "BLAKE3 empty message vector":
@@ -115,3 +128,45 @@ suite "custom crypto":
       discard gimliTag(@[], nonce, msg, 16)
     expect ValueError:
       discard gimliStreamXor(key, @[], msg)
+
+  test "Custom KDF block index folds bytes evenly":
+    var
+      indexBlock: seq[byte] = @[]
+    indexBlock = @[byte 1, 2, 3, 4, 5, 6, 7, 8,
+      8, 7, 6, 5, 4, 3, 2, 1]
+    check foldBlockToUint64(indexBlock) == 0x0905050101050509'u64
+    check calcKdfBlockIndex(indexBlock, 17) == int(0x0905050101050509'u64 mod 17'u64)
+    check calcKdfTargetBlockIndex(indexBlock, 64) == int(0x0905050101050509'u64 mod 48'u64)
+    check calcKdfTargetBlockIndex(indexBlock, 64) < 48
+
+  test "Custom KDF uses tail-indexed full-memory rounds":
+    var
+      p: CustomKdfParams
+      seed: seq[byte] = @[]
+      outBlock: seq[byte] = @[]
+    p = initCustomKdfParams(1, 512, 2, 8)
+    seed = @[byte 1]
+    outBlock = deriveCustomKdf(seed, p, tinyKdfGenerator)
+    check outBlock == @[byte 10, 11, 12, 13, 14, 15, 16, 17]
+
+  test "Custom KDF built-in generators are wired":
+    var
+      seed: seq[byte] = @[]
+      outBlock: seq[byte] = @[]
+      repeatBlock: seq[byte] = @[]
+      a: CustomKdfAlgorithm
+    seed = toBytes("custom kdf seed")
+    for alg in CustomKdfAlgorithm:
+      a = alg
+      outBlock = deriveCustomKdf(seed, a, 2, 1024, 3, 16)
+      repeatBlock = deriveCustomKdf(seed, a, 2, 1024, 3, 16)
+      check outBlock.len == 16
+      check outBlock == repeatBlock
+
+  test "Custom KDF rejects unusable parameters":
+    expect ValueError:
+      discard deriveCustomKdf(@[byte 1], ckaGimli, 1, 7, 1, 8)
+    expect ValueError:
+      discard deriveCustomKdf(@[byte 1], ckaGimli, 1, 64, 1, 9)
+    expect ValueError:
+      discard deriveCustomKdf(@[byte 1], ckaGimli, 1, 504, 1, 8)

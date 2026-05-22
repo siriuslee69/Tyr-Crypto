@@ -126,13 +126,13 @@ proc buildGroups(): seq[TestGroup] =
   addGroup(result, "bike", ["test_bike_tyr.nim", "test_bike_kat.nim"])
   addGroup(result, "ntru", ["test_ntru_tyr.nim"])
   addGroup(result, "saber", ["test_saber_tyr.nim"])
-  addGroup(result, "dilithium", ["test_dilithium_tyr.nim", "test_dilithium_kat.nim"])
+  addGroup(result, "dilithium", ["test_dilithium_tyr.nim", "test_dilithium_kat.nim", "test_ct_verify.nim"])
   addGroup(result, "falcon512", ["test_falcon_tyr.nim"], ["falcon"],
     [("TYR_FALCON_TEST_VARIANT", "512")])
   addGroup(result, "falcon1024", ["test_falcon_tyr.nim"], ["falcon"],
     [("TYR_FALCON_TEST_VARIANT", "1024")])
-  addGroup(result, "sphincs", ["test_sphincs_tyr.nim", "test_sphincs_kat.nim"])
-  addGroup(result, "mceliece", ["test_mceliece_tyr.nim"])
+  addGroup(result, "sphincs", ["test_sphincs_tyr.nim", "test_sphincs_kat.nim", "test_ct_verify.nim"])
+  addGroup(result, "mceliece", ["test_mceliece_tyr.nim", "test_ct_verify.nim"])
 
 proc wantedSet(value: string): seq[string] =
   var

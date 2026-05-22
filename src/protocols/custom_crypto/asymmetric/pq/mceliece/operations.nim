@@ -188,7 +188,8 @@ proc mcelieceTyrEncaps*(v: McElieceVariant, pk: openArray[byte]): McElieceTyrCip
   defer:
     clearSensitiveWords(enc.errorVec)
     clearSensitiveWords(preimage)
-  assert pk.len == publicKeyBytes(p)
+  if pk.len != publicKeyBytes(p):
+    raise newException(ValueError, "invalid McEliece public key length")
   otterSpan("mceliece.encaps.encryptError"):
     enc = encryptError(p, pk)
   otterSpan("mceliece.encaps.buildPreimage"):
@@ -198,8 +199,31 @@ proc mcelieceTyrEncaps*(v: McElieceVariant, pk: openArray[byte]): McElieceTyrCip
   otterSpan("mceliece.encaps.shake256"):
     result.sharedSecret = shake256(preimage, sharedKeyBytes())
 
+proc mcelieceTyrEncapsDerand*(v: McElieceVariant, pk, randomness: openArray[byte]): McElieceTyrCipher {.otterTrace.} =
+  ## Encapsulate against a McEliece public key from explicit PQClean `gen_e`
+  ## random block material.
+  var
+    p = params(v)
+    enc: tuple[syndrome, errorVec: seq[byte]]
+    preimage: seq[byte]
+  defer:
+    clearSensitiveWords(enc.errorVec)
+    clearSensitiveWords(preimage)
+  if pk.len != publicKeyBytes(p):
+    raise newException(ValueError, "invalid McEliece public key length")
+  otterSpan("mceliece.encaps.encryptErrorDerand"):
+    enc = encryptErrorDerand(p, pk, randomness)
+  otterSpan("mceliece.encaps.buildPreimage"):
+    preimage = buildEncapPreimage(p, enc.errorVec, enc.syndrome)
+  result.variant = v
+  result.ciphertext = enc.syndrome
+  otterSpan("mceliece.encaps.shake256"):
+    result.sharedSecret = shake256(preimage, sharedKeyBytes())
+
 proc mcelieceTyrTryDecaps*(v: McElieceVariant, sk, ct: openArray[byte]): tuple[sharedSecret: seq[byte], ok: bool] =
-  ## Decapsulate and return the derived shared secret plus a success flag.
+  ## Decapsulate with implicit rejection: `sharedSecret` is always derived and
+  ## invalid ciphertexts yield pseudorandom keys. The `ok` flag is diagnostic
+  ## only and must not gate online use of `sharedSecret`.
   var
     p = params(v)
     dec: tuple[ok: bool, okMask: uint16, errorVec: seq[byte]]
@@ -207,8 +231,10 @@ proc mcelieceTyrTryDecaps*(v: McElieceVariant, sk, ct: openArray[byte]): tuple[s
   defer:
     clearSensitiveWords(dec.errorVec)
     clearSensitiveWords(preimage)
-  assert ct.len == ciphertextBytes(p)
-  assert sk.len == secretKeyBytes(p)
+  if ct.len != ciphertextBytes(p):
+    raise newException(ValueError, "invalid McEliece ciphertext length")
+  if sk.len != secretKeyBytes(p):
+    raise newException(ValueError, "invalid McEliece secret key length")
   otterSpan("mceliece.decaps.decodeErrorVector"):
     dec = decodeErrorVector(p, sk.toOpenArray(40, sk.len - 1), ct)
   otterSpan("mceliece.decaps.buildPreimage"):
@@ -218,5 +244,6 @@ proc mcelieceTyrTryDecaps*(v: McElieceVariant, sk, ct: openArray[byte]): tuple[s
   result.ok = dec.ok
 
 proc mcelieceTyrDecaps*(v: McElieceVariant, sk, ct: openArray[byte]): seq[byte] {.otterTrace.} =
-  ## Decapsulate and return the derived shared secret bytes.
+  ## Decapsulate and return the derived shared secret bytes (implicit rejection).
+  ## Do not branch on `mcelieceTyrTryDecaps().ok` before using the secret.
   result = mcelieceTyrTryDecaps(v, sk, ct).sharedSecret

@@ -22,52 +22,89 @@ proc foldParity64(x: uint64): byte {.inline.} =
   t = t xor (t shr 1)
   result = byte(t and 1'u64)
 
-proc genErrorVector*(p: McElieceParams): seq[byte] =
-  ## Generate a bit-packed weight-`sysT` error vector for the selected McEliece tier.
+proc mcelieceEncapsRandomBlockBytes*(p: McElieceParams): int {.inline.} =
+  ## Return the random-byte block size consumed by PQClean `gen_e`.
+  p.sysT * 2 * sizeof(uint16)
+
+proc errorVectorFromRandomBlock(p: McElieceParams,
+    buf: openArray[byte]): tuple[ok: bool, errorVec: seq[byte]] =
+  ## Try to derive a bit-packed weight-`sysT` error vector from one PQClean
+  ## `gen_e` random block.
   var
-    buf: seq[byte] = @[]
     ind = newSeq[uint16](p.sysT)
     val = newSeq[byte](p.sysT)
     count: int = 0
     eq: bool = false
     i: int = 0
     j: int = 0
+    num: uint16 = 0
   defer:
-    clearSensitiveWords(buf)
     clearSensitiveWords(ind)
     clearSensitiveWords(val)
-  while true:
-    clearSensitiveWords(buf)
-    buf = cryptoRandomBytes(p.sysT * 4)
-    count = 0
-    i = 0
-    while i < p.sysT * 2 and count < p.sysT:
-      let num = loadGF(buf.toOpenArray(i * 2, i * 2 + 1))
-      if num < uint16(p.sysN):
-        ind[count] = num
-        count = count + 1
-      i = i + 1
-    if count < p.sysT:
-      continue
-    eq = false
-    i = 1
-    while i < p.sysT and not eq:
-      j = 0
-      while j < i:
-        if ind[i] == ind[j]:
-          eq = true
-          break
-        j = j + 1
-      i = i + 1
-    if not eq:
-      break
+  if buf.len != mcelieceEncapsRandomBlockBytes(p):
+    raise newException(ValueError, "invalid McEliece encaps random block length")
+  count = 0
+  i = 0
+  while i < p.sysT * 2 and count < p.sysT:
+    num = loadGF(buf.toOpenArray(i * 2, i * 2 + 1))
+    if num < uint16(p.sysN):
+      ind[count] = num
+      count = count + 1
+    i = i + 1
+  if count < p.sysT:
+    return
+  eq = false
+  i = 1
+  while i < p.sysT and not eq:
+    j = 0
+    while j < i:
+      if ind[i] == ind[j]:
+        eq = true
+        break
+      j = j + 1
+    i = i + 1
+  if eq:
+    return
   for j in 0 ..< p.sysT:
     val[j] = 1'u8 shl (ind[j] and 7)
-  result = newSeq[byte](p.sysN div 8)
-  for i in 0 ..< result.len:
-    result[i] = 0
+  result.ok = true
+  result.errorVec = newSeq[byte](p.sysN div 8)
+  for i in 0 ..< result.errorVec.len:
+    result.errorVec[i] = 0
     for j in 0 ..< p.sysT:
-      result[i] = result[i] or (val[j] and sameMask(uint16(i), ind[j] shr 3))
+      result.errorVec[i] = result.errorVec[i] or (val[j] and sameMask(uint16(i), ind[j] shr 3))
+
+proc genErrorVectorDerand*(p: McElieceParams, randomness: openArray[byte]): seq[byte] =
+  ## Generate an error vector from one or more PQClean `gen_e` random blocks.
+  var
+    blockBytes: int = mcelieceEncapsRandomBlockBytes(p)
+    offset: int = 0
+    candidate: tuple[ok: bool, errorVec: seq[byte]]
+  if randomness.len == 0 or (randomness.len mod blockBytes) != 0:
+    raise newException(ValueError, "McEliece encaps randomness must be one or more " &
+      $blockBytes & "-byte blocks")
+  while offset < randomness.len:
+    candidate = errorVectorFromRandomBlock(p,
+      randomness.toOpenArray(offset, offset + blockBytes - 1))
+    if candidate.ok:
+      return candidate.errorVec
+    clearSensitiveWords(candidate.errorVec)
+    offset = offset + blockBytes
+  raise newException(ValueError, "McEliece encaps randomness did not produce a valid error vector")
+
+proc genErrorVector*(p: McElieceParams): seq[byte] =
+  ## Generate a bit-packed weight-`sysT` error vector for the selected McEliece tier.
+  var
+    buf: seq[byte] = @[]
+    candidate: tuple[ok: bool, errorVec: seq[byte]]
+  defer:
+    clearSensitiveWords(buf)
+  while true:
+    clearSensitiveWords(buf)
+    buf = cryptoRandomBytes(mcelieceEncapsRandomBlockBytes(p))
+    candidate = errorVectorFromRandomBlock(p, buf)
+    if candidate.ok:
+      return candidate.errorVec
 
 proc syndromeFromPublicKey*(p: McElieceParams, pk, e: openArray[byte]): seq[byte] =
   ## Compute the bit-packed syndrome for public key `pk` and error vector `e`.
@@ -121,4 +158,9 @@ proc syndromeFromPublicKey*(p: McElieceParams, pk, e: openArray[byte]): seq[byte
 proc encryptError*(p: McElieceParams, pk: openArray[byte]): tuple[syndrome, errorVec: seq[byte]] =
   ## Generate a fresh error vector and its corresponding Niederreiter syndrome.
   result.errorVec = genErrorVector(p)
+  result.syndrome = syndromeFromPublicKey(p, pk, result.errorVec)
+
+proc encryptErrorDerand*(p: McElieceParams, pk, randomness: openArray[byte]): tuple[syndrome, errorVec: seq[byte]] =
+  ## Generate a deterministic error vector and its corresponding syndrome.
+  result.errorVec = genErrorVectorDerand(p, randomness)
   result.syndrome = syndromeFromPublicKey(p, pk, result.errorVec)

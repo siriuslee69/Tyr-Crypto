@@ -1,4 +1,4 @@
-Commit Message: make Tyr-Crypto production-ready per Proto project conventions
+Commit Message: update custom KDF tail-indexed memory rounds
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -80,24 +80,50 @@ Implemented:
 - Fixed the OpenSSL 3 `EVP_DigestSignInit_ex` /
   `EVP_DigestVerifyInit_ex` dynamic binding ABI to use the 7-argument OpenSSL
   3 signature while keeping Tyr's existing wrapper call surface.
+- Added a flat-memory custom KDF under `custom_crypto/symmetric/kdf.nim` with
+  round count, memory size, hash count, and block size parameters, 16-block
+  tail-indexed xor rounds, full-memory hash/refill rounds, a 64-block minimum,
+  and thin built-in block-generator adapters for Gimli, BLAKE3, SHA3/SHAKE,
+  ChaCha20/XChaCha20, and AES-CTR.
+- Added `tools/bench_custom_kdf.nim` and `nimble bench_custom_kdf` to benchmark
+  every built-in KDF generator with explicit memory/round/hash/block settings.
 
 Working on:
+- Focused security review and benchmarking for the updated custom KDF.
 - Argon2 pure Nim implementation or dedicated binding wrapper.
 - Optional Poly1305 AEAD path for the wrapper-level XChaCha20 flow.
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- Delta KeyAuthority needed classical RSA/ECDSA detached verification and
-  X.509 public-key certificate validation. libsodium only covers Ed25519-style
-  signing here, so the correct local backend is OpenSSL; Tyr's existing
-  OpenSSL 3 digest init binding also had an ABI mismatch.
+- Tyr needed an algorithm-agnostic custom KDF update that preserves the full
+  memory requirement, avoids low-memory regeneration fallback, excludes the
+  16 tail-source blocks from xor targets, and rejects arrays below 64 blocks.
 
 Fix attempt and result:
-- Added OpenSSL public-key/X.509 verify helpers, corrected the OpenSSL 3 digest
-  sign/verify init ABI, fixed the OpenSSL builder's Fylgia import path, and
-  verified the binding plus Delta's KeyAuthority RSA/ECDSA/X.509 protocol tests.
+- Updated the KDF core to use reverse tail-source indexing, modulo over the
+  non-tail target range, full-memory hash/refill rounds, and regression tests
+  for tail exclusion, generator determinism, and 64-block validation.
 
 Verification:
+- `nim check --nimcache:build\nimcache_check_custom_kdf src\protocols\custom_crypto\kdf.nim` passed.
+- `nim check --nimcache:build\nimcache_check_bench_custom_kdf tools\bench_custom_kdf.nim` passed.
+- `nim c --nimcache:build\nimcache_run_test_custom_kdf -r tests\test_custom_crypto.nim` passed.
+- `nim check --nimcache:build\nimcache_check_public_kdf src\tyr_crypto.nim` passed.
+- `nim c --nimcache:build\nimcache_run_public_api_kdf -r tests\test_public_api_surface.nim` passed.
+- `nimble bench_custom_kdf` passed with `memoryKiB=64`, `rounds=5`,
+  `hashCount=2`, `blockSize=64`, `loops=2`, and `warmup=1`; AVX/SSE/AES-NI
+  release rows were shake128 3.24 ms, shake256 3.58 ms, blake3 5.92 ms,
+  gimli 6.90 ms, chacha20 9.00 ms, xchacha20 9.05 ms, aes_ctr 108.36 ms,
+  and sha3 2777.63 ms average per KDF.
+- Scalar release `tools\bench_custom_kdf.nim` passed with the same parameters;
+  average rows were shake128 3.11 ms, shake256 3.54 ms, blake3 5.01 ms,
+  gimli 7.87 ms, chacha20 9.23 ms, xchacha20 9.33 ms, aes_ctr 434.85 ms,
+  and sha3 2764.97 ms.
+- SSE-only release `tools\bench_custom_kdf.nim` passed with the same parameters;
+  average rows were shake128 3.19 ms, shake256 3.55 ms, blake3 5.51 ms,
+  gimli 7.00 ms, chacha20 9.28 ms, xchacha20 9.36 ms, aes_ctr 406.78 ms,
+  and sha3 2779.83 ms.
+- `git diff --check` passed.
 - `git ls-files "*.inc" "*.c" "*.h" "*.bat" "*.cmd" "*.ps1" | rg -v "^submodules/"` reports no remaining tracked local C/include/shell helper files.
 - User-facing references to the removed `.ps1`, `.cmd`, and `.bat` helper entry points were cleared from `README.md`, `docs`, `THIRD_PARTY_LICENSES.md`, and `tyr_crypto.nimble`.
 - `nim check --nimcache:build\nimcache_check_pqclean_common_nim_random src\protocols\bindings\pqclean_common.nim` passed.

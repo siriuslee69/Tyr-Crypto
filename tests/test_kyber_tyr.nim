@@ -2,6 +2,8 @@ import std/unittest
 
 import ../src/protocols/wrapper/basic_api
 import ../src/protocols/custom_crypto/kyber as custom_kyber
+import ../src/protocols/custom_crypto/asymmetric/pq/kyber/[
+  params, types, poly, polyvec, symmetric]
 
 when defined(hasLibOqs):
   import ../src/protocols/wrapper/helpers/algorithms
@@ -82,7 +84,7 @@ when defined(hasLibOqs):
     defer:
       OQS_KEM_free(kem)
     nimKp = custom_kyber.kyberTyrKeypair(variant, keypairSeed)
-    keypairFeed = custom_kyber.hashG(keypairSeed)
+    keypairFeed = hashG(keypairSeed)
     pk = newSeq[uint8](int kem[].length_public_key)
     sk = newSeq[uint8](int kem[].length_secret_key)
     withDeterministicOqsRandom(keypairFeed, proc () =
@@ -107,47 +109,47 @@ when defined(hasLibOqs):
 suite "kyber tyr":
   test "poly add and sub match scalar reference":
     var
-      a: custom_kyber.Poly
-      b: custom_kyber.Poly
-      addRes: custom_kyber.Poly
-      subRes: custom_kyber.Poly
+      a: Poly
+      b: Poly
+      addRes: Poly
+      subRes: Poly
       i: int = 0
     i = 0
-    while i < custom_kyber.kyberN:
+    while i < kyberN:
       a.coeffs[i] = int16((17 * i) mod 3329)
       b.coeffs[i] = int16((29 * i + 3) mod 3329)
       i = i + 1
-    custom_kyber.polyAdd(addRes, a, b)
-    custom_kyber.polySub(subRes, a, b)
+    polyAdd(addRes, a, b)
+    polySub(subRes, a, b)
     i = 0
-    while i < custom_kyber.kyberN:
+    while i < kyberN:
       check addRes.coeffs[i] == a.coeffs[i] + b.coeffs[i]
       check subRes.coeffs[i] == a.coeffs[i] - b.coeffs[i]
       i = i + 1
 
   test "cached polyvec basemul matches scalar reference":
     var
-      p = custom_kyber.kyberParamsTable[custom_kyber.kyber768]
-      a: custom_kyber.PolyVec
-      b: custom_kyber.PolyVec
-      cache: custom_kyber.PolyVecMulCache
-      refRes: custom_kyber.Poly
-      cachedRes: custom_kyber.Poly
+      p = kyberParamsTable[custom_kyber.kyber768]
+      a: PolyVec
+      b: PolyVec
+      cache: PolyVecMulCache
+      refRes: Poly
+      cachedRes: Poly
       i: int = 0
       j: int = 0
     i = 0
     while i < p.k:
       j = 0
-      while j < custom_kyber.kyberN:
-        a.vec[i].coeffs[j] = int16(((17 * i) + (29 * j)) mod custom_kyber.kyberQ)
-        b.vec[i].coeffs[j] = int16(((23 * i) + (31 * j) + 7) mod custom_kyber.kyberQ)
+      while j < kyberN:
+        a.vec[i].coeffs[j] = int16(((17 * i) + (29 * j)) mod kyberQ)
+        b.vec[i].coeffs[j] = int16(((23 * i) + (31 * j) + 7) mod kyberQ)
         j = j + 1
       i = i + 1
-    custom_kyber.polyvecMulCacheCompute(p, cache, b)
-    custom_kyber.polyvecBaseMulAccMontgomery(p, refRes, a, b)
-    custom_kyber.polyvecBaseMulAccMontgomeryCached(p, cachedRes, a, b, cache)
+    polyvecMulCacheCompute(p, cache, b)
+    polyvecBaseMulAccMontgomery(p, refRes, a, b)
+    polyvecBaseMulAccMontgomeryCached(p, cachedRes, a, b, cache)
     i = 0
-    while i < custom_kyber.kyberN:
+    while i < kyberN:
       check cachedRes.coeffs[i] == refRes.coeffs[i]
       i = i + 1
 

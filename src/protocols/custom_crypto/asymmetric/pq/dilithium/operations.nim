@@ -4,6 +4,7 @@
 
 import ./params
 import ./poly
+import ../common/ct_compare
 import ../../../sha3
 import ../../../random
 import ../../../../helpers/otter_support
@@ -454,11 +455,6 @@ proc dilithiumTyrVerify*(v: DilithiumVariant, msg, sig, pk: openArray[byte],
   polyveckPackW1(p, packedW1.toOpenArray(0, p.k * p.polyW1PackedBytes - 1), w1)
   shake256Into(c2.toOpenArray(0, p.ctildeBytes - 1), mu,
     packedW1.toOpenArray(0, p.k * p.polyW1PackedBytes - 1))
-  var
-    i: int = 0
-  while i < p.ctildeBytes:
-    if c2[i] != sigp.c[i]:
-      return false
-    i = i + 1
-  result = true
+  result = bytesEqualCt(c2.toOpenArray(0, p.ctildeBytes - 1),
+    sigp.c.toOpenArray(0, p.ctildeBytes - 1))
 {.pop.}

@@ -2,18 +2,9 @@
 ## Kyber Verify <- constant-time compare and conditional move
 ## ----------------------------------------------------------
 
-proc verifyBytes*(A, B: openArray[byte]): int =
-  ## Return 0 when `A == B`, else 1, using a branch-free byte walk.
-  var
-    r: uint8 = 0
-    i: int = 0
-  if A.len != B.len:
-    return 1
-  i = 0
-  while i < A.len:
-    r = r or (A[i] xor B[i])
-    i = i + 1
-  result = int((0'u64 - uint64(r)) shr 63)
+import ../common/ct_compare
+
+export ct_compare
 
 proc cmovBytes*(R: var openArray[byte], X: openArray[byte], b: uint8) =
   ## Copy `X` into `R` when `b == 1`, leave `R` untouched when `b == 0`.

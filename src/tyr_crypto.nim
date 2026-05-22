@@ -22,6 +22,7 @@ import ./protocols/wrapper/basic_api
 import ./protocols/wrapper/public_key_verify
 import ./protocols/custom_crypto/otp
 import ./protocols/custom_crypto/hmac
+import ./protocols/custom_crypto/kdf
 import ./protocols/wrapper/helpers/signature_support
 
 export algorithms
@@ -44,4 +45,5 @@ export basic_api
 export public_key_verify
 export otp
 export hmac
+export kdf
 export signature_support

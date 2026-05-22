@@ -15,6 +15,7 @@ suite "public api surface":
       blake: HashDigest32
       gimli: HashDigest32
       sha3Digest: seq[byte] = @[]
+      kdfBlock: seq[byte] = @[]
       kyberKp: KyberTyrKeypair
       kyberEnv: KyberTyrCipher
       kyberShared: seq[byte] = @[]
@@ -36,6 +37,8 @@ suite "public api surface":
     check blake.len == 32
     check gimli.len == 32
     check sha3Digest.len == 32
+    kdfBlock = deriveCustomKdf(msg, ckaGimli, 1, 512, 2, 8)
+    check kdfBlock.len == 8
 
     kyberKp = kyberTyrKeypair(kyber768)
     kyberEnv = kyberTyrEncaps(kyber768, kyberKp.publicKey)

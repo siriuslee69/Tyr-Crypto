@@ -7,6 +7,7 @@
 | Command                  | Purpose                                       |
 +--------------------------+-----------------------------------------------+
 | nimble bench_custom_crypto | Tyr-only custom primitive report            |
+| nimble bench_custom_kdf    | custom KDF tail/full-memory round table     |
 | nimble bench_pq_profiles | matched scalar/AVX2 liboqs profile builds    |
 | nimble perf_sigma_pq     | Sigma comparison against current liboqs      |
 | nimble perf_sigma_kyber  | focused Kyber comparison                     |

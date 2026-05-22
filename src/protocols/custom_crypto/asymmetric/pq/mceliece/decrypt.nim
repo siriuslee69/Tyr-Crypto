@@ -2,6 +2,7 @@
 
 import ./params
 import ./util
+import ../common/ct_compare
 import ./gf
 import ./bm
 import ./root
@@ -71,4 +72,4 @@ proc decodeErrorVector*(p: McElieceParams, skTail, ciphertext: openArray[byte]):
     for i in 0 ..< s0.len:
       check = check or (s0[i] xor sCmp[i])
     result.okMask = ctMaskZero(check)
-    result.ok = result.okMask == 0xFFFF'u16
+    result.ok = uint16MaskAllOnesCt(result.okMask)

@@ -13,7 +13,7 @@ This is still custom cryptographic code. Treat the local `Tyr` implementations a
 - config loading from [tyr_config.nim](src/protocols/config/tyr_config.nim)
 - `algorithms`
 - [basic_api.nim](src/protocols/wrapper/basic_api.nim)
-- custom pure-Nim modules: `random`, `blake3`, `gimli_sponge`, `sha3`, `poly1305`, `mceliece`, `otp`, `hmac`
+- custom pure-Nim modules: `random`, `blake3`, `gimli_sponge`, `sha3`, `poly1305`, `mceliece`, `otp`, `hmac`, `kdf`
 - `signature_support`
 - [public_key_verify.nim](src/protocols/wrapper/public_key_verify.nim) for
   OpenSSL-backed RSA/ECDSA detached verification and X.509 public-key
@@ -23,7 +23,7 @@ The canonical wrapper layer is [basic_api.nim](src/protocols/wrapper/basic_api.n
 
 `custom_crypto/` splits implementation code by primitive class:
 
-- `symmetric/` for hashes, MACs, RNG, stream/block helpers, and OTP utilities
+- `symmetric/` for hashes, MACs, RNG, stream/block helpers, KDFs, and OTP utilities
 - `asymmetric/pq/` for post-quantum KEM/signature implementations
 - `asymmetric/none_pq/` for non-PQ asymmetric implementations
 
@@ -116,6 +116,7 @@ Current local/custom implementations include:
 - Poly1305
 - AES-CTR
 - ChaCha20 / HChaCha20 / XChaCha20
+- Custom memory-hard KDF with tail-indexed xor rounds and full-memory refill
 - Classic McEliece `6688128f`, `6960119f`, `8192128f`
 - NTRU HPS/HRSS KEMs: `ntruhps2048509`, `ntruhps2048677`, `ntruhps4096821`, `ntruhrss701`
 - SABER KEMs: `lightsaber`, `saber`, `firesaber`
@@ -269,6 +270,7 @@ The suite currently includes:
 - scalar/SIMD parity tests for BLAKE3, Gimli, SHA3, Poly1305, X25519, and PQ hot paths
 - ARM64/NEON compile-check coverage through `nimble test_neon_checks`
 - wrapper-layer dispatch tests
+- custom KDF tail-indexing, full-memory parameter validation, and generator wiring
 - config parser sanitization tests
 - wasm bridge tests
 - Android native harness tests for custom/SIMD and asymmetric/PQ bundles

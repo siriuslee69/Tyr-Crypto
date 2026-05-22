@@ -11,6 +11,7 @@ import ./merkle
 import ./merkle_utils
 import ./wots
 import ./util
+import ../common/ct_compare
 import ../../../../helpers/otter_support
 import ../../../random
 
@@ -148,7 +149,4 @@ proc sphincsTyrVerify*(v: SphincsVariant, msg, sig, pk: openArray[byte]): bool {
     sigOff = sigOff + p.treeHeight * 16
     idxLeaf = uint32(tree and ((1'u64 shl p.treeHeight) - 1'u64))
     tree = tree shr p.treeHeight
-  for i in 0 ..< 16:
-    if rootNode[i] != pubRoot[i]:
-      return false
-  result = true
+  result = bytesEqualCt(rootNode, pubRoot)
