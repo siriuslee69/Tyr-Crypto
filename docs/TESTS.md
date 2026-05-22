@@ -6,7 +6,7 @@
 +----------------------+------------------------------------------------------+
 | Group                | Coverage                                              |
 +----------------------+------------------------------------------------------+
-| core                 | shared errors, config, registry, public typed API     |
+| core                 | shared errors, registry, public typed API             |
 | custom_crypto        | aggregate pure-Nim symmetric/custom checks            |
 | sha3/poly1305/aes    | focused symmetric primitive vectors and parity        |
 | gimli/blake3         | hash/sponge/vector and SIMD parity checks             |
@@ -29,7 +29,7 @@ nimble check_core
 nimble check
    |
    v
-nimble test_config or focused test file
+focused test file
    |
    v
 nimble test
@@ -43,7 +43,6 @@ nimble test_all / Android harness when native backends or mobile paths changed
 ```bash
 nimble check
 nimble test
-nimble test_config
 nimble test_wasm
 nimble test_neon_checks
 nimble test_simd_matrix

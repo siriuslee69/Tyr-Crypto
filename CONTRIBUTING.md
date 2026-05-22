@@ -42,7 +42,7 @@ raw input
 sanitize/validate
    |
    v
-typed material/config
+typed crypto material
    |
    v
 small primitive or wrapper operation
@@ -70,7 +70,6 @@ explicit output bytes/tag/signature/envelope
 | Path                                                      | Risk                 |
 +-----------------------------------------------------------+----------------------+
 | src/protocols/wrapper/basic_api.nim                       | public API behavior  |
-| src/protocols/config/tyr_config.nim                       | raw config input     |
 | src/protocols/custom_crypto/asymmetric/pq/mceliece/       | large KEM internals  |
 | src/protocols/custom_crypto/asymmetric/pq/falcon/         | slow signature path  |
 | src/protocols/custom_crypto/symmetric/sha3/               | hash/XOF core        |
@@ -87,7 +86,7 @@ Run the smallest relevant checks first, then widen based on risk:
 small code change
    |
    +--> nimble check_core
-   +--> focused test file or nimble test_config
+   +--> focused test file
    +--> nimble test for larger behavior changes
    +--> full/native/mobile matrix when bindings, SIMD, or Android changed
 ```
@@ -98,7 +97,6 @@ Common commands:
 nimble check_core
 nimble check
 nimble test
-nimble test_config
 nimble test_wasm
 nimble test_neon_checks
 nimble test_simd_matrix

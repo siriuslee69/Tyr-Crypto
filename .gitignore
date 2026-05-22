@@ -30,7 +30,6 @@ build/
 bindings/js/dist/
 src/libsodium/
 src/liboqs/
-userconfig.toml
 iron/iron_config.md
 .iron/.local*
 !.iron/.local*.template

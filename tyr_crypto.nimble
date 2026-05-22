@@ -55,11 +55,11 @@ proc otterSrcDir(): string =
 
 task check, "Run nim check on core modules":
   exec withRepoCaches("nim check .iron/meta/registry.nim")
-  exec withRepoCaches("nim check --nimcache:" & repoNimcacheDir("nimcache_check_config").replace('\\', '/') & " src/protocols/config/tyr_config.nim")
+  exec withRepoCaches("nim check --nimcache:" & repoNimcacheDir("nimcache_check_public").replace('\\', '/') & " src/tyr_crypto.nim")
 
 task check_core, "Run nim check on core modules without Nimble's built-in package check":
   exec withRepoCaches("nim check .iron/meta/registry.nim")
-  exec withRepoCaches("nim check --nimcache:" & repoNimcacheDir("nimcache_check_config").replace('\\', '/') & " src/protocols/config/tyr_config.nim")
+  exec withRepoCaches("nim check --nimcache:" & repoNimcacheDir("nimcache_check_public").replace('\\', '/') & " src/tyr_crypto.nim")
 
 task test, "Run the crypto bindings test suite":
   exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_run_desktop_tests_parallel").replace('\\', '/') & " tools/run_desktop_tests_parallel.nim")
@@ -78,9 +78,6 @@ task test_gimli, "Run Gimli SSE tests":
 
 task test_gimli_avx, "Run Gimli AVX tests":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_gimli_avx").replace('\\', '/') & " --passC:\"-mavx2\" --passL:\"-mavx2\" -d:avx2 -r tests/test_gimli_sse.nim")
-
-task test_config, "Run config parser tests":
-  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_config").replace('\\', '/') & " -r tests/test_config.nim")
 
 task test_blake3_simd, "Run Blake3 SIMD tests":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_blake3_simd").replace('\\', '/') & " --passC:\"-mavx2\" --passL:\"-mavx2\" -d:avx2 -r tests/test_blake3_simd.nim")

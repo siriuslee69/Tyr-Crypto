@@ -106,7 +106,7 @@ proc addGroup(G: var seq[TestGroup], name: string, tests: openArray[string],
 
 proc buildGroups(): seq[TestGroup] =
   addGroup(result, "core", [
-    "test_common.nim", "test_config.nim", "test_registry.nim", "test_libsodium.nim",
+    "test_common.nim", "test_registry.nim", "test_libsodium.nim",
     "test_nimcrypto.nim", "test_quick_api.nim", "test_primitives_api.nim",
     "test_hybrid_kex_triple.nim", "test_hybrid_kex_duo.nim",
     "test_signatures.nim", "test_liboqs.nim", "test_openssl.nim"])

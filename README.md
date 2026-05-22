@@ -3,14 +3,13 @@
 Experimental Nim crypto toolkit for the sibling repos in this workspace.
 
 ## Production Scope
-This repo is production-ready in the project-hygiene sense defined by [.iron/conventions/PROJECTS.md](.iron/conventions/PROJECTS.md): dependencies are declared, native source dependencies live under `submodules/`, generated artifacts are ignored, docs/tests/build tasks are present, and raw config input has a sanitizer-backed parser.
+This repo is production-ready in the project-hygiene sense defined by [.iron/conventions/PROJECTS.md](.iron/conventions/PROJECTS.md): dependencies are declared, native source dependencies live under `submodules/`, generated artifacts are ignored, and docs/tests/build tasks are present.
 
 This is still custom cryptographic code. Treat the local `Tyr` implementations as experimental unless the exact primitive, mode, and deployment environment have been independently reviewed for your use case.
 
 ## Current Shape
 `src/tyr_crypto.nim` exports the current public surface:
 
-- config loading from [tyr_config.nim](src/protocols/config/tyr_config.nim)
 - `algorithms`
 - [basic_api.nim](src/protocols/wrapper/basic_api.nim)
 - custom pure-Nim modules: `random`, `blake3`, `gimli_sponge`, `sha3`, `poly1305`, `mceliece`, `otp`, `hmac`, `kdf`
@@ -43,27 +42,9 @@ The old top-level module names under `custom_crypto/` remain as compatibility fa
 +----------------------------+--------------------------------------------+
 ```
 
-## Config
-The tracked [config.toml](config.toml) is parsed by [tyr_config.nim](src/protocols/config/tyr_config.nim). The parser accepts only the known scalar keys and rejects unsupported sections, unknown keys, oversized input, null bytes, unsafe scalar characters, and invalid numeric/boolean values.
-
-```toml
-[tyr]
-allow_experimental_algorithms = true
-auto_build_native_backends = false
-max_input_bytes = 1073741824
-preferred_backend = "auto"
-```
-
-Use `userconfig.toml.template` as the local-only user config template. The actual `userconfig.toml` file is ignored.
-
-```nim
-import tyr_crypto
-
-discard loadOptionalTyrConfig()
-discard loadOptionalTyrUserConfig()
-```
-
 ## Canonical API
+Use Tyr-Crypto as an imported library. It does not expose a runtime `config.toml` or `userconfig.toml` loader; calling projects should configure behavior through typed materials, explicit function parameters, and their own application config where needed.
+
 Use typed materials from [basic_api.nim](src/protocols/wrapper/basic_api.nim).
 
 Main operation families:
@@ -238,7 +219,6 @@ nimble check_core
 nimble check
 nimble test
 nimble test_all
-nimble test_config
 nimble test_wasm
 nimble test_gimli
 nimble test_blake3_simd
@@ -260,7 +240,6 @@ Direct focused checks:
 nimble check_core
 nim check src/tyr_crypto.nim
 nim check src/protocols/wrapper/basic_api.nim
-nim c --nimcache:build/nimcache_test_config -r tests/test_config.nim
 ```
 
 ## Current Validation Highlights
@@ -271,7 +250,6 @@ The suite currently includes:
 - ARM64/NEON compile-check coverage through `nimble test_neon_checks`
 - wrapper-layer dispatch tests
 - custom KDF tail-indexing, full-memory parameter validation, and generator wiring
-- config parser sanitization tests
 - wasm bridge tests
 - Android native harness tests for custom/SIMD and asymmetric/PQ bundles
 

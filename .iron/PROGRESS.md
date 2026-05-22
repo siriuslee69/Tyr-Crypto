@@ -1,4 +1,4 @@
-Commit Message: update custom KDF tail-indexed memory rounds
+Commit Message: remove runtime config surface from Tyr-Crypto
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -69,11 +69,13 @@ Implemented:
 - Replaced the copied Falcon PQClean C reference snapshot under `src/protocols/custom_crypto/asymmetric/pq/falcon/upstream` with the pinned `submodules/pqclean_falcon_ref_sources` submodule.
 - Replaced tracked local `.inc`, `.c`, `.ps1`, `.cmd`, and `.bat` helper files with Nim modules or Nim script entry points where the repo already had a Nim implementation path.
 - Synced `.iron/conventions` from `Proto-RepoTemplate`, refreshed the legacy `.iron/CONVENTIONS.md`, and added the shared `metaPragmas.nim` template beside the repo-local registry metadata.
-- Added a sanitizer-backed `config.toml` / `userconfig.toml` parser in `src/protocols/config/tyr_config.nim`, exported it through `tyr_crypto`, and covered it with `tests/test_config.nim`.
+- Removed the runtime `config.toml` / `userconfig.toml` parser, public export,
+  focused tests, templates, and docs because Tyr-Crypto is an import-only
+  library surface.
 - Added production-readiness docs for code layout, tests, and benchmarks under `docs/`, rewrote README/CONTRIBUTING around relative links, issue playbook, conventions, and current production-scope language.
 - Tightened artifact ignores for native/runtime/build outputs while keeping the Android Gradle wrapper JAR as the only tracked binary exception.
 - Declared the actual Nimble package dependencies (`nimcrypto`, `nimsimd`) and removed unused UI package requirements from the package descriptor.
-- Added `nimble check_core` and `nimble test_config` tasks so core checks and config parser tests are runnable without flags.
+- Added `nimble check_core` so core checks are runnable without flags.
 - Added missing `scaChaCha20` backend metadata to `.iron/meta/registry.nim`.
 - Added OpenSSL-backed RSA/ECDSA public-key signature verification helpers and
   X.509 certificate-chain SubjectPublicKeyInfo verification helpers.
@@ -95,16 +97,21 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- Tyr needed an algorithm-agnostic custom KDF update that preserves the full
-  memory requirement, avoids low-memory regeneration fallback, excludes the
-  16 tail-source blocks from xor targets, and rejects arrays below 64 blocks.
+- Tyr carried a runtime/user config parser and README guidance even though this
+  repo should only be consumed as an imported crypto library.
 
 Fix attempt and result:
-- Updated the KDF core to use reverse tail-source indexing, modulo over the
-  non-tail target range, full-memory hash/refill rounds, and regression tests
-  for tail exclusion, generator determinism, and 64-block validation.
+- Removed the config module, tracked config files/templates, config tests,
+  nimble task, top-level export, and docs references. The public API now
+  exposes typed crypto operations only.
 
 Verification:
+- `nimble tasks` passed and no longer lists `test_config`.
+- `nimble check_core` passed.
+- `nim check --nimcache:build/nimcache_check_test_all_no_config tests/test_all.nim` passed.
+- `nim c --nimcache:build/nimcache_test_public_api_no_config -r tests/test_public_api_surface.nim` passed.
+- `rg -n "tyr_config|test_config|userconfig|config\.toml|loadOptionalTyrConfig|TyrConfig|runtime config|config parser|raw config|protocols/config|nimcache_check_config|nimcache_test_config" --glob '!submodules/**' --glob '!docs/research/**'` reports only the intentional README sentence stating no runtime config loader exists.
+- `git diff --check` passed.
 - `nim check --nimcache:build\nimcache_check_custom_kdf src\protocols\custom_crypto\kdf.nim` passed.
 - `nim check --nimcache:build\nimcache_check_bench_custom_kdf tools\bench_custom_kdf.nim` passed.
 - `nim c --nimcache:build\nimcache_run_test_custom_kdf -r tests\test_custom_crypto.nim` passed.

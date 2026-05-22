@@ -3,7 +3,6 @@
 ## ----------------------------------------
 
 import ./protocols/wrapper/helpers/algorithms
-import ./protocols/config/tyr_config
 import ./protocols/custom_crypto/random
 import ./protocols/custom_crypto/blake3
 import ./protocols/custom_crypto/sphincs
@@ -26,7 +25,6 @@ import ./protocols/custom_crypto/kdf
 import ./protocols/wrapper/helpers/signature_support
 
 export algorithms
-export tyr_config
 export random
 export blake3
 export sphincs

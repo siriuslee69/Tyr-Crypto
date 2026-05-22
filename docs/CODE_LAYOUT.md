@@ -7,7 +7,6 @@
 | Path                         | Responsibility                              |
 +------------------------------+---------------------------------------------+
 | src/tyr_crypto.nim           | Public export facade                        |
-| src/protocols/config/        | config.toml and userconfig.toml parsing     |
 | src/protocols/wrapper/       | Typed public operation API                  |
 | src/protocols/custom_crypto/ | Pure-Nim primitive implementations          |
 | src/protocols/bindings/      | Optional native ABI bindings                |
@@ -34,8 +33,6 @@ src/tyr_crypto.nim
    |       +--> custom_crypto/*
    |       +--> bindings/* when enabled by -d:has*
    |
-   +--> protocols/config/tyr_config.nim
-   |
    +--> custom_crypto compatibility facades
 ```
 
@@ -57,13 +54,13 @@ Compatibility facades stay at `src/protocols/custom_crypto/*.nim` so existing im
 ## Data Flow
 
 ```text
-raw bytes/config input
+raw bytes or typed crypto material
    |
    v
 sanitize/parse
    |
    v
-typed material or config truth state
+typed crypto material
    |
    v
 actor operation: hash/encrypt/sign/encapsulate

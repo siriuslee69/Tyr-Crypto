@@ -1,7 +1,0 @@
-# Tyr-Crypto default runtime configuration.
-
-[tyr]
-allow_experimental_algorithms = true
-auto_build_native_backends = false
-max_input_bytes = 1073741824
-preferred_backend = "auto"
