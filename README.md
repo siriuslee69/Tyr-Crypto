@@ -45,6 +45,43 @@ The old top-level module names under `custom_crypto/` remain as compatibility fa
 ## Canonical API
 Use Tyr-Crypto as an imported library. It does not expose a runtime `config.toml` or `userconfig.toml` loader; calling projects should configure behavior through typed materials, explicit function parameters, and their own application config where needed.
 
+## NixOS
+
+Import `inputs.tyr.nixosModules.default` from the flake when a NixOS host wants
+to install Tyr source material or generate declarative profiles for services
+that consume Tyr:
+
+```nix
+{
+  imports = [ inputs.tyr.nixosModules.default ];
+
+  programs.tyr-crypto = {
+    enable = true;
+
+    settings = {
+      pqProfile = "portable";
+      simd = "auto";
+      kdfMemoryKiB = 65536;
+    };
+
+    profiles.geist.settings.consumer = "geist";
+
+    profiles.torii = {
+      mode = "replace";
+      settings.consumer = "torii";
+    };
+  };
+}
+```
+
+Conflict rule:
+- `configFile` and declarative `settings` are mutually exclusive at the same scope.
+- Named profiles merge over global settings by default.
+- Set `profiles.<name>.mode = "replace"` when a consumer must not inherit global defaults.
+
+These generated TOML files are for downstream consumers. Tyr itself does not
+read them at runtime.
+
 Use typed materials from [basic_api.nim](src/protocols/wrapper/basic_api.nim).
 
 Main operation families:

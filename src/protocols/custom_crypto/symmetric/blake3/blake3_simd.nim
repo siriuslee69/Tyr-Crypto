@@ -161,7 +161,7 @@ proc blake3CompressSse4*(cvs: array[4, Blake3Cv], blocks: array[4, Blake3Block],
   i = 0
   while i < 8:
     outVec[i] = state[i] xor state[i + 8]
-    outVec[i + 8] = outVec[i] xor cvVec[i]
+    outVec[i + 8] = state[i + 8] xor cvVec[i]
     i = i + 1
   i = 0
   while i < 16:
@@ -223,7 +223,7 @@ when defined(avx2):
     i = 0
     while i < 8:
       outVec[i] = state[i] xor state[i + 8]
-      outVec[i + 8] = outVec[i] xor cvVec[i]
+      outVec[i + 8] = state[i + 8] xor cvVec[i]
       i = i + 1
     i = 0
     while i < 16:

@@ -949,3 +949,18 @@ Verification:
 - `git submodule status submodules/ntru_sampling_ref_sources` resolves the upstream submodule at `heads/main`.
 - `git -C submodules/ntru_sampling_ref_sources status --short --branch` is clean.
 
+## 2026-06-05 Declarative NixOS Consumer Profiles
+Summary:
+- Added flake-exported NixOS support for installing Tyr source material and generating consumer profile TOML files.
+- Kept Tyr as an import-only crypto library; the NixOS module does not reintroduce a runtime config parser.
+- Added global settings plus named consumer profiles for downstream frontends/clients/servers.
+- Kept config conflict handling fail-closed: `configFile` and declarative `settings` are mutually exclusive at the same scope.
+- Added `mode = "replace"` so a consumer profile can avoid inheriting global defaults.
+- Filtered the Nix source package so local compiled artifacts under `src/` do not enter the package output.
+
+Verification:
+- `nix-build --no-out-link -E 'with import <nixpkgs> {}; callPackage ./nix/package.nix {}'`
+- `nix-instantiate --parse flake.nix`, `nix-instantiate --parse nix/module.nix`, `nix-instantiate --parse nix/package.nix`
+- NixOS module eval created `tyr-crypto/profile.toml`, `tyr-crypto/profiles/geist.toml`, and `tyr-crypto/profiles/torii.toml`.
+- Conflict assertion eval reports `programs.tyr-crypto: configFile and settings are mutually exclusive.`
+
