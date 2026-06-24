@@ -167,16 +167,16 @@ proc deriveSeedSecretCompat*(seed: openArray[byte]): X25519Bytes32 =
   fillFromSeq(result, digest)
 
 proc buildShared*(raw: X25519ScalarMultProc, secretKey, publicKey: openArray[byte]): seq[byte] =
-  let
+  var
     sk = toFixed32(secretKey)
     pk = toFixed32(publicKey)
-  var shared: X25519Bytes32
+    shared: X25519Bytes32
   if not raw(shared, sk, pk):
     raise newException(ValueError, "X25519 shared secret derivation failed")
   result = toSeqBytes(shared)
 
 proc buildPublicKey*(raw: X25519ScalarBaseProc, secretKey: openArray[byte]): seq[byte] =
-  let sk = toFixed32(secretKey)
+  var sk = toFixed32(secretKey)
   var pk: X25519Bytes32
   if not raw(pk, sk):
     raise newException(ValueError, "X25519 public key derivation failed")

@@ -24,7 +24,7 @@ proc bytesToUll*(A: openArray[byte]): uint64 =
     result = result or (uint64(A[i]) shl (8 * (A.len - 1 - i)))
 
 proc appendBytes*(S: var seq[byte], A: openArray[byte]) =
-  let start = S.len
+  var start = S.len
   S.setLen(start + A.len)
   if A.len > 0:
     copyMem(addr S[start], unsafeAddr A[0], A.len)

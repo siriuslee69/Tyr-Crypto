@@ -103,7 +103,7 @@ proc prngRefill*(p: var FalconPrng) =
     counter = counter + 1'u64
     v = 0
     while v < 16:
-      let base = (lane shl 2) + (v shl 5)
+      var base = (lane shl 2) + (v shl 5)
       p.buf.d[base + 0] = byte(state[v])
       p.buf.d[base + 1] = byte(state[v] shr 8)
       p.buf.d[base + 2] = byte(state[v] shr 16)
@@ -133,7 +133,7 @@ proc prngInit*(p: var FalconPrng, rawSeed56: array[56, byte]) =
     tl: uint64
     th: uint64
   while i < 14:
-    let w =
+    var w =
       uint32(rawSeed56[(i shl 2) + 0]) or
       (uint32(rawSeed56[(i shl 2) + 1]) shl 8) or
       (uint32(rawSeed56[(i shl 2) + 2]) shl 16) or

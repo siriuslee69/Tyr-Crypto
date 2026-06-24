@@ -72,15 +72,18 @@ proc buildChaChaNonce(nonce: openArray[byte]): array[12, byte] =
     result[4 + i] = nonce[16 + i]
 
 proc xchacha20Xor*(key, nonce: openArray[byte], initialCounter: uint32,
-                   input: openArray[byte]): seq[byte] =
+                    input: openArray[byte]): seq[byte] =
   ## Encrypts/decrypts input using XChaCha20.
+  var
+    subkey: array[32, byte]
+    chachaNonce: array[12, byte]
   if key.len != 32:
     raise newException(ValueError, "XChaCha20 requires a 32-byte key")
   if nonce.len != xchacha20NonceSize:
     raise newException(ValueError, "XChaCha20 requires a 24-byte nonce")
 
-  let subkey = deriveXChaCha20Key(key, nonce)
-  let chachaNonce = buildChaChaNonce(nonce)
+  subkey = deriveXChaCha20Key(key, nonce)
+  chachaNonce = buildChaChaNonce(nonce)
   chacha20Xor(subkey, chachaNonce, initialCounter, input)
 
 proc xchacha20Xor*(key, nonce: openArray[byte], input: openArray[byte]): seq[byte] =
@@ -88,15 +91,18 @@ proc xchacha20Xor*(key, nonce: openArray[byte], input: openArray[byte]): seq[byt
   xchacha20Xor(key, nonce, 0'u32, input)
 
 proc xchacha20XorInPlace*(key, nonce: openArray[byte], initialCounter: uint32,
-                          buffer: var openArray[byte]) =
+                           buffer: var openArray[byte]) =
   ## In-place XChaCha20 transform to avoid an extra allocation.
+  var
+    subkey: array[32, byte]
+    chachaNonce: array[12, byte]
   if key.len != 32:
     raise newException(ValueError, "XChaCha20 requires a 32-byte key")
   if nonce.len != xchacha20NonceSize:
     raise newException(ValueError, "XChaCha20 requires a 24-byte nonce")
 
-  let subkey = deriveXChaCha20Key(key, nonce)
-  let chachaNonce = buildChaChaNonce(nonce)
+  subkey = deriveXChaCha20Key(key, nonce)
+  chachaNonce = buildChaChaNonce(nonce)
   chacha20XorInPlace(subkey, chachaNonce, initialCounter, buffer)
 
 proc xchacha20Stream*(key, nonce: openArray[byte], length: int,

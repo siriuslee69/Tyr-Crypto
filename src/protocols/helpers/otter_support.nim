@@ -68,10 +68,21 @@ else:
 
 template otterSpan*(n: string, body: untyped): untyped =
   when defined(otterTiming):
-    otter_repo_evaluation.otterSpan(n):
+    block:
+      let info = instantiationInfo(fullPaths = true)
+      otter_repo_evaluation.otterSpan(n, info.filename, info.line, info.column):
+        body
+  else:
+    block:
+      body
+
+template otterSpan*(n, p: string, l, c: int, body: untyped): untyped =
+  when defined(otterTiming):
+    otter_repo_evaluation.otterSpan(n, p, l, c):
       body
   else:
-    body
+    block:
+      body
 
 proc instrumentRoutineWithWrapper(n: NimNode, wrapperName: string): NimNode {.compileTime.} =
   var

@@ -3,7 +3,7 @@
 ## | -> Collect summary + function timings for desktop and Android runs  |
 ## =====================================================================
 
-import std/[algorithm, json, math, monotimes, os, parseopt, strformat, strutils, tables, times]
+import std/[algorithm, json, math, monotimes, os, parseopt, strutils, tables, times]
 
 import ../src/protocols/custom_crypto/[kyber, frodo, bike, mceliece, dilithium, falcon, sphincs]
 import ../src/protocols/custom_crypto/ntru as custom_ntru
@@ -18,6 +18,16 @@ import ../src/protocols/custom_crypto/asymmetric/pq/falcon/[params as falcon_par
   sign as pure_falcon_sign, pure_verify as pure_falcon_verify, randomness as falcon_randomness]
 import ../src/protocols/custom_crypto/asymmetric/pq/sphincs/[params as sphincs_params, operations as sphincs_ops]
 import otter_repo_evaluation
+
+template collectorOtterSpan(n: string, body: untyped): untyped =
+  when defined(otterTiming):
+    block:
+      let info = instantiationInfo(fullPaths = true)
+      otter_repo_evaluation.otterSpan(n, info.filename, info.line, info.column):
+        body
+  else:
+    block:
+      body
 
 type
   BenchProfile = enum
@@ -578,7 +588,7 @@ proc addFunctionRows(rows: var seq[JsonNode], deviceLabel, deviceKind, family, v
   clearTimings()
   i = 0
   while i < loops:
-    otterSpan(groupName):
+    collectorOtterSpan(groupName):
       body()
     i = i + 1
   entries = snapshotTimings()

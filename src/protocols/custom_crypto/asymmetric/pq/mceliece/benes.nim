@@ -13,20 +13,23 @@ const
 
 proc layerIn(data: var array[2, array[64, uint64]], bits: openArray[uint64],
     lgs: int) {.inline.} =
-  let s = 1 shl lgs
   var
+    s: int = 1 shl lgs
     idx: int = 0
     i: int = 0
+    j: int = 0
+    d0: uint64 = 0
+    d1: uint64 = 0
   while i < 64:
-    var j: int = 0
+    j = 0
     while j < s:
-      var d0 = data[0][j + i] xor data[0][j + i + s]
+      d0 = data[0][j + i] xor data[0][j + i + s]
       d0 = d0 and bits[idx]
       inc idx
       data[0][j + i] = data[0][j + i] xor d0
       data[0][j + i + s] = data[0][j + i + s] xor d0
 
-      var d1 = data[1][j + i] xor data[1][j + i + s]
+      d1 = data[1][j + i] xor data[1][j + i + s]
       d1 = d1 and bits[idx]
       inc idx
       data[1][j + i] = data[1][j + i] xor d1
@@ -35,14 +38,16 @@ proc layerIn(data: var array[2, array[64, uint64]], bits: openArray[uint64],
     i += s * 2
 
 proc layerEx(data: var array[128, uint64], bits: openArray[uint64], lgs: int) {.inline.} =
-  let s = 1 shl lgs
   var
+    s: int = 1 shl lgs
     idx: int = 0
     i: int = 0
+    j: int = 0
+    d: uint64 = 0
   while i < 128:
-    var j: int = 0
+    j = 0
     while j < s:
-      var d = data[j + i] xor data[j + i + s]
+      d = data[j + i] xor data[j + i + s]
       d = d and bits[idx]
       inc idx
       data[j + i] = data[j + i] xor d
@@ -54,20 +59,25 @@ proc applyBenes*(r: var openArray[byte]; bits: openArray[byte]; gfbits: int;
     rev = false) =
   ## Apply a Benes network to a packed bitstring of length n = 2^gfbits.
   assert gfbits == BenesGfBits, "applyBenes currently assumes gfbits=13"
-  let n = 1 shl gfbits
-  let blockBytes = n div 8
-  let stageBytes = blockBytes div 2
-  let totalBitsBytes = ((2 * gfbits - 1) * n div 2 + 7) div 8
-  assert r.len == blockBytes
-  assert bits.len >= totalBitsBytes
-
   var
+    n: int = 1 shl gfbits
+    blockBytes: int = n div 8
+    stageBytes: int = blockBytes div 2
+    totalBitsBytes: int = ((2 * gfbits - 1) * n div 2 + 7) div 8
+    startOffset: int = 2 * (gfbits - 1) * stageBytes
+    incVal: int = (if rev: -blockBytes else: 0)
+    bitsPtr: int = (if rev: startOffset else: 0)
     rIntV: array[2, array[64, uint64]]
     rIntH0: array[64, uint64]
     rIntH1: array[64, uint64]
     rIntH: array[128, uint64]
     bIntV: array[64, uint64]
     bIntH: array[64, uint64]
+    iter: int = 0
+    localPtr: int = 0
+    i: int = 0
+  assert r.len == blockBytes
+  assert bits.len >= totalBitsBytes
   defer:
     clearSensitiveWords(rIntV[0])
     clearSensitiveWords(rIntV[1])
@@ -76,9 +86,6 @@ proc applyBenes*(r: var openArray[byte]; bits: openArray[byte]; gfbits: int;
     clearSensitiveWords(rIntH)
     clearSensitiveWords(bIntV)
     clearSensitiveWords(bIntH)
-  let startOffset = 2 * (gfbits - 1) * stageBytes
-  let inc = if rev: -blockBytes else: 0
-  var bitsPtr = if rev: startOffset else: 0
 
   template load64At(buf: openArray[byte], start: int): uint64 =
     load8(buf.toOpenArray(start, start + 7))
@@ -93,21 +100,25 @@ proc applyBenes*(r: var openArray[byte]; bits: openArray[byte]; gfbits: int;
       rIntH0[i] = rIntH[i]
       rIntH1[i] = rIntH[i + 64]
 
-  for i in 0 ..< 64:
+  i = 0
+  while i < 64:
     rIntV[0][i] = load64At(r, i * 16)
     rIntV[1][i] = load64At(r, i * 16 + 8)
+    i = i + 1
 
   transpose64x64(rIntH0, rIntV[0])
   transpose64x64(rIntH1, rIntV[1])
   packHorizontal()
 
-  var iter = 0
+  iter = 0
   while iter <= 6:
-    var localPtr = bitsPtr
-    for i in 0 ..< 64:
+    localPtr = bitsPtr
+    i = 0
+    while i < 64:
       bIntV[i] = load64At(bits, localPtr)
       localPtr += 8
-    bitsPtr = localPtr + inc
+      i = i + 1
+    bitsPtr = localPtr + incVal
     transpose64x64(bIntH, bIntV)
     layerEx(rIntH, bIntH, iter)
     inc iter
@@ -118,21 +129,25 @@ proc applyBenes*(r: var openArray[byte]; bits: openArray[byte]; gfbits: int;
 
   iter = 0
   while iter <= 5:
-    var localPtr = bitsPtr
-    for i in 0 ..< 64:
+    localPtr = bitsPtr
+    i = 0
+    while i < 64:
       bIntV[i] = load64At(bits, localPtr)
       localPtr += 8
-    bitsPtr = localPtr + inc
+      i = i + 1
+    bitsPtr = localPtr + incVal
     layerIn(rIntV, bIntV, iter)
     inc iter
 
   iter = 4
   while iter >= 0:
-    var localPtr = bitsPtr
-    for i in 0 ..< 64:
+    localPtr = bitsPtr
+    i = 0
+    while i < 64:
       bIntV[i] = load64At(bits, localPtr)
       localPtr += 8
-    bitsPtr = localPtr + inc
+      i = i + 1
+    bitsPtr = localPtr + incVal
     layerIn(rIntV, bIntV, iter)
     dec iter
 
@@ -142,11 +157,13 @@ proc applyBenes*(r: var openArray[byte]; bits: openArray[byte]; gfbits: int;
 
   iter = 6
   while iter >= 0:
-    var localPtr = bitsPtr
-    for i in 0 ..< 64:
+    localPtr = bitsPtr
+    i = 0
+    while i < 64:
       bIntV[i] = load64At(bits, localPtr)
       localPtr += 8
-    bitsPtr = localPtr + inc
+      i = i + 1
+    bitsPtr = localPtr + incVal
     transpose64x64(bIntH, bIntV)
     layerEx(rIntH, bIntH, iter)
     dec iter
@@ -155,9 +172,11 @@ proc applyBenes*(r: var openArray[byte]; bits: openArray[byte]; gfbits: int;
   transpose64x64(rIntV[0], rIntH0)
   transpose64x64(rIntV[1], rIntH1)
 
-  for i in 0 ..< 64:
+  i = 0
+  while i < 64:
     store64At(r, i * 16, rIntV[0][i])
     store64At(r, i * 16 + 8, rIntV[1][i])
+    i = i + 1
 
 proc supportGen*(outSupport: var openArray[GF]; bits: openArray[byte];
     gfbits, sysN: int) =
@@ -170,11 +189,19 @@ proc supportGen*(outSupport: var openArray[GF]; bits: openArray[byte];
     for i in 0 ..< BenesGfBits:
       clearSensitiveWords(L[i])
 
-  for i in 0 ..< (1 shl gfbits):
-    let a = bitrev(GF(i), gfbits)
-    for j in 0 ..< gfbits:
+  var
+    i: int = 0
+    j: int = 0
+    a: GF = 0
+  i = 0
+  while i < (1 shl gfbits):
+    a = bitrev(GF(i), gfbits)
+    j = 0
+    while j < gfbits:
       if ((a shr j) and 1'u16) == 1'u16:
         L[j][i shr 3] = L[j][i shr 3] or (1'u8 shl (i and 7))
+      j = j + 1
+    i = i + 1
 
   for j in 0 ..< gfbits:
     applyBenes(L[j], bits, gfbits, false)

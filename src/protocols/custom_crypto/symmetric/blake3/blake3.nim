@@ -215,20 +215,29 @@ proc chainingValue(outWords: array[16, uint32]): array[8, uint32] {.inline.} =
 
 proc outputBytes(outputNode: Output, rootFlag: bool, dst: var openArray[byte]) =
   var
-    produced = 0
-    blockCounter = 0'u64
+    produced: int = 0
+    blockCounter: uint64 = 0
     blockBuf: array[blockLen, byte]
-  let flags = outputNode.flags or (if rootFlag: flagRoot else: 0'u32)
+    flags: uint32 = 0
+    comp: array[16, uint32]
+    idx: int = 0
+    take: int = 0
+    j: int = 0
+    w: uint32 = 0
+  flags = outputNode.flags or (if rootFlag: flagRoot else: 0'u32)
   while produced < dst.len:
-    let comp = compress(outputNode.inputCv, outputNode.blockWords, blockCounter,
+    comp = compress(outputNode.inputCv, outputNode.blockWords, blockCounter,
       outputNode.blockLen, flags)
-    var idx = 0
-    for w in comp:
+    idx = 0
+    for ww in comp:
+      w = ww
       store32(blockBuf, idx, w)
       inc idx, 4
-    let take = min(blockLen, dst.len - produced)
-    for j in 0 ..< take:
+    take = min(blockLen, dst.len - produced)
+    j = 0
+    while j < take:
       dst[produced + j] = blockBuf[j]
+      j = j + 1
     produced += take
     inc blockCounter
 
@@ -253,24 +262,35 @@ proc chunkOutput(chunk: openArray[byte], chunkIndex: uint64, key: array[8, uint3
     thisFlags = baseFlags or flagChunkStart or flagChunkEnd
     return Output(inputCv: cv, blockWords: blockWords, blockLen: thisBlockLen, flags: thisFlags, counter: chunkIndex)
 
-  var blockIndex = 0
+  var
+    blockIndex: int = 0
+    off: int = 0
+    idxByte: int = 0
+    w: uint32 = 0
+    b: int = 0
+    i: int = 0
+    outWords: array[16, uint32]
   while offset < chunk.len:
     thisBlockLen = uint32(min(blockLen, chunk.len - offset))
-    for i in 0 ..< 16:
-      var w = 0'u32
-      let off = offset + i * 4
-      for b in 0 ..< 4:
-        let idxByte = off + b
+    i = 0
+    while i < 16:
+      w = 0'u32
+      off = offset + i * 4
+      b = 0
+      while b < 4:
+        idxByte = off + b
         if idxByte < chunk.len:
           w = w or (uint32(chunk[idxByte]) shl (8 * b))
+        b = b + 1
       blockWords[i] = w
+      i = i + 1
     thisFlags = baseFlags
     if blockIndex == 0:
       thisFlags = thisFlags or flagChunkStart
     if offset + blockLen >= chunk.len:
       thisFlags = thisFlags or flagChunkEnd
     blockCv = cv
-    let outWords = compress(blockCv, blockWords, chunkIndex, thisBlockLen, thisFlags)
+    outWords = compress(blockCv, blockWords, chunkIndex, thisBlockLen, thisFlags)
     cv = chainingValue(outWords)
     offset += blockLen
     inc blockIndex
@@ -458,7 +478,7 @@ proc blake3KeyedHash*(key, input: openArray[byte],
 proc blake3DeriveKey*(context, material: openArray[byte],
     outLen: int = outLenDefault): seq[byte] =
   ## Derives key material using the standard two-phase BLAKE3 derive-key mode.
-  let contextKey = blake3Digest(context, b3mDeriveKeyContext, [], outLenDefault)
+  var contextKey = blake3Digest(context, b3mDeriveKeyContext, [], outLenDefault)
   result = blake3Digest(material, b3mDeriveKeyMaterial, contextKey, outLen)
 
 proc stringToBytes(s: string): seq[byte] =
@@ -472,8 +492,8 @@ proc blake3DeriveKey*(context: string, material: openArray[byte],
   result = blake3DeriveKey(stringToBytes(context), material, outLen)
 
 when isMainModule:
-  let emptyHash = blake3Hash(@[])
-  let emptyExpected = [
+  var emptyHash = blake3Hash(@[])
+  var emptyExpected: array[32, byte] = [
     byte 0xaf, 0x13, 0x49, 0xb9, 0xf5, 0xf9, 0xa1, 0xa6,
     0xa0, 0x40, 0x4d, 0xea, 0x36, 0xdc, 0xc9, 0x49,
     0x9b, 0xcb, 0x25, 0xc9, 0xad, 0xc1, 0x12, 0xb7,
@@ -481,8 +501,8 @@ when isMainModule:
   ]
   doAssert emptyHash == emptyExpected
 
-  let abcHash = blake3Hash(@['a'.byte, 'b'.byte, 'c'.byte])
-  let abcExpected = [
+  var abcHash = blake3Hash(@['a'.byte, 'b'.byte, 'c'.byte])
+  var abcExpected: array[32, byte] = [
     byte 0x64, 0x37, 0xb3, 0xac, 0x38, 0x46, 0x51, 0x33,
     0xff, 0xb6, 0x3b, 0x75, 0x27, 0x3a, 0x8d, 0xb5,
     0x48, 0xc5, 0x58, 0x46, 0x5d, 0x79, 0xdb, 0x03,

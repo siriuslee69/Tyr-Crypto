@@ -9,7 +9,7 @@ import ./root
 import ./sort
 import ../../../../helpers/otter_support
 
-when defined(sse2):
+when defined(sse2) and not defined(avx2):
   import nimsimd/sse2 as nsse2
 when defined(avx2):
   {.passC: "-mavx2".}
@@ -42,12 +42,15 @@ proc xorRowMaskedWords(mat: var seq[byte], dstStart, srcStart, startByte, fullRo
     c: int = startByte
     v: uint64 = 0
     wordCount: int = 0
+    dstWords: ptr UncheckedArray[uint64] = nil
+    srcWords: ptr UncheckedArray[uint64] = nil
+    w: int = 0
   if c + 8 <= fullRowBytes:
     if ((cast[uint](unsafeAddr mat[dstStart + c]) or cast[uint](unsafeAddr mat[srcStart + c])) and 7'u) == 0'u:
       wordCount = (fullRowBytes - c) shr 3
-      let dstWords = cast[ptr UncheckedArray[uint64]](unsafeAddr mat[dstStart + c])
-      let srcWords = cast[ptr UncheckedArray[uint64]](unsafeAddr mat[srcStart + c])
-      var w: int = 0
+      dstWords = cast[ptr UncheckedArray[uint64]](unsafeAddr mat[dstStart + c])
+      srcWords = cast[ptr UncheckedArray[uint64]](unsafeAddr mat[srcStart + c])
+      w = 0
       while w < wordCount:
         dstWords[w] = dstWords[w] xor (srcWords[w] and maskWord)
         w = w + 1
@@ -103,10 +106,12 @@ proc batchInvertNonZero(vals: var seq[GF], prefix: var seq[GF], n: int) {.inline
   for i in 1 ..< n:
     prefix[i] = gfMul(prefix[i - 1], vals[i])
 
-  var invAcc = gfInv(prefix[n - 1])
-  var i = n - 1
+  var
+    invAcc: GF = gfInv(prefix[n - 1])
+    i: int = n - 1
+    cur: GF = 0
   while i > 0:
-    let cur = vals[i]
+    cur = vals[i]
     vals[i] = gfMul(invAcc, prefix[i - 1])
     invAcc = gfMul(invAcc, cur)
     i = i - 1
@@ -121,65 +126,107 @@ when defined(avx2):
       inRows: array[64, uint64]
       outRows: array[64, uint64]
       tailBytes: array[8, byte]
+      blockCount: int = p.sysN div 64
+      rem: int = p.sysN mod 64
+      i: int = 0
+      chunkIdx: int = 0
+      matBase: int = 0
+      base: int = 0
+      byteOffset: int = 0
+      k: int = 0
+      lane: int = 0
+      storeBytes: int = 0
+      rowOffset: int = 0
+      bIdx: int = 0
     defer:
       clearSensitiveWords(inRows)
       clearSensitiveWords(outRows)
       clearSensitiveWords(tailBytes)
-    let blockCount = p.sysN div 64
-    let rem = p.sysN mod 64
 
-    for i in 0 ..< p.sysT:
-      let matBase = i * p.gfBits * fullRowBytes
+    i = 0
+    while i < p.sysT:
+      matBase = i * p.gfBits * fullRowBytes
 
-      var chunkIdx = 0
+      chunkIdx = 0
       while chunkIdx < blockCount:
-        let base = chunkIdx * 64
-        for lane in 0 ..< 64:
+        base = chunkIdx * 64
+        lane = 0
+        while lane < 64:
           inRows[lane] = uint64(inv[base + lane])
+          lane = lane + 1
         transpose64x64(outRows, inRows)
-        let byteOffset = base shr 3
-        for k in 0 ..< p.gfBits:
+        byteOffset = base shr 3
+        k = 0
+        while k < p.gfBits:
           store64At(mat, matBase + (k * fullRowBytes) + byteOffset, outRows[k])
-        for lane in 0 ..< 64:
+          k = k + 1
+        lane = 0
+        while lane < 64:
           inv[base + lane] = gfMul(inv[base + lane], L[base + lane])
+          lane = lane + 1
         chunkIdx = chunkIdx + 1
 
       if rem != 0:
-        let base = blockCount * 64
-        for lane in 0 ..< rem:
+        base = blockCount * 64
+        lane = 0
+        while lane < rem:
           inRows[lane] = uint64(inv[base + lane])
-        for lane in rem ..< 64:
+          lane = lane + 1
+        lane = rem
+        while lane < 64:
           inRows[lane] = 0'u64
+          lane = lane + 1
         transpose64x64(outRows, inRows)
-        let byteOffset = base shr 3
-        let storeBytes = rem shr 3
-        for k in 0 ..< p.gfBits:
+        byteOffset = base shr 3
+        storeBytes = rem shr 3
+        k = 0
+        while k < p.gfBits:
           store8(tailBytes.toOpenArray(0, 7), outRows[k])
-          let rowOffset = matBase + (k * fullRowBytes) + byteOffset
-          for bIdx in 0 ..< storeBytes:
+          rowOffset = matBase + (k * fullRowBytes) + byteOffset
+          bIdx = 0
+          while bIdx < storeBytes:
             mat[rowOffset + bIdx] = tailBytes[bIdx]
-        for lane in 0 ..< rem:
+            bIdx = bIdx + 1
+          k = k + 1
+        lane = 0
+        while lane < rem:
           inv[base + lane] = gfMul(inv[base + lane], L[base + lane])
+          lane = lane + 1
+      i = i + 1
 
 proc xorRowMasked(mat: var seq[byte], dstStart, srcStart, fullRowBytes: int,
     mask: byte) {.inline.} =
   ## Paper note: Gaussian elimination uses masked row XORs, matching the
   ## constant-time public-key generation style from the Classic McEliece guide.
-  let maskWord = 0'u64 - uint64(mask and 1'u8)
+  var
+    maskWord: uint64 = 0'u64 - uint64(mask and 1'u8)
 
   when defined(avx2):
-    let maskVec = mm256_set1_epi8(cast[int8](mask))
-    let vecBytes = fullRowBytes and (not 31)
-    var c: int = 0
+    var
+      maskVec = mm256_set1_epi8(cast[int8](mask))
+      vecBytes: int = fullRowBytes and (not 31)
+      c: int = 0
+      dstVec0 = maskVec
+      srcVec0 = maskVec
+      dstVec1 = maskVec
+      srcVec1 = maskVec
+      dstVec2 = maskVec
+      srcVec2 = maskVec
+      dstVec3 = maskVec
+      srcVec3 = maskVec
+      dstVec = maskVec
+      srcVec = maskVec
+      srcMasked = maskVec
+    c = 0
     while c + 128 <= vecBytes:
-      let dstVec0 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[dstStart + c]))
-      let srcVec0 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[srcStart + c]))
-      let dstVec1 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[dstStart + c + 32]))
-      let srcVec1 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[srcStart + c + 32]))
-      let dstVec2 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[dstStart + c + 64]))
-      let srcVec2 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[srcStart + c + 64]))
-      let dstVec3 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[dstStart + c + 96]))
-      let srcVec3 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[srcStart + c + 96]))
+      dstVec0 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[dstStart + c]))
+      srcVec0 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[srcStart + c]))
+      dstVec1 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[dstStart + c + 32]))
+      srcVec1 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[srcStart + c + 32]))
+      dstVec2 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[dstStart + c + 64]))
+      srcVec2 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[srcStart + c + 64]))
+      dstVec3 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[dstStart + c + 96]))
+      srcVec3 = mm256_loadu_si256(cast[pointer](unsafeAddr mat[srcStart + c + 96]))
       mm256_storeu_si256(cast[pointer](unsafeAddr mat[dstStart + c]),
         mm256_xor_si256(dstVec0, mm256_and_si256(srcVec0, maskVec)))
       mm256_storeu_si256(cast[pointer](unsafeAddr mat[dstStart + c + 32]),
@@ -190,76 +237,96 @@ proc xorRowMasked(mat: var seq[byte], dstStart, srcStart, fullRowBytes: int,
         mm256_xor_si256(dstVec3, mm256_and_si256(srcVec3, maskVec)))
       c = c + 128
     while c < vecBytes:
-      let dstVec = mm256_loadu_si256(cast[pointer](unsafeAddr mat[dstStart + c]))
-      let srcVec = mm256_loadu_si256(cast[pointer](unsafeAddr mat[srcStart + c]))
-      let srcMasked = mm256_and_si256(srcVec, maskVec)
+      dstVec = mm256_loadu_si256(cast[pointer](unsafeAddr mat[dstStart + c]))
+      srcVec = mm256_loadu_si256(cast[pointer](unsafeAddr mat[srcStart + c]))
+      srcMasked = mm256_and_si256(srcVec, maskVec)
       mm256_storeu_si256(cast[pointer](unsafeAddr mat[dstStart + c]), mm256_xor_si256(dstVec, srcMasked))
       c = c + 32
     xorRowMaskedWords(mat, dstStart, srcStart, c, fullRowBytes, mask, maskWord)
   elif defined(sse2):
-    let
+    var
       maskVec = nsse2.mm_set1_epi8(cast[int8](mask))
-      vecBytes = fullRowBytes and (not 15)
-    var c: int = 0
-    while c + 64 <= vecBytes:
-      let
-        dstVec0 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[dstStart + c]))
-        srcVec0 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[srcStart + c]))
-        dstVec1 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[dstStart + c + 16]))
-        srcVec1 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[srcStart + c + 16]))
-        dstVec2 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[dstStart + c + 32]))
-        srcVec2 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[srcStart + c + 32]))
-        dstVec3 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[dstStart + c + 48]))
-        srcVec3 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[srcStart + c + 48]))
-      nsse2.mm_storeu_si128(cast[pointer](unsafeAddr mat[dstStart + c]),
+      vecBytesSse = fullRowBytes and (not 15)
+      cSse: int = 0
+      dstVec0 = maskVec
+      srcVec0 = maskVec
+      dstVec1 = maskVec
+      srcVec1 = maskVec
+      dstVec2 = maskVec
+      srcVec2 = maskVec
+      dstVec3 = maskVec
+      srcVec3 = maskVec
+      dstVec = maskVec
+      srcVec = maskVec
+      srcMasked = maskVec
+    cSse = 0
+    while cSse + 64 <= vecBytesSse:
+      dstVec0 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[dstStart + cSse]))
+      srcVec0 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[srcStart + cSse]))
+      dstVec1 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[dstStart + cSse + 16]))
+      srcVec1 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[srcStart + cSse + 16]))
+      dstVec2 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[dstStart + cSse + 32]))
+      srcVec2 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[srcStart + cSse + 32]))
+      dstVec3 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[dstStart + cSse + 48]))
+      srcVec3 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[srcStart + cSse + 48]))
+      nsse2.mm_storeu_si128(cast[pointer](unsafeAddr mat[dstStart + cSse]),
         nsse2.mm_xor_si128(dstVec0, nsse2.mm_and_si128(srcVec0, maskVec)))
-      nsse2.mm_storeu_si128(cast[pointer](unsafeAddr mat[dstStart + c + 16]),
+      nsse2.mm_storeu_si128(cast[pointer](unsafeAddr mat[dstStart + cSse + 16]),
         nsse2.mm_xor_si128(dstVec1, nsse2.mm_and_si128(srcVec1, maskVec)))
-      nsse2.mm_storeu_si128(cast[pointer](unsafeAddr mat[dstStart + c + 32]),
+      nsse2.mm_storeu_si128(cast[pointer](unsafeAddr mat[dstStart + cSse + 32]),
         nsse2.mm_xor_si128(dstVec2, nsse2.mm_and_si128(srcVec2, maskVec)))
-      nsse2.mm_storeu_si128(cast[pointer](unsafeAddr mat[dstStart + c + 48]),
+      nsse2.mm_storeu_si128(cast[pointer](unsafeAddr mat[dstStart + cSse + 48]),
         nsse2.mm_xor_si128(dstVec3, nsse2.mm_and_si128(srcVec3, maskVec)))
-      c = c + 64
-    while c < vecBytes:
-      let
-        dstVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[dstStart + c]))
-        srcVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[srcStart + c]))
-        srcMasked = nsse2.mm_and_si128(srcVec, maskVec)
-      nsse2.mm_storeu_si128(cast[pointer](unsafeAddr mat[dstStart + c]), nsse2.mm_xor_si128(dstVec, srcMasked))
-      c = c + 16
-    xorRowMaskedWords(mat, dstStart, srcStart, c, fullRowBytes, mask, maskWord)
+      cSse = cSse + 64
+    while cSse < vecBytesSse:
+      dstVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[dstStart + cSse]))
+      srcVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr mat[srcStart + cSse]))
+      srcMasked = nsse2.mm_and_si128(srcVec, maskVec)
+      nsse2.mm_storeu_si128(cast[pointer](unsafeAddr mat[dstStart + cSse]), nsse2.mm_xor_si128(dstVec, srcMasked))
+      cSse = cSse + 16
+    xorRowMaskedWords(mat, dstStart, srcStart, cSse, fullRowBytes, mask, maskWord)
   elif defined(neon) or defined(arm64) or defined(aarch64):
-    let
+    var
       maskVec = vmovq_n_u8(mask)
-      vecBytes = fullRowBytes and (not 15)
-    var c: int = 0
-    while c + 64 <= vecBytes:
-      let
-        dstVec0: uint8x16 = vld1q_u8(cast[pointer](unsafeAddr mat[dstStart + c]))
-        srcVec0: uint8x16 = vld1q_u8(cast[pointer](unsafeAddr mat[srcStart + c]))
-        dstVec1: uint8x16 = vld1q_u8(cast[pointer](unsafeAddr mat[dstStart + c + 16]))
-        srcVec1: uint8x16 = vld1q_u8(cast[pointer](unsafeAddr mat[srcStart + c + 16]))
-        dstVec2: uint8x16 = vld1q_u8(cast[pointer](unsafeAddr mat[dstStart + c + 32]))
-        srcVec2: uint8x16 = vld1q_u8(cast[pointer](unsafeAddr mat[srcStart + c + 32]))
-        dstVec3: uint8x16 = vld1q_u8(cast[pointer](unsafeAddr mat[dstStart + c + 48]))
-        srcVec3: uint8x16 = vld1q_u8(cast[pointer](unsafeAddr mat[srcStart + c + 48]))
-      vst1q_u8(cast[pointer](unsafeAddr mat[dstStart + c]),
+      vecBytesNeon = fullRowBytes and (not 15)
+      cNeon: int = 0
+      dstVec0: uint8x16 = maskVec
+      srcVec0: uint8x16 = maskVec
+      dstVec1: uint8x16 = maskVec
+      srcVec1: uint8x16 = maskVec
+      dstVec2: uint8x16 = maskVec
+      srcVec2: uint8x16 = maskVec
+      dstVec3: uint8x16 = maskVec
+      srcVec3: uint8x16 = maskVec
+      dstVec: uint8x16 = maskVec
+      srcVec: uint8x16 = maskVec
+      srcMasked: uint8x16 = maskVec
+    cNeon = 0
+    while cNeon + 64 <= vecBytesNeon:
+      dstVec0 = vld1q_u8(cast[pointer](unsafeAddr mat[dstStart + cNeon]))
+      srcVec0 = vld1q_u8(cast[pointer](unsafeAddr mat[srcStart + cNeon]))
+      dstVec1 = vld1q_u8(cast[pointer](unsafeAddr mat[dstStart + cNeon + 16]))
+      srcVec1 = vld1q_u8(cast[pointer](unsafeAddr mat[srcStart + cNeon + 16]))
+      dstVec2 = vld1q_u8(cast[pointer](unsafeAddr mat[dstStart + cNeon + 32]))
+      srcVec2 = vld1q_u8(cast[pointer](unsafeAddr mat[srcStart + cNeon + 32]))
+      dstVec3 = vld1q_u8(cast[pointer](unsafeAddr mat[dstStart + cNeon + 48]))
+      srcVec3 = vld1q_u8(cast[pointer](unsafeAddr mat[srcStart + cNeon + 48]))
+      vst1q_u8(cast[pointer](unsafeAddr mat[dstStart + cNeon]),
         veorq_u8(dstVec0, vandq_u8(srcVec0, maskVec)))
-      vst1q_u8(cast[pointer](unsafeAddr mat[dstStart + c + 16]),
+      vst1q_u8(cast[pointer](unsafeAddr mat[dstStart + cNeon + 16]),
         veorq_u8(dstVec1, vandq_u8(srcVec1, maskVec)))
-      vst1q_u8(cast[pointer](unsafeAddr mat[dstStart + c + 32]),
+      vst1q_u8(cast[pointer](unsafeAddr mat[dstStart + cNeon + 32]),
         veorq_u8(dstVec2, vandq_u8(srcVec2, maskVec)))
-      vst1q_u8(cast[pointer](unsafeAddr mat[dstStart + c + 48]),
+      vst1q_u8(cast[pointer](unsafeAddr mat[dstStart + cNeon + 48]),
         veorq_u8(dstVec3, vandq_u8(srcVec3, maskVec)))
-      c = c + 64
-    while c < vecBytes:
-      let
-        dstVec: uint8x16 = vld1q_u8(cast[pointer](unsafeAddr mat[dstStart + c]))
-        srcVec: uint8x16 = vld1q_u8(cast[pointer](unsafeAddr mat[srcStart + c]))
-        srcMasked: uint8x16 = vandq_u8(srcVec, maskVec)
-      vst1q_u8(cast[pointer](unsafeAddr mat[dstStart + c]), veorq_u8(dstVec, srcMasked))
-      c = c + 16
-    xorRowMaskedWords(mat, dstStart, srcStart, c, fullRowBytes, mask, maskWord)
+      cNeon = cNeon + 64
+    while cNeon < vecBytesNeon:
+      dstVec = vld1q_u8(cast[pointer](unsafeAddr mat[dstStart + cNeon]))
+      srcVec = vld1q_u8(cast[pointer](unsafeAddr mat[srcStart + cNeon]))
+      srcMasked = vandq_u8(srcVec, maskVec)
+      vst1q_u8(cast[pointer](unsafeAddr mat[dstStart + cNeon]), veorq_u8(dstVec, srcMasked))
+      cNeon = cNeon + 16
+    xorRowMaskedWords(mat, dstStart, srcStart, cNeon, fullRowBytes, mask, maskWord)
   else:
     xorRowMaskedWords(mat, dstStart, srcStart, 0, fullRowBytes, mask, maskWord)
 
@@ -283,8 +350,14 @@ proc movColumns(mat: var seq[byte], pi: var seq[int16], pivots: var uint64,
   for i in 0 ..< 32:
     buf[i] = loadColumnBlock(mat, (row + i) * fullRowBytes, blockIdx, tail)
 
+  var
+    i: int = 0
+    rowStart: int = 0
+    delta: uint64 = 0
+    matchMask: int16 = 0
   pivots = 0'u64
-  for i in 0 ..< 32:
+  i = 0
+  while i < 32:
     t = buf[i]
     j = i + 1
     while j < 32:
@@ -307,25 +380,32 @@ proc movColumns(mat: var seq[byte], pi: var seq[int16], pivots: var uint64,
       mask = 0'u64 - mask
       buf[j] = buf[j] xor (buf[i] and mask)
       j = j + 1
+    i = i + 1
 
-  for j in 0 ..< 32:
+  j = 0
+  while j < 32:
     k = j + 1
     while k < 64:
       d = pi[row + j] xor pi[row + k]
-      let matchMask = int16(ctMaskEqualU64(uint64(k), uint64(ctzList[j])) and 1'u64)
+      matchMask = int16(ctMaskEqualU64(uint64(k), uint64(ctzList[j])) and 1'u64)
       d = d and (0'i16 - matchMask)
       pi[row + j] = pi[row + j] xor d
       pi[row + k] = pi[row + k] xor d
       k = k + 1
+    j = j + 1
 
-  for i in 0 ..< p.pkNRows:
-    let rowStart = i * fullRowBytes
+  i = 0
+  while i < p.pkNRows:
+    rowStart = i * fullRowBytes
     t = loadColumnBlock(mat, rowStart, blockIdx, tail)
-    for j in 0 ..< 32:
-      let delta = ((t shr j) xor (t shr ctzList[j])) and 1'u64
+    j = 0
+    while j < 32:
+      delta = ((t shr j) xor (t shr ctzList[j])) and 1'u64
       t = t xor (delta shl ctzList[j])
       t = t xor (delta shl j)
+      j = j + 1
     storeColumnBlock(mat, rowStart, blockIdx, tail, t)
+    i = i + 1
 
   result = true
 
@@ -340,10 +420,14 @@ proc pkGen*(p: McElieceParams, g: openArray[GF], perm: openArray[uint32],
     fullRowBytes = p.sysN div 8
     mat = newSeq[byte](p.pkNRows * fullRowBytes)
     row: int = 0
+    i: int = 0
     j: int = 0
     k: int = 0
-    b: byte = 0
     mask: byte = 0
+    tail: int = 0
+    pkPtr: int = 0
+    rowStart: int = 0
+    kStart: int = 0
   defer:
     clearSensitiveWords(buf)
     clearSensitiveWords(L)
@@ -381,7 +465,9 @@ proc pkGen*(p: McElieceParams, g: openArray[GF], perm: openArray[uint32],
       ## 64x64 transpose blocks instead of scalar bit extraction.
       fillMatrixTransposedAvx(p, L, inv, mat, fullRowBytes)
     else:
-      for i in 0 ..< p.sysT:
+      var b: byte = 0
+      i = 0
+      while i < p.sysT:
         j = 0
         while j < p.sysN:
           k = 0
@@ -397,24 +483,29 @@ proc pkGen*(p: McElieceParams, g: openArray[GF], perm: openArray[uint32],
             mat[((i * p.gfBits + k) * fullRowBytes) + (j div 8)] = b
             k = k + 1
           j = j + 8
-        for j in 0 ..< p.sysN:
+        j = 0
+        while j < p.sysN:
           inv[j] = gfMul(inv[j], L[j])
+          j = j + 1
+        i = i + 1
 
   otterSpan("mceliece.pkGen.eliminate"):
     ## Paper note: elimination below calls `xorRowMasked`, so row swaps/XORs are
     ## masked and lane-packed where the target ISA supports it.
-    for i in 0 ..< (p.pkNRows + 7) div 8:
-      for j in 0 ..< 8:
+    i = 0
+    while i < (p.pkNRows + 7) div 8:
+      j = 0
+      while j < 8:
         row = i * 8 + j
         if row >= p.pkNRows:
           break
         if row == p.pkNRows - 32:
           if not movColumns(mat, pi, pivots, p, fullRowBytes):
             return false
-        let rowStart = row * fullRowBytes
+        rowStart = row * fullRowBytes
         k = row + 1
         while k < p.pkNRows:
-          let kStart = k * fullRowBytes
+          kStart = k * fullRowBytes
           mask = byte((((mat[rowStart + i] xor mat[kStart + i]) shr j) and 1'u8))
           mask = 0'u8 - mask
           xorRowMasked(mat, rowStart, kStart, fullRowBytes, mask)
@@ -424,24 +515,29 @@ proc pkGen*(p: McElieceParams, g: openArray[GF], perm: openArray[uint32],
         k = 0
         while k < p.pkNRows:
           if k != row:
-            let kStart = k * fullRowBytes
+            kStart = k * fullRowBytes
             mask = byte((mat[kStart + i] shr j) and 1'u8)
             mask = 0'u8 - mask
             xorRowMasked(mat, kStart, rowStart, fullRowBytes, mask)
           k = k + 1
+        j = j + 1
+      i = i + 1
 
   otterSpan("mceliece.pkGen.packPk"):
     pk.setLen(p.pkNRows * p.pkRowBytes)
-    let tail = p.pkNRows mod 8
-    var pkPtr: int = 0
-    for i in 0 ..< p.pkNRows:
-      let rowStart = i * fullRowBytes
+    tail = p.pkNRows mod 8
+    pkPtr = 0
+    i = 0
+    while i < p.pkNRows:
+      rowStart = i * fullRowBytes
       if tail == 0:
-        for j in 0 ..< p.pkRowBytes:
+        j = 0
+        while j < p.pkRowBytes:
           pk[pkPtr] = mat[rowStart + (p.pkNRows div 8) + j]
           pkPtr = pkPtr + 1
+          j = j + 1
       else:
-        var j = (p.pkNRows - 1) div 8
+        j = (p.pkNRows - 1) div 8
         while j < fullRowBytes - 1:
           pk[pkPtr] = byte(
             ((int(mat[rowStart + j]) shr tail) or
@@ -450,4 +546,5 @@ proc pkGen*(p: McElieceParams, g: openArray[GF], perm: openArray[uint32],
           j = j + 1
         pk[pkPtr] = byte((int(mat[rowStart + j]) shr tail) and 0xFF)
         pkPtr = pkPtr + 1
+      i = i + 1
   result = true

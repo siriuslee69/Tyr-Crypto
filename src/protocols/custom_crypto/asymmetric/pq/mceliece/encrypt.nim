@@ -26,6 +26,34 @@ proc mcelieceEncapsRandomBlockBytes*(p: McElieceParams): int {.inline.} =
   ## Return the random-byte block size consumed by PQClean `gen_e`.
   p.sysT * 2 * sizeof(uint16)
 
+proc indHasDuplicate(ind: openArray[uint16], n: int): bool {.inline.} =
+  ## Check for duplicate indices (nested search extracted to keep caller flat).
+  var
+    i: int = 1
+    j: int = 0
+  while i < n:
+    j = 0
+    while j < i:
+      if ind[i] == ind[j]:
+        return true
+      j = j + 1
+    i = i + 1
+  result = false
+
+proc buildErrorVector(p: McElieceParams, ind: openArray[uint16], val: openArray[byte]): seq[byte] {.inline.} =
+  ## Pack error vector bytes from indices and bit values (nested packing extracted).
+  var
+    i: int = 0
+    j: int = 0
+  result = newSeq[byte](p.sysN div 8)
+  while i < result.len:
+    result[i] = 0
+    j = 0
+    while j < p.sysT:
+      result[i] = result[i] or (val[j] and sameMask(uint16(i), ind[j] shr 3))
+      j = j + 1
+    i = i + 1
+
 proc errorVectorFromRandomBlock(p: McElieceParams,
     buf: openArray[byte]): tuple[ok: bool, errorVec: seq[byte]] =
   ## Try to derive a bit-packed weight-`sysT` error vector from one PQClean
@@ -34,9 +62,7 @@ proc errorVectorFromRandomBlock(p: McElieceParams,
     ind = newSeq[uint16](p.sysT)
     val = newSeq[byte](p.sysT)
     count: int = 0
-    eq: bool = false
     i: int = 0
-    j: int = 0
     num: uint16 = 0
   defer:
     clearSensitiveWords(ind)
@@ -53,26 +79,12 @@ proc errorVectorFromRandomBlock(p: McElieceParams,
     i = i + 1
   if count < p.sysT:
     return
-  eq = false
-  i = 1
-  while i < p.sysT and not eq:
-    j = 0
-    while j < i:
-      if ind[i] == ind[j]:
-        eq = true
-        break
-      j = j + 1
-    i = i + 1
-  if eq:
+  if indHasDuplicate(ind, p.sysT):
     return
   for j in 0 ..< p.sysT:
     val[j] = 1'u8 shl (ind[j] and 7)
   result.ok = true
-  result.errorVec = newSeq[byte](p.sysN div 8)
-  for i in 0 ..< result.errorVec.len:
-    result.errorVec[i] = 0
-    for j in 0 ..< p.sysT:
-      result.errorVec[i] = result.errorVec[i] or (val[j] and sameMask(uint16(i), ind[j] shr 3))
+  result.errorVec = buildErrorVector(p, ind, val)
 
 proc genErrorVectorDerand*(p: McElieceParams, randomness: openArray[byte]): seq[byte] =
   ## Generate an error vector from one or more PQClean `gen_e` random blocks.

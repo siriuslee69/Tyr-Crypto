@@ -18,16 +18,24 @@ proc transpose64x64*(outm: var array[64, uint64], inm: openArray[uint64]) =
     (0x0000_0000_FFFF_FFFF'u64, 0xFFFF_FFFF_0000_0000'u64)
   ]
 
-  var d = 5
+  var
+    d: int = 5
+    s: int = 0
+    i: int = 0
+    j: int = 0
+    x: uint64 = 0
+    y: uint64 = 0
   while d >= 0:
-    let s = 1 shl d
-    var i = 0
+    s = 1 shl d
+    i = 0
     while i < 64:
-      for j in i ..< i + s:
-        let x = (outm[j] and masks[d][0]) or ((outm[j + s] and masks[d][0]) shl s)
-        let y = ((outm[j] and masks[d][1]) shr s) or (outm[j + s] and masks[d][1])
+      j = i
+      while j < i + s:
+        x = (outm[j] and masks[d][0]) or ((outm[j + s] and masks[d][0]) shl s)
+        y = ((outm[j] and masks[d][1]) shr s) or (outm[j + s] and masks[d][1])
         outm[j] = x
         outm[j + s] = y
+        j = j + 1
       i += s * 2
     dec d
 

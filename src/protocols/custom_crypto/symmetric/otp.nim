@@ -101,6 +101,7 @@ proc sha1Digest(input: openArray[byte]): array[20, byte] =
       var
         f: uint32
         k: uint32
+        temp: uint32
       if t < 20:
         f = (b and c) or ((not b) and d)
         k = 0x5a827999'u32
@@ -113,7 +114,7 @@ proc sha1Digest(input: openArray[byte]): array[20, byte] =
       else:
         f = b xor c xor d
         k = 0xca62c1d6'u32
-      let temp = rotl32(a, 5) + f + e + k + w[t]
+      temp = rotl32(a, 5) + f + e + k + w[t]
       e = d
       d = c
       c = rotl32(b, 30)
@@ -141,7 +142,7 @@ proc hmacSha1(key, msg: openArray[byte]): array[20, byte] =
     digest: array[20, byte]
     i = 0
   if key.len > 64:
-    let kh = sha1Digest(key)
+    var kh = sha1Digest(key)
     keyMaterial = newSeq[byte](20)
     while i < 20:
       keyMaterial[i] = kh[i]
@@ -179,6 +180,8 @@ proc mixMaterial(secret: openArray[byte], counter: uint64; label: string;
     cb = counterBytes(counter)
     i = 0
     j = 0
+    a: byte = 0
+    b: byte = 0
   while i < secret.len:
     src[i] = secret[i]
     i.inc
@@ -194,8 +197,8 @@ proc mixMaterial(secret: openArray[byte], counter: uint64; label: string;
     return
   i = 0
   while i < outLen:
-    let a = src[i mod src.len]
-    let b = byte((i * 131) and 0xff)
+    a = src[i mod src.len]
+    b = byte((i * 131) and 0xff)
     result[i] = a xor b xor byte((counter shr ((i mod 8) * 8)) and 0xff'u64)
     i.inc
 
@@ -247,12 +250,12 @@ proc resolveXChaChaBackend(b: OtpBackend): XChaChaBackend =
     result = xcbScalar
 
 proc digestBlake3Scalar(secret: openArray[byte], counter: uint64): seq[byte] =
-  let blk = blake3BlockFromBytes(mixMaterial(secret, counter, "otp:blake3", 64))
-  let outWords = blake3Compress(blake3OtpIv, blk, counter, 64'u32, 0'u32)
+  var blk = blake3BlockFromBytes(mixMaterial(secret, counter, "otp:blake3", 64))
+  var outWords = blake3Compress(blake3OtpIv, blk, counter, 64'u32, 0'u32)
   result = blake3OutToBytes(outWords)
 
 proc digestBlake3Simd(secret: openArray[byte], counter: uint64; b: OtpBackend): seq[byte] =
-  let
+  var
     blk = blake3BlockFromBytes(mixMaterial(secret, counter, "otp:blake3", 64))
     outs = blake3CompressBatch(@[blake3OtpIv], @[blk], counter, 64'u32, 0'u32,
       resolveBlake3Backend(b))
@@ -337,16 +340,16 @@ proc digestGimliBatchSimd(secret: openArray[byte], counters: openArray[uint64];
 
 proc chachaKeyNonce(secret: openArray[byte], counter: uint64): tuple[key: seq[byte],
     nonce: seq[byte]] =
-  let mat = mixMaterial(secret, counter, "otp:chacha", 56)
+  var mat = mixMaterial(secret, counter, "otp:chacha", 56)
   result.key = mat[0 ..< 32]
   result.nonce = mat[32 ..< 56]
 
 proc digestChaChaScalar(secret: openArray[byte], counter: uint64): seq[byte] =
-  let kn = chachaKeyNonce(secret, counter)
+  var kn = chachaKeyNonce(secret, counter)
   result = xchacha20Stream(kn.key, kn.nonce, 64, 0'u32)
 
 proc digestChaChaSimd(secret: openArray[byte], counter: uint64; b: OtpBackend): seq[byte] =
-  let kn = chachaKeyNonce(secret, counter)
+  var kn = chachaKeyNonce(secret, counter)
   result = xchacha20StreamSimd(kn.key, kn.nonce, 64, 0'u32, resolveXChaChaBackend(b))
 
 proc ensureDigestLen(ds: openArray[byte]): seq[byte] =
@@ -373,17 +376,21 @@ proc pow10(n: int): uint64 =
     i.inc
 
 proc otpFromDigest(ds: openArray[byte], digits: int): string =
-  let digest = ensureDigestLen(ds)
-  var offset = int(digest[^1] and 0x0f)
+  var
+    digest = ensureDigestLen(ds)
+    offset: int = int(digest[^1] and 0x0f)
+    code: uint32 = 0
+    modBase: uint64 = 0
+    n: uint64 = 0
   if offset + 4 > digest.len:
     offset = digest.len - 4
-  let code =
+  code =
     ((uint32(digest[offset]) and 0x7f'u32) shl 24) or
     (uint32(digest[offset + 1]) shl 16) or
     (uint32(digest[offset + 2]) shl 8) or
     uint32(digest[offset + 3])
-  let modBase = pow10(max(1, digits))
-  let n = uint64(code) mod modBase
+  modBase = pow10(max(1, digits))
+  n = uint64(code) mod modBase
   result = $n
   while result.len < digits:
     result = "0" & result
@@ -451,13 +458,13 @@ proc otpDigestNonces*(algo: OtpAlgo; secret: openArray[byte];
 proc hotp*(algo: OtpAlgo; secret: openArray[byte]; counter: uint64;
     digits: int = 6; b: OtpBackend = obScalar): string =
   ## HOTP from selected custom-crypto primitive.
-  let d = min(10, max(4, digits))
+  var d = min(10, max(4, digits))
   result = otpFromDigest(otpDigest(algo, secret, counter, b), d)
 
 proc hotpRfc4226*(secret: openArray[byte]; counter: uint64;
     digits: int = 6): string =
   ## RFC 4226 HOTP using HMAC-SHA1 and big-endian 64-bit counters.
-  let
+  var
     d = min(10, max(4, digits))
     cb = counterBytesBe(counter)
     mac = hmacSha1(secret, cb)
@@ -472,10 +479,11 @@ proc hotpBatch*(algo: OtpAlgo; secret: openArray[byte];
     counters: openArray[uint64]; digits: int = 6;
     b: OtpBackend = obScalar): seq[string] =
   ## Batch HOTP generation over many counters/nonces.
-  let d = min(10, max(4, digits))
+  var
+    d = min(10, max(4, digits))
+    digests = otpDigestBatch(algo, secret, counters, b)
+    i = 0
   result = newSeq[string](counters.len)
-  let digests = otpDigestBatch(algo, secret, counters, b)
-  var i = 0
   while i < digests.len:
     result[i] = otpFromDigest(digests[i], d)
     i.inc
@@ -494,7 +502,7 @@ proc totp*(algo: OtpAlgo; secret: openArray[byte]; unixTime: int64;
     raise newException(ValueError, "stepSec must be positive")
   if unixTime < t0:
     raise newException(ValueError, "unixTime must be >= t0")
-  let ctr = uint64((unixTime - t0) div stepSec)
+  var ctr = uint64((unixTime - t0) div stepSec)
   result = hotp(algo, secret, ctr, digits, b)
 
 proc totpRfc6238*(secret: openArray[byte]; unixTime: int64;
@@ -504,7 +512,7 @@ proc totpRfc6238*(secret: openArray[byte]; unixTime: int64;
     raise newException(ValueError, "stepSec must be positive")
   if unixTime < t0:
     raise newException(ValueError, "unixTime must be >= t0")
-  let ctr = uint64((unixTime - t0) div stepSec)
+  var ctr = uint64((unixTime - t0) div stepSec)
   result = hotpRfc4226(secret, ctr, digits)
 
 proc totpRfc*(secret: openArray[byte]; unixTime: int64;

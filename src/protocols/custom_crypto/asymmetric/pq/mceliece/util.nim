@@ -14,7 +14,7 @@ proc storeGF*(dest: var openArray[byte], a: GF) =
 proc loadGF*(src: openArray[byte]): GF =
   ## Load a GF element from two bytes (little-endian) and mask to the field size.
   assert src.len >= 2
-  let a = (uint16(src[1]) shl 8) or uint16(src[0])
+  var a: uint16 = (uint16(src[1]) shl 8) or uint16(src[0])
   a and 0x1FFF'u16
 
 proc load4*(src: openArray[byte]): uint32 =

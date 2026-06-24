@@ -289,7 +289,7 @@ proc sha3CustomHmac*(key, msg: openArray[byte], outLen: int = 32,
   ## blockLen: optional HMAC block length override; `0` uses the SHA3 rate.
   ## constA: inner xor constant.
   ## constB: outer xor constant.
-  let resolvedBlockLen =
+  var resolvedBlockLen =
     if blockLen == 0: sha3HmacBlockLen(outLen)
     else: blockLen
   result = customHmacFromHash(key, msg, resolvedBlockLen, outLen,

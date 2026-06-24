@@ -56,7 +56,7 @@ proc copyBytes*(dst: var openArray[byte], dstOffset: int, src: openArray[byte]) 
     i = i + 1
 
 proc appendBytes*(dst: var seq[byte], src: openArray[byte]) =
-  let start = dst.len
+  var start = dst.len
   dst.setLen(start + src.len)
   if src.len > 0:
     copyMem(addr dst[start], unsafeAddr src[0], src.len)

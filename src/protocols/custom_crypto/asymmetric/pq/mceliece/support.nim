@@ -8,15 +8,17 @@ type
 
 ## Return 0xFFFF when x is non‑zero, else 0x0000. Constant‑time.
 proc ctNonZero16*(x: int16): int16 {.inline.} =
-  let ux = uint16(x)
-  let mask = uint16((ux or (0'u16 - ux)) shr 15)
+  var
+    ux: uint16 = uint16(x)
+    mask: uint16 = uint16((ux or (0'u16 - ux)) shr 15)
   return int16(mask) * int16(-1)  # mask is 0/1, scale to 0/-1
 
 ## Constant‑time minimum for signed 32‑bit values.
 proc ctMin32*(a, b: int32): int32 {.inline.} =
-  let ab = a xor b
-  let c = b - a
-  var m = c xor ab
+  var
+    ab: int32 = a xor b
+    c: int32 = b - a
+    m: int32 = c xor ab
   m = m shr 31             # arithmetic shift, 0 or -1
   m = m and ab
   return a xor m

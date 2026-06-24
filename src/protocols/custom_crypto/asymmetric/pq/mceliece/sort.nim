@@ -5,8 +5,9 @@ import ../../../../helpers/otter_support
 
 {.push checks: off.}
 proc int32MinMax(a, b: var int32) {.inline.} =
-  let ab = b xor a
-  var c = b - a
+  var
+    ab: int32 = b xor a
+    c: int32 = b - a
   c = c xor (ab and (c xor b))
   c = c shr 31
   c = c and ab
@@ -15,9 +16,11 @@ proc int32MinMax(a, b: var int32) {.inline.} =
 {.pop.}
 
 proc uint64MinMax(a, b: var uint64) {.inline.} =
-  var c = b - a
+  var
+    c: uint64 = b - a
+    mask: uint64 = 0
   c = c shr 63          # 0 or 1
-  let mask = (0'u64 - c) and (a xor b)
+  mask = (0'u64 - c) and (a xor b)
   a = a xor mask
   b = b xor mask
 

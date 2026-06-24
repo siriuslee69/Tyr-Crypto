@@ -166,18 +166,24 @@ proc buildEncapPreimage(p: McElieceParams; e, syndrome: openArray[byte]): seq[by
     result[1 + p.sysN div 8 + i] = syndrome[i]
 
 proc buildDecapPreimage(p: McElieceParams; okMask: uint16; e, c, sk: openArray[byte]): seq[byte] =
-  let condOffset = 32 + 8 + p.irrBytes
-  let sOffset = condOffset + p.condBytes
-  let m = okMask and 0x00FF'u16
-  let nm = m xor 0x00FF'u16
-
+  var
+    condOffset: int = 32 + 8 + p.irrBytes
+    sOffset: int = condOffset + p.condBytes
+    m: uint16 = okMask and 0x00FF'u16
+    nm: uint16 = m xor 0x00FF'u16
+    i: int = 0
+    ev: byte = 0
   result = newSeq[byte](1 + p.sysN div 8 + p.syndBytes)
   result[0] = byte(m and 1)
-  for i in 0 ..< p.sysN div 8:
-    let ev = if i < e.len: e[i] else: 0
+  i = 0
+  while i < p.sysN div 8:
+    ev = (if i < e.len: e[i] else: 0)
     result[1 + i] = byte((nm and uint16(sk[sOffset + i])) or (m and uint16(ev)))
-  for i in 0 ..< p.syndBytes:
+    i = i + 1
+  i = 0
+  while i < p.syndBytes:
     result[1 + p.sysN div 8 + i] = c[i]
+    i = i + 1
 
 proc mcelieceTyrEncaps*(v: McElieceVariant, pk: openArray[byte]): McElieceTyrCipher {.otterTrace.} =
   ## Encapsulate against a McEliece public key and derive the shared secret.

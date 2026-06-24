@@ -38,13 +38,15 @@ proc requireChaCha20Inputs(key, nonce: openArray[byte]) {.inline.} =
 
 proc requireChaCha20BlockRange*(initialCounter: uint32, byteLen: int) =
   ## The IETF ChaCha20 counter is 32-bit; refuse transforms that would wrap it.
+  var
+    blocks: uint64 = 0
+    available: uint64 = 0
   if byteLen < 0:
     raise newException(ValueError, "length must be non-negative")
   if byteLen == 0:
     return
-  let
-    blocks = (uint64(byteLen - 1) div uint64(chacha20BlockSize)) + 1'u64
-    available = uint64(uint32.high) - uint64(initialCounter) + 1'u64
+  blocks = (uint64(byteLen - 1) div uint64(chacha20BlockSize)) + 1'u64
+  available = uint64(uint32.high) - uint64(initialCounter) + 1'u64
   if blocks > available:
     raise newException(ValueError, "ChaCha20 block counter would wrap")
 
@@ -175,8 +177,8 @@ when isMainModule:
   const testNonce: array[12, byte] = [
     byte 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x4a, 0x00, 0x00, 0x00, 0x00
   ]
-  let keystream = chacha20Block(testKey, testNonce, 1'u32)
-  let expected: array[64, byte] = [
+  var keystream = chacha20Block(testKey, testNonce, 1'u32)
+  var expected: array[64, byte] = [
     byte 0x10, 0xf1, 0xe7, 0xe4, 0xd1, 0x3b, 0x59, 0x15,
     0x50, 0x0f, 0xdd, 0x1f, 0xa3, 0x20, 0x71, 0xc4,
     0xc7, 0xd1, 0xf4, 0xc7, 0x33, 0xc0, 0x68, 0x03,

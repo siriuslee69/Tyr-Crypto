@@ -7,6 +7,23 @@ const
   GFBits = 13
   GFMaskConst: GF = (1'u16 shl GFBits) - 1'u16
   ShiftForIsZero = 32 - GFBits
+  GfSq2SpreadMask: array[4, uint64] = [0x1111111111111111'u64,
+                                       0x0303030303030303'u64,
+                                       0x000F000F000F000F'u64,
+                                       0x000000FF000000FF'u64]
+  GfSq2ReduceMask: array[4, uint64] = [0x0001FF0000000000'u64,
+                                       0x000000FF80000000'u64,
+                                       0x000000007FC00000'u64,
+                                       0x00000000003FE000'u64]
+  GfSqMulReduceMask: array[3, uint64] = [0x0000001FF0000000'u64,
+                                         0x000000000FF80000'u64,
+                                         0x000000000007E000'u64]
+  GfSq2MulReduceMask: array[6, uint64] = [0x1FF0000000000000'u64,
+                                          0x000FF80000000000'u64,
+                                          0x000007FC00000000'u64,
+                                          0x00000003FE000000'u64,
+                                          0x0000000001FE0000'u64,
+                                          0x000000000001E000'u64]
 
 proc gfIsZero*(a: GF): GF {.inline.} =
   ## Returns 0x1FFF when a == 0, else 0x0000 (matches PQClean gf_iszero behavior).
@@ -30,39 +47,33 @@ proc gfMul*(a, b: GF): GF {.inline.} =
 
 proc gfSq2(inVal: GF): GF {.inline.} =
   ## (in^2)^2
-  let B = [0x1111111111111111'u64,
-           0x0303030303030303'u64,
-           0x000F000F000F000F'u64,
-           0x000000FF000000FF'u64]
-  let M = [0x0001FF0000000000'u64,
-           0x000000FF80000000'u64,
-           0x000000007FC00000'u64,
-           0x00000000003FE000'u64]
+  var
+    x: uint64 = uint64(inVal)
+    t: uint64 = 0
+    i: int = 0
 
-  var x = uint64(inVal)
-  var t: uint64
+  x = (x or (x shl 24)) and GfSq2SpreadMask[3]
+  x = (x or (x shl 12)) and GfSq2SpreadMask[2]
+  x = (x or (x shl 6)) and GfSq2SpreadMask[1]
+  x = (x or (x shl 3)) and GfSq2SpreadMask[0]
 
-  x = (x or (x shl 24)) and B[3]
-  x = (x or (x shl 12)) and B[2]
-  x = (x or (x shl 6)) and B[1]
-  x = (x or (x shl 3)) and B[0]
-
-  for i in 0 .. 3:
-    t = x and M[i]
+  i = 0
+  while i < 4:
+    t = x and GfSq2ReduceMask[i]
     x = x xor (t shr 9) xor (t shr 10) xor (t shr 12) xor (t shr 13)
+    i = i + 1
 
   GF(x and uint64(GFMaskConst))
 
 proc gfSqMul(inVal, m: GF): GF {.inline.} =
   ## (in^2) * m
-  let M = [0x0000001FF0000000'u64,
-           0x000000000FF80000'u64,
-           0x000000000007E000'u64]
+  var
+    t0: uint64 = uint64(inVal)
+    t1: uint64 = uint64(m)
+    x: uint64 = (t1 shl 6) * (t0 and (1'u64 shl 6))
+    t: uint64 = 0
+    i: int = 0
 
-  var t0 = uint64(inVal)
-  let t1 = uint64(m)
-
-  var x = (t1 shl 6) * (t0 and (1'u64 shl 6))
   t0 = t0 xor (t0 shl 7)
 
   x = x xor (t1 * (t0 and 0x04001'u64))
@@ -72,25 +83,23 @@ proc gfSqMul(inVal, m: GF): GF {.inline.} =
   x = x xor ((t1 * (t0 and 0x40010'u64)) shl 4)
   x = x xor ((t1 * (t0 and 0x80020'u64)) shl 5)
 
-  for i in 0 .. 2:
-    let t = x and M[i]
+  i = 0
+  while i < 3:
+    t = x and GfSqMulReduceMask[i]
     x = x xor (t shr 9) xor (t shr 10) xor (t shr 12) xor (t shr 13)
+    i = i + 1
 
   GF(x and uint64(GFMaskConst))
 
 proc gfSq2Mul(inVal, m: GF): GF {.inline.} =
   ## ((in^2)^2) * m
-  let M = [0x1FF0000000000000'u64,
-           0x000FF80000000000'u64,
-           0x000007FC00000000'u64,
-           0x00000003FE000000'u64,
-           0x0000000001FE0000'u64,
-           0x000000000001E000'u64]
+  var
+    t0: uint64 = uint64(inVal)
+    t1: uint64 = uint64(m)
+    x: uint64 = (t1 shl 18) * (t0 and (1'u64 shl 6))
+    t: uint64 = 0
+    i: int = 0
 
-  var t0 = uint64(inVal)
-  let t1 = uint64(m)
-
-  var x = (t1 shl 18) * (t0 and (1'u64 shl 6))
   t0 = t0 xor (t0 shl 21)
 
   x = x xor (t1 * (t0 and 0x010000001'u64))
@@ -100,21 +109,24 @@ proc gfSq2Mul(inVal, m: GF): GF {.inline.} =
   x = x xor ((t1 * (t0 and 0x100000010'u64)) shl 12)
   x = x xor ((t1 * (t0 and 0x200000020'u64)) shl 15)
 
-  for i in 0 .. 5:
-    let t = x and M[i]
+  i = 0
+  while i < 6:
+    t = x and GfSq2MulReduceMask[i]
     x = x xor (t shr 9) xor (t shr 10) xor (t shr 12) xor (t shr 13)
+    i = i + 1
 
   GF(x and uint64(GFMaskConst))
 
 proc gfFrac*(den, num: GF): GF {.inline.} =
   ## Compute num / den in GF(2^13).
-  let tmp11 = gfSqMul(den, den)          # ^11
-  let tmp1111 = gfSq2Mul(tmp11, tmp11)   # ^1111
-  var outVal = gfSq2(tmp1111)
-  outVal = gfSq2Mul(outVal, tmp1111)     # ^11111111
+  var
+    tmp11: GF = gfSqMul(den, den)
+    tmp1111: GF = gfSq2Mul(tmp11, tmp11)
+    outVal: GF = gfSq2(tmp1111)
+  outVal = gfSq2Mul(outVal, tmp1111)
   outVal = gfSq2(outVal)
-  outVal = gfSq2Mul(outVal, tmp1111)     # ^111111111111
-  gfSqMul(outVal, num)                   # ^-1
+  outVal = gfSq2Mul(outVal, tmp1111)
+  gfSqMul(outVal, num)
 
 proc gfInv*(den: GF): GF {.inline.} =
   gfFrac(den, 1'u16)
@@ -125,17 +137,29 @@ proc GFmul*(p: McElieceParams; outp: var openArray[GF]; in0, in1: openArray[GF])
   assert outp.len >= p.sysT
   assert in0.len >= p.sysT and in1.len >= p.sysT
 
-  var prod = newSeq[GF](p.sysT * 2 - 1)
-  for i in 0 ..< p.sysT:
-    for j in 0 ..< p.sysT:
+  var
+    prod: seq[GF] = newSeq[GF](p.sysT * 2 - 1)
+    i: int = 0
+    j: int = 0
+    k: int = 0
+    v: GF = 0
+  i = 0
+  while i < p.sysT:
+    j = 0
+    while j < p.sysT:
       prod[i + j] = prod[i + j] xor gfMul(in0[i], in1[j])
+      j = j + 1
+    i = i + 1
 
-  var i = (p.sysT - 1) * 2
+  i = (p.sysT - 1) * 2
   while i >= p.sysT:
-    let v = prod[i]
-    for j in 0 ..< p.reductionTermCount:
-      prod[i - p.sysT + p.reductionTerms[j]] =
-        prod[i - p.sysT + p.reductionTerms[j]] xor v
+    v = prod[i]
+    j = 0
+    while j < p.reductionTermCount:
+      prod[i - p.sysT + p.reductionTerms[j]] = prod[i - p.sysT + p.reductionTerms[j]] xor v
+      j = j + 1
     dec i
-  for k in 0 ..< p.sysT:
+  k = 0
+  while k < p.sysT:
     outp[k] = prod[k]
+    k = k + 1

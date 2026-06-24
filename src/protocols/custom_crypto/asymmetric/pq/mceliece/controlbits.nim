@@ -10,8 +10,8 @@ proc wrapU32ToI32(x: uint32): int32 {.inline.} =
   cast[int32](x)
 
 proc layer(p: var openArray[int16], cb: openArray[byte], s, n: int) {.inline.} =
-  let stride = 1 shl (s and 0x1F)
   var
+    stride: int = 1 shl (s and 0x1F)
     index: int = 0
     i: int = 0
     d: int16 = 0
@@ -226,8 +226,8 @@ proc cbBuildQ(temp: ptr UncheckedArray[int32], qPtr: ptr UncheckedArray[int16], 
 
 proc cbRecursion(outBits: var openArray[byte], pos, step: int,
     pi: ptr UncheckedArray[int16], w, n: int, temp: ptr UncheckedArray[int32]) {.otterBench.} =
-  let
-    half = n div 2
+  var
+    half: int = n div 2
     qPtr = cast[ptr UncheckedArray[int16]](unsafeAddr temp[n + (n shr 2)])
     tempPtr = temp
     tempBPtr = cast[ptr UncheckedArray[int32]](unsafeAddr temp[n])
@@ -261,9 +261,10 @@ proc cbRecursion(outBits: var openArray[byte], pos, step: int,
 
 proc controlBitsFromPermutationUncheckedNim*(pi: openArray[int16]; gfbits: int): seq[byte] {.otterBench.} =
   ## Generate control bits without the post-generation self-check using the pure-Nim port.
-  let n = 1 shl gfbits
-  let outLen = ((2 * gfbits - 1) * n div 2 + 7) div 8
-  var temp: array[2 * 8192, int32]
+  var
+    n: int = 1 shl gfbits
+    outLen: int = ((2 * gfbits - 1) * n div 2 + 7) div 8
+    temp: array[2 * 8192, int32]
   assert pi.len == n, "pi length must be 2^gfbits"
 
   result = newSeq[byte](outLen)
@@ -280,34 +281,47 @@ proc controlBitsFromPermutationUnchecked*(pi: openArray[int16]; gfbits: int): se
 
 proc controlBitsFromPermutation*(pi: openArray[int16]; gfbits: int): seq[byte] =
   ## Generate control bits for a Benes network for a permutation of size 2^gfbits.
-  let n = 1 shl gfbits
+  var
+    n: int = 1 shl gfbits
+    piTest: seq[int16]
+    offset: int = 0
+    i: int = 0
+    diff: int16 = 0
   assert pi.len == n, "pi length must be 2^gfbits"
 
-  var piTest = newSeq[int16](n)
+  piTest = newSeq[int16](n)
   result = controlBitsFromPermutationUnchecked(pi, gfbits)
 
-  for i in 0 ..< n:
+  i = 0
+  while i < n:
     piTest[i] = int16(i)
+    i = i + 1
 
-  var offset = 0
-  for i in 0 ..< gfbits:
+  offset = 0
+  i = 0
+  while i < gfbits:
     layer(piTest, result.toOpenArray(offset, result.len - 1), i, n)
     offset += n shr 4
+    i = i + 1
 
-  var i = gfbits - 2
+  i = gfbits - 2
   while i >= 0:
     layer(piTest, result.toOpenArray(offset, result.len - 1), i, n)
     offset += n shr 4
     dec i
 
-  var diff: int16 = 0
-  for i in 0 ..< n:
+  diff = 0
+  i = 0
+  while i < n:
     diff = diff or (pi[i] xor piTest[i])
+    i = i + 1
   assert ctNonZero16(diff) == 0, "control bits verification failed"
 
 proc controlBitsFromPermutation*(pi: openArray[uint16]; gfbits: int): seq[byte] =
-  var piSigned = newSeq[int16](pi.len)
-  for i, v in pi:
-    piSigned[i] = int16(v)
+  var
+    piSigned: seq[int16]
+  piSigned = newSeq[int16](pi.len)
+  for idx, val in pi:
+    piSigned[idx] = int16(val)
   result = controlBitsFromPermutation(piSigned, gfbits)
 {.pop.}

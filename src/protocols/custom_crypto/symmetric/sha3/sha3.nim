@@ -127,7 +127,7 @@ when defined(tyrSha3OpenSslTestOnly):
     opensslShakeReady = false
 
   proc loadOpenSslSymbol[T](symName: string, target: var T): bool =
-    let addrSym = symAddr(opensslShakeHandle, symName)
+    var addrSym = symAddr(opensslShakeHandle, symName)
     if addrSym.isNil:
       unloadOpenSslShake()
       return false

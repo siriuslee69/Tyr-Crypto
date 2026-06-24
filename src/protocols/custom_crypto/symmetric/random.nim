@@ -11,53 +11,83 @@ const
   seedLen = 64
 
 proc appendStringBytes(dst: var seq[uint8], value: string) =
-  let start = dst.len
+  var
+    start: int = 0
+    i: int = 0
+  start = dst.len
   dst.setLen(start + value.len)
-  for i, ch in value:
-    dst[start + i] = uint8(ord(ch))
+  i = 0
+  while i < value.len:
+    dst[start + i] = uint8(ord(value[i]))
+    i = i + 1
 
 proc appendBytes(dst: var seq[uint8], value: openArray[uint8]) =
+  var
+    start: int = 0
+    i: int = 0
   if value.len == 0:
     return
-  let start = dst.len
+  start = dst.len
   dst.setLen(start + value.len)
-  for i in 0 ..< value.len:
+  i = 0
+  while i < value.len:
     dst[start + i] = value[i]
+    i = i + 1
 
 proc appendUint64Le(dst: var seq[uint8], value: uint64) =
-  let start = dst.len
+  var
+    start: int = 0
+    i: int = 0
+  start = dst.len
   dst.setLen(start + 8)
-  for i in 0 ..< 8:
+  i = 0
+  while i < 8:
     dst[start + i] = uint8((value shr (i * 8)) and 0xff'u64)
+    i = i + 1
 
 proc toByteSeq[T](input: openArray[T]): seq[uint8] =
+  var i: int = 0
   static:
     doAssert sizeof(T) == 1, "extra entropy must use a 1-byte element type"
   result = newSeq[uint8](input.len)
-  for i in 0 ..< input.len:
+  i = 0
+  while i < input.len:
     result[i] = cast[uint8](input[i])
+    i = i + 1
 
 proc toArray32(data: openArray[uint8], start: int): array[32, byte] =
-  for i in 0 ..< result.len:
+  var i: int = 0
+  i = 0
+  while i < result.len:
     result[i] = byte(data[start + i])
+    i = i + 1
 
 proc toArray16(data: openArray[uint8], start: int): array[16, byte] =
-  for i in 0 ..< result.len:
+  var i: int = 0
+  i = 0
+  while i < result.len:
     result[i] = byte(data[start + i])
+    i = i + 1
 
 proc absorbEntropy(keyState: var array[32, byte], data: openArray[uint8]) =
+  var
+    offset: int = 0
+    take: int = 0
+    i: int = 0
+    chunk: array[blockLen, byte]
   if data.len == 0:
-    var chunk: array[blockLen, byte]
     chunk[0] = 0x80'u8
     keyState = hchacha20(keyState, chunk)
     return
 
-  var offset = 0
+  offset = 0
   while offset < data.len:
-    var chunk: array[blockLen, byte]
-    let take = min(chunk.len, data.len - offset)
-    for i in 0 ..< take:
+    chunk = default(array[blockLen, byte])
+    take = min(chunk.len, data.len - offset)
+    i = 0
+    while i < take:
       chunk[i] = byte(data[offset + i])
+      i = i + 1
     if take < chunk.len:
       chunk[take] = 0x80'u8
     chunk[chunk.high] = chunk[chunk.high] xor byte(take)
@@ -72,32 +102,48 @@ proc buildMixMaterial(length: int, extraEntropy: openArray[uint8]): seq[uint8] =
   appendBytes(result, extraEntropy)
 
 proc cryptoRandomBytesInternal(length: int, extraEntropy: openArray[uint8]): seq[uint8] =
+  var
+    osSeed: seq[uint8]
+    osOutput: seq[uint8]
+    keyState: array[32, byte]
+    nonceBase: array[16, byte]
+    nonceDerive: array[16, byte]
+    mixMaterial: seq[uint8]
+    nonceTail: array[32, byte]
+    streamNonce: array[xchacha20NonceSize, byte]
+    stream: seq[uint8]
+    i: int = 0
   if length < 0:
     raise newException(ValueError, "length must be >= 0")
   if length == 0:
     return @[]
 
-  let osSeed = urandom(seedLen)
-  let osOutput = urandom(length)
+  osSeed = urandom(seedLen)
+  osOutput = urandom(length)
 
-  var keyState = toArray32(osSeed, 0)
-  let nonceBase = toArray16(osSeed, 32)
-  let nonceDerive = toArray16(osSeed, 48)
+  keyState = toArray32(osSeed, 0)
+  nonceBase = toArray16(osSeed, 32)
+  nonceDerive = toArray16(osSeed, 48)
 
-  let mixMaterial = buildMixMaterial(length, extraEntropy)
+  mixMaterial = buildMixMaterial(length, extraEntropy)
   absorbEntropy(keyState, mixMaterial)
 
-  let nonceTail = hchacha20(keyState, nonceDerive)
-  var streamNonce: array[xchacha20NonceSize, byte]
-  for i in 0 ..< nonceBase.len:
+  nonceTail = hchacha20(keyState, nonceDerive)
+  i = 0
+  while i < nonceBase.len:
     streamNonce[i] = nonceBase[i]
-  for i in 0 ..< 8:
+    i = i + 1
+  i = 0
+  while i < 8:
     streamNonce[16 + i] = nonceTail[24 + i]
+    i = i + 1
 
-  let stream = xchacha20Stream(keyState, streamNonce, length)
+  stream = xchacha20Stream(keyState, streamNonce, length)
   result = newSeq[uint8](length)
-  for i in 0 ..< length:
+  i = 0
+  while i < length:
     result[i] = uint8(stream[i]) xor osOutput[i]
+    i = i + 1
 
 proc cryptoRandomBytes*(length: int): seq[uint8] =
   ## Generates cryptographically strong random bytes from OS randomness.
@@ -107,5 +153,6 @@ proc cryptoRandomBytes*[T](length: int, extraEntropy: openArray[T]): seq[uint8] 
   ## Generates cryptographically strong random bytes and mixes in caller entropy.
   ## Use `extraEntropy` for high-variance data (for example user timing jitter or
   ## server runtime telemetry) to diversify the output stream.
-  let extraBytes = toByteSeq(extraEntropy)
+  var extraBytes: seq[uint8]
+  extraBytes = toByteSeq(extraEntropy)
   cryptoRandomBytesInternal(length, extraBytes)

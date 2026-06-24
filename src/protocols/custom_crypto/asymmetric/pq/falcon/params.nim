@@ -39,7 +39,7 @@ proc params*(v: FalconVariant): FalconParams {.inline.} =
 
 proc expandedSecretBytes*(v: FalconVariant): int {.inline.} =
   ## Return the Falcon expanded-key size for sign-tree mode.
-  let p = params(v)
+  var p = params(v)
   (8 * p.logn + 40) * (1 shl p.logn)
 
 proc defaultBackend*(): FalconBackend {.inline.} =

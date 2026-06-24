@@ -156,15 +156,16 @@ proc floatToFpr*(x: float64): FalconFpr {.inline.} =
   cast[FalconFpr](x)
 
 proc fprRint*(x: FalconFpr): int64 =
-  let
-    v = fprToFloat(x)
-    base = floor(v)
-    frac = v - base
+  var
+    v: float64 = fprToFloat(x)
+    base: float64 = floor(v)
+    frac: float64 = v - base
+    even: int64 = 0
   if frac < 0.5:
     return int64(base)
   if frac > 0.5:
     return int64(base + 1.0)
-  let even = int64(base)
+  even = int64(base)
   if (even and 1'i64) == 0'i64:
     even
   else:

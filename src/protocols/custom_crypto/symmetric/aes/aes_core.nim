@@ -71,19 +71,20 @@ var
   osslCipherCtxSetPadding: EvpCipherCtxSetPaddingProc
 
 proc appendOpenSslAesCandidates(candidates: var seq[string], dirPath: string) =
-  let trimmed = dirPath.strip()
+  var trimmed: string = dirPath.strip()
   if trimmed.len == 0:
     return
   for name in opensslAesLibNames:
     candidates.add(joinPath(trimmed, name))
 
 proc collectOpenSslAesCandidates(): seq[string] =
-  let envDirs = getEnv("OPENSSL_LIB_DIRS").strip()
-  let pathDirs = getEnv("PATH").split(PathSep)
-  let moduleDir = splitFile(currentSourcePath()).dir
-  let repoRoot = absolutePath(joinPath(moduleDir, "..", "..", "..", ".."))
+  var
+    envDirs: string = getEnv("OPENSSL_LIB_DIRS").strip()
+    pathDirs: seq[string] = getEnv("PATH").split(PathSep)
+    moduleDir: string = splitFile(currentSourcePath()).dir
+    repoRoot: string = absolutePath(joinPath(moduleDir, "..", "..", "..", ".."))
   when defined(windows):
-    let commonWindowsDirs = [
+    var commonWindowsDirs = [
       r"C:\Program Files\Git\mingw64\bin",
       r"C:\msys64\mingw64\bin",
       r"C:\msys64\clang64\bin"
@@ -108,7 +109,7 @@ proc unloadOpenSslAes() =
   opensslAesReady = false
 
 proc loadOpenSslAesSymbol[T](symName: string, target: var T): bool =
-  let addrSym = symAddr(opensslAesHandle, symName)
+  var addrSym = symAddr(opensslAesHandle, symName)
   if addrSym.isNil:
     unloadOpenSslAes()
     return false
@@ -244,8 +245,9 @@ const
   ]
 
 func xtimeConst(x: uint8): uint8 =
-  let shifted = uint8(x shl 1)
-  let carry = (x shr 7) and 0x1'u8
+  var
+    shifted: uint8 = uint8(x shl 1)
+    carry: uint8 = (x shr 7) and 0x1'u8
   shifted xor (0x1b'u8 * carry)
 
 func mul2Const(x: uint8): uint8 =
@@ -319,15 +321,17 @@ const
 {.push overflowChecks: off.}
 proc ctEq(a, b: uint8): uint8 {.inline.} =
   ## Returns 0xFF when equal, 0x00 otherwise (constant-time).
-  let x = a xor b
+  var x: uint8 = a xor b
   result = uint8((uint16(x) - 1'u16) shr 8)
 
 proc sboxCt(x: uint8): uint8 {.inline.} =
   ## Constant-time S-box lookup by scanning all entries.
-  var acc: uint8 = 0
-  var i = 0
+  var
+    acc: uint8 = 0
+    i: int = 0
+    mask: uint8 = 0
   while i < 256:
-    let mask = ctEq(x, uint8(i))
+    mask = ctEq(x, uint8(i))
     acc = acc or (sbox[i] and mask)
     i = i + 1
   result = acc
@@ -344,8 +348,9 @@ proc subByteFast(x: uint8): uint8 {.inline.} =
   result = sbox[x]
 
 proc xtime(x: uint8): uint8 {.inline.} =
-  let shifted = uint8(x shl 1)
-  let carry = (x shr 7) and 0x1'u8
+  var
+    shifted: uint8 = uint8(x shl 1)
+    carry: uint8 = (x shr 7) and 0x1'u8
   result = shifted xor (0x1b'u8 * carry)
 
 proc mul2(x: uint8): uint8 {.inline.} =
@@ -391,11 +396,13 @@ proc shiftRows(state: var AesBlock) =
   state[7] = t
 
 proc mixColumns(state: var AesBlock) =
-  var c: int = 0
-  var a0, a1, a2, a3: uint8
+  var
+    c: int = 0
+    o: int = 0
+    a0, a1, a2, a3: uint8
   c = 0
   while c < 4:
-    let o = c * 4
+    o = c * 4
     a0 = state[o]
     a1 = state[o + 1]
     a2 = state[o + 2]
@@ -408,8 +415,9 @@ proc mixColumns(state: var AesBlock) =
 
 proc addRoundKey(state: var AesBlock, roundKeys: array[aesRoundKeysLen256, uint8],
     round: int) =
-  let base = round * aesBlockLen
-  var i: int = 0
+  var
+    base: int = round * aesBlockLen
+    i: int = 0
   i = 0
   while i < aesBlockLen:
     state[i] = state[i] xor roundKeys[base + i]
@@ -417,8 +425,9 @@ proc addRoundKey(state: var AesBlock, roundKeys: array[aesRoundKeysLen256, uint8
 
 proc addRoundKey(state: var AesBlock, roundKeys: array[aesRoundKeysLen128, uint8],
     round: int) =
-  let base = round * aesBlockLen
-  var i: int = 0
+  var
+    base: int = round * aesBlockLen
+    i: int = 0
   i = 0
   while i < aesBlockLen:
     state[i] = state[i] xor roundKeys[base + i]
@@ -445,6 +454,7 @@ proc expandKey128(key: openArray[uint8]): array[aesRoundKeysLen128, uint8] =
     rconIter: int = 1
     temp: array[4, uint8]
     j: int = 0
+    t0: uint8 = 0
   while bytesGenerated < aesKeyLen128:
     result[bytesGenerated] = key[bytesGenerated]
     bytesGenerated = bytesGenerated + 1
@@ -454,7 +464,7 @@ proc expandKey128(key: openArray[uint8]): array[aesRoundKeysLen128, uint8] =
     temp[2] = result[bytesGenerated - 2]
     temp[3] = result[bytesGenerated - 1]
     if (bytesGenerated mod aesKeyLen128) == 0:
-      let t0 = temp[0]
+      t0 = temp[0]
       temp[0] = temp[1]
       temp[1] = temp[2]
       temp[2] = temp[3]
@@ -479,6 +489,7 @@ proc expandKey128Fast(key: openArray[uint8]): array[aesRoundKeysLen128, uint8] =
     rconIter: int = 1
     temp: array[4, uint8]
     j: int = 0
+    t0: uint8 = 0
   while bytesGenerated < aesKeyLen128:
     result[bytesGenerated] = key[bytesGenerated]
     bytesGenerated = bytesGenerated + 1
@@ -488,7 +499,7 @@ proc expandKey128Fast(key: openArray[uint8]): array[aesRoundKeysLen128, uint8] =
     temp[2] = result[bytesGenerated - 2]
     temp[3] = result[bytesGenerated - 1]
     if (bytesGenerated mod aesKeyLen128) == 0:
-      let t0 = temp[0]
+      t0 = temp[0]
       temp[0] = temp[1]
       temp[1] = temp[2]
       temp[2] = temp[3]
@@ -531,9 +542,12 @@ when defined(aesni):
 proc expandKey256(key: openArray[uint8]): array[aesRoundKeysLen256, uint8] =
   if key.len != aesKeyLen256:
     raise newException(ValueError, "AES-256 requires 32-byte key")
-  var bytesGenerated = 0
-  var rconIter = 1
-  var temp: array[4, uint8]
+  var
+    bytesGenerated: int = 0
+    rconIter: int = 1
+    temp: array[4, uint8]
+    j: int = 0
+    t0: uint8 = 0
   while bytesGenerated < aesKeyLen256:
     result[bytesGenerated] = key[bytesGenerated]
     bytesGenerated = bytesGenerated + 1
@@ -543,7 +557,7 @@ proc expandKey256(key: openArray[uint8]): array[aesRoundKeysLen256, uint8] =
     temp[2] = result[bytesGenerated - 2]
     temp[3] = result[bytesGenerated - 1]
     if (bytesGenerated mod aesKeyLen256) == 0:
-      let t0 = temp[0]
+      t0 = temp[0]
       temp[0] = temp[1]
       temp[1] = temp[2]
       temp[2] = temp[3]
@@ -559,7 +573,6 @@ proc expandKey256(key: openArray[uint8]): array[aesRoundKeysLen256, uint8] =
       temp[1] = subByte(temp[1])
       temp[2] = subByte(temp[2])
       temp[3] = subByte(temp[3])
-    var j: int = 0
     j = 0
     while j < 4:
       result[bytesGenerated] = result[bytesGenerated - aesKeyLen256] xor temp[j]

@@ -65,7 +65,7 @@ proc modQDecode*(dst: var openArray[uint16], src: openArray[byte], logn: int): i
     accLen = accLen + 8
     v = v + 1
     if accLen >= 14:
-      let w = (acc shr (accLen - 14)) and 0x3FFF'u32
+      var w = (acc shr (accLen - 14)) and 0x3FFF'u32
       accLen = accLen - 14
       if w >= 12289'u32:
         return 0
