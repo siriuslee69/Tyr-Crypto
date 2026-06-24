@@ -34,6 +34,65 @@ proc withRepoCaches(cmd: string): string =
   putEnv("NIMBLE_DIR", repoNimbleDir().replace('\\', '/'))
   result = cmd
 
+proc shellPath(p: string): string =
+  result = quoteShell(p.replace('\\', '/'))
+
+proc shellCommand(command: string; args: openArray[string]): string =
+  var parts: seq[string] = @[shellPath(command)]
+  for arg in args:
+    parts.add(shellPath(arg))
+  result = parts.join(" ")
+
+proc runCommand(command: string; args: openArray[string]) =
+  exec shellCommand(command, args)
+
+proc probeCommand(command: string; args: openArray[string]): tuple[output: string, exitCode: int] =
+  result = gorgeEx(shellCommand(command, args))
+
+proc captureCommand(command: string; args: openArray[string]): string =
+  let probe = probeCommand(command, args)
+  result = probe.output
+  if probe.exitCode != 0:
+    if result.len > 0:
+      echo result
+    quit(probe.exitCode)
+
+proc progressCommitMessage(): string =
+  let candidatePaths = @[".iron/PROGRESS.md", ".iron/progress.md", "iron/progress.md"]
+  var
+    path: string = ""
+    i: int = 0
+  while i < candidatePaths.len:
+    if fileExists(candidatePaths[i]):
+      path = candidatePaths[i]
+      break
+    inc i
+  if path.len > 0:
+    let content = readFile(path)
+    for line in content.splitLines:
+      if line.startsWith("Commit Message:"):
+        result = line["Commit Message:".len .. ^1].strip()
+        break
+  if result.len == 0:
+    result = "No specific commit message given."
+
+proc currentUpstreamBranch(): string =
+  let probe = probeCommand("git", @["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+  if probe.exitCode == 0:
+    result = probe.output.strip()
+
+proc branchDivergenceCounts(): tuple[ahead: int, behind: int] =
+  let probe = probeCommand("git", @["rev-list", "--left-right", "--count", "HEAD...@{u}"])
+  if probe.exitCode != 0:
+    return
+  let parts = probe.output.strip().splitWhitespace()
+  if parts.len >= 2:
+    try:
+      result.ahead = parseInt(parts[0])
+      result.behind = parseInt(parts[1])
+    except ValueError:
+      discard
+
 proc requireRepoPath(candidates: openArray[string], label: string): string =
   var
     i = 0
@@ -270,28 +329,29 @@ task build_wasm_debug, "Build debug JS/TS wasm bindings with Emscripten":
   exec "nim r --nimcache:build/nimcache_build_wasm tools/build_wasm.nim -- --debug"
 
 task autopush, "Add, commit, and push with message from .iron/PROGRESS.md":
-  let candidatePaths = @[".iron/PROGRESS.md", ".iron/progress.md", "iron/progress.md"]
-  var path = ""
-  var msg = ""
-  var i = 0
-  var l = candidatePaths.len
-  while i < l:
-    if fileExists(candidatePaths[i]):
-      path = candidatePaths[i]
-      break
-    inc i
-  if path.len > 0:
-    let content = readFile(path)
-    for line in content.splitLines:
-      if line.startsWith("Commit Message:"):
-        msg = line["Commit Message:".len .. ^1].strip()
-        break
-  if msg.len == 0:
-    msg = "No specific commit message given."
-  exec "git add -A ."
-  exec "git commit -m \"" & msg & "\""
-  exec "git push"
-
+  var
+    msg: string = progressCommitMessage()
+    staged: string = ""
+    branch: string = ""
+    upstream: string = ""
+    diverged: tuple[ahead: int, behind: int]
+  runCommand("git", @["add", "-A", "."])
+  staged = captureCommand("git", @["diff", "--cached", "--name-only"]).strip()
+  if staged.len == 0:
+    echo "No staged changes. Skipping commit."
+  else:
+    runCommand("git", @["commit", "-m", msg])
+  branch = captureCommand("git", @["branch", "--show-current"]).strip()
+  if branch.len == 0:
+    quit "Refusing autopush from detached HEAD."
+  upstream = currentUpstreamBranch()
+  if upstream.len == 0:
+    runCommand("git", @["push", "--set-upstream", "origin", branch])
+    return
+  diverged = branchDivergenceCounts()
+  if diverged.behind > 0:
+    runCommand("git", @["pull", "--rebase", "--autostash"])
+  runCommand("git", @["push"])
 task find, "Use local clones for submodules in parent folder":
   let modulesPath = ".gitmodules"
   if not fileExists(modulesPath):
@@ -323,6 +383,4 @@ task test_backend_matrix, "Run the backend matrix bench against liboqs and libso
 
 task test_public_api_surface, "Compile and run the top-level public API export smoke test":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_public_api_surface").replace('\\', '/') & " -d:hasLibOqs -d:hasLibsodium -r tests/test_public_api_surface.nim")
-
-
 
