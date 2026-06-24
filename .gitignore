@@ -33,6 +33,7 @@ src/liboqs/
 iron/iron_config.md
 .iron/.local*
 !.iron/.local*.template
+.fuse_hidden*
 
 !tests/android_harness/gradle/wrapper/gradle-wrapper.jar
 
