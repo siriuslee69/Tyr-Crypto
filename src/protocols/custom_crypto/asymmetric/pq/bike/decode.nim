@@ -117,10 +117,9 @@ proc bitSliceFullSubtractPort*(U: var BikeUpc, vIn: int) =
   br = newSeq[uint64](bikeRQWords)
   j = 0
   while j < bikeSlices:
-    if (v and 1) == 1:
-      lsbMask = not 0'u64
-    else:
-      lsbMask = 0'u64
+    # The threshold is syndrome-derived (secret), so expand its bits into
+    # masks without branching on them.
+    lsbMask = 0'u64 - uint64(v and 1)
     v = v shr 1
     i = 0
     when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):

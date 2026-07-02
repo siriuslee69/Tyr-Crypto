@@ -387,11 +387,12 @@ when defined(avx2):
   proc polyChkNormSimdAvx2(a: DilithiumPoly, B: int32): bool {.inline, otterBench.} =
     var
       i: int = 0
-      bad: int = 0
+      bad: int32 = 0
       coeffVec: navx.M256i
       signVec: navx.M256i
       absVec: navx.M256i
       cmpVec: navx.M256i
+      badVec: navx.M256i = navx.mm256_setzero_si256()
       boundVec: navx.M256i = navx.mm256_set1_epi32(B - 1)
     if B > (dilithiumQ - 1) div 8:
       return true
@@ -403,16 +404,16 @@ when defined(avx2):
       absVec = navx2.mm256_and_si256(signVec, absVec)
       absVec = navx2.mm256_sub_epi32(coeffVec, absVec)
       cmpVec = navx2.mm256_cmpgt_epi32(absVec, boundVec)
-      if navx2.mm256_testz_si256(cmpVec, cmpVec) == 0:
-        bad = 1
+      # Accumulate branch-free: a per-block branch on secret-derived
+      # coefficients would leak which block exceeds the bound.
+      badVec = navx2.mm256_or_si256(badVec, cmpVec)
       i = i + 8
     while i < dilithiumN:
       var t: int32 = a.coeffs[i] shr 31
       t = a.coeffs[i] - (t and (2 * a.coeffs[i]))
-      if t >= B:
-        bad = 1
+      bad = bad or ((B - 1 - t) shr 31)
       i = i + 1
-    result = bad != 0
+    result = navx2.mm256_testz_si256(badVec, badVec) == 0 or bad != 0
 
   proc polyAddSimdAvx2(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
@@ -668,15 +669,16 @@ proc polyChkNorm*(a: DilithiumPoly, B: int32): bool {.otterBench, raises: [].} =
     var
       i: int = 0
       t: int32 = 0
-      bad: int = 0
+      bad: int32 = 0
     if B > (dilithiumQ - 1) div 8:
       return true
     i = 0
     while i < dilithiumN:
       t = a.coeffs[i] shr 31
       t = a.coeffs[i] - (t and (2 * a.coeffs[i]))
-      if t >= B:
-        bad = 1
+      # Sign bit of B-1-t is set exactly when t >= B; accumulate branch-free
+      # since the coefficients are secret-derived during signing.
+      bad = bad or ((B - 1 - t) shr 31)
       i = i + 1
     result = bad != 0
 

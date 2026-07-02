@@ -4,6 +4,9 @@
 ## -> Keeps the memory-hard primitive local to custom_crypto
 ## -----------------------------------------------------------------------
 
+import ../blake3/blake3
+import ../gimli/gimli_sponge
+
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   import ./argon2_simd
   export argon2_simd
@@ -45,6 +48,14 @@ type
   Argon2Algorithm* = enum
     a2Argon2i,
     a2Argon2id
+
+  Argon2HashAlgorithm* = enum
+    ## Standard Argon2 input/final hash path backed by BLAKE2b/BLAKE2b-long.
+    a2hBlake2b,
+    ## Custom Argon-style variant backed by BLAKE3 XOF output.
+    a2hBlake3,
+    ## Custom Argon-style variant backed by the Gimli sponge XOF.
+    a2hGimli
 
   Argon2Backend* = enum
     a2bAuto,
@@ -320,6 +331,34 @@ proc blake2bLong(A: openArray[byte], outLen: int): seq[byte] =
   copyInto(result, produced, outBuffer, remaining)
 
 
+proc fixedHash(A: openArray[byte], outLen: int,
+    h: Argon2HashAlgorithm): seq[byte] =
+  ## A: input bytes.
+  ## outLen: requested digest length in bytes.
+  ## h: selected hash primitive for the Argon front/back hash steps.
+  case h
+  of a2hBlake2b:
+    result = blake2bHash(A, outLen)
+  of a2hBlake3:
+    result = blake3Hash(A, outLen)
+  of a2hGimli:
+    result = gimliXof(@[], @[], A, outLen)
+
+
+proc xofHash(A: openArray[byte], outLen: int,
+    h: Argon2HashAlgorithm): seq[byte] =
+  ## A: input bytes.
+  ## outLen: requested digest length in bytes.
+  ## h: selected extendable-output primitive for block seeding/finalization.
+  case h
+  of a2hBlake2b:
+    result = blake2bLong(A, outLen)
+  of a2hBlake3:
+    result = blake3Hash(A, outLen)
+  of a2hGimli:
+    result = gimliXof(@[], @[], A, outLen)
+
+
 proc algorithmCode(a: Argon2Algorithm): uint32 =
   ## a: Argon2 variant selector.
   case a
@@ -435,7 +474,18 @@ proc buildInitialHashInput(a: Argon2Algorithm, password,
   appendBytes(B, salt)
   appendUint32Le(B, 0'u32)
   appendUint32Le(B, 0'u32)
-  result = blake2bHash(B, argon2PrehashDigestLength)
+  result = B
+
+
+proc buildInitialHash(a: Argon2Algorithm, password, salt: openArray[byte],
+    p: Argon2Params, h: Argon2HashAlgorithm): seq[byte] =
+  ## a: Argon2 variant selector.
+  ## password: password bytes.
+  ## salt: salt bytes.
+  ## p: Argon2 parameter set.
+  ## h: selected hash primitive.
+  result = fixedHash(buildInitialHashInput(a, password, salt, p),
+    argon2PrehashDigestLength, h)
 
 
 proc buildFirstBlockSeed(initialHash: openArray[byte], blockIndex,
@@ -776,18 +826,22 @@ proc indexAlpha(I: ArgonInstance, P: ArgonPosition,
     result = result + I.laneLength
 
 
-proc fillFirstBlocks(I: var ArgonInstance, initialHash: openArray[byte]) =
+proc fillFirstBlocks(I: var ArgonInstance, initialHash: openArray[byte],
+    h: Argon2HashAlgorithm) =
   ## I: current Argon2 instance state.
   ## initialHash: 64-byte Argon2 prehash digest.
+  ## h: selected extendable-output primitive.
   var
     laneIndex: int = 0
     seedBytes: seq[byte] = @[]
   laneIndex = 0
   while laneIndex < I.laneCount:
     seedBytes = buildFirstBlockSeed(initialHash, 0, laneIndex)
-    I.memory[laneIndex * I.laneLength] = loadBlock(blake2bLong(seedBytes, argon2BlockSize))
+    I.memory[laneIndex * I.laneLength] = loadBlock(xofHash(seedBytes,
+      argon2BlockSize, h))
     seedBytes = buildFirstBlockSeed(initialHash, 1, laneIndex)
-    I.memory[laneIndex * I.laneLength + 1] = loadBlock(blake2bLong(seedBytes, argon2BlockSize))
+    I.memory[laneIndex * I.laneLength + 1] = loadBlock(xofHash(seedBytes,
+      argon2BlockSize, h))
     laneIndex = laneIndex + 1
 
 
@@ -855,9 +909,11 @@ proc initInstance(a: Argon2Algorithm, p: Argon2Params): ArgonInstance =
   result.pseudoRands = newSeq[uint64](result.segmentLength)
 
 
-proc finalizeInstance(I: ArgonInstance, outLen: int): seq[byte] =
+proc finalizeInstance(I: ArgonInstance, outLen: int,
+    h: Argon2HashAlgorithm): seq[byte] =
   ## I: current Argon2 instance state.
   ## outLen: requested hash length in bytes.
+  ## h: selected extendable-output primitive.
   var
     finalBlock: ArgonBlock = I.memory[I.laneLength - 1]
     laneIndex: int = 1
@@ -865,7 +921,7 @@ proc finalizeInstance(I: ArgonInstance, outLen: int): seq[byte] =
   while laneIndex < I.laneCount:
     xorBlock(finalBlock, I.memory[laneIndex * I.laneLength + (I.laneLength - 1)])
     laneIndex = laneIndex + 1
-  result = blake2bLong(blockToBytes(finalBlock), outLen)
+  result = xofHash(blockToBytes(finalBlock), outLen, h)
 
 
 proc argon2Hash*(a: Argon2Algorithm, password, salt: openArray[byte],
@@ -885,8 +941,8 @@ proc argon2Hash*(a: Argon2Algorithm, password, salt: openArray[byte],
   validateArgon2Params(p, password.len, salt.len)
   backend = resolveArgon2Backend(b)
   I = initInstance(a, p)
-  initialHash = buildInitialHashInput(a, password, salt, p)
-  fillFirstBlocks(I, initialHash)
+  initialHash = buildInitialHash(a, password, salt, p, a2hBlake2b)
+  fillFirstBlocks(I, initialHash, a2hBlake2b)
   passIndex = 0
   while passIndex < I.passCount:
     sliceIndex = 0
@@ -901,7 +957,46 @@ proc argon2Hash*(a: Argon2Algorithm, password, salt: openArray[byte],
         laneIndex = laneIndex + 1
       sliceIndex = sliceIndex + 1
     passIndex = passIndex + 1
-  result = finalizeInstance(I, p.outLen)
+  result = finalizeInstance(I, p.outLen, a2hBlake2b)
+
+
+proc argon2Hash*(a: Argon2Algorithm, password, salt: openArray[byte],
+    p: Argon2Params, h: Argon2HashAlgorithm,
+    b: Argon2Backend = a2bAuto): seq[byte] =
+  ## a: Argon2 variant selector.
+  ## password: password bytes.
+  ## salt: salt bytes.
+  ## p: Argon2 parameter set.
+  ## h: selected hash primitive for the custom Argon front/back hash path.
+  ## b: requested execution backend for block filling.
+  var
+    I: ArgonInstance
+    P: ArgonPosition
+    initialHash: seq[byte] = @[]
+    passIndex: int = 0
+    sliceIndex: int = 0
+    laneIndex: int = 0
+    backend: Argon2Backend
+  validateArgon2Params(p, password.len, salt.len)
+  backend = resolveArgon2Backend(b)
+  I = initInstance(a, p)
+  initialHash = buildInitialHash(a, password, salt, p, h)
+  fillFirstBlocks(I, initialHash, h)
+  passIndex = 0
+  while passIndex < I.passCount:
+    sliceIndex = 0
+    while sliceIndex < argon2SyncPoints:
+      laneIndex = 0
+      while laneIndex < I.laneCount:
+        P.passIndex = passIndex
+        P.laneIndex = laneIndex
+        P.sliceIndex = sliceIndex
+        P.blockIndex = 0
+        fillSegment(I, P, backend)
+        laneIndex = laneIndex + 1
+      sliceIndex = sliceIndex + 1
+    passIndex = passIndex + 1
+  result = finalizeInstance(I, p.outLen, h)
 
 
 proc argon2Hash*(a: Argon2Algorithm, password, salt: openArray[byte],
@@ -918,6 +1013,22 @@ proc argon2Hash*(a: Argon2Algorithm, password, salt: openArray[byte],
     initArgon2Params(passCount, memoryKiB, laneCount, outLen), b)
 
 
+proc argon2Hash*(a: Argon2Algorithm, password, salt: openArray[byte],
+    passCount, memoryKiB, laneCount, outLen: int,
+    h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] =
+  ## a: Argon2 variant selector.
+  ## password: password bytes.
+  ## salt: salt bytes.
+  ## passCount: number of Argon2 passes.
+  ## memoryKiB: requested memory in kibibytes.
+  ## laneCount: number of lanes.
+  ## outLen: requested hash length in bytes.
+  ## h: selected hash primitive for the custom Argon front/back hash path.
+  ## b: requested execution backend.
+  result = argon2Hash(a, password, salt,
+    initArgon2Params(passCount, memoryKiB, laneCount, outLen), h, b)
+
+
 proc argon2iHash*(password, salt: openArray[byte], p: Argon2Params,
     b: Argon2Backend = a2bAuto): seq[byte] =
   ## password: password bytes.
@@ -926,12 +1037,32 @@ proc argon2iHash*(password, salt: openArray[byte], p: Argon2Params,
   result = argon2Hash(a2Argon2i, password, salt, p, b)
 
 
+proc argon2iHash*(password, salt: openArray[byte], p: Argon2Params,
+    h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] =
+  ## password: password bytes.
+  ## salt: salt bytes.
+  ## p: Argon2 parameter set.
+  ## h: selected hash primitive for the custom Argon front/back hash path.
+  ## b: requested execution backend.
+  result = argon2Hash(a2Argon2i, password, salt, p, h, b)
+
+
 proc argon2idHash*(password, salt: openArray[byte], p: Argon2Params,
     b: Argon2Backend = a2bAuto): seq[byte] =
   ## password: password bytes.
   ## salt: salt bytes.
   ## p: Argon2 parameter set.
   result = argon2Hash(a2Argon2id, password, salt, p, b)
+
+
+proc argon2idHash*(password, salt: openArray[byte], p: Argon2Params,
+    h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] =
+  ## password: password bytes.
+  ## salt: salt bytes.
+  ## p: Argon2 parameter set.
+  ## h: selected hash primitive for the custom Argon front/back hash path.
+  ## b: requested execution backend.
+  result = argon2Hash(a2Argon2id, password, salt, p, h, b)
 
 
 proc argon2iHash*(password, salt: openArray[byte], passCount,
@@ -947,6 +1078,21 @@ proc argon2iHash*(password, salt: openArray[byte], passCount,
     laneCount, outLen, b)
 
 
+proc argon2iHash*(password, salt: openArray[byte], passCount,
+    memoryKiB, laneCount, outLen: int,
+    h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] =
+  ## password: password bytes.
+  ## salt: salt bytes.
+  ## passCount: number of Argon2 passes.
+  ## memoryKiB: requested memory in kibibytes.
+  ## laneCount: number of lanes.
+  ## outLen: requested hash length in bytes.
+  ## h: selected hash primitive for the custom Argon front/back hash path.
+  ## b: requested execution backend.
+  result = argon2Hash(a2Argon2i, password, salt, passCount, memoryKiB,
+    laneCount, outLen, h, b)
+
+
 proc argon2idHash*(password, salt: openArray[byte], passCount,
     memoryKiB, laneCount, outLen: int,
     b: Argon2Backend = a2bAuto): seq[byte] =
@@ -958,3 +1104,18 @@ proc argon2idHash*(password, salt: openArray[byte], passCount,
   ## outLen: requested hash length in bytes.
   result = argon2Hash(a2Argon2id, password, salt, passCount, memoryKiB,
     laneCount, outLen, b)
+
+
+proc argon2idHash*(password, salt: openArray[byte], passCount,
+    memoryKiB, laneCount, outLen: int,
+    h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] =
+  ## password: password bytes.
+  ## salt: salt bytes.
+  ## passCount: number of Argon2 passes.
+  ## memoryKiB: requested memory in kibibytes.
+  ## laneCount: number of lanes.
+  ## outLen: requested hash length in bytes.
+  ## h: selected hash primitive for the custom Argon front/back hash path.
+  ## b: requested execution backend.
+  result = argon2Hash(a2Argon2id, password, salt, passCount, memoryKiB,
+    laneCount, outLen, h, b)

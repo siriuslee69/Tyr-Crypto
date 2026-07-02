@@ -1652,7 +1652,8 @@ proc frodoTyrKeypairDerand*(v: FrodoVariant, randomness: openArray[byte]): Frodo
     )
     copyMem(addr result.secretKey[p.sharedSecretBytes + result.publicKey.len + 2 * wordCount],
       unsafeAddr pkh[0], pkh.len)
-    clearWords(seedSEWords)
+    # seedSEWords holds the secret matrices S and E; volatile-clear it.
+    secureClearWords(seedSEWords)
     clearWords(bWords)
     clearBytes(pkSeedA)
     clearBytes(pkh)
@@ -1670,10 +1671,7 @@ proc frodoTyrKeypair*(v: FrodoVariant, randomness: seq[byte] = @[]): FrodoTyrKey
   else:
     material = @randomness
   result = frodoTyrKeypairDerand(v, material)
-  i = 0
-  while i < material.len:
-    material[i] = 0'u8
-    i = i + 1
+  secureClearBytes(material)
 
 proc frodoTyrEncapsDerand*(v: FrodoVariant, pk: openArray[byte], mu: openArray[byte]): FrodoTyrCipher {.otterTrace.} =
   ## Encapsulate against a pure-Nim Frodo public key from explicit `mu` randomness.
@@ -1725,12 +1723,14 @@ proc frodoTyrEncapsDerand*(v: FrodoVariant, pk: openArray[byte], mu: openArray[b
   shakeIntoForParams(p, result.sharedSecret, fin)
   clearBytes(pkh)
   clearBytes(pkSeedA)
-  clearBytes(g2Out)
-  clearBytes(fin)
-  clearWords(noiseWords)
+  # g2Out carries the seed for S'/E' and the KDF key k; fin embeds k;
+  # noiseWords/vWords are the secret ephemeral matrices.
+  secureClearBytes(g2Out)
+  secureClearBytes(fin)
+  secureClearWords(noiseWords)
   clearWords(bpWords)
   clearWords(bWords)
-  clearWords(vWords)
+  secureClearWords(vWords)
   clearWords(cWords)
 
 proc frodoTyrEncaps*(v: FrodoVariant, pk: openArray[byte], randomness: seq[byte] = @[]): FrodoTyrCipher {.otterTrace.} =
@@ -1746,10 +1746,7 @@ proc frodoTyrEncaps*(v: FrodoVariant, pk: openArray[byte], randomness: seq[byte]
   else:
     mu = @randomness
   result = frodoTyrEncapsDerand(v, pk, mu)
-  i = 0
-  while i < mu.len:
-    mu[i] = 0'u8
-    i = i + 1
+  secureClearBytes(mu)
 
 proc frodoTyrDecaps*(v: FrodoVariant, sk, ct: openArray[byte]): seq[byte] {.otterTrace.} =
   ## Decapsulate a Frodo ciphertext and return the shared secret.
@@ -1811,16 +1808,19 @@ proc frodoTyrDecaps*(v: FrodoVariant, sk, ct: openArray[byte]): seq[byte] {.otte
   copyMem(addr fin[ct.len], unsafeAddr selected[0], selected.len)
   result = newSeq[byte](p.sharedSecretBytes)
   shakeIntoForParams(p, result, fin)
-  clearBytes(muPrime)
+  # muPrime, g2Out, selected, and fin carry decrypted-message/KDF-key
+  # material; sWords is the long-term secret S; noiseWords/wWords are the
+  # re-encryption secrets. All of those need the volatile clear.
+  secureClearBytes(muPrime)
   clearBytes(decSeedA)
-  clearBytes(g2Out)
-  clearBytes(fin)
-  clearBytes(selected)
+  secureClearBytes(g2Out)
+  secureClearBytes(fin)
+  secureClearBytes(selected)
   clearWords(bpWords)
   clearWords(cWords)
-  clearWords(sWords)
-  clearWords(wWords)
-  clearWords(noiseWords)
+  secureClearWords(sWords)
+  secureClearWords(wWords)
+  secureClearWords(noiseWords)
   clearWords(bbpWords)
   clearWords(bWords)
   clearWords(ccWords)

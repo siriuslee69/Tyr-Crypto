@@ -23,6 +23,17 @@ suite "argon2 simd":
     autoHash = argon2idHash(password, salt, p, a2bAuto)
     check autoHash == scalarHash
 
+  test "auto backend matches scalar for custom BLAKE3 and Gimli Argon variants":
+    var
+      password: seq[byte] = toBytes("Correct Horse Battery Staple")
+      salt: seq[byte] = toBytes(">A 16-bytes salt")
+      p: Argon2Params
+    p = initArgon2Params(3, 4096, 1, 32)
+    check argon2idHash(password, salt, p, a2hBlake3, a2bAuto) ==
+      argon2idHash(password, salt, p, a2hBlake3, a2bScalar)
+    check argon2idHash(password, salt, p, a2hGimli, a2bAuto) ==
+      argon2idHash(password, salt, p, a2hGimli, a2bScalar)
+
   test "scalar round helper is stable":
     var
       b0 = patternedBlock(0x1020'u64)

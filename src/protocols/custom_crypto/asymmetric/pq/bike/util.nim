@@ -3,9 +3,38 @@
 ## -----------------------------------------------------------------
 
 import std/bitops
+import std/typetraits
+import std/volatile
 
 import ./params
 import ./types
+
+proc secureZeroBytes*(A: var openArray[byte]) =
+  ## Volatile zeroization for secret byte buffers (cannot be elided).
+  var
+    i: int = 0
+  while i < A.len:
+    volatileStore(addr A[i], 0'u8)
+    i = i + 1
+
+proc secureZeroWords*(A: var openArray[uint64]) =
+  ## Volatile zeroization for secret word buffers (cannot be elided).
+  var
+    i: int = 0
+  while i < A.len:
+    volatileStore(addr A[i], 0'u64)
+    i = i + 1
+
+proc secureZeroPod*[T](S: var T) =
+  ## Volatile zeroization for POD-style secret stack state.
+  static:
+    doAssert supportsCopyMem(T), "secureZeroPod requires a POD-style type"
+  var
+    p: ptr UncheckedArray[byte] = cast[ptr UncheckedArray[byte]](addr S)
+    i: int = 0
+  while i < sizeof(T):
+    volatileStore(addr p[i], 0'u8)
+    i = i + 1
 
 proc copyByteSeq*(A: openArray[byte]): seq[byte] =
   var

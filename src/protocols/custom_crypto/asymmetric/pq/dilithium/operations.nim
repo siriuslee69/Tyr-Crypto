@@ -330,12 +330,15 @@ proc dilithiumTyrSignDerandInto*(v: DilithiumVariant, sig: var openArray[byte], 
     clearPlainData(mu)
     clearSensitivePlainData(rhoprime)
     clearPlainData(mat)
-    clearPlainData(z)
+    # z from rejected iterations is y + c*s1 with y still masking-critical,
+    # so it gets the volatile clear even though the final z is published.
+    clearSensitivePlainData(z)
     clearSensitivePlainData(tmpL)
     clearSensitivePlainData(s1)
     clearPlainData(w1)
     clearSensitivePlainData(w0)
-    clearPlainData(h)
+    # h is reused as scratch for c*s2 and c*t0 products before it holds hints.
+    clearSensitivePlainData(h)
     clearSensitivePlainData(s2)
     clearSensitivePlainData(t0)
     clearPlainData(cp)

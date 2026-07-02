@@ -152,9 +152,15 @@ proc useHint*(p: DilithiumParams, a: int32, hint: uint32): int32 {.inline, raise
 
 proc makeHint*(p: DilithiumParams, a0, a1: int32): uint32 {.inline, raises: [].} =
   ## Hint whether low bits overflow into high bits.
-  if a0 > p.gamma2 or a0 < -p.gamma2 or (a0 == -p.gamma2 and a1 != 0):
-    return 1'u32
-  result = 0'u32
+  ## Branch-free: a0/a1 derive from secret data during signing (including
+  ## rejected attempts), so no data-dependent branches are allowed here.
+  var
+    s: int32 = a0 + p.gamma2
+    gt: int32 = (p.gamma2 - a0) shr 31          # all-ones when a0 > gamma2
+    lt: int32 = s shr 31                        # all-ones when a0 < -gamma2
+    eqNeg: int32 = not ((s or (0 - s)) shr 31)  # all-ones when a0 == -gamma2
+    nzA1: int32 = (a1 or (0 - a1)) shr 31       # all-ones when a1 != 0
+  result = uint32((gt or lt or (eqNeg and nzA1)) and 1)
 
 
 template nttLayer(A, l, k: untyped) =

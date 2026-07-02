@@ -252,6 +252,39 @@ suite "custom crypto":
     check hashId0 == hashId1
     check hashI0 != hashId0
 
+  test "Custom Argon hash primitives stay deterministic and differ from standard Argon2":
+    var
+      salt: seq[byte] = toBytes(">A 16-bytes salt")
+      passwordBytes: seq[byte] = toBytes("Correct Horse Battery Staple")
+      p: Argon2Params
+      standardHash: seq[byte] = @[]
+      blake3Hash0: seq[byte] = @[]
+      blake3Hash1: seq[byte] = @[]
+      gimliHash0: seq[byte] = @[]
+      gimliHash1: seq[byte] = @[]
+    p = initArgon2Params(3, 4096, 1, 32)
+    standardHash = argon2idHash(passwordBytes, salt, p)
+    blake3Hash0 = argon2idHash(passwordBytes, salt, p, a2hBlake3)
+    blake3Hash1 = argon2idHash(passwordBytes, salt, p, a2hBlake3)
+    gimliHash0 = argon2idHash(passwordBytes, salt, p, a2hGimli)
+    gimliHash1 = argon2idHash(passwordBytes, salt, p, a2hGimli)
+    check blake3Hash0 == blake3Hash1
+    check gimliHash0 == gimliHash1
+    check blake3Hash0 != standardHash
+    check gimliHash0 != standardHash
+    check blake3Hash0 != gimliHash0
+
+  test "Custom Argon overloads match the generic selector":
+    var
+      salt: seq[byte] = toBytes(">A 16-bytes salt")
+      passwordBytes: seq[byte] = toBytes("Correct Horse Battery Staple")
+      p: Argon2Params
+    p = initArgon2Params(2, 4096, 1, 32)
+    check argon2iHash(passwordBytes, salt, p, a2hBlake3) ==
+      argon2Hash(a2Argon2i, passwordBytes, salt, p, a2hBlake3)
+    check argon2idHash(passwordBytes, salt, p, a2hGimli) ==
+      argon2Hash(a2Argon2id, passwordBytes, salt, p, a2hGimli)
+
   test "Argon2 rejects too-small salt and output lengths":
     expect ValueError:
       discard argon2idHash(toBytes("pw"), toBytes("short"), 2, 4096, 1, 32)
