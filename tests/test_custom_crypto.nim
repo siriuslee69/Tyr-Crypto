@@ -1,6 +1,69 @@
-import std/unittest
-import ../src/protocols/custom_crypto/[blake3, chacha20, xchacha20, gimli_sponge, kdf]
+import std/[base64, strutils, unittest]
+import ../src/protocols/custom_crypto/[argon2, blake3, chacha20, xchacha20, gimli_sponge, kdf]
+import ./crypto_vectors
 import ./helpers
+
+type
+  ParsedArgonVector = object
+    algorithm: Argon2Algorithm
+    passCount: int
+    memoryKiB: int
+    laneCount: int
+    salt: seq[byte]
+    rawHash: seq[byte]
+
+
+proc decodeArgonBase64(s: string): seq[byte] =
+  var
+    padded: string = s
+  while (padded.len mod 4) != 0:
+    padded.add('=')
+  result = toBytes(decode(padded))
+
+
+proc parseTaggedInt(s, prefix: string): int =
+  if not s.startsWith(prefix):
+    raise newException(ValueError, "invalid Argon2 field: " & s)
+  result = parseInt(s[prefix.len .. ^1])
+
+
+proc parseArgonAlgorithm(s: string): Argon2Algorithm =
+  if s == "argon2i":
+    return a2Argon2i
+  if s == "argon2id":
+    return a2Argon2id
+  raise newException(ValueError, "unsupported Argon2 type: " & s)
+
+
+proc parseArgonVector(encoded: string): ParsedArgonVector =
+  var
+    parts: seq[string] = encoded.split('$')
+    params: seq[string] = @[]
+  if parts.len != 6 or parts[0].len != 0:
+    raise newException(ValueError, "invalid encoded Argon2 string")
+  result.algorithm = parseArgonAlgorithm(parts[1])
+  if parts[2] != "v=19":
+    raise newException(ValueError, "unsupported Argon2 version")
+  params = parts[3].split(',')
+  if params.len != 3:
+    raise newException(ValueError, "invalid encoded Argon2 parameter set")
+  result.memoryKiB = parseTaggedInt(params[0], "m=")
+  result.passCount = parseTaggedInt(params[1], "t=")
+  result.laneCount = parseTaggedInt(params[2], "p=")
+  result.salt = decodeArgonBase64(parts[4])
+  result.rawHash = decodeArgonBase64(parts[5])
+
+
+proc deriveVectorHash(v: ParsedArgonVector, password: string): seq[byte] =
+  var
+    passwordBytes: seq[byte] = toBytes(password)
+  case v.algorithm
+  of a2Argon2i:
+    result = argon2iHash(passwordBytes, v.salt, v.passCount, v.memoryKiB,
+      v.laneCount, v.rawHash.len)
+  of a2Argon2id:
+    result = argon2idHash(passwordBytes, v.salt, v.passCount, v.memoryKiB,
+      v.laneCount, v.rawHash.len)
 
 proc tinyKdfGenerator(input: openArray[uint8], blockIndex: uint64,
     outLen: int): seq[uint8] =
@@ -128,6 +191,72 @@ suite "custom crypto":
       discard gimliTag(@[], nonce, msg, 16)
     expect ValueError:
       discard gimliStreamXor(key, @[], msg)
+
+  test "Argon2i encoded vectors match the raw custom hash":
+    var
+      i: int = 0
+      parsed: ParsedArgonVector
+      outHash: seq[byte] = @[]
+    i = 0
+    while i < argon2iVectors.len:
+      parsed = parseArgonVector(argon2iVectors[i].encoded)
+      outHash = deriveVectorHash(parsed, argon2iVectors[i].password)
+      check outHash == parsed.rawHash
+      i = i + 1
+
+  test "Argon2id encoded vectors match the raw custom hash":
+    var
+      i: int = 0
+      parsed: ParsedArgonVector
+      outHash: seq[byte] = @[]
+    i = 0
+    while i < argon2idVectors.len:
+      if argon2idVectors[i].shouldPass:
+        parsed = parseArgonVector(argon2idVectors[i].encoded)
+        outHash = deriveVectorHash(parsed, argon2idVectors[i].password)
+        check outHash == parsed.rawHash
+      i = i + 1
+
+  test "Argon2id false vectors reject invalid params or mismatch":
+    var
+      i: int = 0
+      parsed: ParsedArgonVector
+      outHash: seq[byte] = @[]
+    i = 0
+    while i < argon2idVectors.len:
+      if not argon2idVectors[i].shouldPass:
+        parsed = parseArgonVector(argon2idVectors[i].encoded)
+        if parsed.passCount < 1:
+          expect ValueError:
+            discard deriveVectorHash(parsed, argon2idVectors[i].password)
+        else:
+          outHash = deriveVectorHash(parsed, argon2idVectors[i].password)
+          check outHash != parsed.rawHash
+      i = i + 1
+
+  test "Argon2i and Argon2id stay deterministic and differ by mode":
+    var
+      salt: seq[byte] = toBytes(">A 16-bytes salt")
+      passwordBytes: seq[byte] = toBytes("Correct Horse Battery Staple")
+      p: Argon2Params
+      hashI0: seq[byte] = @[]
+      hashI1: seq[byte] = @[]
+      hashId0: seq[byte] = @[]
+      hashId1: seq[byte] = @[]
+    p = initArgon2Params(3, 4096, 1, 32)
+    hashI0 = argon2iHash(passwordBytes, salt, p)
+    hashI1 = argon2iHash(passwordBytes, salt, p)
+    hashId0 = argon2idHash(passwordBytes, salt, p)
+    hashId1 = argon2idHash(passwordBytes, salt, p)
+    check hashI0 == hashI1
+    check hashId0 == hashId1
+    check hashI0 != hashId0
+
+  test "Argon2 rejects too-small salt and output lengths":
+    expect ValueError:
+      discard argon2idHash(toBytes("pw"), toBytes("short"), 2, 4096, 1, 32)
+    expect ValueError:
+      discard argon2idHash(toBytes("pw"), toBytes(">A 16-bytes salt"), 2, 4096, 1, 15)
 
   test "Custom KDF block index folds bytes evenly":
     var

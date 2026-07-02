@@ -15,6 +15,9 @@ suite "public api surface":
       blake: HashDigest32
       gimli: HashDigest32
       sha3Digest: seq[byte] = @[]
+      argonParams: Argon2Params
+      argonSalt: seq[byte] = @[]
+      argonBlock: seq[byte] = @[]
       kdfBlock: seq[byte] = @[]
       kyberKp: KyberTyrKeypair
       kyberEnv: KyberTyrCipher
@@ -37,6 +40,10 @@ suite "public api surface":
     check blake.len == 32
     check gimli.len == 32
     check sha3Digest.len == 32
+    argonParams = initArgon2Params(2, 4096, 1, 32)
+    argonSalt = toBytes(">A 16-bytes salt")
+    argonBlock = argon2idHash(msg, argonSalt, argonParams)
+    check argonBlock.len == 32
     kdfBlock = deriveCustomKdf(msg, ckaGimli, 1, 512, 2, 8)
     check kdfBlock.len == 8
 
@@ -69,3 +76,24 @@ suite "public api surface":
       kp = asymKeypair(saEd25519)
       sig = asymSign(saEd25519, msg, kp.secretKey)
       check asymVerify(saEd25519, msg, sig, kp.publicKey)
+
+  test "seeded Falcon and Dilithium wrapper keypairs are stable":
+    var
+      seedFalcon: seq[byte] = toBytes("falcon-seed-stable-0001")
+      seedDili: seq[byte] = newSeq[byte](32)
+      falcon0: AsymKeypair
+      falcon1: AsymKeypair
+      dili0: AsymKeypair
+      dili1: AsymKeypair
+      i: int = 0
+    while i < seedDili.len:
+      seedDili[i] = byte(i)
+      i = i + 1
+    falcon0 = asymKeypair(saFalcon512, seedFalcon)
+    falcon1 = asymKeypair(saFalcon512, seedFalcon)
+    check falcon0.publicKey == falcon1.publicKey
+    check falcon0.secretKey == falcon1.secretKey
+    dili0 = asymKeypair(saDilithium1, seedDili)
+    dili1 = asymKeypair(saDilithium1, seedDili)
+    check dili0.publicKey == dili1.publicKey
+    check dili0.secretKey == dili1.secretKey

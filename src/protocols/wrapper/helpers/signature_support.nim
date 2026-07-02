@@ -7,6 +7,7 @@
 import ../../common
 import ../../bindings/liboqs
 import ../../bindings/libsodium
+import ../../custom_crypto/dilithium as custom_dilithium
 import ../../custom_crypto/falcon as custom_falcon
 import ./algorithms
 
@@ -82,7 +83,7 @@ proc requireSignatureLibs(alg: SignatureAlgorithm) =
     if not ensureLibSodiumLoaded():
       raiseUnavailable("libsodium", "hasLibsodium")
     ensureSodiumInitialised()
-  of saFalcon512, saFalcon1024:
+  of saFalcon512, saFalcon1024, saDilithium0, saDilithium1, saDilithium2:
     discard
   of saEd448:
     raiseUnavailable("OpenSSL", "hasOpenSSL3")
@@ -122,7 +123,7 @@ proc signatureAvailable*(alg: SignatureAlgorithm): bool =
         return false
       ensureSodiumInitialised()
       true
-    of saFalcon512, saFalcon1024:
+    of saFalcon512, saFalcon1024, saDilithium0, saDilithium1, saDilithium2:
       true
     of saEd448:
       false
@@ -149,33 +150,81 @@ proc ptrOrZero(buf: seq[uint8]; tmp: var uint8): ptr uint8 =
   else:
     result = unsafeAddr buf[0]
 
-proc signatureKeypair*(alg: SignatureAlgorithm): SignatureKeypair =
+proc signatureKeypair*(alg: SignatureAlgorithm,
+    seed: seq[uint8]): SignatureKeypair =
   ## Generate a signature keypair for the algorithm.
+  ## seed: deterministic seed material for supported pure-Nim backends.
   requireSignatureLibs(alg)
   result.algorithm = alg
   if isHybridSignatureAlgorithm(alg):
-    let classical = signatureKeypair(saEd25519)
-    let pq = signatureKeypair(hybridPqAlgorithm(alg))
+    if seed.len > 0:
+      raise newException(ValueError,
+        "seeded hybrid signature keypairs are not supported")
+    let classical = signatureKeypair(saEd25519, @[])
+    let pq = signatureKeypair(hybridPqAlgorithm(alg), @[])
     result.publicKey = framePair(classical.publicKey, pq.publicKey)
     result.secretKey = framePair(classical.secretKey, pq.secretKey)
     return
   case alg
   of saEd25519:
+    if seed.len > 0:
+      raise newException(ValueError,
+        "seeded Ed25519 keypairs are not supported by the current wrapper")
     result.publicKey = newSeq[uint8](ed25519PublicKeyBytes)
     result.secretKey = newSeq[uint8](ed25519SecretKeyBytes)
     if crypto_sign_ed25519_keypair(addr result.publicKey[0], addr result.secretKey[0]) != 0:
       raiseOperation("libsodium", "crypto_sign_ed25519_keypair failed")
   of saFalcon512:
-    let kp = custom_falcon.falconTyrKeypair(custom_falcon.falcon512)
-    result.publicKey = kp.publicKey
-    result.secretKey = kp.secretKey
+    if seed.len > 0:
+      let kp = custom_falcon.falconTyrKeypair(custom_falcon.falcon512, seed)
+      result.publicKey = kp.publicKey
+      result.secretKey = kp.secretKey
+    else:
+      let kp = custom_falcon.falconTyrKeypair(custom_falcon.falcon512)
+      result.publicKey = kp.publicKey
+      result.secretKey = kp.secretKey
   of saFalcon1024:
-    let kp = custom_falcon.falconTyrKeypair(custom_falcon.falcon1024)
-    result.publicKey = kp.publicKey
-    result.secretKey = kp.secretKey
+    if seed.len > 0:
+      let kp = custom_falcon.falconTyrKeypair(custom_falcon.falcon1024, seed)
+      result.publicKey = kp.publicKey
+      result.secretKey = kp.secretKey
+    else:
+      let kp = custom_falcon.falconTyrKeypair(custom_falcon.falcon1024)
+      result.publicKey = kp.publicKey
+      result.secretKey = kp.secretKey
   of saEd448:
     raiseUnavailable("OpenSSL", "hasOpenSSL3")
+  of saDilithium0:
+    if seed.len > 0:
+      let kp = custom_dilithium.dilithiumTyrKeypair(custom_dilithium.dilithium44, seed)
+      result.publicKey = kp.publicKey
+      result.secretKey = kp.secretKey
+    else:
+      let kp = custom_dilithium.dilithiumTyrKeypair(custom_dilithium.dilithium44)
+      result.publicKey = kp.publicKey
+      result.secretKey = kp.secretKey
+  of saDilithium1:
+    if seed.len > 0:
+      let kp = custom_dilithium.dilithiumTyrKeypair(custom_dilithium.dilithium65, seed)
+      result.publicKey = kp.publicKey
+      result.secretKey = kp.secretKey
+    else:
+      let kp = custom_dilithium.dilithiumTyrKeypair(custom_dilithium.dilithium65)
+      result.publicKey = kp.publicKey
+      result.secretKey = kp.secretKey
+  of saDilithium2:
+    if seed.len > 0:
+      let kp = custom_dilithium.dilithiumTyrKeypair(custom_dilithium.dilithium87, seed)
+      result.publicKey = kp.publicKey
+      result.secretKey = kp.secretKey
+    else:
+      let kp = custom_dilithium.dilithiumTyrKeypair(custom_dilithium.dilithium87)
+      result.publicKey = kp.publicKey
+      result.secretKey = kp.secretKey
   else:
+    if seed.len > 0:
+      raise newException(ValueError,
+        "seeded keypairs are not supported for this signature backend")
     when defined(hasLibOqs):
       let algId = sigAlgId(alg).cstring
       let sig = OQS_SIG_new(algId)
@@ -191,6 +240,10 @@ proc signatureKeypair*(alg: SignatureAlgorithm): SignatureKeypair =
       )
     else:
       raiseUnavailable("liboqs", "hasLibOqs")
+
+proc signatureKeypair*(alg: SignatureAlgorithm): SignatureKeypair =
+  ## Generate a signature keypair for the algorithm.
+  result = signatureKeypair(alg, @[])
 
 proc signMessage*(alg: SignatureAlgorithm; msg, secretKey: seq[uint8]): seq[uint8] =
   ## Sign a message with the selected algorithm.
@@ -215,6 +268,15 @@ proc signMessage*(alg: SignatureAlgorithm; msg, secretKey: seq[uint8]): seq[uint
     result = custom_falcon.falconTyrSign(custom_falcon.falcon512, msg, secretKey)
   of saFalcon1024:
     result = custom_falcon.falconTyrSign(custom_falcon.falcon1024, msg, secretKey)
+  of saDilithium0:
+    result = custom_dilithium.dilithiumTyrSign(custom_dilithium.dilithium44,
+      msg, secretKey)
+  of saDilithium1:
+    result = custom_dilithium.dilithiumTyrSign(custom_dilithium.dilithium65,
+      msg, secretKey)
+  of saDilithium2:
+    result = custom_dilithium.dilithiumTyrSign(custom_dilithium.dilithium87,
+      msg, secretKey)
   of saEd448:
     raiseUnavailable("OpenSSL", "hasOpenSSL3")
   else:
@@ -262,6 +324,15 @@ proc verifyMessage*(alg: SignatureAlgorithm; msg, signature, publicKey: seq[uint
     result = custom_falcon.falconTyrVerify(custom_falcon.falcon512, msg, signature, publicKey)
   of saFalcon1024:
     result = custom_falcon.falconTyrVerify(custom_falcon.falcon1024, msg, signature, publicKey)
+  of saDilithium0:
+    result = custom_dilithium.dilithiumTyrVerify(custom_dilithium.dilithium44,
+      msg, signature, publicKey)
+  of saDilithium1:
+    result = custom_dilithium.dilithiumTyrVerify(custom_dilithium.dilithium65,
+      msg, signature, publicKey)
+  of saDilithium2:
+    result = custom_dilithium.dilithiumTyrVerify(custom_dilithium.dilithium87,
+      msg, signature, publicKey)
   of saEd448:
     raiseUnavailable("OpenSSL", "hasOpenSSL3")
   else:

@@ -1113,6 +1113,18 @@ proc asymKeypair*(alg: SignatureAlgorithm): AsymKeypair =
   result.publicKey = kp0.publicKey
   result.secretKey = kp0.secretKey
 
+proc asymKeypair*(alg: SignatureAlgorithm, seed: seq[uint8]): AsymKeypair =
+  ## Build a signature keypair using deterministic seed material where the
+  ## backend supports it.
+  var
+    kp0: wrapSign.SignatureKeypair
+  if alg in {saEd25519Falcon512Hybrid, saEd25519Falcon1024Hybrid}:
+    raise newException(ValueError,
+      "hybrid signature combinations are not supported by basic_api")
+  kp0 = signatureKeypair(alg, seed)
+  result.publicKey = kp0.publicKey
+  result.secretKey = kp0.secretKey
+
 proc asymKeypair*(T: typedesc[mceliece0TyrSendM]): AsymKeypair =
   ## Build a pure-Nim Tyr McEliece tier-0 keypair.
   var kp = customMcEliece.mcelieceTyrKeypair(customMcEliece.mceliece6688128f)

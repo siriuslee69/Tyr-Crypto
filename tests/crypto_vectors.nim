@@ -71,6 +71,29 @@ const
     )
   ]
 
+  argon2iVectors* = [
+    Argon2Vector(
+      password: "",
+      encoded: "$argon2i$v=19$m=4096,t=1,p=1$X1NhbHQAAAAAAAAAAAAAAA$bWh++MKN1OiFHKgIWTLvIi1iHicmHH7+Fv3K88ifFfI",
+      shouldPass: true
+    ),
+    Argon2Vector(
+      password: "",
+      encoded: "$argon2i$v=19$m=2048,t=4,p=1$SWkxaUhpY21ISDcrRnYzSw$Mbg/Eck1kpZir5T9io7C64cpffdTBaORgyriLQFgQj8",
+      shouldPass: true
+    ),
+    Argon2Vector(
+      password: "^T5H$JYt39n%K*j:W]!1s?vg!:jGi]Ax?..l7[p0v:1jHTpla9;]bUN;?bWyCbtqg ",
+      encoded: "$argon2i$v=19$m=4096,t=3,p=2$X1NhbHQAAAAAAAAAAAAAAA$z/QMiU4lQxGsYNc/+K/bizwsA1P11UG2dj/7+aILJ4I",
+      shouldPass: true
+    ),
+    Argon2Vector(
+      password: "K3S=KyH#)36_?]LxeR8QNKw6X=gFbxai$C%29V*",
+      encoded: "$argon2i$v=19$m=4096,t=3,p=1$X1NhbHQAAAAAAAAAAAAAAA$fu2Wsecyt+yPnBvSvYN16oP5ozRmkp0ixJ1YL19V3Uo",
+      shouldPass: true
+    )
+  ]
+
   wrapperXChaChaVector* = WrapperXChaChaVector(
     keyHex: "79c99798ac67300bbb2704c95c341e3245f3dcb21761b98e52ff45b24f304fc4",
     nonceHex: "b33ffd3096479bcfbc9aee49417688a0a2554f8d95389419",

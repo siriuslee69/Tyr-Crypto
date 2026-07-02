@@ -116,6 +116,7 @@ proc buildGroups(): seq[TestGroup] =
   addGroup(result, "aes", ["test_aes_ctr.nim", "test_aes_gcm_compare.nim"])
   addGroup(result, "gimli", ["test_gimli_sse.nim", "test_gimli_vectors.nim"])
   addGroup(result, "blake3", ["test_blake3_simd.nim", "test_blake3_stream.nim"])
+  addGroup(result, "argon2", ["test_argon2_simd.nim"])
   addGroup(result, "xchacha20", ["test_xchacha20_simd.nim"])
   addGroup(result, "random", ["test_random_entropy.nim"])
   addGroup(result, "hmac", ["test_custom_hmac.nim"])

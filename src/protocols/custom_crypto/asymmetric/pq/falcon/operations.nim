@@ -81,6 +81,23 @@ proc falconTyrKeypair*(v: FalconVariant, backend: FalconBackend = falconAuto): F
   result.secretKey = newSeq[byte](p.secretKeyBytes)
   falconTyrKeypairInto(v, result.publicKey, result.secretKey, backend)
 
+proc falconTyrKeypair*(v: FalconVariant, seed: openArray[byte],
+    backend: FalconBackend = falconAuto): FalconTyrKeypair {.otterTrace.} =
+  ## Generate a deterministic pure-Nim Falcon keypair from caller-provided
+  ## seed material.
+  let
+    p = params(v)
+    active = requireBackend(backend)
+  var
+    kp: tuple[publicKey, secretKey: seq[byte]]
+  result.variant = v
+  withFalconBackend(active):
+    kp = falconKeygenFromSeed(v, seed)
+  requireSizedBuffer(kp.publicKey.len, p.publicKeyBytes, "Falcon public key")
+  requireSizedBuffer(kp.secretKey.len, p.secretKeyBytes, "Falcon secret key")
+  result.publicKey = kp.publicKey
+  result.secretKey = kp.secretKey
+
 proc falconTyrSignInto*(v: FalconVariant, sig: var openArray[byte], sigLen: var int,
     msg, sk: openArray[byte], backend: FalconBackend = falconAuto) {.otterBench.} =
   ## Sign a message into a caller-owned max-sized Falcon signature buffer.

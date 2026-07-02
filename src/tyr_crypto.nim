@@ -22,6 +22,7 @@ import ./protocols/wrapper/public_key_verify
 import ./protocols/custom_crypto/otp
 import ./protocols/custom_crypto/hmac
 import ./protocols/custom_crypto/kdf
+import ./protocols/custom_crypto/argon2
 import ./protocols/wrapper/helpers/signature_support
 
 export algorithms
@@ -44,4 +45,5 @@ export public_key_verify
 export otp
 export hmac
 export kdf
+export argon2
 export signature_support
