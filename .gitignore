@@ -26,7 +26,10 @@ nimbledeps
 *.rar
 build/
 .nimble_cache
+nimcache/
 .nimcache
+*.c
+*.h
 bindings/js/dist/
 src/libsodium/
 src/liboqs/
