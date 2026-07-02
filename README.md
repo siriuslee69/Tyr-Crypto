@@ -46,52 +46,78 @@ More examples: [examples/](examples/readme.md)
 
 ## Algorithm Overview
 
+SIMD and ARM64/NEON status are listed consistently below. Performance wording is based on the curated snapshots in [docs/benchmarks/](docs/benchmarks/) and the benchmark notes in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+
 ### Symmetric (all pure Nim)
 
-| Primitive | Use |
-|-----------|-----|
-| BLAKE3 | Hash, keyed hash, derive-key KDF, XOF |
-| SHA3-224/256/384/512, SHAKE128/256 | FIPS 202 hash/XOF |
-| Gimli | Lightweight sponge (hash, tag, stream) |
-| ChaCha20 / XChaCha20 | Stream cipher (IETF RFC 8439, 192-bit nonce) |
-| Poly1305 | One-time MAC |
-| AES-CTR | AES in CTR mode |
-| Argon2id/i | Memory-hard password hashing |
-| Custom KDF | Memory-hard key derivation (tail-indexed xor rounds) |
+| Primitive | SIMD on x86 | ARM64 / NEON | Use |
+|-----------|-------------|--------------|-----|
+| BLAKE3 | SSE2 / AVX2 | NEON | Hash, keyed hash, derive-key KDF, XOF |
+| SHA3-224/256/384/512, SHAKE128/256 | SSE2 / AVX2 | ARM64 compile-checked | FIPS 202 hash/XOF |
+| Gimli | SSE2 | NEON | Lightweight sponge (hash, tag, stream) |
+| ChaCha20 / XChaCha20 | SSE2 / AVX2 | NEON | Stream cipher (IETF RFC 8439, 192-bit nonce for XChaCha20) |
+| Poly1305 | SSE2 / AVX2 | NEON | One-time MAC |
+| AES-CTR | AES-NI | ARM64 compile-checked | AES in CTR mode |
+| Argon2id/i | scalar | scalar | Memory-hard password hashing |
+| Custom KDF | scalar | scalar | Memory-hard key derivation (tail-indexed xor rounds) |
+
+Curated benchmark snapshots currently focus on the asymmetric and key-agreement paths. For symmetric tuning runs, use `nimble bench_custom_crypto` and `nimble bench_custom_kdf`.
 
 ### Asymmetric (pure Nim unless noted)
 
-| Category | Algorithms | Implementation |
-|----------|-----------|----------------|
-| **KEM** | Kyber (ML-KEM-512/768/1024) | Pure Nim + optional SIMD |
-| | FrodoKEM (640/976/1344, AES+SHAKE) | Pure Nim (streamed matrix) |
-| | BIKE-L1 | Pure Nim (constant-time decoder) |
-| | NTRU (HPS-509/677/821, HRSS-701) | Pure Nim (Toom-4+K2) |
-| | SABER (LightSaber/Saber/FireSaber) | Pure Nim |
-| | Classic McEliece (6688128f/6960119f/8192128f) | Pure Nim |
-| **Sign** | Dilithium (ML-DSA-44/65/87) | Pure Nim + optional SIMD |
-| | Falcon (512/1024, scalar+SIMD backends) | Pure Nim |
-| | SPHINCS+-SHAKE-128f-simple | Pure Nim |
-| **KA** | X25519 | Pure Nim (5 passes, SIMD batching) |
+| Category | Algorithms | Implementation | SIMD on x86 | ARM64 / NEON | Benchmark-guided profile |
+|----------|------------|----------------|-------------|--------------|--------------------------|
+| **KEM** | Kyber (ML-KEM-512/768/1024) | Pure Nim | SSE2 / AVX2 NTT | ARM64 compile-checked | Fastest PQ KEM family in the current curated snapshots; sub-ms on desktop and still sub-ms on the measured phones |
+| **KEM** | FrodoKEM (640/976/1344, AES + SHAKE) | Pure Nim (streamed matrix) | SSE2 / AVX2 helpers | ARM64 compile-checked | Conservative, high-bandwidth path; much slower than Kyber/SABER/NTRU, with AES variants clearly faster than SHAKE on desktop |
+| **KEM** | BIKE-L1 | Pure Nim (constant-time decoder) | portable word helpers | ARM64 compile-checked | Tens-of-ms KEM in the current snapshots |
+| **KEM** | NTRU (HPS-509/677/821, HRSS-701) | Pure Nim (Toom-4 + K2 default) | AVX2-tested build profile | ARM64 compile-checked | Mid-latency KEM; clearly slower than Kyber/SABER, but far below Frodo/BIKE/McEliece |
+| **KEM** | SABER (LightSaber/Saber/FireSaber) | Pure Nim | portable scalar default | ARM64 compile-checked | Same low-latency class as Kyber in the current snapshots; sub-ms on desktop and on the measured phones |
+| **KEM** | Classic McEliece (6688128f/6960119f/8192128f) | Pure Nim | portable scalar | ARM64 compile-checked | Slowest measured KEM here; key generation dominates, but ciphertexts stay very small |
+| **Sign** | Dilithium (ML-DSA-44/65/87) | Pure Nim | SSE2 / AVX2 SIMD lanes | ARM64 compile-checked | Fastest measured PQ signature family in the current curated snapshots |
+| **Sign** | Falcon (512/1024, scalar + SIMD backends) | Pure Nim | SSE2 helper path | NEON helper path | Smallest PQ signatures here, but current curated pure-Nim snapshots are strongly keygen-dominated and much slower than Dilithium |
+| **Sign** | SPHINCS+-SHAKE-128f-simple | Pure Nim | portable scalar | ARM64 compile-checked | Slower than Dilithium, but still far below the current Falcon totals |
+| **KA** | X25519 | Pure Nim (5 passes, SIMD batching) | SSE2 / AVX2 batches | NEON batches | Best current results come from the SIMD batch paths; still a sub-ms path on desktop and phones |
 
-Detailed parameter tables, key sizes, and speed ranking: [docs/ALGORITHMS.md](docs/ALGORITHMS.md)
+Detailed parameter tables, key sizes, CT notes, and speed ranking: [docs/ALGORITHMS.md](docs/ALGORITHMS.md)
+
+---
+
+## Benchmark-Guided Performance
+
+These numbers are not protocol guarantees. They are README-level guidance taken from the curated benchmark snapshots under [docs/benchmarks/](docs/benchmarks/), meant to help with rough algorithm selection and expectation-setting.
+
+### KEMs
+
+| Family | Desktop guidance | ARM64 phone guidance | Notes |
+|--------|------------------|----------------------|-------|
+| Kyber | about `0.06-0.13 ms` | about `0.33-0.91 ms` | Lowest-latency PQ KEM family in the current curated set |
+| SABER | about `0.14-0.27 ms` | about `0.29-0.75 ms` | Same low-latency class as Kyber in practice |
+| NTRU | about `2.34-4.57 ms` | about `6.54-20.85 ms` | Current default uses the promoted Toom-4 + K2 path |
+| FrodoKEM | about `1.24-45.27 ms` | about `21-133 ms` | AES variants are much faster than SHAKE on desktop; the gap narrows on phones |
+| BIKE-L1 | about `65 ms` | about `50-74 ms` | Decoder-heavy, sits in the tens-of-ms range in current snapshots |
+| Classic McEliece | about `186-214 ms` | about `495-892 ms` | Key generation dominates total runtime |
+
+### Signatures And Key Agreement
+
+| Family | Desktop guidance | ARM64 phone guidance | Notes |
+|--------|------------------|----------------------|-------|
+| Dilithium | about `0.25-0.61 ms` | about `0.40-1.80 ms` | Fastest measured PQ signature family in the current snapshots |
+| SPHINCS+ | about `20.9 ms` | about `89-128 ms` | Large signatures, but stable and predictable runtime profile |
+| Falcon | about `12 s` for 512 and `84 s` for 1024 in the current split snapshots | about `10-99 s` in the current phone snapshots | Current pure-Nim totals are dominated by key generation, not by verify |
+| X25519 | about `357-391 us` | about `508-697 us` | Best current desktop and phone results come from the AVX2 / NEON batch pass |
 
 ---
 
 ## Repo Boundary
 
-```
-+----------------------------+--------------------------------------------+
-| Tyr-Crypto owns            | Tyr-Crypto does not own                    |
-+----------------------------+--------------------------------------------+
-| typed crypto wrappers      | application protocols                      |
-| pure-Nim crypto helpers    | certificate policy                         |
-| optional native bindings   | transport/session orchestration            |
-| wasm/JS bridge             | account or database state                  |
-| regression/vector tests    | external key-management infrastructure     |
-| native dependency builders | app-specific authorization decisions       |
-+----------------------------+--------------------------------------------+
-```
+| Tyr-Crypto owns | Tyr-Crypto does not own |
+|-----------------|-------------------------|
+| typed crypto wrappers | application protocols |
+| pure-Nim crypto helpers | certificate policy |
+| optional native bindings | transport/session orchestration |
+| wasm/JS bridge | account or database state |
+| regression/vector tests | external key-management infrastructure |
+| native dependency builders | app-specific authorization decisions |
 
 ---
 
@@ -121,7 +147,7 @@ Local pure-Nim implementations use `Tyr` suffixed names (e.g. `kyberTyrKeypair`,
 | [docs/research/ntru_saber/README.md](docs/research/ntru_saber/README.md) | Papers: NTRU, SABER — includes full optimization history with benchmark tables |
 | [.iron/PROGRESS.md](.iron/PROGRESS.md) | Full implementation history: bugs found/fixed, performance changes, decisions |
 | [docs/benchmarks/](docs/benchmarks/) | Curated benchmark JSON snapshots (desktop + 3 phones) |
-| [.examples/](examples/readme.md) | Runnable usage examples |
+| [examples/](examples/readme.md) | Runnable usage examples |
 | [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) | Third-party license notes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contributor workflow and review checklist |
 | [.iron/conventions/](.iron/conventions) | Proto-RepoTemplate conventions |
@@ -143,63 +169,54 @@ Missing optional libraries raise `LibraryUnavailableError`.
 
 ## Commands
 
-```bash
-nimble check_core     # core imports and types
-nimble check          # full module check
-nimble test           # default test suite
-nimble test_all       # full test matrix (slow)
-nimble test_wasm      # wasm target tests
-nimble test_neon_checks     # ARM64 NEON compile check
-nimble test_simd_matrix     # scalar/SIMD parity matrix
-nimble bench_custom_crypto  # Tyr-only primitive report
-nimble bench_pq_profiles    # PQ benchmark profiles
-nimble build_android_harness               # Android native test (custom/SIMD)
-nimble build_android_harness_asymmetric_fast  # Android: Kyber + Dilithium
-nimble build_android_harness_asymmetric_full  # Android: all PQ
-nimble build_wasm          # Emscripten wasm build
-nimble build_libsodium     # build native libsodium
-nimble build_liboqs        # build native liboqs
-nimble build_openssl       # build native OpenSSL
-```
+| Command | Purpose |
+|---------|---------|
+| `nimble check_core` | Core imports and types |
+| `nimble check` | Full module check |
+| `nimble test` | Default test suite |
+| `nimble test_all` | Full test matrix (slow) |
+| `nimble test_wasm` | Wasm bridge regression tests |
+| `nimble test_neon_checks` | ARM64 / NEON compile-check matrix |
+| `nimble test_simd_matrix` | Scalar / SIMD parity matrix |
+| `nimble bench_custom_crypto` | Tyr-only primitive report |
+| `nimble bench_pq_profiles` | PQ benchmark profiles |
+| `nimble build_android_harness` | Android native test harness |
+| `nimble build_android_harness_asymmetric_fast` | Android harness with Kyber + Dilithium |
+| `nimble build_android_harness_asymmetric_full` | Android harness with the full PQ bundle |
+| `nimble build_wasm` | Release Emscripten wasm/JS build |
+| `nimble build_wasm_debug` | Debug Emscripten wasm/JS build |
+| `nimble build_libsodium` | Build native libsodium |
+| `nimble build_liboqs` | Build native liboqs |
+| `nimble build_openssl` | Build native OpenSSL |
 
 ---
 
 ## Issue Playbook
 
-```
-+--------------------------------------+---------------------------------------------+
-| Issue                                | Workaround / status                         |
-+--------------------------------------+---------------------------------------------+
-| Missing native backend               | Run the matching nimble build_* task or      |
-|                                      | compile without the -d:has* flag.           |
-| x86_64 Android emulator exit 139     | Validate Android on physical ARM64 devices. |
-| emcc missing for wasm build          | Install/activate Emscripten before           |
-|                                      | nimble build_wasm.                          |
-| Nimble user-cache permission errors  | Use repo-local caches through the provided   |
-|                                      | nimble tasks or explicit --nimcache:build/* |
-| Falcon tests dominate runtime        | Use --only:falcon512 or --only:falcon1024   |
-|                                      | in the Nim desktop test runner.             |
-| Ambiguous research PDF redistribution| Keep as ignored local cache; regenerate with |
-|                                      | docs/research/*/download_papers.nim.        |
-+--------------------------------------+---------------------------------------------+
-```
+| Issue | Workaround / status |
+|-------|---------------------|
+| Missing native backend | Run the matching `nimble build_*` task or compile without the matching `-d:has*` flag |
+| x86_64 Android emulator exit 139 | Validate Android on physical ARM64 devices |
+| `emcc` missing for wasm build | Install and activate Emscripten before running `nimble build_wasm` |
+| Nimble user-cache permission errors | Use the repo-local cache tasks or an explicit `--nimcache:build/*` path |
+| Falcon tests dominate runtime | Use `--only:falcon512` or `--only:falcon1024` in the Nim desktop test runner |
+| Ambiguous research PDF redistribution | Keep as ignored local cache and regenerate with `docs/research/*/download_papers.nim` |
 
 ---
 
 ## Workspace Dependencies
 
-```
-Dependency             Location
-libsodium              submodules/libsodium
-liboqs                 submodules/liboqs
-OpenSSL                submodules/openssl
-PQClean                submodules/pqclean
-PQClean Falcon refs    submodules/pqclean_falcon_ref_sources
-NTRU sampling refs     submodules/ntru_sampling_ref_sources
-SIMD-Nexus             submodules/simd_nexus or ../SIMD-Nexus
-Sigma-BenchAndEval     submodules/sigma_bench_and_eval
-Otter-RepoEvaluation   submodules/otter_repo_evaluation
-```
+| Dependency | Location |
+|------------|----------|
+| libsodium | `submodules/libsodium` |
+| liboqs | `submodules/liboqs` |
+| OpenSSL | `submodules/openssl` |
+| PQClean | `submodules/pqclean` |
+| PQClean Falcon refs | `submodules/pqclean_falcon_ref_sources` |
+| NTRU sampling refs | `submodules/ntru_sampling_ref_sources` |
+| SIMD-Nexus | `submodules/simd_nexus` or `../SIMD-Nexus` |
+| Sigma-BenchAndEval | `submodules/sigma_bench_and_eval` |
+| Otter-RepoEvaluation | `submodules/otter_repo_evaluation` |
 
 Local path overrides go in `.iron/.local.gitmodules.toml` (gitignored).
 
@@ -221,12 +238,49 @@ Generated TOML files are for downstream consumers. Tyr itself does not read them
 
 ## Wasm / JS Bridge
 
-Basic encryption/hash operations exported for wasm/JS targets. Files:
-- `src/protocols/wrapper/wasm/`
-- `bindings/js/tyr_crypto.mjs`
-- `bindings/js/tyr_crypto.d.ts`
+Basic encryption/hash operations are exported for wasm/JS targets.
 
-Exported operations: `basic.encrypt`, `basic.decrypt`, `blake3Hash`, `blake3KeyedHash`, `gimliHash`, `sha3Hash`, `capabilities`.
+### Build It Yourself
+
+1. Install Nim and make sure `nim` is on `PATH`.
+2. Install and activate Emscripten so `emcc` is on `PATH`.
+3. Build the release bridge with `nimble build_wasm`.
+4. Build a debug bridge with `nimble build_wasm_debug`.
+5. Re-run the JSON bridge regression tests with `nimble test_wasm`.
+
+If Nim's library path is not auto-detected on your machine, set `NIM_LIB_DIR` before running the wasm build task.
+
+### Files
+
+| Path | Purpose |
+|------|---------|
+| `src/protocols/wrapper/wasm/` | Nim wasm bridge sources |
+| `tools/build_wasm.nim` | Nim + Emscripten build driver |
+| `bindings/js/dist/tyr_crypto_wasm.mjs` | Generated Emscripten module |
+| `bindings/js/tyr_crypto.mjs` | JS loader / wrapper |
+| `bindings/js/tyr_crypto.d.ts` | TypeScript declarations |
+
+### Exported JS Surface
+
+| Export | Purpose |
+|--------|---------|
+| `loadTyrCrypto` | Load the generated wasm module |
+| `abiVersion` | Return wasm ABI version |
+| `capabilities` | Return supported wasm bridge features |
+| `basic.encrypt` / `basic.decrypt` | JSON bridge for basic cipher operations |
+| `basic.blake3Hash` / `basic.blake3KeyedHash` | BLAKE3 hashing helpers |
+| `basic.gimliHash` | Gimli hashing helper |
+| `basic.sha3Hash` | SHA3 hashing helper |
+
+### Minimal JS Usage
+
+```js
+import { loadTyrCrypto } from "./bindings/js/tyr_crypto.mjs";
+
+const tyr = await loadTyrCrypto();
+console.log(tyr.abiVersion());
+console.log(tyr.capabilities());
+```
 
 ---
 
@@ -234,10 +288,10 @@ Exported operations: `basic.encrypt`, `basic.decrypt`, `blake3Hash`, `blake3Keye
 
 This repo follows the [Proto conventions](.iron/conventions). Key rules:
 
-```
-Language        Nim
-Flow            raw data → sanitize → typed material → operate → output
-Layout          src/protocols, tests, tools, docs, submodules
-Native deps     declare in nimble + submodules
-Artifacts       all build/cache/runtime outputs ignored
-```
+| Area | Rule |
+|------|------|
+| Language | Nim |
+| Flow | raw data -> sanitize -> typed material -> operate -> output |
+| Layout | `src/protocols`, `tests`, `tools`, `docs`, `submodules` |
+| Native deps | declare in nimble + submodules |
+| Artifacts | all build/cache/runtime outputs ignored |
