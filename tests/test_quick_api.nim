@@ -169,7 +169,7 @@ suite "quick api":
       var
         sendMat: x25519SendM
         openMat: x25519OpenM
-      let kp = asymKeypair(kaX25519)
+      let kp = genKeypair(kaX25519)
       for i in 0 ..< 32:
         sendMat.receiverPublicKey[i] = kp.publicKey[i]
         openMat.receiverSecretKey[i] = kp.secretKey[i]

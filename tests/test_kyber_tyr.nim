@@ -221,7 +221,7 @@ suite "kyber tyr":
         sendM.receiverPublicKey[i] = kp.publicKey[i]
         i = i + 1
       let env = seal(sendM)
-      check asymDec(kaKyber0, kp.secretKey, env) == env.sharedSecret
+      check decaps(kaKyber0, kp.secretKey, env) == env.sharedSecret
 
     test "tier-0 liboqs encapsulation decaps via pure-nim Kyber":
       var
@@ -229,12 +229,12 @@ suite "kyber tyr":
         openM: kyber0TyrOpenM
         env: AsymCipher
         i: int = 0
-      kp = asymKeypair(kaKyber0)
+      kp = genKeypair(kaKyber0)
       i = 0
       while i < openM.receiverSecretKey.len:
         openM.receiverSecretKey[i] = kp.secretKey[i]
         i = i + 1
-      env = asymEnc(kaKyber0, kp.publicKey)
+      env = encaps(kaKyber0, kp.publicKey)
       check open(env, openM) == env.sharedSecret
 
     test "tier-1 pure-nim Kyber encapsulation decaps via liboqs":
@@ -250,7 +250,7 @@ suite "kyber tyr":
         sendM.receiverPublicKey[i] = kp.publicKey[i]
         i = i + 1
       let env = seal(sendM)
-      check asymDec(kaKyber1, kp.secretKey, env) == env.sharedSecret
+      check decaps(kaKyber1, kp.secretKey, env) == env.sharedSecret
 
     test "tier-1 liboqs encapsulation decaps via pure-nim Kyber":
       var
@@ -258,10 +258,10 @@ suite "kyber tyr":
         openM: kyber1TyrOpenM
         env: AsymCipher
         i: int = 0
-      kp = asymKeypair(kaKyber1)
+      kp = genKeypair(kaKyber1)
       i = 0
       while i < openM.receiverSecretKey.len:
         openM.receiverSecretKey[i] = kp.secretKey[i]
         i = i + 1
-      env = asymEnc(kaKyber1, kp.publicKey)
+      env = encaps(kaKyber1, kp.publicKey)
       check open(env, openM) == env.sharedSecret

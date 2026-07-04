@@ -97,13 +97,19 @@ These numbers are not protocol guarantees. They are README-level guidance taken 
 | BIKE-L1 | about `65 ms` | about `50-74 ms` | Decoder-heavy, sits in the tens-of-ms range in current snapshots |
 | Classic McEliece | about `186-214 ms` | about `495-892 ms` | Key generation dominates total runtime |
 
-### Signatures And Key Agreement
+### Signatures
+
+| Family | Desktop keygen | Desktop sign | Desktop verify | ARM64 phone keygen | ARM64 phone sign | ARM64 phone verify | Notes |
+|--------|----------------|--------------|----------------|--------------------|------------------|--------------------|-------|
+| Dilithium | about `0.08-0.20 ms` | about `0.19-0.29 ms` | about `0.09-0.20 ms` | about `0.11-0.31 ms` | about `0.23-0.60 ms` | about `0.09-0.34 ms` | Fastest measured PQ signature family in the current curated snapshots |
+| Falcon-512 | about `12.09 s` | about `1.37 ms` | about `0.03 ms` | about `10.15-14.39 s` | about `0.85-1.20 ms` | about `0.04-0.06 ms` | Current pure-Nim Falcon cost is overwhelmingly keygen; sign and verify are already in the ms/us range |
+| Falcon-1024 | about `86.85 s` | about `2.87 ms` | about `0.07 ms` | about `69.77-98.73 s` | about `1.77-2.51 ms` | about `0.08-0.12 ms` | Falcon-1024 is even more strongly keygen-dominated in the curated snapshots |
+| SPHINCS+ | n/a in current curated split table | n/a in current curated split table | n/a in current curated split table | n/a in current curated split table | n/a in current curated split table | n/a in current curated split table | Current curated README snapshot only records combined `sign_verify`: about `20.9 ms` desktop and about `89-128 ms` on the measured phones |
+
+### Key Agreement
 
 | Family | Desktop guidance | ARM64 phone guidance | Notes |
 |--------|------------------|----------------------|-------|
-| Dilithium | about `0.25-0.61 ms` | about `0.40-1.80 ms` | Fastest measured PQ signature family in the current snapshots |
-| SPHINCS+ | about `20.9 ms` | about `89-128 ms` | Large signatures, but stable and predictable runtime profile |
-| Falcon | about `12 s` for 512 and `84 s` for 1024 in the current split snapshots | about `10-99 s` in the current phone snapshots | Current pure-Nim totals are dominated by key generation, not by verify |
 | X25519 | about `357-391 us` | about `508-697 us` | Best current desktop and phone results come from the AVX2 / NEON batch pass |
 
 ---
@@ -128,8 +134,12 @@ The canonical wrapper layer is [basic_api.nim](src/protocols/wrapper/basic_api.n
 - `hash` / `hmac` / `authenticate`
 - `sign` / `verify`
 - `encrypt` / `decrypt` / `seal` / `open`
-- `asymKeypair` / `asymEnc` / `asymDec` / `asymSign` / `asymVerify`
+- `genKeypair` / `encaps` / `decaps`
 - `cryptoRand`
+
+Compatibility aliases still exist in `basic_api.nim` for older callers:
+
+- `asymKeypair` / `asymEnc` / `asymDec` / `asymSign` / `asymVerify`
 
 Local pure-Nim implementations use `Tyr` suffixed names (e.g. `kyberTyrKeypair`, `blake3TyrHashM`). Unsuffixed names may resolve to native backend paths when available.
 

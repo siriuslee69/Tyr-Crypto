@@ -150,7 +150,7 @@ when defined(hasLibOqs):
       fillSeed(encapsRandom, encapsBase)
       let nimKp = custom_frodo.frodoTyrKeypairDerand(variant, keypairRandom)
       let nimEnv = custom_frodo.frodoTyrEncapsDerand(variant, nimKp.publicKey, encapsRandom)
-      check asymDec(alg, nimKp.secretKey,
+      check decaps(alg, nimKp.secretKey,
         initAsymCipher(nimEnv.ciphertext, @[], nimEnv.sharedSecret)) == nimEnv.sharedSecret
 
       kem = OQS_KEM_new(oqsAlg.cstring)
@@ -159,8 +159,8 @@ when defined(hasLibOqs):
       else:
         defer:
           OQS_KEM_free(kem)
-        let oqsKp = asymKeypair(alg)
-        let oqsEnv = asymEnc(alg, oqsKp.publicKey)
+        let oqsKp = genKeypair(alg)
+        let oqsEnv = encaps(alg, oqsKp.publicKey)
         check custom_frodo.frodoTyrDecaps(variant, oqsKp.secretKey,
           oqsEnv.ciphertext) == oqsEnv.sharedSecret
 

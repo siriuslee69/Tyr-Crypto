@@ -92,9 +92,9 @@ proc runBasicApiX25519Roundtrip() =
     receiver: AsymKeypair
     env: AsymCipher
     shared: seq[byte] = @[]
-  receiver = asymKeypair(kaX25519)
-  env = asymEnc(kaX25519, receiver.publicKey)
-  shared = asymDec(kaX25519, receiver.secretKey, env)
+  receiver = genKeypair(kaX25519)
+  env = encaps(kaX25519, receiver.publicKey)
+  shared = decaps(kaX25519, receiver.secretKey, env)
   check shared == env.sharedSecret
 
 proc runSodiumEd25519Roundtrip(msg: openArray[byte]) =
@@ -116,9 +116,9 @@ proc runBasicApiEd25519Roundtrip(msg: openArray[byte]) =
     kp: AsymKeypair
     sig: seq[byte] = @[]
   msgBuf = @msg
-  kp = asymKeypair(saEd25519)
-  sig = asymSign(saEd25519, msgBuf, kp.secretKey)
-  check asymVerify(saEd25519, msgBuf, sig, kp.publicKey)
+  kp = genKeypair(saEd25519)
+  sig = sign(saEd25519, msgBuf, kp.secretKey)
+  check verify(saEd25519, msgBuf, sig, kp.publicKey)
 
 proc runOqsKemRoundtrip(algId: string) =
   var

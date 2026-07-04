@@ -6,8 +6,8 @@ import ../src/protocols/wrapper/basic_api
 suite "multi kex duo":
   when defined(hasLibOqs) and defined(hasLibsodium):
     test "Kyber + X25519 shared secrets match via quick api":
-      let receiverX = asymKeypair(kaX25519)
-      let receiverK = asymKeypair(kaKyber0)
+      let receiverX = genKeypair(kaX25519)
+      let receiverK = genKeypair(kaKyber0)
       var sendX: x25519SendM
       var openX: x25519OpenM
       var sendK: kyber0SendM
@@ -27,8 +27,8 @@ suite "multi kex duo":
       check shareds[1].len == 32
 
     test "Kyber + X25519 can still be composed without helper suites":
-      let receiverX = asymKeypair(kaX25519)
-      let receiverK = asymKeypair(kaKyber0)
+      let receiverX = genKeypair(kaX25519)
+      let receiverK = genKeypair(kaKyber0)
       var sendX: x25519SendM
       var openX: x25519OpenM
       var sendK: kyber0SendM
@@ -46,8 +46,8 @@ suite "multi kex duo":
       check open(envK, openK) == envK.sharedSecret
 
     test "Kyber1024 + X25519 shared secrets match":
-      let receiverX = asymKeypair(kaX25519)
-      let receiverK = asymKeypair(kaKyber1)
+      let receiverX = genKeypair(kaX25519)
+      let receiverK = genKeypair(kaKyber1)
       var sendX: x25519SendM
       var openX: x25519OpenM
       var sendK: kyber1SendM
@@ -65,8 +65,8 @@ suite "multi kex duo":
       check shareds[1] == envs[1].sharedSecret
 
     test "McEliece + X25519 shared secrets match":
-      let receiverX = asymKeypair(kaX25519)
-      let receiverM = asymKeypair(kaMcEliece0)
+      let receiverX = genKeypair(kaX25519)
+      let receiverM = genKeypair(kaMcEliece0)
       var sendX: x25519SendM
       var openX: x25519OpenM
       var sendM: mceliece0SendM
@@ -84,8 +84,8 @@ suite "multi kex duo":
       check shareds[1] == envs[1].sharedSecret
 
     test "alternate McEliece variant can be selected":
-      let receiverX = asymKeypair(kaX25519)
-      let receiverM = asymKeypair(kaMcEliece1)
+      let receiverX = genKeypair(kaX25519)
+      let receiverM = genKeypair(kaMcEliece1)
       var sendX: x25519SendM
       var openX: x25519OpenM
       var sendM: mceliece1SendM
@@ -104,4 +104,4 @@ suite "multi kex duo":
   else:
     test "hybrid kex unavailable raises descriptive error":
       expect LibraryUnavailableError:
-        discard asymKeypair(kaKyber0)
+        discard genKeypair(kaKyber0)

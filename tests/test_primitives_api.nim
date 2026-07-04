@@ -110,29 +110,29 @@ suite "primitives api":
     check hmacCreate(maPoly1305, key, msg).len == 16
 
   when defined(hasLibsodium):
-    test "x25519 asymEnc and asymDec roundtrip":
+    test "x25519 encaps and decaps roundtrip":
       var
         receiver: AsymKeypair
         cipher: AsymCipher
         shared: seq[byte] = @[]
-      receiver = asymKeypair(kaX25519)
-      cipher = asymEnc(kaX25519, receiver.publicKey)
-      shared = asymDec(kaX25519, receiver.secretKey, cipher)
+      receiver = genKeypair(kaX25519)
+      cipher = encaps(kaX25519, receiver.publicKey)
+      shared = decaps(kaX25519, receiver.secretKey, cipher)
       check shared == cipher.sharedSecret
 
-    test "ed25519 asymSign and asymVerify roundtrip":
+    test "ed25519 sign and verify roundtrip":
       var
         kp: AsymKeypair
         msg: seq[byte] = @[]
         sig: seq[byte] = @[]
-      kp = asymKeypair(saEd25519)
+      kp = genKeypair(saEd25519)
       msg = toBytes("dispatch ed25519 msg")
-      sig = asymSign(saEd25519, msg, kp.secretKey)
-      check asymVerify(saEd25519, msg, sig, kp.publicKey)
+      sig = sign(saEd25519, msg, kp.secretKey)
+      check verify(saEd25519, msg, sig, kp.publicKey)
   else:
     test "ed25519 dispatch unavailable raises":
       expect LibraryUnavailableError:
-        discard asymKeypair(saEd25519)
+        discard genKeypair(saEd25519)
 
   when defined(hasLibsodium) and defined(hasLibOqs):
     test "kyber tier mapping roundtrip":
@@ -140,7 +140,7 @@ suite "primitives api":
         kp: AsymKeypair
         cipher: AsymCipher
         shared: seq[byte] = @[]
-      kp = asymKeypair(kaKyber0)
-      cipher = asymEnc(kaKyber0, kp.publicKey)
-      shared = asymDec(kaKyber0, kp.secretKey, cipher)
+      kp = genKeypair(kaKyber0)
+      cipher = encaps(kaKyber0, kp.publicKey)
+      shared = decaps(kaKyber0, kp.secretKey, cipher)
       check shared == cipher.sharedSecret

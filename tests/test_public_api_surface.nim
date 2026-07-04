@@ -68,14 +68,14 @@ suite "public api surface":
         env: AsymCipher
         shared: seq[byte] = @[]
         sig: seq[byte] = @[]
-      kp = asymKeypair(kaX25519)
-      env = asymEnc(kaX25519, kp.publicKey)
-      shared = asymDec(kaX25519, kp.secretKey, env)
+      kp = genKeypair(kaX25519)
+      env = encaps(kaX25519, kp.publicKey)
+      shared = decaps(kaX25519, kp.secretKey, env)
       check shared == env.sharedSecret
 
-      kp = asymKeypair(saEd25519)
-      sig = asymSign(saEd25519, msg, kp.secretKey)
-      check asymVerify(saEd25519, msg, sig, kp.publicKey)
+      kp = genKeypair(saEd25519)
+      sig = sign(saEd25519, msg, kp.secretKey)
+      check verify(saEd25519, msg, sig, kp.publicKey)
 
   test "seeded Falcon and Dilithium wrapper keypairs are stable":
     var
@@ -89,11 +89,11 @@ suite "public api surface":
     while i < seedDili.len:
       seedDili[i] = byte(i)
       i = i + 1
-    falcon0 = asymKeypair(saFalcon512, seedFalcon)
-    falcon1 = asymKeypair(saFalcon512, seedFalcon)
+    falcon0 = genKeypair(saFalcon512, seedFalcon)
+    falcon1 = genKeypair(saFalcon512, seedFalcon)
     check falcon0.publicKey == falcon1.publicKey
     check falcon0.secretKey == falcon1.secretKey
-    dili0 = asymKeypair(saDilithium1, seedDili)
-    dili1 = asymKeypair(saDilithium1, seedDili)
+    dili0 = genKeypair(saDilithium1, seedDili)
+    dili1 = genKeypair(saDilithium1, seedDili)
     check dili0.publicKey == dili1.publicKey
     check dili0.secretKey == dili1.secretKey

@@ -1,6 +1,6 @@
 import tyr_crypto
 
-var kp = asymKeypair(mceliece0TyrSendM)
+var kp = genKeypair(mceliece0TyrSendM)
 
 var
   sendM: mceliece0TyrSendM
