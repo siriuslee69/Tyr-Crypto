@@ -33,6 +33,14 @@ type
     neg: bool
     words: seq[uint32]
 
+  FalconNttTables = object
+    gm: seq[uint32]
+    igm: seq[uint32]
+
+  FalconPrimeRuntime = object
+    p0i: uint32
+    r2: uint32
+
 include ./keygen_consts
 
 template mknSize(logn: int): int =
@@ -46,6 +54,12 @@ template seqAt(A: seq[uint32], off, idx: int): untyped =
 
 const
   falconWordMask = 0x7FFFFFFF'u32
+  falconMaxLogn = 10
+
+var
+  falconNttCache: array[falconMaxLogn + 1, array[falconPrimes.len, FalconNttTables]]
+  falconPrimeCache: array[falconPrimes.len, FalconPrimeRuntime]
+  falconPrimeCacheReady: array[falconPrimes.len, bool]
 
 proc initRnsPoly(n, stride: int): RnsPoly {.inline.} =
   RnsPoly(n: n, stride: stride, coeffs: newSeq[uint32](n * stride))
@@ -165,6 +179,28 @@ proc modpMkgm2(gm, igm: var seq[uint32], logn: int, g, p, p0i: uint32) =
     x1 = modpMontyMul(x1, root, p, p0i)
     x2 = modpMontyMul(x2, ig, p, p0i)
     inc u
+
+proc getFalconPrimeRuntime(primeIdx: int): FalconPrimeRuntime {.inline.} =
+  result = falconPrimeCache[primeIdx]
+  if not falconPrimeCacheReady[primeIdx]:
+    var runtime: FalconPrimeRuntime
+    let p = falconPrimes[primeIdx].p
+    runtime.p0i = modpNinv31(p)
+    runtime.r2 = modpR2(p, runtime.p0i)
+    falconPrimeCache[primeIdx] = runtime
+    falconPrimeCacheReady[primeIdx] = true
+    result = runtime
+
+proc getFalconNttTables(logn, primeIdx: int): FalconNttTables {.inline.} =
+  result = falconNttCache[logn][primeIdx]
+  if result.gm.len != mknSize(logn):
+    var tables: FalconNttTables
+    let
+      prime = falconPrimes[primeIdx]
+      runtime = getFalconPrimeRuntime(primeIdx)
+    modpMkgm2(tables.gm, tables.igm, logn, prime.g, prime.p, runtime.p0i)
+    falconNttCache[logn][primeIdx] = tables
+    result = tables
 
 proc modpNtt2Ext(a: var seq[uint32], off, stride: int,
     gm: openArray[uint32], logn: int, p, p0i: uint32) =
@@ -1134,34 +1170,33 @@ proc polySubScaledNtt(F: var RnsPoly, FLen: int, f: RnsPoly, fLen: int,
     n = mknSize(logn)
     tLen = fLen + 1
   var
-    gm = newSeq[uint32](n)
-    igm = newSeq[uint32](n)
     fk = initRnsPoly(n, tLen)
     t1 = newSeq[uint32](n)
     u = 0
   while u < tLen:
     let
-      p = falconPrimes[u].p
-      p0i = modpNinv31(p)
-      R2 = modpR2(p, p0i)
-      Rx = modpRx(fLen, p, p0i, R2)
-    modpMkgm2(gm, igm, logn, falconPrimes[u].g, p, p0i)
+      prime = falconPrimes[u]
+      runtime = getFalconPrimeRuntime(u)
+      tables = getFalconNttTables(logn, u)
+      Rx = modpRx(fLen, prime.p, runtime.p0i, runtime.r2)
     var v = 0
     while v < n:
-      t1[v] = modpSet(k[v], p)
+      t1[v] = modpSet(k[v], prime.p)
       inc v
-    modpNtt2(t1, gm, logn, p, p0i)
+    modpNtt2(t1, tables.gm, logn, prime.p, runtime.p0i)
     v = 0
     while v < n:
-      fk.coeffs[v * tLen + u] = zintModSmallSigned(f.coeffs, coeffOffset(f, v), fLen, p, p0i, R2, Rx)
+      fk.coeffs[v * tLen + u] = zintModSmallSigned(f.coeffs, coeffOffset(f, v), fLen,
+        prime.p, runtime.p0i, runtime.r2, Rx)
       inc v
-    modpNtt2Ext(fk.coeffs, u, tLen, gm, logn, p, p0i)
+    modpNtt2Ext(fk.coeffs, u, tLen, tables.gm, logn, prime.p, runtime.p0i)
     v = 0
     while v < n:
       let idx = v * tLen + u
-      fk.coeffs[idx] = modpMontyMul(modpMontyMul(t1[v], fk.coeffs[idx], p, p0i), R2, p, p0i)
+      fk.coeffs[idx] = modpMontyMul(modpMontyMul(t1[v], fk.coeffs[idx], prime.p,
+        runtime.p0i), runtime.r2, prime.p, runtime.p0i)
       inc v
-    modpIntt2Ext(fk.coeffs, u, tLen, igm, logn, p, p0i)
+    modpIntt2Ext(fk.coeffs, u, tLen, tables.igm, logn, prime.p, runtime.p0i)
     inc u
   zintRebuildCrt(fk, tLen, true)
   var coeff = 0
@@ -1261,49 +1296,48 @@ proc makeFgStep(fs, gs: RnsPoly, logn, depth: int, inNtt, outNtt: bool): tuple[f
   var
     fsrc = clonePoly(fs)
     gsrc = clonePoly(gs)
-    gm = newSeq[uint32](n)
-    igm = newSeq[uint32](n)
     t1 = newSeq[uint32](n)
     u = 0
   while u < slen:
     let
-      p = falconPrimes[u].p
-      p0i = modpNinv31(p)
-      R2 = modpR2(p, p0i)
-    modpMkgm2(gm, igm, logn, falconPrimes[u].g, p, p0i)
+      prime = falconPrimes[u]
+      runtime = getFalconPrimeRuntime(u)
+      tables = getFalconNttTables(logn, u)
     var v = 0
     while v < n:
       t1[v] = fsrc.coeffs[v * slen + u]
       inc v
     if not inNtt:
-      modpNtt2(t1, gm, logn, p, p0i)
+      modpNtt2(t1, tables.gm, logn, prime.p, runtime.p0i)
     v = 0
     while v < hn:
       let
         w0 = t1[(v shl 1) + 0]
         w1 = t1[(v shl 1) + 1]
-      result.f.coeffs[v * tlen + u] = modpMontyMul(modpMontyMul(w0, w1, p, p0i), R2, p, p0i)
+      result.f.coeffs[v * tlen + u] = modpMontyMul(modpMontyMul(w0, w1, prime.p,
+        runtime.p0i), runtime.r2, prime.p, runtime.p0i)
       inc v
     if inNtt:
-      modpIntt2Ext(fsrc.coeffs, u, slen, igm, logn, p, p0i)
+      modpIntt2Ext(fsrc.coeffs, u, slen, tables.igm, logn, prime.p, runtime.p0i)
     v = 0
     while v < n:
       t1[v] = gsrc.coeffs[v * slen + u]
       inc v
     if not inNtt:
-      modpNtt2(t1, gm, logn, p, p0i)
+      modpNtt2(t1, tables.gm, logn, prime.p, runtime.p0i)
     v = 0
     while v < hn:
       let
         w0 = t1[(v shl 1) + 0]
         w1 = t1[(v shl 1) + 1]
-      result.g.coeffs[v * tlen + u] = modpMontyMul(modpMontyMul(w0, w1, p, p0i), R2, p, p0i)
+      result.g.coeffs[v * tlen + u] = modpMontyMul(modpMontyMul(w0, w1, prime.p,
+        runtime.p0i), runtime.r2, prime.p, runtime.p0i)
       inc v
     if inNtt:
-      modpIntt2Ext(gsrc.coeffs, u, slen, igm, logn, p, p0i)
+      modpIntt2Ext(gsrc.coeffs, u, slen, tables.igm, logn, prime.p, runtime.p0i)
     if not outNtt:
-      modpIntt2Ext(result.f.coeffs, u, tlen, igm, logn - 1, p, p0i)
-      modpIntt2Ext(result.g.coeffs, u, tlen, igm, logn - 1, p, p0i)
+      modpIntt2Ext(result.f.coeffs, u, tlen, tables.igm, logn - 1, prime.p, runtime.p0i)
+      modpIntt2Ext(result.g.coeffs, u, tlen, tables.igm, logn - 1, prime.p, runtime.p0i)
     inc u
   zintRebuildCrt(fsrc, slen, true)
   zintRebuildCrt(gsrc, slen, true)
@@ -1311,38 +1345,41 @@ proc makeFgStep(fs, gs: RnsPoly, logn, depth: int, inNtt, outNtt: bool): tuple[f
     u = slen
     while u < tlen:
       let
-        p = falconPrimes[u].p
-        p0i = modpNinv31(p)
-        R2 = modpR2(p, p0i)
-        Rx = modpRx(slen, p, p0i, R2)
-      modpMkgm2(gm, igm, logn, falconPrimes[u].g, p, p0i)
+        prime = falconPrimes[u]
+        runtime = getFalconPrimeRuntime(u)
+        tables = getFalconNttTables(logn, u)
+        Rx = modpRx(slen, prime.p, runtime.p0i, runtime.r2)
       var v = 0
       while v < n:
-        t1[v] = zintModSmallSigned(fsrc.coeffs, coeffOffset(fsrc, v), slen, p, p0i, R2, Rx)
+        t1[v] = zintModSmallSigned(fsrc.coeffs, coeffOffset(fsrc, v), slen,
+          prime.p, runtime.p0i, runtime.r2, Rx)
         inc v
-      modpNtt2(t1, gm, logn, p, p0i)
+      modpNtt2(t1, tables.gm, logn, prime.p, runtime.p0i)
       v = 0
       while v < hn:
         let
           w0 = t1[(v shl 1) + 0]
           w1 = t1[(v shl 1) + 1]
-        result.f.coeffs[v * tlen + u] = modpMontyMul(modpMontyMul(w0, w1, p, p0i), R2, p, p0i)
+        result.f.coeffs[v * tlen + u] = modpMontyMul(modpMontyMul(w0, w1, prime.p,
+          runtime.p0i), runtime.r2, prime.p, runtime.p0i)
         inc v
       v = 0
       while v < n:
-        t1[v] = zintModSmallSigned(gsrc.coeffs, coeffOffset(gsrc, v), slen, p, p0i, R2, Rx)
+        t1[v] = zintModSmallSigned(gsrc.coeffs, coeffOffset(gsrc, v), slen,
+          prime.p, runtime.p0i, runtime.r2, Rx)
         inc v
-      modpNtt2(t1, gm, logn, p, p0i)
+      modpNtt2(t1, tables.gm, logn, prime.p, runtime.p0i)
       v = 0
       while v < hn:
         let
           w0 = t1[(v shl 1) + 0]
           w1 = t1[(v shl 1) + 1]
-        result.g.coeffs[v * tlen + u] = modpMontyMul(modpMontyMul(w0, w1, p, p0i), R2, p, p0i)
+        result.g.coeffs[v * tlen + u] = modpMontyMul(modpMontyMul(w0, w1, prime.p,
+          runtime.p0i), runtime.r2, prime.p, runtime.p0i)
         inc v
       if not outNtt:
-        modpIntt2Ext(result.f.coeffs, u, tlen, igm, logn - 1, p, p0i)
-        modpIntt2Ext(result.g.coeffs, u, tlen, igm, logn - 1, p, p0i)
+        modpIntt2Ext(result.f.coeffs, u, tlen, tables.igm, logn - 1, prime.p, runtime.p0i)
+        modpIntt2Ext(result.g.coeffs, u, tlen, tables.igm, logn - 1, prime.p, runtime.p0i)
       inc u
 
 proc makeFg(f, g: openArray[int8], logn, depth: int, outNtt: bool): tuple[f, g: RnsPoly] =
@@ -1357,13 +1394,11 @@ proc makeFg(f, g: openArray[int8], logn, depth: int, outNtt: bool): tuple[f, g: 
     inc u
   if depth == 0:
     if outNtt:
-      var
-        gm = newSeq[uint32](n)
-        igm = newSeq[uint32](n)
-      let p0i = modpNinv31(p0)
-      modpMkgm2(gm, igm, logn, falconPrimes[0].g, p0, p0i)
-      modpNtt2(result.f.coeffs, gm, logn, p0, p0i)
-      modpNtt2(result.g.coeffs, gm, logn, p0, p0i)
+      let
+        runtime = getFalconPrimeRuntime(0)
+        tables = getFalconNttTables(logn, 0)
+      modpNtt2(result.f.coeffs, tables.gm, logn, p0, runtime.p0i)
+      modpNtt2(result.g.coeffs, tables.gm, logn, p0, runtime.p0i)
     return
   var current = result
   if depth == 1:
@@ -1677,8 +1712,6 @@ proc solveNtruIntermediate(lognTop: int, f, g: openArray[int8],
     gt = fg.g
     Ft = initRnsPoly(n, llen)
     Gt = initRnsPoly(n, llen)
-    gm = newSeq[uint32](n)
-    igm = newSeq[uint32](n)
     fx = newSeq[uint32](n)
     gx = newSeq[uint32](n)
     Fp = newSeq[uint32](hn)
@@ -1686,38 +1719,41 @@ proc solveNtruIntermediate(lognTop: int, f, g: openArray[int8],
     u = 0
   while u < llen:
     let
-      p = falconPrimes[u].p
-      p0i = modpNinv31(p)
-      R2 = modpR2(p, p0i)
+      prime = falconPrimes[u]
+      runtime = getFalconPrimeRuntime(u)
+      tables = getFalconNttTables(logn, u)
     if u == slen:
       zintRebuildCrt(ft, slen, true)
       zintRebuildCrt(gt, slen, true)
-    modpMkgm2(gm, igm, logn, falconPrimes[u].g, p, p0i)
     if u < slen:
       var v = 0
       while v < n:
         fx[v] = ft.coeffs[v * slen + u]
         gx[v] = gt.coeffs[v * slen + u]
         inc v
-      modpIntt2Ext(ft.coeffs, u, slen, igm, logn, p, p0i)
-      modpIntt2Ext(gt.coeffs, u, slen, igm, logn, p, p0i)
+      modpIntt2Ext(ft.coeffs, u, slen, tables.igm, logn, prime.p, runtime.p0i)
+      modpIntt2Ext(gt.coeffs, u, slen, tables.igm, logn, prime.p, runtime.p0i)
     else:
-      let Rx = modpRx(slen, p, p0i, R2)
+      let Rx = modpRx(slen, prime.p, runtime.p0i, runtime.r2)
       var v = 0
       while v < n:
-        fx[v] = zintModSmallSigned(ft.coeffs, coeffOffset(ft, v), slen, p, p0i, R2, Rx)
-        gx[v] = zintModSmallSigned(gt.coeffs, coeffOffset(gt, v), slen, p, p0i, R2, Rx)
+        fx[v] = zintModSmallSigned(ft.coeffs, coeffOffset(ft, v), slen,
+          prime.p, runtime.p0i, runtime.r2, Rx)
+        gx[v] = zintModSmallSigned(gt.coeffs, coeffOffset(gt, v), slen,
+          prime.p, runtime.p0i, runtime.r2, Rx)
         inc v
-      modpNtt2(fx, gm, logn, p, p0i)
-      modpNtt2(gx, gm, logn, p, p0i)
-    let Rx = modpRx(dlen, p, p0i, R2)
+      modpNtt2(fx, tables.gm, logn, prime.p, runtime.p0i)
+      modpNtt2(gx, tables.gm, logn, prime.p, runtime.p0i)
+    let Rx = modpRx(dlen, prime.p, runtime.p0i, runtime.r2)
     var v = 0
     while v < hn:
-      Fp[v] = zintModSmallSigned(Fd.coeffs, coeffOffset(Fd, v), dlen, p, p0i, R2, Rx)
-      Gp[v] = zintModSmallSigned(Gd.coeffs, coeffOffset(Gd, v), dlen, p, p0i, R2, Rx)
+      Fp[v] = zintModSmallSigned(Fd.coeffs, coeffOffset(Fd, v), dlen,
+        prime.p, runtime.p0i, runtime.r2, Rx)
+      Gp[v] = zintModSmallSigned(Gd.coeffs, coeffOffset(Gd, v), dlen,
+        prime.p, runtime.p0i, runtime.r2, Rx)
       inc v
-    modpNtt2(Fp, gm, logn - 1, p, p0i)
-    modpNtt2(Gp, gm, logn - 1, p, p0i)
+    modpNtt2(Fp, tables.gm, logn - 1, prime.p, runtime.p0i)
+    modpNtt2(Gp, tables.gm, logn - 1, prime.p, runtime.p0i)
     v = 0
     while v < hn:
       let
@@ -1725,15 +1761,15 @@ proc solveNtruIntermediate(lognTop: int, f, g: openArray[int8],
         ftB = fx[(v shl 1) + 1]
         gtA = gx[(v shl 1) + 0]
         gtB = gx[(v shl 1) + 1]
-        mFp = modpMontyMul(Fp[v], R2, p, p0i)
-        mGp = modpMontyMul(Gp[v], R2, p, p0i)
-      Ft.coeffs[(v shl 1) * llen + u] = modpMontyMul(gtB, mFp, p, p0i)
-      Ft.coeffs[((v shl 1) + 1) * llen + u] = modpMontyMul(gtA, mFp, p, p0i)
-      Gt.coeffs[(v shl 1) * llen + u] = modpMontyMul(ftB, mGp, p, p0i)
-      Gt.coeffs[((v shl 1) + 1) * llen + u] = modpMontyMul(ftA, mGp, p, p0i)
+        mFp = modpMontyMul(Fp[v], runtime.r2, prime.p, runtime.p0i)
+        mGp = modpMontyMul(Gp[v], runtime.r2, prime.p, runtime.p0i)
+      Ft.coeffs[(v shl 1) * llen + u] = modpMontyMul(gtB, mFp, prime.p, runtime.p0i)
+      Ft.coeffs[((v shl 1) + 1) * llen + u] = modpMontyMul(gtA, mFp, prime.p, runtime.p0i)
+      Gt.coeffs[(v shl 1) * llen + u] = modpMontyMul(ftB, mGp, prime.p, runtime.p0i)
+      Gt.coeffs[((v shl 1) + 1) * llen + u] = modpMontyMul(ftA, mGp, prime.p, runtime.p0i)
       inc v
-    modpIntt2Ext(Ft.coeffs, u, llen, igm, logn, p, p0i)
-    modpIntt2Ext(Gt.coeffs, u, llen, igm, logn, p, p0i)
+    modpIntt2Ext(Ft.coeffs, u, llen, tables.igm, logn, prime.p, runtime.p0i)
+    modpIntt2Ext(Gt.coeffs, u, llen, tables.igm, logn, prime.p, runtime.p0i)
     inc u
   zintRebuildCrt(Ft, llen, true)
   zintRebuildCrt(Gt, llen, true)
@@ -1855,8 +1891,6 @@ proc solveNtruBinaryDepth1(lognTop: int, f, g: openArray[int8],
     gt = fg.g
     Ft = initRnsPoly(n, llen)
     Gt = initRnsPoly(n, llen)
-    gm = newSeq[uint32](n)
-    igm = newSeq[uint32](n)
     fx = newSeq[uint32](n)
     gx = newSeq[uint32](n)
     Fp = newSeq[uint32](hn)
@@ -1864,38 +1898,41 @@ proc solveNtruBinaryDepth1(lognTop: int, f, g: openArray[int8],
     u = 0
   while u < llen:
     let
-      p = falconPrimes[u].p
-      p0i = modpNinv31(p)
-      R2 = modpR2(p, p0i)
+      prime = falconPrimes[u]
+      runtime = getFalconPrimeRuntime(u)
+      tables = getFalconNttTables(logn, u)
     if u == slen:
       zintRebuildCrt(ft, slen, true)
       zintRebuildCrt(gt, slen, true)
-    modpMkgm2(gm, igm, logn, falconPrimes[u].g, p, p0i)
     if u < slen:
       var v = 0
       while v < n:
         fx[v] = ft.coeffs[v * slen + u]
         gx[v] = gt.coeffs[v * slen + u]
         inc v
-      modpIntt2Ext(ft.coeffs, u, slen, igm, logn, p, p0i)
-      modpIntt2Ext(gt.coeffs, u, slen, igm, logn, p, p0i)
+      modpIntt2Ext(ft.coeffs, u, slen, tables.igm, logn, prime.p, runtime.p0i)
+      modpIntt2Ext(gt.coeffs, u, slen, tables.igm, logn, prime.p, runtime.p0i)
     else:
-      let Rx = modpRx(slen, p, p0i, R2)
+      let Rx = modpRx(slen, prime.p, runtime.p0i, runtime.r2)
       var v = 0
       while v < n:
-        fx[v] = zintModSmallSigned(ft.coeffs, coeffOffset(ft, v), slen, p, p0i, R2, Rx)
-        gx[v] = zintModSmallSigned(gt.coeffs, coeffOffset(gt, v), slen, p, p0i, R2, Rx)
+        fx[v] = zintModSmallSigned(ft.coeffs, coeffOffset(ft, v), slen,
+          prime.p, runtime.p0i, runtime.r2, Rx)
+        gx[v] = zintModSmallSigned(gt.coeffs, coeffOffset(gt, v), slen,
+          prime.p, runtime.p0i, runtime.r2, Rx)
         inc v
-      modpNtt2(fx, gm, logn, p, p0i)
-      modpNtt2(gx, gm, logn, p, p0i)
-    let Rx = modpRx(dlen, p, p0i, R2)
+      modpNtt2(fx, tables.gm, logn, prime.p, runtime.p0i)
+      modpNtt2(gx, tables.gm, logn, prime.p, runtime.p0i)
+    let Rx = modpRx(dlen, prime.p, runtime.p0i, runtime.r2)
     var v = 0
     while v < hn:
-      Fp[v] = zintModSmallSigned(Fd.coeffs, coeffOffset(Fd, v), dlen, p, p0i, R2, Rx)
-      Gp[v] = zintModSmallSigned(Gd.coeffs, coeffOffset(Gd, v), dlen, p, p0i, R2, Rx)
+      Fp[v] = zintModSmallSigned(Fd.coeffs, coeffOffset(Fd, v), dlen,
+        prime.p, runtime.p0i, runtime.r2, Rx)
+      Gp[v] = zintModSmallSigned(Gd.coeffs, coeffOffset(Gd, v), dlen,
+        prime.p, runtime.p0i, runtime.r2, Rx)
       inc v
-    modpNtt2(Fp, gm, logn - 1, p, p0i)
-    modpNtt2(Gp, gm, logn - 1, p, p0i)
+    modpNtt2(Fp, tables.gm, logn - 1, prime.p, runtime.p0i)
+    modpNtt2(Gp, tables.gm, logn - 1, prime.p, runtime.p0i)
     v = 0
     while v < hn:
       let
@@ -1903,15 +1940,15 @@ proc solveNtruBinaryDepth1(lognTop: int, f, g: openArray[int8],
         ftB = fx[(v shl 1) + 1]
         gtA = gx[(v shl 1) + 0]
         gtB = gx[(v shl 1) + 1]
-        mFp = modpMontyMul(Fp[v], R2, p, p0i)
-        mGp = modpMontyMul(Gp[v], R2, p, p0i)
-      Ft.coeffs[(v shl 1) * llen + u] = modpMontyMul(gtB, mFp, p, p0i)
-      Ft.coeffs[((v shl 1) + 1) * llen + u] = modpMontyMul(gtA, mFp, p, p0i)
-      Gt.coeffs[(v shl 1) * llen + u] = modpMontyMul(ftB, mGp, p, p0i)
-      Gt.coeffs[((v shl 1) + 1) * llen + u] = modpMontyMul(ftA, mGp, p, p0i)
+        mFp = modpMontyMul(Fp[v], runtime.r2, prime.p, runtime.p0i)
+        mGp = modpMontyMul(Gp[v], runtime.r2, prime.p, runtime.p0i)
+      Ft.coeffs[(v shl 1) * llen + u] = modpMontyMul(gtB, mFp, prime.p, runtime.p0i)
+      Ft.coeffs[((v shl 1) + 1) * llen + u] = modpMontyMul(gtA, mFp, prime.p, runtime.p0i)
+      Gt.coeffs[(v shl 1) * llen + u] = modpMontyMul(ftB, mGp, prime.p, runtime.p0i)
+      Gt.coeffs[((v shl 1) + 1) * llen + u] = modpMontyMul(ftA, mGp, prime.p, runtime.p0i)
       inc v
-    modpIntt2Ext(Ft.coeffs, u, llen, igm, logn, p, p0i)
-    modpIntt2Ext(Gt.coeffs, u, llen, igm, logn, p, p0i)
+    modpIntt2Ext(Ft.coeffs, u, llen, tables.igm, logn, prime.p, runtime.p0i)
+    modpIntt2Ext(Gt.coeffs, u, llen, tables.igm, logn, prime.p, runtime.p0i)
     inc u
   zintRebuildCrt(Ft, llen, true)
   zintRebuildCrt(Gt, llen, true)
@@ -1972,30 +2009,27 @@ proc solveNtruBinaryDepth0(logn: int, f, g: openArray[int8],
     n = 1 shl logn
     hn = n shr 1
     p = falconPrimes[0].p
-    p0i = modpNinv31(p)
-    R2 = modpR2(p, p0i)
+    runtime = getFalconPrimeRuntime(0)
+    tables = getFalconNttTables(logn, 0)
   var
     Fp = newSeq[uint32](hn)
     Gp = newSeq[uint32](hn)
     ft = newSeq[uint32](n)
     gt = newSeq[uint32](n)
-    gm = newSeq[uint32](n)
-    igm = newSeq[uint32](n)
     u = 0
-  modpMkgm2(gm, igm, logn, falconPrimes[0].g, p, p0i)
   while u < hn:
     Fp[u] = modpSet(zintOneToPlain(Fd.coeffs, coeffOffset(Fd, u)), p)
     Gp[u] = modpSet(zintOneToPlain(Gd.coeffs, coeffOffset(Gd, u)), p)
     inc u
-  modpNtt2(Fp, gm, logn - 1, p, p0i)
-  modpNtt2(Gp, gm, logn - 1, p, p0i)
+  modpNtt2(Fp, tables.gm, logn - 1, p, runtime.p0i)
+  modpNtt2(Gp, tables.gm, logn - 1, p, runtime.p0i)
   u = 0
   while u < n:
     ft[u] = modpSet(int32(f[u]), p)
     gt[u] = modpSet(int32(g[u]), p)
     inc u
-  modpNtt2(ft, gm, logn, p, p0i)
-  modpNtt2(gt, gm, logn, p, p0i)
+  modpNtt2(ft, tables.gm, logn, p, runtime.p0i)
+  modpNtt2(gt, tables.gm, logn, p, runtime.p0i)
   u = 0
   while u < n:
     let
@@ -2003,15 +2037,15 @@ proc solveNtruBinaryDepth0(logn: int, f, g: openArray[int8],
       ftB = ft[u + 1]
       gtA = gt[u + 0]
       gtB = gt[u + 1]
-      mFp = modpMontyMul(Fp[u shr 1], R2, p, p0i)
-      mGp = modpMontyMul(Gp[u shr 1], R2, p, p0i)
-    ft[u + 0] = modpMontyMul(gtB, mFp, p, p0i)
-    ft[u + 1] = modpMontyMul(gtA, mFp, p, p0i)
-    gt[u + 0] = modpMontyMul(ftB, mGp, p, p0i)
-    gt[u + 1] = modpMontyMul(ftA, mGp, p, p0i)
+      mFp = modpMontyMul(Fp[u shr 1], runtime.r2, p, runtime.p0i)
+      mGp = modpMontyMul(Gp[u shr 1], runtime.r2, p, runtime.p0i)
+    ft[u + 0] = modpMontyMul(gtB, mFp, p, runtime.p0i)
+    ft[u + 1] = modpMontyMul(gtA, mFp, p, runtime.p0i)
+    gt[u + 0] = modpMontyMul(ftB, mGp, p, runtime.p0i)
+    gt[u + 1] = modpMontyMul(ftA, mGp, p, runtime.p0i)
     u += 2
-  modpIntt2(ft, igm, logn, p, p0i)
-  modpIntt2(gt, igm, logn, p, p0i)
+  modpIntt2(ft, tables.igm, logn, p, runtime.p0i)
+  modpIntt2(gt, tables.igm, logn, p, runtime.p0i)
 
   var
     Fpoly = initRnsPoly(n, 1)
@@ -2101,30 +2135,29 @@ proc solveNtru(logn: int, f, g: openArray[int8], lim: int): tuple[ok: bool, F, G
   let
     n = mknSize(logn)
     p = falconPrimes[0].p
-    p0i = modpNinv31(p)
-    r = modpMontyMul(12289'u32, 1'u32, p, p0i)
+    runtime = getFalconPrimeRuntime(0)
+    tables = getFalconNttTables(logn, 0)
+    r = modpMontyMul(12289'u32, 1'u32, p, runtime.p0i)
   var
     Gt = newSeq[uint32](n)
     ft = newSeq[uint32](n)
     gt = newSeq[uint32](n)
     Ft = newSeq[uint32](n)
-    gm = newSeq[uint32](n)
-    igm = newSeq[uint32](n)
     u = 0
-  modpMkgm2(gm, igm, logn, falconPrimes[0].g, p, p0i)
   while u < n:
     Gt[u] = modpSet(int32(result.G[u]), p)
     ft[u] = modpSet(int32(f[u]), p)
     gt[u] = modpSet(int32(g[u]), p)
     Ft[u] = modpSet(int32(result.F[u]), p)
     inc u
-  modpNtt2(ft, gm, logn, p, p0i)
-  modpNtt2(gt, gm, logn, p, p0i)
-  modpNtt2(Ft, gm, logn, p, p0i)
-  modpNtt2(Gt, gm, logn, p, p0i)
+  modpNtt2(ft, tables.gm, logn, p, runtime.p0i)
+  modpNtt2(gt, tables.gm, logn, p, runtime.p0i)
+  modpNtt2(Ft, tables.gm, logn, p, runtime.p0i)
+  modpNtt2(Gt, tables.gm, logn, p, runtime.p0i)
   u = 0
   while u < n:
-    let z = modpSub(modpMontyMul(ft[u], Gt[u], p, p0i), modpMontyMul(gt[u], Ft[u], p, p0i), p)
+    let z = modpSub(modpMontyMul(ft[u], Gt[u], p, runtime.p0i),
+      modpMontyMul(gt[u], Ft[u], p, runtime.p0i), p)
     if z != r:
       secureClearSeqData(result.F)
       secureClearSeqData(result.G)
@@ -2173,6 +2206,9 @@ proc falconKeygenFromShake*(v: FalconVariant, rng: var FalconShake256): tuple[pu
     f = newSeq[int8](n)
     g = newSeq[int8](n)
     h = newSeq[uint16](n)
+    rt1 = newSeq[FalconFpr](n)
+    rt2 = newSeq[FalconFpr](n)
+    rt3 = newSeq[FalconFpr](n shr 1)
     F, G: seq[int8]
   while true:
     polySmallMkgauss(rng, f, logn)
@@ -2192,11 +2228,7 @@ proc falconKeygenFromShake*(v: FalconVariant, rng: var FalconShake256): tuple[pu
       norm = (normf + normg) or (0'u32 - ((normf or normg) shr 31))
     if norm >= 16823'u32:
       continue
-    var
-      rt1 = newSeq[FalconFpr](n)
-      rt2 = newSeq[FalconFpr](n)
-      rt3 = newSeq[FalconFpr](n shr 1)
-      bnorm = fprZero
+    var bnorm = fprZero
     polySmallToFp(rt1, f, logn)
     polySmallToFp(rt2, g, logn)
     falconFft(rt1, logn)

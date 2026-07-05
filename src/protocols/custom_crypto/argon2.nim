@@ -49,3 +49,14 @@ proc argon2idTyrHash*(password, salt: openArray[byte], passCount,
     h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] =
   ## Tyr-suffixed alias for the local custom Argon2id hash variant.
   result = argon2idHash(password, salt, passCount, memoryKiB, laneCount, outLen, h, b)
+
+proc deriveArgonLikeKey*(password, salt: openArray[byte], p: Argon2Params,
+    h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] =
+  ## Standalone Tyr-owned custom Argon2id-style key derivation surface.
+  result = argon2idHash(password, salt, p, h, b)
+
+proc deriveArgonLikeKey*(password, salt: openArray[byte], passCount,
+    memoryKiB, laneCount, outLen: int,
+    h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] =
+  ## Standalone Tyr-owned custom Argon2id-style key derivation surface.
+  result = argon2idHash(password, salt, passCount, memoryKiB, laneCount, outLen, h, b)

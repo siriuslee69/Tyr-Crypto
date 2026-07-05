@@ -156,6 +156,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 - **Gaussian sampling** is inherently variable-time
 - **SIMD:** Two-lane FalconFpr helper (SSE2/NEON) for FFT, keygen norm accumulation
 - **Dual backends:** `falconScalar` / `falconSimd` (compile-time + runtime selectable)
+- **Current benchmark profile:** sign/verify are low-ms to sub-ms, but the current pure-Nim keygen path is still seconds-scale and dominates Falcon totals in the curated snapshots
 
 ### SPHINCS+
 
@@ -206,12 +207,12 @@ Frodo-640     ~8.0  ms  │  PK: 9.4 KB  CT: 9.5 KB   Level 1
 McEliece      ~40   ms  │  PK: ~0.5 MB CT: 224 B    Level 3 (keygen dominates)
 ```
 
-### Signatures (fastest → slowest per keygen+sign+verify)
+### Signatures (current curated profile)
 
 ```
-Falcon-512    ~3  ms    │  PK: 897 B   Sig: 752 B     Level 1
-Dilithium-44  ~1  ms    │  PK: 1.3 KB  Sig: 2.4 KB    Level 2
-SPHINCS+      ~15 ms    │  PK: 32 B    Sig: 17 KB     Level 1 (verify fast)
+Dilithium-44  keygen ~0.08 ms   sign ~0.19 ms   verify ~0.09 ms   │  fast balanced profile
+Falcon-512    keygen ~12.09 s   sign ~1.37 ms   verify ~0.03 ms   │  current pure-Nim total dominated by keygen
+SPHINCS+      combined sign+verify ~20.9 ms                         │  current curated snapshot is not phase-split
 ```
 
 ---
