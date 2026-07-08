@@ -373,6 +373,23 @@ task switch, "Toggle the working branch between nightly and main":
   echo "Switching from '" & (if branch.len > 0: branch else: "(detached HEAD)") &
     "' to '" & target & "'."
   runCommand("git", @["checkout", target])
+
+task applynightly, "Promote the current nightly state onto main (fast-forward) and push, keeping nightly":
+  var
+    branch: string = captureCommand("git", @["branch", "--show-current"]).strip()
+  ## `git fetch` cannot update the currently checked-out branch, so this
+  ## must run from nightly (or any branch other than main). nightly is
+  ## never modified - main is the only ref that moves.
+  if branch == "main":
+    quit "On 'main'. Run `nimble switch` to move to nightly before applying."
+  ## Fast-forward local main to nightly. Fetching into a branch ref
+  ## refuses a non-fast-forward, so a diverged main fails loudly instead
+  ## of silently discarding its commits.
+  runCommand("git", @["fetch", ".", "nightly:main"])
+  ## Publish the promoted state; the remote enforces fast-forward too.
+  runCommand("git", @["push", "origin", "nightly:main"])
+  echo "main is now at the nightly state; nightly branch left intact."
+
 task find, "Use local clones for submodules in parent folder":
   let modulesPath = ".gitmodules"
   if not fileExists(modulesPath):
