@@ -1,6 +1,7 @@
 import std/[algorithm, tables, unittest]
 
-import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_pass1, x25519_pass2, x25519_pass3, x25519_pass4, x25519_ref10_nim]
+import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_impl]
+import ../src/protocols/helpers/otter_support
 import ../src/protocols/bindings/libsodium
 import otter_repo_evaluation
 
@@ -52,8 +53,8 @@ proc initCorpus() =
       seedB[j] = byte((131 + 17 * i + 3 * j) and 0xff)
       j = j + 1
     let
-      kpA = x25519_pass4.x25519TyrKeypairFromSeed(seedA)
-      kpB = x25519_pass4.x25519TyrKeypairFromSeed(seedB)
+      kpA = x25519TyrKeypairFromSeed(seedA)
+      kpB = x25519TyrKeypairFromSeed(seedB)
     scalarSecrets[i] = toFixed32(kpA.secretKey)
     scalarPublics[i] = toFixed32(kpB.publicKey)
     i = i + 1
@@ -119,15 +120,6 @@ proc runTimedGroup(title: string, body: proc ()) =
   check entries.len > 0
   printTopTimings(title, aggregateTimings(entries))
 
-proc ref10Scalar(outShared: var X25519Bytes32, secretKey, publicKey: X25519Bytes32): bool =
-  otterSpan("x25519.libsodium.ref10.scalar"):
-    result = tyr_x25519_ref10_scalarmult(
-      addr outShared[0],
-      unsafeAddr secretKey[0],
-      unsafeAddr publicKey[0]) == 0
-    if result:
-      result = not isAllZero(outShared)
-
 proc sodiumScalar(outShared: var X25519Bytes32, secretKey, publicKey: X25519Bytes32): bool =
   otterSpan("x25519.libsodium.runtime.scalar"):
     result = crypto_scalarmult_curve25519(
@@ -137,23 +129,11 @@ proc sodiumScalar(outShared: var X25519Bytes32, secretKey, publicKey: X25519Byte
     if result:
       result = not isAllZero(outShared)
 
-proc ref10Serial2(outShared: var array[2, X25519Bytes32],
-    secretKeys, publicKeys: array[2, X25519Bytes32]): array[2, bool] =
-  otterSpan("x25519.libsodium.ref10.serial2"):
-    for lane in 0 ..< 2:
-      result[lane] = ref10Scalar(outShared[lane], secretKeys[lane], publicKeys[lane])
-
 proc sodiumSerial2(outShared: var array[2, X25519Bytes32],
     secretKeys, publicKeys: array[2, X25519Bytes32]): array[2, bool] =
   otterSpan("x25519.libsodium.runtime.serial2"):
     for lane in 0 ..< 2:
       result[lane] = sodiumScalar(outShared[lane], secretKeys[lane], publicKeys[lane])
-
-proc ref10Serial4(outShared: var array[4, X25519Bytes32],
-    secretKeys, publicKeys: array[4, X25519Bytes32]): array[4, bool] =
-  otterSpan("x25519.libsodium.ref10.serial4"):
-    for lane in 0 ..< 4:
-      result[lane] = ref10Scalar(outShared[lane], secretKeys[lane], publicKeys[lane])
 
 proc sodiumSerial4(outShared: var array[4, X25519Bytes32],
     secretKeys, publicKeys: array[4, X25519Bytes32]): array[4, bool] =
@@ -213,42 +193,26 @@ suite "Otter X25519 timing":
     setLogPath("build/otter_x25519_timings.log")
 
     runTimedGroup("Scalar", proc () =
-      profileScalar(ref10Scalar)
       profileScalar(sodiumScalar)
-      profileScalar(x25519_pass1.x25519ScalarmultRaw)
-      profileScalar(x25519_pass2.x25519ScalarmultRaw)
-      profileScalar(x25519_pass3.x25519ScalarmultRaw)
-      profileScalar(x25519_pass4.x25519ScalarmultRaw)
+      profileScalar(x25519ScalarmultRaw)
     )
 
     when defined(amd64) or defined(i386):
       runTimedGroup("SSE2x Batch", proc () =
-        profileBatch2(ref10Serial2)
         profileBatch2(sodiumSerial2)
-        profileBatch2(x25519_pass1.x25519ScalarmultBatchSse2x)
-        profileBatch2(x25519_pass2.x25519ScalarmultBatchSse2x)
-        profileBatch2(x25519_pass3.x25519ScalarmultBatchSse2x)
-        profileBatch2(x25519_pass4.x25519ScalarmultBatchSse2x)
+        profileBatch2(x25519ScalarmultBatchSse2x)
       )
 
     when defined(neon) or defined(arm64) or defined(aarch64):
       runTimedGroup("NEON2x Batch", proc () =
-        profileBatch2(ref10Serial2)
         profileBatch2(sodiumSerial2)
-        profileBatch2(x25519_pass1.x25519ScalarmultBatchNeon2x)
-        profileBatch2(x25519_pass2.x25519ScalarmultBatchNeon2x)
-        profileBatch2(x25519_pass3.x25519ScalarmultBatchNeon2x)
-        profileBatch2(x25519_pass4.x25519ScalarmultBatchNeon2x)
+        profileBatch2(x25519ScalarmultBatchNeon2x)
       )
 
     when defined(avx2):
       runTimedGroup("AVX4x Batch", proc () =
-        profileBatch4(ref10Serial4)
         profileBatch4(sodiumSerial4)
-        profileBatch4(x25519_pass1.x25519ScalarmultBatchAvx4x)
-        profileBatch4(x25519_pass2.x25519ScalarmultBatchAvx4x)
-        profileBatch4(x25519_pass3.x25519ScalarmultBatchAvx4x)
-        profileBatch4(x25519_pass4.x25519ScalarmultBatchAvx4x)
+        profileBatch4(x25519ScalarmultBatchAvx4x)
       )
 
     echo ""

@@ -22,8 +22,9 @@ src/                             Source tree
         random.nim               CSPRNG
       asymmetric/
         none_pq/                 Non-PQ asymmetric
-          x25519_pass1-4.nim     X25519 (4 competing passes + template)
+          x25519_impl.nim        X25519 hardened Montgomery ladder
           x25519_common.nim      Shared X25519 helpers
+          ed25519_impl.nim       Ed25519 (RFC 8032) with embedded SHA-512
         pq/                      Post-quantum asymmetric
           bike/                  BIKE QC-MDPC KEM
           common/                ct_compare.nim, pq_rng.nim
@@ -86,7 +87,7 @@ custom_crypto/
    |
    +--> asymmetric/
             +--> none_pq/
-            |       +--> x25519_common.nim, x25519_pass*.nim, x25519_ref10_nim.nim
+            |       +--> x25519_common.nim, x25519_impl.nim, ed25519_impl.nim
             |
             +--> pq/
                     common/      ct_compare.nim, pq_rng.nim

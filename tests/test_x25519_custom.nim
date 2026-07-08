@@ -1,7 +1,7 @@
 import std/unittest
 
 import ../src/protocols/custom_crypto/x25519 as customX25519
-import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_pass1, x25519_pass2, x25519_pass3, x25519_pass4]
+import ../src/protocols/custom_crypto/asymmetric/none_pq/x25519_common
 import ../src/protocols/bindings/libsodium
 import ./[crypto_vectors, helpers]
 
@@ -32,41 +32,27 @@ proc sodiumShared(secretKey, publicKey: openArray[byte]): seq[byte] =
   result = outBuf
 
 suite "custom x25519":
-  test "all passes match the RFC-style known vector":
+  test "impl matches the RFC-style known vector":
     let
       sk = hexToBytes(curve25519Vector.skHex)
       pk = hexToBytes(curve25519Vector.pkHex)
       shared = hexToBytes(curve25519Vector.sharedHex)
-    check x25519_pass1.x25519TyrShared(sk, pk) == shared
-    check x25519_pass2.x25519TyrShared(sk, pk) == shared
-    check x25519_pass3.x25519TyrShared(sk, pk) == shared
-    check x25519_pass4.x25519TyrShared(sk, pk) == shared
     check customX25519.x25519TyrShared(sk, pk) == shared
 
   when defined(hasLibsodium):
-    test "all passes match libsodium basepoint derivation":
+    test "impl matches libsodium basepoint derivation":
       let sk = hexToBytes(curve25519Vector.skHex)
       if not sodiumAvailable():
         skip()
       let pk = sodiumPublicKey(sk)
-      check x25519_pass1.x25519TyrPublicKey(sk) == pk
-      check x25519_pass2.x25519TyrPublicKey(sk) == pk
-      check x25519_pass3.x25519TyrPublicKey(sk) == pk
-      check x25519_pass4.x25519TyrPublicKey(sk) == pk
       check customX25519.x25519TyrPublicKey(sk) == pk
 
-  test "seeded keypairs stay deterministic across passes":
+  test "seeded keypairs stay deterministic":
     let seed = hexToBytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
-    let kp1 = x25519_pass1.x25519TyrKeypairFromSeed(seed)
-    let kp2 = x25519_pass2.x25519TyrKeypairFromSeed(seed)
-    let kp3 = x25519_pass3.x25519TyrKeypairFromSeed(seed)
-    let kp4 = x25519_pass4.x25519TyrKeypairFromSeed(seed)
-    check kp1.publicKey == kp2.publicKey
-    check kp1.publicKey == kp3.publicKey
-    check kp1.publicKey == kp4.publicKey
-    check kp1.secretKey == kp2.secretKey
-    check kp1.secretKey == kp3.secretKey
-    check kp1.secretKey == kp4.secretKey
+    let kpA = customX25519.x25519TyrKeypairFromSeed(seed)
+    let kpB = customX25519.x25519TyrKeypairFromSeed(seed)
+    check kpA.publicKey == kpB.publicKey
+    check kpA.secretKey == kpB.secretKey
 
   test "all small-order peers are detected and rejected":
     let secretKey = hexToBytes(curve25519Vector.skHex)
@@ -81,7 +67,7 @@ suite "custom x25519":
         discard customX25519.x25519TyrShared(secretKey, toSeqBytes(peerHighBit))
 
   when defined(hasLibsodium):
-    test "passes match libsodium on a deterministic corpus":
+    test "impl matches libsodium on a deterministic corpus":
       if not sodiumAvailable():
         skip()
       for i in 0 ..< 6:
@@ -99,8 +85,5 @@ suite "custom x25519":
           sodiumSharedB = sodiumShared(kpB.secretKey, kpA.publicKey)
         check kpA.publicKey == sodiumPkA
         check kpB.publicKey == sodiumPkB
-        check x25519_pass1.x25519TyrShared(kpA.secretKey, kpB.publicKey) == sodiumSharedA
-        check x25519_pass2.x25519TyrShared(kpA.secretKey, kpB.publicKey) == sodiumSharedA
-        check x25519_pass3.x25519TyrShared(kpA.secretKey, kpB.publicKey) == sodiumSharedA
-        check x25519_pass4.x25519TyrShared(kpA.secretKey, kpB.publicKey) == sodiumSharedA
+        check customX25519.x25519TyrShared(kpA.secretKey, kpB.publicKey) == sodiumSharedA
         check sodiumSharedA == sodiumSharedB

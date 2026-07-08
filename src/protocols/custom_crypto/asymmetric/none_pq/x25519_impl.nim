@@ -1,6 +1,15 @@
-## --------------------------------------------------------------
-## X25519 Template <- shared implementation body for pass modules
-## --------------------------------------------------------------
+## ----------------------------------------------------------------
+## X25519 Impl <- pure Nim Curve25519 Diffie-Hellman (RFC 7748)
+## ----------------------------------------------------------------
+##
+## Flow:
+##   secret (32 bytes) -> clamp -> Montgomery ladder over x1 -> shared/public
+##
+## This is the hardened production variant (formerly "pass 4" of the
+## optimization series): split inline ladder helpers, batched field
+## inversion for the SIMD lanes, and volatile wipes of every secret
+## scratch value on exit.  The older pass 1-3 modules only differed
+## by which of these features were switched off and were removed.
 
 import ../../../helpers/otter_support
 import ./x25519_common
@@ -13,6 +22,7 @@ when defined(avx2):
   {.passC: "-mavx2".}
 
 const
+  x25519BenchTag = "x25519"
   x25519Basepoint = [
     9'u8, 0'u8, 0'u8, 0'u8, 0'u8, 0'u8, 0'u8, 0'u8,
     0'u8, 0'u8, 0'u8, 0'u8, 0'u8, 0'u8, 0'u8, 0'u8,
@@ -151,257 +161,127 @@ proc feCswap(f, g: var X25519Field, b: uint32) {.inline.} =
   g[3] = g[3] xor x3
   g[4] = g[4] xor x4
 
-when x25519SplitHelpers:
-  proc reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: uint64,
-      outH: var X25519Field) {.inline.} =
+proc reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: uint64,
+    outH: var X25519Field) {.inline.} =
+  var
+    a0lo = r0lo
+    a0hi = r0hi
+    a1lo = r1lo
+    a1hi = r1hi
+    a2lo = r2lo
+    a2hi = r2hi
+    a3lo = r3lo
+    a3hi = r3hi
+    a4lo = r4lo
+    a4hi = r4hi
+    carry: uint64 = 0
+  outH[0] = a0lo and feMask
+  carry = shift51(a0lo, a0hi)
+  add64To128(a1lo, a1hi, carry)
+  outH[1] = a1lo and feMask
+  carry = shift51(a1lo, a1hi)
+  add64To128(a2lo, a2hi, carry)
+  outH[2] = a2lo and feMask
+  carry = shift51(a2lo, a2hi)
+  add64To128(a3lo, a3hi, carry)
+  outH[3] = a3lo and feMask
+  carry = shift51(a3lo, a3hi)
+  add64To128(a4lo, a4hi, carry)
+  outH[4] = a4lo and feMask
+  carry = shift51(a4lo, a4hi)
+  outH[0] += 19'u64 * carry
+  carry = outH[0] shr 51
+  outH[0] = outH[0] and feMask
+  outH[1] += carry
+  carry = outH[1] shr 51
+  outH[1] = outH[1] and feMask
+  outH[2] += carry
+
+proc feMulRaw(h: ptr X25519Field, f, g: ptr X25519Field) {.inline.} =
+  otterSpan(x25519BenchTag & ".feMul"):
+    let
+      f0 = f[][0]
+      f1 = f[][1]
+      f2 = f[][2]
+      f3 = f[][3]
+      f4 = f[][4]
+      g0 = g[][0]
+      g1 = g[][1]
+      g2 = g[][2]
+      g3 = g[][3]
+      g4 = g[][4]
+      f1_19 = 19'u64 * f1
+      f2_19 = 19'u64 * f2
+      f3_19 = 19'u64 * f3
+      f4_19 = 19'u64 * f4
     var
-      a0lo = r0lo
-      a0hi = r0hi
-      a1lo = r1lo
-      a1hi = r1hi
-      a2lo = r2lo
-      a2hi = r2hi
-      a3lo = r3lo
-      a3hi = r3hi
-      a4lo = r4lo
-      a4hi = r4hi
-      carry: uint64 = 0
-    outH[0] = a0lo and feMask
-    carry = shift51(a0lo, a0hi)
-    add64To128(a1lo, a1hi, carry)
-    outH[1] = a1lo and feMask
-    carry = shift51(a1lo, a1hi)
-    add64To128(a2lo, a2hi, carry)
-    outH[2] = a2lo and feMask
-    carry = shift51(a2lo, a2hi)
-    add64To128(a3lo, a3hi, carry)
-    outH[3] = a3lo and feMask
-    carry = shift51(a3lo, a3hi)
-    add64To128(a4lo, a4hi, carry)
-    outH[4] = a4lo and feMask
-    carry = shift51(a4lo, a4hi)
-    outH[0] += 19'u64 * carry
-    carry = outH[0] shr 51
-    outH[0] = outH[0] and feMask
-    outH[1] += carry
-    carry = outH[1] shr 51
-    outH[1] = outH[1] and feMask
-    outH[2] += carry
+      r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: uint64
+    addMul(r0lo, r0hi, f0, g0)
+    addMul(r0lo, r0hi, f1_19, g4)
+    addMul(r0lo, r0hi, f2_19, g3)
+    addMul(r0lo, r0hi, f3_19, g2)
+    addMul(r0lo, r0hi, f4_19, g1)
+    addMul(r1lo, r1hi, f0, g1)
+    addMul(r1lo, r1hi, f1, g0)
+    addMul(r1lo, r1hi, f2_19, g4)
+    addMul(r1lo, r1hi, f3_19, g3)
+    addMul(r1lo, r1hi, f4_19, g2)
+    addMul(r2lo, r2hi, f0, g2)
+    addMul(r2lo, r2hi, f1, g1)
+    addMul(r2lo, r2hi, f2, g0)
+    addMul(r2lo, r2hi, f3_19, g4)
+    addMul(r2lo, r2hi, f4_19, g3)
+    addMul(r3lo, r3hi, f0, g3)
+    addMul(r3lo, r3hi, f1, g2)
+    addMul(r3lo, r3hi, f2, g1)
+    addMul(r3lo, r3hi, f3, g0)
+    addMul(r3lo, r3hi, f4_19, g4)
+    addMul(r4lo, r4hi, f0, g4)
+    addMul(r4lo, r4hi, f1, g3)
+    addMul(r4lo, r4hi, f2, g2)
+    addMul(r4lo, r4hi, f3, g1)
+    addMul(r4lo, r4hi, f4, g0)
+    reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi, h[])
 
-  proc feMulRaw(h: ptr X25519Field, f, g: ptr X25519Field) {.inline.} =
-    otterSpan(x25519BenchTag & ".feMul"):
-      let
-        f0 = f[][0]
-        f1 = f[][1]
-        f2 = f[][2]
-        f3 = f[][3]
-        f4 = f[][4]
-        g0 = g[][0]
-        g1 = g[][1]
-        g2 = g[][2]
-        g3 = g[][3]
-        g4 = g[][4]
-        f1_19 = 19'u64 * f1
-        f2_19 = 19'u64 * f2
-        f3_19 = 19'u64 * f3
-        f4_19 = 19'u64 * f4
-      var
-        r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: uint64
-      addMul(r0lo, r0hi, f0, g0)
-      addMul(r0lo, r0hi, f1_19, g4)
-      addMul(r0lo, r0hi, f2_19, g3)
-      addMul(r0lo, r0hi, f3_19, g2)
-      addMul(r0lo, r0hi, f4_19, g1)
-      addMul(r1lo, r1hi, f0, g1)
-      addMul(r1lo, r1hi, f1, g0)
-      addMul(r1lo, r1hi, f2_19, g4)
-      addMul(r1lo, r1hi, f3_19, g3)
-      addMul(r1lo, r1hi, f4_19, g2)
-      addMul(r2lo, r2hi, f0, g2)
-      addMul(r2lo, r2hi, f1, g1)
-      addMul(r2lo, r2hi, f2, g0)
-      addMul(r2lo, r2hi, f3_19, g4)
-      addMul(r2lo, r2hi, f4_19, g3)
-      addMul(r3lo, r3hi, f0, g3)
-      addMul(r3lo, r3hi, f1, g2)
-      addMul(r3lo, r3hi, f2, g1)
-      addMul(r3lo, r3hi, f3, g0)
-      addMul(r3lo, r3hi, f4_19, g4)
-      addMul(r4lo, r4hi, f0, g4)
-      addMul(r4lo, r4hi, f1, g3)
-      addMul(r4lo, r4hi, f2, g2)
-      addMul(r4lo, r4hi, f3, g1)
-      addMul(r4lo, r4hi, f4, g0)
-      reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi, h[])
+template feMul(h, f, g: untyped) =
+  feMulRaw(addr h, unsafeAddr f, unsafeAddr g)
 
-  template feMul(h, f, g: untyped) =
-    feMulRaw(addr h, unsafeAddr f, unsafeAddr g)
+proc feSqRaw(h: ptr X25519Field, f: ptr X25519Field) {.inline.} =
+  otterSpan(x25519BenchTag & ".feSq"):
+    let
+      f0 = f[][0]
+      f1 = f[][1]
+      f2 = f[][2]
+      f3 = f[][3]
+      f4 = f[][4]
+      f0_2 = f0 shl 1
+      f1_2 = f1 shl 1
+      f1_38 = 38'u64 * f1
+      f2_38 = 38'u64 * f2
+      f3_38 = 38'u64 * f3
+      f3_19 = 19'u64 * f3
+      f4_19 = 19'u64 * f4
+    var
+      r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: uint64
+    addMul(r0lo, r0hi, f0, f0)
+    addMul(r0lo, r0hi, f1_38, f4)
+    addMul(r0lo, r0hi, f2_38, f3)
+    addMul(r1lo, r1hi, f0_2, f1)
+    addMul(r1lo, r1hi, f2_38, f4)
+    addMul(r1lo, r1hi, f3_19, f3)
+    addMul(r2lo, r2hi, f0_2, f2)
+    addMul(r2lo, r2hi, f1, f1)
+    addMul(r2lo, r2hi, f3_38, f4)
+    addMul(r3lo, r3hi, f0_2, f3)
+    addMul(r3lo, r3hi, f1_2, f2)
+    addMul(r3lo, r3hi, f4_19, f4)
+    addMul(r4lo, r4hi, f0_2, f4)
+    addMul(r4lo, r4hi, f1_2, f3)
+    addMul(r4lo, r4hi, f2, f2)
+    reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi, h[])
 
-  proc feSqRaw(h: ptr X25519Field, f: ptr X25519Field) {.inline.} =
-    otterSpan(x25519BenchTag & ".feSq"):
-      let
-        f0 = f[][0]
-        f1 = f[][1]
-        f2 = f[][2]
-        f3 = f[][3]
-        f4 = f[][4]
-        f0_2 = f0 shl 1
-        f1_2 = f1 shl 1
-        f1_38 = 38'u64 * f1
-        f2_38 = 38'u64 * f2
-        f3_38 = 38'u64 * f3
-        f3_19 = 19'u64 * f3
-        f4_19 = 19'u64 * f4
-      var
-        r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: uint64
-      addMul(r0lo, r0hi, f0, f0)
-      addMul(r0lo, r0hi, f1_38, f4)
-      addMul(r0lo, r0hi, f2_38, f3)
-      addMul(r1lo, r1hi, f0_2, f1)
-      addMul(r1lo, r1hi, f2_38, f4)
-      addMul(r1lo, r1hi, f3_19, f3)
-      addMul(r2lo, r2hi, f0_2, f2)
-      addMul(r2lo, r2hi, f1, f1)
-      addMul(r2lo, r2hi, f3_38, f4)
-      addMul(r3lo, r3hi, f0_2, f3)
-      addMul(r3lo, r3hi, f1_2, f2)
-      addMul(r3lo, r3hi, f4_19, f4)
-      addMul(r4lo, r4hi, f0_2, f4)
-      addMul(r4lo, r4hi, f1_2, f3)
-      addMul(r4lo, r4hi, f2, f2)
-      reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi, h[])
-
-  template feSq(h, f: untyped) =
-    feSqRaw(addr h, unsafeAddr f)
-
-else:
-  proc feMulRaw(h: ptr X25519Field, f, g: ptr X25519Field) {.inline.} =
-    otterSpan(x25519BenchTag & ".feMul"):
-      let
-        f0 = f[][0]
-        f1 = f[][1]
-        f2 = f[][2]
-        f3 = f[][3]
-        f4 = f[][4]
-        g0 = g[][0]
-        g1 = g[][1]
-        g2 = g[][2]
-        g3 = g[][3]
-        g4 = g[][4]
-        f1_19 = 19'u64 * f1
-        f2_19 = 19'u64 * f2
-        f3_19 = 19'u64 * f3
-        f4_19 = 19'u64 * f4
-      var
-        r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: uint64
-        carry: uint64 = 0
-      addMul(r0lo, r0hi, f0, g0)
-      addMul(r0lo, r0hi, f1_19, g4)
-      addMul(r0lo, r0hi, f2_19, g3)
-      addMul(r0lo, r0hi, f3_19, g2)
-      addMul(r0lo, r0hi, f4_19, g1)
-      addMul(r1lo, r1hi, f0, g1)
-      addMul(r1lo, r1hi, f1, g0)
-      addMul(r1lo, r1hi, f2_19, g4)
-      addMul(r1lo, r1hi, f3_19, g3)
-      addMul(r1lo, r1hi, f4_19, g2)
-      addMul(r2lo, r2hi, f0, g2)
-      addMul(r2lo, r2hi, f1, g1)
-      addMul(r2lo, r2hi, f2, g0)
-      addMul(r2lo, r2hi, f3_19, g4)
-      addMul(r2lo, r2hi, f4_19, g3)
-      addMul(r3lo, r3hi, f0, g3)
-      addMul(r3lo, r3hi, f1, g2)
-      addMul(r3lo, r3hi, f2, g1)
-      addMul(r3lo, r3hi, f3, g0)
-      addMul(r3lo, r3hi, f4_19, g4)
-      addMul(r4lo, r4hi, f0, g4)
-      addMul(r4lo, r4hi, f1, g3)
-      addMul(r4lo, r4hi, f2, g2)
-      addMul(r4lo, r4hi, f3, g1)
-      addMul(r4lo, r4hi, f4, g0)
-      h[][0] = r0lo and feMask
-      carry = shift51(r0lo, r0hi)
-      add64To128(r1lo, r1hi, carry)
-      h[][1] = r1lo and feMask
-      carry = shift51(r1lo, r1hi)
-      add64To128(r2lo, r2hi, carry)
-      h[][2] = r2lo and feMask
-      carry = shift51(r2lo, r2hi)
-      add64To128(r3lo, r3hi, carry)
-      h[][3] = r3lo and feMask
-      carry = shift51(r3lo, r3hi)
-      add64To128(r4lo, r4hi, carry)
-      h[][4] = r4lo and feMask
-      carry = shift51(r4lo, r4hi)
-      h[][0] += 19'u64 * carry
-      carry = h[][0] shr 51
-      h[][0] = h[][0] and feMask
-      h[][1] += carry
-      carry = h[][1] shr 51
-      h[][1] = h[][1] and feMask
-      h[][2] += carry
-
-  template feMul(h, f, g: untyped) =
-    feMulRaw(addr h, unsafeAddr f, unsafeAddr g)
-
-  proc feSqRaw(h: ptr X25519Field, f: ptr X25519Field) {.inline.} =
-    otterSpan(x25519BenchTag & ".feSq"):
-      let
-        f0 = f[][0]
-        f1 = f[][1]
-        f2 = f[][2]
-        f3 = f[][3]
-        f4 = f[][4]
-        f0_2 = f0 shl 1
-        f1_2 = f1 shl 1
-        f1_38 = 38'u64 * f1
-        f2_38 = 38'u64 * f2
-        f3_38 = 38'u64 * f3
-        f3_19 = 19'u64 * f3
-        f4_19 = 19'u64 * f4
-      var
-        r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: uint64
-        carry: uint64 = 0
-      addMul(r0lo, r0hi, f0, f0)
-      addMul(r0lo, r0hi, f1_38, f4)
-      addMul(r0lo, r0hi, f2_38, f3)
-      addMul(r1lo, r1hi, f0_2, f1)
-      addMul(r1lo, r1hi, f2_38, f4)
-      addMul(r1lo, r1hi, f3_19, f3)
-      addMul(r2lo, r2hi, f0_2, f2)
-      addMul(r2lo, r2hi, f1, f1)
-      addMul(r2lo, r2hi, f3_38, f4)
-      addMul(r3lo, r3hi, f0_2, f3)
-      addMul(r3lo, r3hi, f1_2, f2)
-      addMul(r3lo, r3hi, f4_19, f4)
-      addMul(r4lo, r4hi, f0_2, f4)
-      addMul(r4lo, r4hi, f1_2, f3)
-      addMul(r4lo, r4hi, f2, f2)
-      h[][0] = r0lo and feMask
-      carry = shift51(r0lo, r0hi)
-      add64To128(r1lo, r1hi, carry)
-      h[][1] = r1lo and feMask
-      carry = shift51(r1lo, r1hi)
-      add64To128(r2lo, r2hi, carry)
-      h[][2] = r2lo and feMask
-      carry = shift51(r2lo, r2hi)
-      add64To128(r3lo, r3hi, carry)
-      h[][3] = r3lo and feMask
-      carry = shift51(r3lo, r3hi)
-      add64To128(r4lo, r4hi, carry)
-      h[][4] = r4lo and feMask
-      carry = shift51(r4lo, r4hi)
-      h[][0] += 19'u64 * carry
-      carry = h[][0] shr 51
-      h[][0] = h[][0] and feMask
-      h[][1] += carry
-      carry = h[][1] shr 51
-      h[][1] = h[][1] and feMask
-      h[][2] += carry
-
-  template feSq(h, f: untyped) =
-    feSqRaw(addr h, unsafeAddr f)
+template feSq(h, f: untyped) =
+  feSqRaw(addr h, unsafeAddr f)
 
 proc feMul32Raw(h: ptr X25519Field, f: ptr X25519Field, n: uint32) {.inline.} =
   let sn = uint64(n)
@@ -499,9 +379,8 @@ proc feReduce(h: var X25519Field, f: X25519Field) {.inline.} =
 
 proc feToBytes(outBytes: var X25519Bytes32, h: X25519Field) {.inline.} =
   var t: X25519Field
-  when x25519SecureWipe:
-    defer:
-      secureClearPod(t)
+  defer:
+    secureClearPod(t)
   feReduce(t, h)
   let
     t0 = t[0] or (t[1] shl 51)
@@ -513,12 +392,11 @@ proc feToBytes(outBytes: var X25519Bytes32, h: X25519Field) {.inline.} =
   store64Le(outBytes, 16, t2)
   store64Le(outBytes, 24, t3)
 
-when x25519SplitHelpers:
-  proc feSqRepeat(h: var X25519Field, count: int) {.inline.} =
-    var i: int = 0
-    while i < count:
-      feSq(h, h)
-      inc i
+proc feSqRepeat(h: var X25519Field, count: int) {.inline.} =
+  var i: int = 0
+  while i < count:
+    feSq(h, h)
+    inc i
 
 proc feInvert(outField: var X25519Field, z: X25519Field) {.inline.} =
   otterSpan(x25519BenchTag & ".feInvert"):
@@ -527,14 +405,11 @@ proc feInvert(outField: var X25519Field, z: X25519Field) {.inline.} =
       t1: X25519Field
       t2: X25519Field
       t3: X25519Field
-    when not x25519SplitHelpers:
-      var i: int = 0
-    when x25519SecureWipe:
-      defer:
-        secureClearPod(t0)
-        secureClearPod(t1)
-        secureClearPod(t2)
-        secureClearPod(t3)
+    defer:
+      secureClearPod(t0)
+      secureClearPod(t1)
+      secureClearPod(t2)
+      secureClearPod(t3)
     feSq(t0, z)
     feSq(t1, t0)
     feSq(t1, t1)
@@ -543,111 +418,62 @@ proc feInvert(outField: var X25519Field, z: X25519Field) {.inline.} =
     feSq(t2, t0)
     feMul(t1, t1, t2)
     feSq(t2, t1)
-    when x25519SplitHelpers:
-      feSqRepeat(t2, 4)
-    else:
-      i = 1
-      while i < 5:
-        feSq(t2, t2)
-        inc i
+    feSqRepeat(t2, 4)
     feMul(t1, t2, t1)
     feSq(t2, t1)
-    when x25519SplitHelpers:
-      feSqRepeat(t2, 9)
-    else:
-      i = 1
-      while i < 10:
-        feSq(t2, t2)
-        inc i
+    feSqRepeat(t2, 9)
     feMul(t2, t2, t1)
     feSq(t3, t2)
-    when x25519SplitHelpers:
-      feSqRepeat(t3, 19)
-    else:
-      i = 1
-      while i < 20:
-        feSq(t3, t3)
-        inc i
+    feSqRepeat(t3, 19)
     feMul(t2, t3, t2)
-    when x25519SplitHelpers:
-      feSqRepeat(t2, 10)
-    else:
-      i = 1
-      while i < 11:
-        feSq(t2, t2)
-        inc i
+    feSqRepeat(t2, 10)
     feMul(t1, t2, t1)
     feSq(t2, t1)
-    when x25519SplitHelpers:
-      feSqRepeat(t2, 49)
-    else:
-      i = 1
-      while i < 50:
-        feSq(t2, t2)
-        inc i
+    feSqRepeat(t2, 49)
     feMul(t2, t2, t1)
     feSq(t3, t2)
-    when x25519SplitHelpers:
-      feSqRepeat(t3, 99)
-    else:
-      i = 1
-      while i < 100:
-        feSq(t3, t3)
-        inc i
+    feSqRepeat(t3, 99)
     feMul(t2, t3, t2)
-    when x25519SplitHelpers:
-      feSqRepeat(t2, 50)
-    else:
-      i = 1
-      while i < 51:
-        feSq(t2, t2)
-        inc i
+    feSqRepeat(t2, 50)
     feMul(t1, t2, t1)
-    when x25519SplitHelpers:
-      feSqRepeat(t1, 5)
-    else:
-      i = 1
-      while i < 6:
-        feSq(t1, t1)
-        inc i
+    feSqRepeat(t1, 5)
     feMul(outField, t1, t0)
 
-when x25519SplitHelpers:
-  proc scalarBit(t: X25519Bytes32, pos: int): uint32 {.inline.} =
-    result = uint32((t[pos div 8] shr (pos and 7)) and 1'u8)
+proc scalarBit(t: X25519Bytes32, pos: int): uint32 {.inline.} =
+  result = uint32((t[pos div 8] shr (pos and 7)) and 1'u8)
 
-  proc initScalarmultState(publicKey: X25519Bytes32, x1, x2, x3, z2, z3: var X25519Field) {.inline.} =
-    feFromBytes(x1, publicKey)
-    fe1(x2)
-    fe0(z2)
-    feCopy(x3, x1)
-    fe1(z3)
+proc initScalarmultState(publicKey: X25519Bytes32, x1, x2, x3, z2, z3: var X25519Field) {.inline.} =
+  feFromBytes(x1, publicKey)
+  fe1(x2)
+  fe0(z2)
+  feCopy(x3, x1)
+  fe1(z3)
 
-  proc ladderStep(x1: X25519Field, x2, x3, z2, z3, a, b, aa, bb, e, da, cb: var X25519Field) {.inline.} =
-    feAdd(a, x2, z2)
-    feSub(b, x2, z2)
-    feSq(aa, a)
-    feSq(bb, b)
-    feMul(x2, aa, bb)
-    feSub(e, aa, bb)
-    feSub(da, x3, z3)
-    feMul(da, da, a)
-    feAdd(cb, x3, z3)
-    feMul(cb, cb, b)
-    feAdd(x3, da, cb)
-    feSq(x3, x3)
-    feSub(z3, da, cb)
-    feSq(z3, z3)
-    feMul(z3, z3, x1)
-    feMul32(z2, e, 121_666'u32)
-    feAdd(z2, z2, bb)
-    feMul(z2, z2, e)
+proc ladderStep(x1: X25519Field, x2, x3, z2, z3, a, b, aa, bb, e, da, cb: var X25519Field) {.inline.} =
+  feAdd(a, x2, z2)
+  feSub(b, x2, z2)
+  feSq(aa, a)
+  feSq(bb, b)
+  feMul(x2, aa, bb)
+  feSub(e, aa, bb)
+  feSub(da, x3, z3)
+  feMul(da, da, a)
+  feAdd(cb, x3, z3)
+  feMul(cb, cb, b)
+  feAdd(x3, da, cb)
+  feSq(x3, x3)
+  feSub(z3, da, cb)
+  feSq(z3, z3)
+  feMul(z3, z3, x1)
+  feMul32(z2, e, 121_666'u32)
+  feAdd(z2, z2, bb)
+  feMul(z2, z2, e)
 
-  proc finalizeScalarmult(outShared: var X25519Bytes32, x2, z2: var X25519Field, outResult: var bool) {.inline.} =
-    feInvert(z2, z2)
-    feMul(x2, x2, z2)
-    feToBytes(outShared, x2)
-    outResult = not isAllZero(outShared)
+proc finalizeScalarmult(outShared: var X25519Bytes32, x2, z2: var X25519Field, outResult: var bool) {.inline.} =
+  feInvert(z2, z2)
+  feMul(x2, x2, z2)
+  feToBytes(outShared, x2)
+  outResult = not isAllZero(outShared)
 
 proc x25519ScalarmultRaw*(outShared: var X25519Bytes32, secretKey,
     publicKey: X25519Bytes32): bool =
@@ -662,133 +488,84 @@ proc x25519ScalarmultRaw*(outShared: var X25519Bytes32, secretKey,
     if hasSmallOrder(publicKey):
       return false
     clampScalar(t, secretKey)
-    when x25519SecureWipe:
-      defer:
-        secureClearPod(t)
-        secureClearPod(x1)
-        secureClearPod(x2)
-        secureClearPod(x3)
-        secureClearPod(z2)
-        secureClearPod(z3)
-        secureClearPod(a)
-        secureClearPod(b)
-        secureClearPod(aa)
-        secureClearPod(bb)
-        secureClearPod(e)
-        secureClearPod(da)
-        secureClearPod(cb)
-    when x25519SplitHelpers:
-      initScalarmultState(publicKey, x1, x2, x3, z2, z3)
-    else:
-      feFromBytes(x1, publicKey)
-      fe1(x2)
-      fe0(z2)
-      feCopy(x3, x1)
-      fe1(z3)
+    defer:
+      secureClearPod(t)
+      secureClearPod(x1)
+      secureClearPod(x2)
+      secureClearPod(x3)
+      secureClearPod(z2)
+      secureClearPod(z3)
+      secureClearPod(a)
+      secureClearPod(b)
+      secureClearPod(aa)
+      secureClearPod(bb)
+      secureClearPod(e)
+      secureClearPod(da)
+      secureClearPod(cb)
+    initScalarmultState(publicKey, x1, x2, x3, z2, z3)
     while pos >= 0:
-      when x25519SplitHelpers:
-        bit = scalarBit(t, pos)
-      else:
-        bit = uint32((t[pos div 8] shr (pos and 7)) and 1'u8)
+      bit = scalarBit(t, pos)
       swap = swap xor bit
       feCswap(x2, x3, swap)
       feCswap(z2, z3, swap)
       swap = bit
-      when x25519SplitHelpers:
-        ladderStep(x1, x2, x3, z2, z3, a, b, aa, bb, e, da, cb)
-      else:
-        feAdd(a, x2, z2)
-        feSub(b, x2, z2)
-        feSq(aa, a)
-        feSq(bb, b)
-        feMul(x2, aa, bb)
-        feSub(e, aa, bb)
-        feSub(da, x3, z3)
-        feMul(da, da, a)
-        feAdd(cb, x3, z3)
-        feMul(cb, cb, b)
-        feAdd(x3, da, cb)
-        feSq(x3, x3)
-        feSub(z3, da, cb)
-        feSq(z3, z3)
-        feMul(z3, z3, x1)
-        feMul32(z2, e, 121_666'u32)
-        feAdd(z2, z2, bb)
-        feMul(z2, z2, e)
+      ladderStep(x1, x2, x3, z2, z3, a, b, aa, bb, e, da, cb)
       dec pos
     feCswap(x2, x3, swap)
     feCswap(z2, z3, swap)
-    when x25519SplitHelpers:
-      finalizeScalarmult(outShared, x2, z2, result)
-    else:
-      feInvert(z2, z2)
-      feMul(x2, x2, z2)
-      feToBytes(outShared, x2)
-      result = not isAllZero(outShared)
+    finalizeScalarmult(outShared, x2, z2, result)
 
 proc x25519ScalarmultBaseRaw*(publicKey: var X25519Bytes32,
     secretKey: X25519Bytes32): bool =
   result = x25519ScalarmultRaw(publicKey, secretKey, x25519Basepoint)
 
 proc x25519TyrShared*(secretKey, publicKey: openArray[byte]): seq[byte] =
-  when x25519SecureWipe:
-    var
-      sk = toFixed32(secretKey)
-      pk = toFixed32(publicKey)
-      shared: X25519Bytes32
-    defer:
-      secureClearPod(sk)
-      secureClearPod(pk)
-      secureClearPod(shared)
-    if not x25519ScalarmultRaw(shared, sk, pk):
-      raise newException(ValueError, "X25519 shared secret derivation failed")
-    result = toSeqBytes(shared)
-  else:
-    result = buildShared(x25519ScalarmultRaw, secretKey, publicKey)
+  var
+    sk = toFixed32(secretKey)
+    pk = toFixed32(publicKey)
+    shared: X25519Bytes32
+  defer:
+    secureClearPod(sk)
+    secureClearPod(pk)
+    secureClearPod(shared)
+  if not x25519ScalarmultRaw(shared, sk, pk):
+    raise newException(ValueError, "X25519 shared secret derivation failed")
+  result = toSeqBytes(shared)
 
 proc x25519TyrPublicKey*(secretKey: openArray[byte]): seq[byte] =
-  when x25519SecureWipe:
-    var
-      sk = toFixed32(secretKey)
-      pk: X25519Bytes32
-    defer:
-      secureClearPod(sk)
-      secureClearPod(pk)
-    if not x25519ScalarmultBaseRaw(pk, sk):
-      raise newException(ValueError, "X25519 public key derivation failed")
-    result = toSeqBytes(pk)
-  else:
-    result = buildPublicKey(x25519ScalarmultBaseRaw, secretKey)
+  var
+    sk = toFixed32(secretKey)
+    pk: X25519Bytes32
+  defer:
+    secureClearPod(sk)
+    secureClearPod(pk)
+  if not x25519ScalarmultBaseRaw(pk, sk):
+    raise newException(ValueError, "X25519 public key derivation failed")
+  result = toSeqBytes(pk)
 
 proc x25519TyrKeypair*(): X25519TyrKeypair =
-  when x25519SecureWipe:
-    var
-      sk = randomSecret32()
-      pk: X25519Bytes32
-    defer:
-      secureClearPod(sk)
-      secureClearPod(pk)
-    if not x25519ScalarmultBaseRaw(pk, sk):
-      raise newException(ValueError, "X25519 public key derivation failed")
-    result.publicKey = toSeqBytes(pk)
-    result.secretKey = toSeqBytes(sk)
-  else:
-    result = buildRandomKeypair(x25519ScalarmultBaseRaw)
+  var
+    sk = randomSecret32()
+    pk: X25519Bytes32
+  defer:
+    secureClearPod(sk)
+    secureClearPod(pk)
+  if not x25519ScalarmultBaseRaw(pk, sk):
+    raise newException(ValueError, "X25519 public key derivation failed")
+  result.publicKey = toSeqBytes(pk)
+  result.secretKey = toSeqBytes(sk)
 
 proc x25519TyrKeypairFromSeed*(seed: openArray[byte]): X25519TyrKeypair =
-  when x25519SecureWipe:
-    var
-      sk = deriveSeedSecretCompat(seed)
-      pk: X25519Bytes32
-    defer:
-      secureClearPod(sk)
-      secureClearPod(pk)
-    if not x25519ScalarmultBaseRaw(pk, sk):
-      raise newException(ValueError, "X25519 public key derivation failed")
-    result.publicKey = toSeqBytes(pk)
-    result.secretKey = toSeqBytes(sk)
-  else:
-    result = buildSeededKeypair(x25519ScalarmultBaseRaw, seed)
+  var
+    sk = deriveSeedSecretCompat(seed)
+    pk: X25519Bytes32
+  defer:
+    secureClearPod(sk)
+    secureClearPod(pk)
+  if not x25519ScalarmultBaseRaw(pk, sk):
+    raise newException(ValueError, "X25519 public key derivation failed")
+  result.publicKey = toSeqBytes(pk)
+  result.secretKey = toSeqBytes(sk)
 
 when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defined(aarch64):
   type
@@ -975,11 +752,10 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
       running: X25519Field
       invAll: X25519Field
       lane: int = 0
-    when x25519SecureWipe:
-      defer:
-        secureClearPod(prefix)
-        secureClearPod(running)
-        secureClearPod(invAll)
+    defer:
+      secureClearPod(prefix)
+      secureClearPod(running)
+      secureClearPod(invAll)
     feCopy(prefix[0], zs[0])
     lane = 1
     while lane < L:
@@ -1010,29 +786,27 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
         lane: int = 0
         pos: int = 254
         allValid: bool = true
-        runScalarFallback: bool = false
-      when x25519SecureWipe:
-        defer:
-          secureClearPod(t)
-          secureClearPod(x1Fields)
-          secureZeroMem(addr x1, sizeof(x1))
-          secureZeroMem(addr x2, sizeof(x2))
-          secureZeroMem(addr x3, sizeof(x3))
-          secureZeroMem(addr z2, sizeof(z2))
-          secureZeroMem(addr z3, sizeof(z3))
-          secureZeroMem(addr a, sizeof(a))
-          secureZeroMem(addr b, sizeof(b))
-          secureZeroMem(addr aa, sizeof(aa))
-          secureZeroMem(addr bb, sizeof(bb))
-          secureZeroMem(addr e, sizeof(e))
-          secureZeroMem(addr da, sizeof(da))
-          secureZeroMem(addr cb, sizeof(cb))
-          secureClearPod(swapBits)
-          secureClearPod(bits)
-          secureClearPod(x2Fields)
-          secureClearPod(z2Fields)
-          secureClearPod(invZ)
-          secureClearPod(affine)
+      defer:
+        secureClearPod(t)
+        secureClearPod(x1Fields)
+        secureZeroMem(addr x1, sizeof(x1))
+        secureZeroMem(addr x2, sizeof(x2))
+        secureZeroMem(addr x3, sizeof(x3))
+        secureZeroMem(addr z2, sizeof(z2))
+        secureZeroMem(addr z3, sizeof(z3))
+        secureZeroMem(addr a, sizeof(a))
+        secureZeroMem(addr b, sizeof(b))
+        secureZeroMem(addr aa, sizeof(aa))
+        secureZeroMem(addr bb, sizeof(bb))
+        secureZeroMem(addr e, sizeof(e))
+        secureZeroMem(addr da, sizeof(da))
+        secureZeroMem(addr cb, sizeof(cb))
+        secureClearPod(swapBits)
+        secureClearPod(bits)
+        secureClearPod(x2Fields)
+        secureClearPod(z2Fields)
+        secureClearPod(invZ)
+        secureClearPod(affine)
       lane = 0
       while lane < lanes:
         result[lane] = not hasSmallOrder(publicKeys[lane])
@@ -1045,9 +819,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
           fe0(x1Fields[lane])
           secureClearPod(outShared[lane])
         inc lane
-      when x25519BatchInversion:
-        runScalarFallback = not allValid
-      if runScalarFallback:
+      if not allValid:
         lane = 0
         while lane < lanes:
           if result[lane]:
@@ -1093,13 +865,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
         feCswapVec(z2, z3, swapBits)
         x2Fields = unpackFieldVec(x2)
         z2Fields = unpackFieldVec(z2)
-        when x25519BatchInversion:
-          feInvertBatchFields(invZ, z2Fields)
-        else:
-          lane = 0
-          while lane < lanes:
-            feInvert(invZ[lane], z2Fields[lane])
-            inc lane
+        feInvertBatchFields(invZ, z2Fields)
         lane = 0
         while lane < lanes:
           feMul(affine, x2Fields[lane], invZ[lane])
@@ -1109,23 +875,22 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
 
   proc x25519ScalarmultBatch2Impl[T: SimdU64](outShared: var array[2, X25519Bytes32],
       secretKeys, publicKeys: array[2, X25519Bytes32]): array[2, bool] =
-    when x25519BatchInversion:
-      var
-        lane: int = 0
-        allValid: bool = true
+    var
+      lane: int = 0
+      allValid: bool = true
+    while lane < 2:
+      allValid = allValid and not hasSmallOrder(publicKeys[lane])
+      inc lane
+    if not allValid:
+      lane = 0
       while lane < 2:
-        allValid = allValid and not hasSmallOrder(publicKeys[lane])
+        if hasSmallOrder(publicKeys[lane]):
+          result[lane] = false
+          secureClearPod(outShared[lane])
+        else:
+          result[lane] = x25519ScalarmultRaw(outShared[lane], secretKeys[lane], publicKeys[lane])
         inc lane
-      if not allValid:
-        lane = 0
-        while lane < 2:
-          if hasSmallOrder(publicKeys[lane]):
-            result[lane] = false
-            secureClearPod(outShared[lane])
-          else:
-            result[lane] = x25519ScalarmultRaw(outShared[lane], secretKeys[lane], publicKeys[lane])
-          inc lane
-        return
+      return
     result = x25519ScalarmultBatchRaw[T](outShared, secretKeys, publicKeys)
 
   when defined(amd64) or defined(i386):
@@ -1179,23 +944,22 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
   when defined(avx2):
     proc x25519ScalarmultBatchAvx4x*(outShared: var array[4, X25519Bytes32],
         secretKeys, publicKeys: array[4, X25519Bytes32]): array[4, bool] =
-      when x25519BatchInversion:
-        var
-          lane: int = 0
-          allValid: bool = true
+      var
+        lane: int = 0
+        allValid: bool = true
+      while lane < 4:
+        allValid = allValid and not hasSmallOrder(publicKeys[lane])
+        inc lane
+      if not allValid:
+        lane = 0
         while lane < 4:
-          allValid = allValid and not hasSmallOrder(publicKeys[lane])
+          if hasSmallOrder(publicKeys[lane]):
+            result[lane] = false
+            secureClearPod(outShared[lane])
+          else:
+            result[lane] = x25519ScalarmultRaw(outShared[lane], secretKeys[lane], publicKeys[lane])
           inc lane
-        if not allValid:
-          lane = 0
-          while lane < 4:
-            if hasSmallOrder(publicKeys[lane]):
-              result[lane] = false
-              secureClearPod(outShared[lane])
-            else:
-              result[lane] = x25519ScalarmultRaw(outShared[lane], secretKeys[lane], publicKeys[lane])
-            inc lane
-          return
+        return
       result = x25519ScalarmultBatchRaw[u64x4](outShared, secretKeys, publicKeys)
 
     proc x25519TyrSharedAvx4x*(secretKeys, publicKeys: array[4, seq[byte]]): array[4, seq[byte]] =

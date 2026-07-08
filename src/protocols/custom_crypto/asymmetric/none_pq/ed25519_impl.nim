@@ -8,6 +8,13 @@
 ##
 ## This module is intentionally self-contained.  It does not call C
 ## crypto backends, so the wrapper can use Ed25519 without libsodium.
+##
+## Why SHA-512 lives here:
+##   RFC 8032 hard-wires Ed25519 to SHA-512 (the SHA-2 family).
+##   The SHA3/SHAKE code in symmetric/sha3 is Keccak - a different
+##   algorithm with different outputs - so it CANNOT be swapped in.
+##   This embedded sha512Hash is the only SHA-512 in the repo and is
+##   verified by the RFC 8032 vectors in tests/test_ed25519_custom.nim.
 
 import ./x25519_common
 import ../../random
@@ -537,7 +544,7 @@ proc pointDecode(p: var Ed25519Point, s: Ed25519Bytes32): bool =
   var
     yBytes = s
     sign: byte = (s[31] shr 7) and 1'u8
-    y, y2, u, v, vInv, x2, x, check, negX2: Ed25519Field
+    y, y2, u, v, vInv, x2, x, check: Ed25519Field
     one: Ed25519Field
   yBytes[31] = yBytes[31] and 0x7f'u8
   if not bytesLessThanP(yBytes):
@@ -567,7 +574,6 @@ proc pointDecode(p: var Ed25519Point, s: Ed25519Bytes32): bool =
   p.y = y
   fe1(p.z)
   feMul(p.t, x, y)
-  discard negX2
   result = true
 
 proc basePoint(): Ed25519Point =
@@ -686,9 +692,7 @@ proc scalarMulAdd(k, s, r: Ed25519Bytes32): Ed25519Bytes32 =
     acc = scalarBytesToLimbs(reduce32(r))
     cur = scalarBytesToLimbs(reduce32(s))
     kk = reduce32(k)
-    one: array[4, uint64]
     i: int = 0
-  discard one
   while i < 256:
     if ((kk[i div 8] shr (i and 7)) and 1'u8) == 1'u8:
       scalarAddMod(acc, cur)

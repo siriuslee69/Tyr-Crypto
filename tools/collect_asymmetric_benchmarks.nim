@@ -8,7 +8,7 @@ import std/[algorithm, json, math, monotimes, os, parseopt, strutils, tables, ti
 import ../src/protocols/custom_crypto/[kyber, frodo, bike, mceliece, dilithium, falcon, sphincs]
 import ../src/protocols/custom_crypto/ntru as custom_ntru
 import ../src/protocols/custom_crypto/saber as custom_saber
-import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_pass1, x25519_pass2, x25519_pass3, x25519_pass4]
+import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_impl]
 import ../src/protocols/custom_crypto/asymmetric/pq/kyber/[params as kyber_params, operations as kyber_ops, indcpa]
 import ../src/protocols/custom_crypto/asymmetric/pq/frodo/params as frodo_params
 import ../src/protocols/custom_crypto/asymmetric/pq/bike/params as bike_params
@@ -633,8 +633,8 @@ proc initX25519Corpus(S: var X25519Corpus) =
       seedB[j] = byte((101 + 13 * i + 5 * j) and 0xff)
       j = j + 1
     var
-      kpA = x25519_pass4.x25519TyrKeypairFromSeed(seedA)
-      kpB = x25519_pass4.x25519TyrKeypairFromSeed(seedB)
+      kpA = x25519TyrKeypairFromSeed(seedA)
+      kpB = x25519TyrKeypairFromSeed(seedB)
     S.scalarSecrets[i] = toFixed32(kpA.secretKey)
     S.scalarPublics[i] = toFixed32(kpB.publicKey)
     i = i + 1
@@ -652,36 +652,26 @@ proc initX25519Corpus(S: var X25519Corpus) =
       S.batch4Publics[i][lane] = S.scalarPublics[4 * i + lane]
     i = i + 1
 
-proc measureX25519ScalarPass(passNo: int, corpus: var X25519Corpus, loops, warmup: int): int64 =
+proc measureX25519Scalar(corpus: var X25519Corpus, loops, warmup: int): int64 =
   var
     i: int = 0
     idx: int = 0
     outShared: X25519Bytes32
     start: MonoTime
   while i < warmup:
-    case passNo
-    of 1: doAssert x25519_pass1.x25519ScalarmultRaw(outShared, corpus.scalarSecrets[idx], corpus.scalarPublics[idx])
-    of 2: doAssert x25519_pass2.x25519ScalarmultRaw(outShared, corpus.scalarSecrets[idx], corpus.scalarPublics[idx])
-    of 3: doAssert x25519_pass3.x25519ScalarmultRaw(outShared, corpus.scalarSecrets[idx], corpus.scalarPublics[idx])
-    of 4: doAssert x25519_pass4.x25519ScalarmultRaw(outShared, corpus.scalarSecrets[idx], corpus.scalarPublics[idx])
-    else: discard
+    doAssert x25519ScalarmultRaw(outShared, corpus.scalarSecrets[idx], corpus.scalarPublics[idx])
     idx = (idx + 1) mod corpus.scalarSecrets.len
     inc i
   start = getMonoTime()
   i = 0
   while i < loops:
-    case passNo
-    of 1: doAssert x25519_pass1.x25519ScalarmultRaw(outShared, corpus.scalarSecrets[idx], corpus.scalarPublics[idx])
-    of 2: doAssert x25519_pass2.x25519ScalarmultRaw(outShared, corpus.scalarSecrets[idx], corpus.scalarPublics[idx])
-    of 3: doAssert x25519_pass3.x25519ScalarmultRaw(outShared, corpus.scalarSecrets[idx], corpus.scalarPublics[idx])
-    of 4: doAssert x25519_pass4.x25519ScalarmultRaw(outShared, corpus.scalarSecrets[idx], corpus.scalarPublics[idx])
-    else: discard
+    doAssert x25519ScalarmultRaw(outShared, corpus.scalarSecrets[idx], corpus.scalarPublics[idx])
     idx = (idx + 1) mod corpus.scalarSecrets.len
     inc i
   result = inNanoseconds(getMonoTime() - start)
 
 when defined(sse2):
-  proc measureX25519Batch2SsePass(passNo: int, corpus: var X25519Corpus, loops, warmup: int): int64 =
+  proc measureX25519Batch2Sse(corpus: var X25519Corpus, loops, warmup: int): int64 =
     var
       i: int = 0
       idx: int = 0
@@ -689,31 +679,21 @@ when defined(sse2):
       ok: array[2, bool]
       start: MonoTime
     while i < warmup:
-      case passNo
-      of 1: ok = x25519_pass1.x25519ScalarmultBatchSse2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      of 2: ok = x25519_pass2.x25519ScalarmultBatchSse2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      of 3: ok = x25519_pass3.x25519ScalarmultBatchSse2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      of 4: ok = x25519_pass4.x25519ScalarmultBatchSse2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      else: discard
+      ok = x25519ScalarmultBatchSse2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
       doAssert ok[0] and ok[1]
       idx = (idx + 1) mod corpus.batch2Secrets.len
       inc i
     start = getMonoTime()
     i = 0
     while i < loops:
-      case passNo
-      of 1: ok = x25519_pass1.x25519ScalarmultBatchSse2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      of 2: ok = x25519_pass2.x25519ScalarmultBatchSse2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      of 3: ok = x25519_pass3.x25519ScalarmultBatchSse2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      of 4: ok = x25519_pass4.x25519ScalarmultBatchSse2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      else: discard
+      ok = x25519ScalarmultBatchSse2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
       doAssert ok[0] and ok[1]
       idx = (idx + 1) mod corpus.batch2Secrets.len
       inc i
     result = inNanoseconds(getMonoTime() - start)
 
 when defined(neon) or defined(arm64) or defined(aarch64):
-  proc measureX25519Batch2NeonPass(passNo: int, corpus: var X25519Corpus, loops, warmup: int): int64 =
+  proc measureX25519Batch2Neon(corpus: var X25519Corpus, loops, warmup: int): int64 =
     var
       i: int = 0
       idx: int = 0
@@ -721,31 +701,21 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       ok: array[2, bool]
       start: MonoTime
     while i < warmup:
-      case passNo
-      of 1: ok = x25519_pass1.x25519ScalarmultBatchNeon2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      of 2: ok = x25519_pass2.x25519ScalarmultBatchNeon2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      of 3: ok = x25519_pass3.x25519ScalarmultBatchNeon2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      of 4: ok = x25519_pass4.x25519ScalarmultBatchNeon2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      else: discard
+      ok = x25519ScalarmultBatchNeon2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
       doAssert ok[0] and ok[1]
       idx = (idx + 1) mod corpus.batch2Secrets.len
       inc i
     start = getMonoTime()
     i = 0
     while i < loops:
-      case passNo
-      of 1: ok = x25519_pass1.x25519ScalarmultBatchNeon2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      of 2: ok = x25519_pass2.x25519ScalarmultBatchNeon2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      of 3: ok = x25519_pass3.x25519ScalarmultBatchNeon2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      of 4: ok = x25519_pass4.x25519ScalarmultBatchNeon2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
-      else: discard
+      ok = x25519ScalarmultBatchNeon2x(outShared, corpus.batch2Secrets[idx], corpus.batch2Publics[idx])
       doAssert ok[0] and ok[1]
       idx = (idx + 1) mod corpus.batch2Secrets.len
       inc i
     result = inNanoseconds(getMonoTime() - start)
 
 when defined(avx2):
-  proc measureX25519Batch4AvxPass(passNo: int, corpus: var X25519Corpus, loops, warmup: int): int64 =
+  proc measureX25519Batch4Avx(corpus: var X25519Corpus, loops, warmup: int): int64 =
     var
       i: int = 0
       idx: int = 0
@@ -753,24 +723,14 @@ when defined(avx2):
       ok: array[4, bool]
       start: MonoTime
     while i < warmup:
-      case passNo
-      of 1: ok = x25519_pass1.x25519ScalarmultBatchAvx4x(outShared, corpus.batch4Secrets[idx], corpus.batch4Publics[idx])
-      of 2: ok = x25519_pass2.x25519ScalarmultBatchAvx4x(outShared, corpus.batch4Secrets[idx], corpus.batch4Publics[idx])
-      of 3: ok = x25519_pass3.x25519ScalarmultBatchAvx4x(outShared, corpus.batch4Secrets[idx], corpus.batch4Publics[idx])
-      of 4: ok = x25519_pass4.x25519ScalarmultBatchAvx4x(outShared, corpus.batch4Secrets[idx], corpus.batch4Publics[idx])
-      else: discard
+      ok = x25519ScalarmultBatchAvx4x(outShared, corpus.batch4Secrets[idx], corpus.batch4Publics[idx])
       doAssert ok[0] and ok[1] and ok[2] and ok[3]
       idx = (idx + 1) mod corpus.batch4Secrets.len
       inc i
     start = getMonoTime()
     i = 0
     while i < loops:
-      case passNo
-      of 1: ok = x25519_pass1.x25519ScalarmultBatchAvx4x(outShared, corpus.batch4Secrets[idx], corpus.batch4Publics[idx])
-      of 2: ok = x25519_pass2.x25519ScalarmultBatchAvx4x(outShared, corpus.batch4Secrets[idx], corpus.batch4Publics[idx])
-      of 3: ok = x25519_pass3.x25519ScalarmultBatchAvx4x(outShared, corpus.batch4Secrets[idx], corpus.batch4Publics[idx])
-      of 4: ok = x25519_pass4.x25519ScalarmultBatchAvx4x(outShared, corpus.batch4Secrets[idx], corpus.batch4Publics[idx])
-      else: discard
+      ok = x25519ScalarmultBatchAvx4x(outShared, corpus.batch4Secrets[idx], corpus.batch4Publics[idx])
       doAssert ok[0] and ok[1] and ok[2] and ok[3]
       idx = (idx + 1) mod corpus.batch4Secrets.len
       inc i
@@ -964,63 +924,27 @@ proc collectSummaryRows(rows: var seq[JsonNode], deviceLabel, deviceKind: string
     trace(verbose, "summary:x25519")
     cfg = benchLoops(profile, "x25519", "curve25519", "scalar")
     applyScale(cfg, scale)
-    if implEnabled(onlyImplementations, "pass1") and backendEnabled(onlyBackends, "scalar"):
-      addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass1", "scalar", "shared_secret",
-        cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519ScalarPass(1, xCorpus, cfg.loops, cfg.warmup))
-    if implEnabled(onlyImplementations, "pass2") and backendEnabled(onlyBackends, "scalar"):
-      addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass2", "scalar", "shared_secret",
-        cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519ScalarPass(2, xCorpus, cfg.loops, cfg.warmup))
-    if implEnabled(onlyImplementations, "pass3") and backendEnabled(onlyBackends, "scalar"):
-      addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass3", "scalar", "shared_secret",
-        cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519ScalarPass(3, xCorpus, cfg.loops, cfg.warmup))
-    if implEnabled(onlyImplementations, "pass4") and backendEnabled(onlyBackends, "scalar"):
-      addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass4", "scalar", "shared_secret",
-        cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519ScalarPass(4, xCorpus, cfg.loops, cfg.warmup))
+    if implEnabled(onlyImplementations, "tyr") and backendEnabled(onlyBackends, "scalar"):
+      addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "tyr", "scalar", "shared_secret",
+        cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Scalar(xCorpus, cfg.loops, cfg.warmup))
     when defined(sse2):
       cfg = benchLoops(profile, "x25519", "curve25519", "batch2")
       applyScale(cfg, scale)
-      if implEnabled(onlyImplementations, "pass1") and backendEnabled(onlyBackends, "sse2x"):
-        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass1", "sse2x", "shared_secret_batch",
-          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch2SsePass(1, xCorpus, cfg.loops, cfg.warmup))
-      if implEnabled(onlyImplementations, "pass2") and backendEnabled(onlyBackends, "sse2x"):
-        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass2", "sse2x", "shared_secret_batch",
-          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch2SsePass(2, xCorpus, cfg.loops, cfg.warmup))
-      if implEnabled(onlyImplementations, "pass3") and backendEnabled(onlyBackends, "sse2x"):
-        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass3", "sse2x", "shared_secret_batch",
-          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch2SsePass(3, xCorpus, cfg.loops, cfg.warmup))
-      if implEnabled(onlyImplementations, "pass4") and backendEnabled(onlyBackends, "sse2x"):
-        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass4", "sse2x", "shared_secret_batch",
-          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch2SsePass(4, xCorpus, cfg.loops, cfg.warmup))
+      if implEnabled(onlyImplementations, "tyr") and backendEnabled(onlyBackends, "sse2x"):
+        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "tyr", "sse2x", "shared_secret_batch",
+          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch2Sse(xCorpus, cfg.loops, cfg.warmup))
     when defined(neon) or defined(arm64) or defined(aarch64):
       cfg = benchLoops(profile, "x25519", "curve25519", "batch2")
       applyScale(cfg, scale)
-      if implEnabled(onlyImplementations, "pass1") and backendEnabled(onlyBackends, "neon2x"):
-        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass1", "neon2x", "shared_secret_batch",
-          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch2NeonPass(1, xCorpus, cfg.loops, cfg.warmup))
-      if implEnabled(onlyImplementations, "pass2") and backendEnabled(onlyBackends, "neon2x"):
-        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass2", "neon2x", "shared_secret_batch",
-          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch2NeonPass(2, xCorpus, cfg.loops, cfg.warmup))
-      if implEnabled(onlyImplementations, "pass3") and backendEnabled(onlyBackends, "neon2x"):
-        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass3", "neon2x", "shared_secret_batch",
-          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch2NeonPass(3, xCorpus, cfg.loops, cfg.warmup))
-      if implEnabled(onlyImplementations, "pass4") and backendEnabled(onlyBackends, "neon2x"):
-        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass4", "neon2x", "shared_secret_batch",
-          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch2NeonPass(4, xCorpus, cfg.loops, cfg.warmup))
+      if implEnabled(onlyImplementations, "tyr") and backendEnabled(onlyBackends, "neon2x"):
+        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "tyr", "neon2x", "shared_secret_batch",
+          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch2Neon(xCorpus, cfg.loops, cfg.warmup))
     when defined(avx2):
       cfg = benchLoops(profile, "x25519", "curve25519", "batch4")
       applyScale(cfg, scale)
-      if implEnabled(onlyImplementations, "pass1") and backendEnabled(onlyBackends, "avx4x"):
-        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass1", "avx4x", "shared_secret_batch",
-          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch4AvxPass(1, xCorpus, cfg.loops, cfg.warmup))
-      if implEnabled(onlyImplementations, "pass2") and backendEnabled(onlyBackends, "avx4x"):
-        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass2", "avx4x", "shared_secret_batch",
-          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch4AvxPass(2, xCorpus, cfg.loops, cfg.warmup))
-      if implEnabled(onlyImplementations, "pass3") and backendEnabled(onlyBackends, "avx4x"):
-        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass3", "avx4x", "shared_secret_batch",
-          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch4AvxPass(3, xCorpus, cfg.loops, cfg.warmup))
-      if implEnabled(onlyImplementations, "pass4") and backendEnabled(onlyBackends, "avx4x"):
-        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass4", "avx4x", "shared_secret_batch",
-          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch4AvxPass(4, xCorpus, cfg.loops, cfg.warmup))
+      if implEnabled(onlyImplementations, "tyr") and backendEnabled(onlyBackends, "avx4x"):
+        addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "tyr", "avx4x", "shared_secret_batch",
+          cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch4Avx(xCorpus, cfg.loops, cfg.warmup))
 
   if familyEnabled(onlyFamilies, "kyber"):
     trace(verbose, "summary:kyber")
@@ -1110,30 +1034,21 @@ proc collectFunctionRows(rows: var seq[JsonNode], deviceLabel, deviceKind: strin
     trace(verbose, "functions:x25519")
     cfg = functionLoops(profile, "x25519")
     applyScale(cfg, scale)
-    addFunctionRows(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass1", "scalar",
-      "shared_secret", "x25519.pass1.scalar", cfg.loops, cfg.warmup,
-      makeX25519ScalarBench(x25519_pass1.x25519ScalarmultRaw, xCorpus))
-    addFunctionRows(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass2", "scalar",
-      "shared_secret", "x25519.pass2.scalar", cfg.loops, cfg.warmup,
-      makeX25519ScalarBench(x25519_pass2.x25519ScalarmultRaw, xCorpus))
-    addFunctionRows(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass3", "scalar",
-      "shared_secret", "x25519.pass3.scalar", cfg.loops, cfg.warmup,
-      makeX25519ScalarBench(x25519_pass3.x25519ScalarmultRaw, xCorpus))
-    addFunctionRows(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass4", "scalar",
-      "shared_secret", "x25519.pass4.scalar", cfg.loops, cfg.warmup,
-      makeX25519ScalarBench(x25519_pass4.x25519ScalarmultRaw, xCorpus))
+    addFunctionRows(rows, deviceLabel, deviceKind, "x25519", "curve25519", "tyr", "scalar",
+      "shared_secret", "x25519.scalar", cfg.loops, cfg.warmup,
+      makeX25519ScalarBench(x25519ScalarmultRaw, xCorpus))
     when defined(sse2):
-      addFunctionRows(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass4", "sse2x",
-        "shared_secret_batch", "x25519.pass4.sse2x", cfg.loops, cfg.warmup,
-        makeX25519Batch2Bench(x25519_pass4.x25519ScalarmultBatchSse2x, xCorpus))
+      addFunctionRows(rows, deviceLabel, deviceKind, "x25519", "curve25519", "tyr", "sse2x",
+        "shared_secret_batch", "x25519.sse2x", cfg.loops, cfg.warmup,
+        makeX25519Batch2Bench(x25519ScalarmultBatchSse2x, xCorpus))
     when defined(neon) or defined(arm64) or defined(aarch64):
-      addFunctionRows(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass4", "neon2x",
-        "shared_secret_batch", "x25519.pass4.neon2x", cfg.loops, cfg.warmup,
-        makeX25519Batch2Bench(x25519_pass4.x25519ScalarmultBatchNeon2x, xCorpus))
+      addFunctionRows(rows, deviceLabel, deviceKind, "x25519", "curve25519", "tyr", "neon2x",
+        "shared_secret_batch", "x25519.neon2x", cfg.loops, cfg.warmup,
+        makeX25519Batch2Bench(x25519ScalarmultBatchNeon2x, xCorpus))
     when defined(avx2):
-      addFunctionRows(rows, deviceLabel, deviceKind, "x25519", "curve25519", "pass4", "avx4x",
-        "shared_secret_batch", "x25519.pass4.avx4x", cfg.loops, cfg.warmup,
-        makeX25519Batch4Bench(x25519_pass4.x25519ScalarmultBatchAvx4x, xCorpus))
+      addFunctionRows(rows, deviceLabel, deviceKind, "x25519", "curve25519", "tyr", "avx4x",
+        "shared_secret_batch", "x25519.avx4x", cfg.loops, cfg.warmup,
+        makeX25519Batch4Bench(x25519ScalarmultBatchAvx4x, xCorpus))
 
   if familyEnabled(onlyFamilies, "kyber"):
     trace(verbose, "functions:kyber")

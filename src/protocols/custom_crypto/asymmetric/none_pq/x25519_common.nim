@@ -12,10 +12,6 @@ const
 type
   X25519Bytes32* = array[x25519KeyBytes, byte]
   X25519Field* = array[5, uint64]
-  X25519ScalarMultProc* =
-    proc(outShared: var X25519Bytes32, secretKey, publicKey: X25519Bytes32): bool {.nimcall.}
-  X25519ScalarBaseProc* =
-    proc(publicKey: var X25519Bytes32, secretKey: X25519Bytes32): bool {.nimcall.}
   X25519TyrKeypair* = object
     publicKey*: seq[byte]
     secretKey*: seq[byte]
@@ -165,37 +161,3 @@ proc deriveSeedSecretCompat*(seed: openArray[byte]): X25519Bytes32 =
   defer:
     secureClearBytes(digest)
   fillFromSeq(result, digest)
-
-proc buildShared*(raw: X25519ScalarMultProc, secretKey, publicKey: openArray[byte]): seq[byte] =
-  var
-    sk = toFixed32(secretKey)
-    pk = toFixed32(publicKey)
-    shared: X25519Bytes32
-  if not raw(shared, sk, pk):
-    raise newException(ValueError, "X25519 shared secret derivation failed")
-  result = toSeqBytes(shared)
-
-proc buildPublicKey*(raw: X25519ScalarBaseProc, secretKey: openArray[byte]): seq[byte] =
-  var sk = toFixed32(secretKey)
-  var pk: X25519Bytes32
-  if not raw(pk, sk):
-    raise newException(ValueError, "X25519 public key derivation failed")
-  result = toSeqBytes(pk)
-
-proc buildRandomKeypair*(raw: X25519ScalarBaseProc): X25519TyrKeypair =
-  var
-    sk = randomSecret32()
-    pk: X25519Bytes32
-  if not raw(pk, sk):
-    raise newException(ValueError, "X25519 public key derivation failed")
-  result.publicKey = toSeqBytes(pk)
-  result.secretKey = toSeqBytes(sk)
-
-proc buildSeededKeypair*(raw: X25519ScalarBaseProc, seed: openArray[byte]): X25519TyrKeypair =
-  var
-    sk = deriveSeedSecretCompat(seed)
-    pk: X25519Bytes32
-  if not raw(pk, sk):
-    raise newException(ValueError, "X25519 public key derivation failed")
-  result.publicKey = toSeqBytes(pk)
-  result.secretKey = toSeqBytes(sk)

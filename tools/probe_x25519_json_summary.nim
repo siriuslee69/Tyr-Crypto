@@ -7,7 +7,7 @@ import std/[json, monotimes, os, parseopt, strutils, times]
 when defined(posix):
   import std/posix
 
-import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_pass1, x25519_pass2, x25519_pass3, x25519_pass4]
+import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_impl]
 
 type
   X25519Corpus = object
@@ -15,12 +15,6 @@ type
     scalarPublics: array[32, X25519Bytes32]
     batch2Secrets: array[16, array[2, X25519Bytes32]]
     batch2Publics: array[16, array[2, X25519Bytes32]]
-
-proc fillPattern(A: var openArray[byte], start: int) =
-  var i = 0
-  while i < A.len:
-    A[i] = byte((start + i) and 0xff)
-    inc i
 
 proc initCorpus(S: var X25519Corpus) =
   var
@@ -37,8 +31,8 @@ proc initCorpus(S: var X25519Corpus) =
       seedB[j] = byte((101 + 13 * i + 5 * j) and 0xff)
       inc j
     let
-      kpA = x25519_pass4.x25519TyrKeypairFromSeed(seedA)
-      kpB = x25519_pass4.x25519TyrKeypairFromSeed(seedB)
+      kpA = x25519TyrKeypairFromSeed(seedA)
+      kpB = x25519TyrKeypairFromSeed(seedB)
     S.scalarSecrets[i] = toFixed32(kpA.secretKey)
     S.scalarPublics[i] = toFixed32(kpB.publicKey)
     inc i
@@ -50,36 +44,26 @@ proc initCorpus(S: var X25519Corpus) =
     S.batch2Publics[i][1] = S.scalarPublics[2 * i + 1]
     inc i
 
-proc measureScalar(passNo, loops, warmup: int, S: var X25519Corpus): int64 =
+proc measureScalar(loops, warmup: int, S: var X25519Corpus): int64 =
   var
     i = 0
     idx = 0
     outShared: X25519Bytes32
     start: MonoTime
   while i < warmup:
-    case passNo
-    of 1: doAssert x25519_pass1.x25519ScalarmultRaw(outShared, S.scalarSecrets[idx], S.scalarPublics[idx])
-    of 2: doAssert x25519_pass2.x25519ScalarmultRaw(outShared, S.scalarSecrets[idx], S.scalarPublics[idx])
-    of 3: doAssert x25519_pass3.x25519ScalarmultRaw(outShared, S.scalarSecrets[idx], S.scalarPublics[idx])
-    of 4: doAssert x25519_pass4.x25519ScalarmultRaw(outShared, S.scalarSecrets[idx], S.scalarPublics[idx])
-    else: discard
+    doAssert x25519ScalarmultRaw(outShared, S.scalarSecrets[idx], S.scalarPublics[idx])
     idx = (idx + 1) mod S.scalarSecrets.len
     inc i
   start = getMonoTime()
   i = 0
   while i < loops:
-    case passNo
-    of 1: doAssert x25519_pass1.x25519ScalarmultRaw(outShared, S.scalarSecrets[idx], S.scalarPublics[idx])
-    of 2: doAssert x25519_pass2.x25519ScalarmultRaw(outShared, S.scalarSecrets[idx], S.scalarPublics[idx])
-    of 3: doAssert x25519_pass3.x25519ScalarmultRaw(outShared, S.scalarSecrets[idx], S.scalarPublics[idx])
-    of 4: doAssert x25519_pass4.x25519ScalarmultRaw(outShared, S.scalarSecrets[idx], S.scalarPublics[idx])
-    else: discard
+    doAssert x25519ScalarmultRaw(outShared, S.scalarSecrets[idx], S.scalarPublics[idx])
     idx = (idx + 1) mod S.scalarSecrets.len
     inc i
   result = inNanoseconds(getMonoTime() - start)
 
 when defined(neon) or defined(arm64) or defined(aarch64):
-  proc measureNeon(passNo, loops, warmup: int, S: var X25519Corpus): int64 =
+  proc measureNeon(loops, warmup: int, S: var X25519Corpus): int64 =
     var
       i = 0
       idx = 0
@@ -87,24 +71,14 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       ok: array[2, bool]
       start: MonoTime
     while i < warmup:
-      case passNo
-      of 1: ok = x25519_pass1.x25519ScalarmultBatchNeon2x(outShared, S.batch2Secrets[idx], S.batch2Publics[idx])
-      of 2: ok = x25519_pass2.x25519ScalarmultBatchNeon2x(outShared, S.batch2Secrets[idx], S.batch2Publics[idx])
-      of 3: ok = x25519_pass3.x25519ScalarmultBatchNeon2x(outShared, S.batch2Secrets[idx], S.batch2Publics[idx])
-      of 4: ok = x25519_pass4.x25519ScalarmultBatchNeon2x(outShared, S.batch2Secrets[idx], S.batch2Publics[idx])
-      else: discard
+      ok = x25519ScalarmultBatchNeon2x(outShared, S.batch2Secrets[idx], S.batch2Publics[idx])
       doAssert ok[0] and ok[1]
       idx = (idx + 1) mod S.batch2Secrets.len
       inc i
     start = getMonoTime()
     i = 0
     while i < loops:
-      case passNo
-      of 1: ok = x25519_pass1.x25519ScalarmultBatchNeon2x(outShared, S.batch2Secrets[idx], S.batch2Publics[idx])
-      of 2: ok = x25519_pass2.x25519ScalarmultBatchNeon2x(outShared, S.batch2Secrets[idx], S.batch2Publics[idx])
-      of 3: ok = x25519_pass3.x25519ScalarmultBatchNeon2x(outShared, S.batch2Secrets[idx], S.batch2Publics[idx])
-      of 4: ok = x25519_pass4.x25519ScalarmultBatchNeon2x(outShared, S.batch2Secrets[idx], S.batch2Publics[idx])
-      else: discard
+      ok = x25519ScalarmultBatchNeon2x(outShared, S.batch2Secrets[idx], S.batch2Publics[idx])
       doAssert ok[0] and ok[1]
       idx = (idx + 1) mod S.batch2Secrets.len
       inc i
@@ -162,15 +136,9 @@ when isMainModule:
   scalarWarmup = max(1, int(48 * scale))
   batchLoops = max(1, int(2000 * scale))
   batchWarmup = max(1, int(32 * scale))
-  addRow(rows, "pass1", "scalar", "shared_secret", scalarLoops, scalarWarmup, 1, measureScalar(1, scalarLoops, scalarWarmup, corpus))
-  addRow(rows, "pass2", "scalar", "shared_secret", scalarLoops, scalarWarmup, 1, measureScalar(2, scalarLoops, scalarWarmup, corpus))
-  addRow(rows, "pass3", "scalar", "shared_secret", scalarLoops, scalarWarmup, 1, measureScalar(3, scalarLoops, scalarWarmup, corpus))
-  addRow(rows, "pass4", "scalar", "shared_secret", scalarLoops, scalarWarmup, 1, measureScalar(4, scalarLoops, scalarWarmup, corpus))
+  addRow(rows, "tyr", "scalar", "shared_secret", scalarLoops, scalarWarmup, 1, measureScalar(scalarLoops, scalarWarmup, corpus))
   when defined(neon) or defined(arm64) or defined(aarch64):
-    addRow(rows, "pass1", "neon2x", "shared_secret_batch", batchLoops, batchWarmup, 2, measureNeon(1, batchLoops, batchWarmup, corpus))
-    addRow(rows, "pass2", "neon2x", "shared_secret_batch", batchLoops, batchWarmup, 2, measureNeon(2, batchLoops, batchWarmup, corpus))
-    addRow(rows, "pass3", "neon2x", "shared_secret_batch", batchLoops, batchWarmup, 2, measureNeon(3, batchLoops, batchWarmup, corpus))
-    addRow(rows, "pass4", "neon2x", "shared_secret_batch", batchLoops, batchWarmup, 2, measureNeon(4, batchLoops, batchWarmup, corpus))
+    addRow(rows, "tyr", "neon2x", "shared_secret_batch", batchLoops, batchWarmup, 2, measureNeon(batchLoops, batchWarmup, corpus))
 
   root = %*{
     "metadata": {
@@ -188,4 +156,4 @@ when isMainModule:
     echo payload
   if getEnv("JSON_PROBE_FAST_EXIT") == "1":
     when defined(posix):
-      _exit(0)
+      exitnow(0)

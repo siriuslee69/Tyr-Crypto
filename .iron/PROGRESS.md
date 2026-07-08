@@ -1,4 +1,4 @@
-Commit Message: remove runtime config surface from Tyr-Crypto
+Commit Message: consolidate x25519 passes into single hardened impl and clean none_pq leftovers
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -964,3 +964,20 @@ Verification:
 - NixOS module eval created `tyr-crypto/profile.toml`, `tyr-crypto/profiles/geist.toml`, and `tyr-crypto/profiles/torii.toml`.
 - Conflict assertion eval reports `programs.tyr-crypto: configFile and settings are mutually exclusive.`
 
+
+## 2026-07-08 X25519 Pass Consolidation + none_pq Cleanup
+Summary:
+- Merged the four x25519 optimization passes and their shared template into one module: `asymmetric/none_pq/x25519_impl.nim` (the old pass 4 configuration - split ladder helpers, batched SIMD inversion, volatile secret wipes).
+- Deleted `x25519_pass1-4.nim`, `x25519_impl_template.nim`, the `x25519_ref10_nim.nim` benchmark facade, and the stray `.gitkeep` in `none_pq/`.
+- `x25519.nim` facade now forwards to `x25519_impl` only; the `x25519TyrSharedPass1-4` procs were removed (no external users existed).
+- Removed dead builder helpers and proc types from `x25519_common.nim` that only served the deleted non-hardened passes.
+- Updated tests (`test_x25519_custom`, `test_x25519_simd`, `test_x25519_perf`, `test_otter_perf_x25519`) and tools (`probe_x25519_stability`, `probe_x25519_json_summary`, `collect_asymmetric_benchmarks`) to the single impl; benchmark rows now use implementation label `tyr` instead of `pass1..pass4`.
+- Fixed a pre-existing syntax error in `probe_x25519_json_summary.nim` (`_exit(0)` -> `exitnow(0)`; leading-underscore identifiers are not valid Nim).
+- Removed dead `negX2`/`one` scratch vars in `ed25519_impl.nim` and documented why SHA-512 stays embedded there: RFC 8032 requires SHA-512 (SHA-2); the SHA3/SHAKE code in `symmetric/sha3` is Keccak and cannot substitute. The embedded `sha512Hash` is the only SHA-512 in the repo.
+- Updated `docs/CODE_LAYOUT.md` to the new none_pq layout.
+
+Verification:
+- `nim c -r tests/test_x25519_custom.nim` - RFC vector, deterministic seeds, small-order rejection all OK.
+- `nim c -r tests/test_x25519_simd.nim` (plain and `-d:avx2`) - SSE2x/AVX4x batches match scalar, small-order lanes isolated.
+- `nim c -r tests/test_ed25519_custom.nim` (plain and `-d:avx2`) - RFC 8032 vectors 1+2, tamper rejection, SSE2x/AVX4x batch APIs all OK.
+- `nim check` clean on `src/tyr_crypto.nim`, `tests/test_x25519_perf.nim`, `tests/test_otter_perf_x25519.nim`, all three tools, and the `--cpu:arm64 -d:neon` cross-check of `tests/test_x25519_simd.nim`.
