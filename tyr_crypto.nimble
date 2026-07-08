@@ -332,7 +332,7 @@ task build_wasm, "Build JS/TS wasm bindings with Emscripten":
 task build_wasm_debug, "Build debug JS/TS wasm bindings with Emscripten":
   exec "nim r --nimcache:build/nimcache_build_wasm tools/build_wasm.nim -- --debug"
 
-task autopush, "Add, commit, and push with message from .iron/PROGRESS.md":
+task autopush, "Add, commit, and push the current branch with message from .iron/PROGRESS.md":
   var
     msg: string = progressCommitMessage()
     staged: string = ""
@@ -350,12 +350,29 @@ task autopush, "Add, commit, and push with message from .iron/PROGRESS.md":
     quit "Refusing autopush from detached HEAD."
   upstream = currentUpstreamBranch()
   if upstream.len == 0:
+    ## First push of this branch: create origin/<branch> and track it.
     runCommand("git", @["push", "--set-upstream", "origin", branch])
     return
   diverged = branchDivergenceCounts()
   if diverged.behind > 0:
     runCommand("git", @["pull", "--rebase", "--autostash"])
-  runCommand("git", @["push"])
+  ## Push the current branch explicitly so the result never depends on
+  ## the local push.default setting.
+  runCommand("git", @["push", "origin", branch])
+
+task switch, "Toggle the working branch between nightly and main":
+  var
+    branch: string = captureCommand("git", @["branch", "--show-current"]).strip()
+    target: string = ""
+  ## nightly <-> main; from any other branch, land on nightly (the
+  ## active development branch).
+  if branch == "nightly":
+    target = "main"
+  else:
+    target = "nightly"
+  echo "Switching from '" & (if branch.len > 0: branch else: "(detached HEAD)") &
+    "' to '" & target & "'."
+  runCommand("git", @["checkout", target])
 task find, "Use local clones for submodules in parent folder":
   let modulesPath = ".gitmodules"
   if not fileExists(modulesPath):
