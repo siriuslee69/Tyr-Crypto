@@ -75,11 +75,12 @@ proc falconTyrKeypairInto*(v: FalconVariant, publicKey, secretKey: var openArray
 
 proc falconTyrKeypair*(v: FalconVariant, backend: FalconBackend = falconAuto): FalconTyrKeypair {.otterTrace.} =
   ## Generate a pure-Nim Falcon keypair and return owned buffers.
-  let p = params(v)
+  let active = requireBackend(backend)
   result.variant = v
-  result.publicKey = newSeq[byte](p.publicKeyBytes)
-  result.secretKey = newSeq[byte](p.secretKeyBytes)
-  falconTyrKeypairInto(v, result.publicKey, result.secretKey, backend)
+  withFalconBackend(active):
+    let kp = falconKeygenPure(v)
+    result.publicKey = kp.publicKey
+    result.secretKey = kp.secretKey
 
 proc falconTyrKeypair*(v: FalconVariant, seed: openArray[byte],
     backend: FalconBackend = falconAuto): FalconTyrKeypair {.otterTrace.} =

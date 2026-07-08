@@ -239,51 +239,50 @@ proc printRows(title: string, rows: openArray[BenchRow], pass1Prefix: string) =
 
 suite "x25519 perf":
   test "benchmark custom passes against libsodium baselines":
-    if not sodiumAvailable():
-      skip()
+    let sodiumOk = sodiumAvailable()
     initCorpus()
 
-    let scalarRows = @[
-      benchScalar("libsodium.ref10.scalar", scalarIterations, ref10Scalar),
-      benchScalar("libsodium.runtime.scalar", scalarIterations, sodiumScalar),
-      benchScalar("tyr.pass1.scalar", scalarIterations, x25519_pass1.x25519ScalarmultRaw),
-      benchScalar("tyr.pass2.scalar", scalarIterations, x25519_pass2.x25519ScalarmultRaw),
-      benchScalar("tyr.pass3.scalar", scalarIterations, x25519_pass3.x25519ScalarmultRaw),
-      benchScalar("tyr.pass4.scalar", scalarIterations, x25519_pass4.x25519ScalarmultRaw)
-    ]
+    var scalarRows: seq[BenchRow] = @[]
+    if sodiumOk:
+      scalarRows.add(benchScalar("libsodium.ref10.scalar", scalarIterations, ref10Scalar))
+      scalarRows.add(benchScalar("libsodium.runtime.scalar", scalarIterations, sodiumScalar))
+    scalarRows.add(benchScalar("tyr.pass1.scalar", scalarIterations, x25519_pass1.x25519ScalarmultRaw))
+    scalarRows.add(benchScalar("tyr.pass2.scalar", scalarIterations, x25519_pass2.x25519ScalarmultRaw))
+    scalarRows.add(benchScalar("tyr.pass3.scalar", scalarIterations, x25519_pass3.x25519ScalarmultRaw))
+    scalarRows.add(benchScalar("tyr.pass4.scalar", scalarIterations, x25519_pass4.x25519ScalarmultRaw))
     printRows("Scalar", scalarRows, "tyr.pass1.scalar")
 
     when defined(amd64) or defined(i386):
-      let sse2Rows = @[
-        benchBatch2("libsodium.ref10.serial2", batch2Iterations, ref10Serial2),
-        benchBatch2("libsodium.runtime.serial2", batch2Iterations, sodiumSerial2),
-        benchBatch2("tyr.pass1.sse2x", batch2Iterations, x25519_pass1.x25519ScalarmultBatchSse2x),
-        benchBatch2("tyr.pass2.sse2x", batch2Iterations, x25519_pass2.x25519ScalarmultBatchSse2x),
-        benchBatch2("tyr.pass3.sse2x", batch2Iterations, x25519_pass3.x25519ScalarmultBatchSse2x),
-        benchBatch2("tyr.pass4.sse2x", batch2Iterations, x25519_pass4.x25519ScalarmultBatchSse2x)
-      ]
+      var sse2Rows: seq[BenchRow] = @[]
+      if sodiumOk:
+        sse2Rows.add(benchBatch2("libsodium.ref10.serial2", batch2Iterations, ref10Serial2))
+        sse2Rows.add(benchBatch2("libsodium.runtime.serial2", batch2Iterations, sodiumSerial2))
+      sse2Rows.add(benchBatch2("tyr.pass1.sse2x", batch2Iterations, x25519_pass1.x25519ScalarmultBatchSse2x))
+      sse2Rows.add(benchBatch2("tyr.pass2.sse2x", batch2Iterations, x25519_pass2.x25519ScalarmultBatchSse2x))
+      sse2Rows.add(benchBatch2("tyr.pass3.sse2x", batch2Iterations, x25519_pass3.x25519ScalarmultBatchSse2x))
+      sse2Rows.add(benchBatch2("tyr.pass4.sse2x", batch2Iterations, x25519_pass4.x25519ScalarmultBatchSse2x))
       printRows("SSE2x Batch", sse2Rows, "tyr.pass1.sse2x")
 
     when defined(neon) or defined(arm64) or defined(aarch64):
-      let neon2Rows = @[
-        benchBatch2("libsodium.ref10.serial2", batch2Iterations, ref10Serial2),
-        benchBatch2("libsodium.runtime.serial2", batch2Iterations, sodiumSerial2),
-        benchBatch2("tyr.pass1.neon2x", batch2Iterations, x25519_pass1.x25519ScalarmultBatchNeon2x),
-        benchBatch2("tyr.pass2.neon2x", batch2Iterations, x25519_pass2.x25519ScalarmultBatchNeon2x),
-        benchBatch2("tyr.pass3.neon2x", batch2Iterations, x25519_pass3.x25519ScalarmultBatchNeon2x),
-        benchBatch2("tyr.pass4.neon2x", batch2Iterations, x25519_pass4.x25519ScalarmultBatchNeon2x)
-      ]
+      var neon2Rows: seq[BenchRow] = @[]
+      if sodiumOk:
+        neon2Rows.add(benchBatch2("libsodium.ref10.serial2", batch2Iterations, ref10Serial2))
+        neon2Rows.add(benchBatch2("libsodium.runtime.serial2", batch2Iterations, sodiumSerial2))
+      neon2Rows.add(benchBatch2("tyr.pass1.neon2x", batch2Iterations, x25519_pass1.x25519ScalarmultBatchNeon2x))
+      neon2Rows.add(benchBatch2("tyr.pass2.neon2x", batch2Iterations, x25519_pass2.x25519ScalarmultBatchNeon2x))
+      neon2Rows.add(benchBatch2("tyr.pass3.neon2x", batch2Iterations, x25519_pass3.x25519ScalarmultBatchNeon2x))
+      neon2Rows.add(benchBatch2("tyr.pass4.neon2x", batch2Iterations, x25519_pass4.x25519ScalarmultBatchNeon2x))
       printRows("NEON2x Batch", neon2Rows, "tyr.pass1.neon2x")
 
     when defined(avx2):
-      let avx4Rows = @[
-        benchBatch4("libsodium.ref10.serial4", batch2Iterations, ref10Serial4),
-        benchBatch4("libsodium.runtime.serial4", batch2Iterations, sodiumSerial4),
-        benchBatch4("tyr.pass1.avx4x", batch2Iterations, x25519_pass1.x25519ScalarmultBatchAvx4x),
-        benchBatch4("tyr.pass2.avx4x", batch2Iterations, x25519_pass2.x25519ScalarmultBatchAvx4x),
-        benchBatch4("tyr.pass3.avx4x", batch2Iterations, x25519_pass3.x25519ScalarmultBatchAvx4x),
-        benchBatch4("tyr.pass4.avx4x", batch2Iterations, x25519_pass4.x25519ScalarmultBatchAvx4x)
-      ]
+      var avx4Rows: seq[BenchRow] = @[]
+      if sodiumOk:
+        avx4Rows.add(benchBatch4("libsodium.ref10.serial4", batch2Iterations, ref10Serial4))
+        avx4Rows.add(benchBatch4("libsodium.runtime.serial4", batch2Iterations, sodiumSerial4))
+      avx4Rows.add(benchBatch4("tyr.pass1.avx4x", batch2Iterations, x25519_pass1.x25519ScalarmultBatchAvx4x))
+      avx4Rows.add(benchBatch4("tyr.pass2.avx4x", batch2Iterations, x25519_pass2.x25519ScalarmultBatchAvx4x))
+      avx4Rows.add(benchBatch4("tyr.pass3.avx4x", batch2Iterations, x25519_pass3.x25519ScalarmultBatchAvx4x))
+      avx4Rows.add(benchBatch4("tyr.pass4.avx4x", batch2Iterations, x25519_pass4.x25519ScalarmultBatchAvx4x))
       printRows("AVX4x Batch", avx4Rows, "tyr.pass1.avx4x")
 
     echo ""

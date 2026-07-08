@@ -120,19 +120,15 @@ suite "primitives api":
       shared = decaps(kaX25519, receiver.secretKey, cipher)
       check shared == cipher.sharedSecret
 
-    test "ed25519 sign and verify roundtrip":
-      var
-        kp: AsymKeypair
-        msg: seq[byte] = @[]
-        sig: seq[byte] = @[]
-      kp = genKeypair(saEd25519)
-      msg = toBytes("dispatch ed25519 msg")
-      sig = sign(saEd25519, msg, kp.secretKey)
-      check verify(saEd25519, msg, sig, kp.publicKey)
-  else:
-    test "ed25519 dispatch unavailable raises":
-      expect LibraryUnavailableError:
-        discard genKeypair(saEd25519)
+  test "ed25519 sign and verify roundtrip":
+    var
+      kp: AsymKeypair
+      msg: seq[byte] = @[]
+      sig: seq[byte] = @[]
+    kp = genKeypair(saEd25519)
+    msg = toBytes("dispatch ed25519 msg")
+    sig = sign(saEd25519, msg, kp.secretKey)
+    check verify(saEd25519, msg, sig, kp.publicKey)
 
   when defined(hasLibsodium) and defined(hasLibOqs):
     test "kyber tier mapping roundtrip":

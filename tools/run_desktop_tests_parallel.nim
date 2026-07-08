@@ -122,6 +122,7 @@ proc buildGroups(): seq[TestGroup] =
   addGroup(result, "hmac", ["test_custom_hmac.nim"])
   addGroup(result, "otp", ["test_otp.nim"])
   addGroup(result, "x25519", ["test_x25519_custom.nim", "test_x25519_simd.nim"])
+  addGroup(result, "ed25519", ["test_ed25519_custom.nim"])
   addGroup(result, "kyber", ["test_kyber_tyr.nim", "test_kyber_kat.nim"])
   addGroup(result, "frodo", ["test_frodo_tyr.nim", "test_frodo_kat.nim"])
   addGroup(result, "bike", ["test_bike_tyr.nim", "test_bike_kat.nim"])

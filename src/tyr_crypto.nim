@@ -11,6 +11,7 @@ import ./protocols/custom_crypto/sha3
 import ./protocols/custom_crypto/poly1305
 import ./protocols/custom_crypto/chacha20
 import ./protocols/custom_crypto/x25519
+import ./protocols/custom_crypto/ed25519
 import ./protocols/custom_crypto/dilithium
 import ./protocols/custom_crypto/falcon
 import ./protocols/custom_crypto/bike
@@ -34,6 +35,7 @@ export sha3
 export poly1305
 export chacha20
 export x25519
+export ed25519
 export dilithium
 export falcon
 export bike

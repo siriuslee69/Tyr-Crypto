@@ -248,6 +248,10 @@ task bench_pq_profiles, "Build matched scalar/AVX2 liboqs profiles and run Sigma
 task bench_custom_crypto, "Run the unified Tyr-only custom-crypto benchmark report":
   exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_bench_custom_crypto").replace('\\', '/') & " -d:release -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tools/bench_custom_crypto_table.nim")
 
+task bench_curve25519_ed25519, "Benchmark pure Nim X25519 and Ed25519 implementations":
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_bench_x25519").replace('\\', '/') & " -d:release -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_x25519_perf.nim")
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_bench_ed25519").replace('\\', '/') & " -d:release -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_ed25519_perf.nim")
+
 task bench_custom_kdf, "Run the custom KDF generator benchmark table":
   exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_bench_custom_kdf").replace('\\', '/') & " -d:release -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tools/bench_custom_kdf.nim")
 
@@ -383,4 +387,3 @@ task test_backend_matrix, "Run the backend matrix bench against liboqs and libso
 
 task test_public_api_surface, "Compile and run the top-level public API export smoke test":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_public_api_surface").replace('\\', '/') & " -d:hasLibOqs -d:hasLibsodium -r tests/test_public_api_surface.nim")
-

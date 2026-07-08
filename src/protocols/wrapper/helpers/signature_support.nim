@@ -6,7 +6,7 @@
 
 import ../../common
 import ../../bindings/liboqs
-import ../../bindings/libsodium
+import ../../custom_crypto/ed25519 as custom_ed25519
 import ../../custom_crypto/dilithium as custom_dilithium
 import ../../custom_crypto/falcon as custom_falcon
 import ./algorithms
@@ -74,15 +74,10 @@ proc parsePair(data: openArray[uint8]): tuple[first, second: seq[uint8]] =
 proc requireSignatureLibs(alg: SignatureAlgorithm) =
   ## Ensure backend libraries for the signature algorithm are loaded.
   if isHybridSignatureAlgorithm(alg):
-    if not ensureLibSodiumLoaded():
-      raiseUnavailable("libsodium", "hasLibsodium")
-    ensureSodiumInitialised()
     return
   case alg
   of saEd25519:
-    if not ensureLibSodiumLoaded():
-      raiseUnavailable("libsodium", "hasLibsodium")
-    ensureSodiumInitialised()
+    discard
   of saFalcon512, saFalcon1024, saDilithium0, saDilithium1, saDilithium2:
     discard
   of saEd448:
@@ -119,9 +114,6 @@ proc signatureAvailable*(alg: SignatureAlgorithm): bool =
       return
     case alg
     of saEd25519:
-      if not ensureLibSodiumLoaded():
-        return false
-      ensureSodiumInitialised()
       true
     of saFalcon512, saFalcon1024, saDilithium0, saDilithium1, saDilithium2:
       true
@@ -167,13 +159,13 @@ proc signatureKeypair*(alg: SignatureAlgorithm,
     return
   case alg
   of saEd25519:
-    if seed.len > 0:
-      raise newException(ValueError,
-        "seeded Ed25519 keypairs are not supported by the current wrapper")
-    result.publicKey = newSeq[uint8](ed25519PublicKeyBytes)
-    result.secretKey = newSeq[uint8](ed25519SecretKeyBytes)
-    if crypto_sign_ed25519_keypair(addr result.publicKey[0], addr result.secretKey[0]) != 0:
-      raiseOperation("libsodium", "crypto_sign_ed25519_keypair failed")
+    let kp =
+      if seed.len > 0:
+        custom_ed25519.ed25519TyrKeypairFromSeed(seed)
+      else:
+        custom_ed25519.ed25519TyrKeypair()
+    result.publicKey = kp.publicKey
+    result.secretKey = kp.secretKey
   of saFalcon512:
     if seed.len > 0:
       let kp = custom_falcon.falconTyrKeypair(custom_falcon.falcon512, seed)
@@ -258,12 +250,7 @@ proc signMessage*(alg: SignatureAlgorithm; msg, secretKey: seq[uint8]): seq[uint
   of saEd25519:
     if secretKey.len != ed25519SecretKeyBytes:
       raise newException(ValueError, "invalid Ed25519 secret key length")
-    result = newSeq[uint8](ed25519SignatureBytes)
-    var sigLen: culonglong
-    var tmp: uint8
-    let msgPtr = ptrOrZero(msg, tmp)
-    if crypto_sign_ed25519_detached(addr result[0], addr sigLen, msgPtr, culonglong(msg.len), unsafeAddr secretKey[0]) != 0:
-      raiseOperation("libsodium", "crypto_sign_ed25519_detached failed")
+    result = custom_ed25519.ed25519TyrSign(msg, secretKey)
   of saFalcon512:
     result = custom_falcon.falconTyrSign(custom_falcon.falcon512, msg, secretKey)
   of saFalcon1024:
@@ -317,9 +304,7 @@ proc verifyMessage*(alg: SignatureAlgorithm; msg, signature, publicKey: seq[uint
       raise newException(ValueError, "invalid Ed25519 public key length")
     if signature.len != ed25519SignatureBytes:
       raise newException(ValueError, "invalid Ed25519 signature length")
-    var tmp: uint8
-    let msgPtr = ptrOrZero(msg, tmp)
-    result = crypto_sign_ed25519_verify_detached(unsafeAddr signature[0], msgPtr, culonglong(msg.len), unsafeAddr publicKey[0]) == 0
+    result = custom_ed25519.ed25519TyrVerify(msg, signature, publicKey)
   of saFalcon512:
     result = custom_falcon.falconTyrVerify(custom_falcon.falcon512, msg, signature, publicKey)
   of saFalcon1024:

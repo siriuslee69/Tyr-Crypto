@@ -41,6 +41,10 @@ type
     p0i: uint32
     r2: uint32
 
+  FalconFgViews = object
+    ntt: tuple[f, g: RnsPoly]
+    plain: tuple[f, g: RnsPoly]
+
 include ./keygen_consts
 
 template mknSize(logn: int): int =
@@ -1294,10 +1298,13 @@ proc makeFgStep(fs, gs: RnsPoly, logn, depth: int, inNtt, outNtt: bool): tuple[f
   result.f = initRnsPoly(hn, tlen)
   result.g = initRnsPoly(hn, tlen)
   var
-    fsrc = clonePoly(fs)
-    gsrc = clonePoly(gs)
+    fsrc = fs
+    gsrc = gs
     t1 = newSeq[uint32](n)
     u = 0
+  if inNtt:
+    fsrc = clonePoly(fs)
+    gsrc = clonePoly(gs)
   while u < slen:
     let
       prime = falconPrimes[u]
@@ -1339,9 +1346,12 @@ proc makeFgStep(fs, gs: RnsPoly, logn, depth: int, inNtt, outNtt: bool): tuple[f
       modpIntt2Ext(result.f.coeffs, u, tlen, tables.igm, logn - 1, prime.p, runtime.p0i)
       modpIntt2Ext(result.g.coeffs, u, tlen, tables.igm, logn - 1, prime.p, runtime.p0i)
     inc u
-  zintRebuildCrt(fsrc, slen, true)
-  zintRebuildCrt(gsrc, slen, true)
   if slen < tlen:
+    if not inNtt:
+      fsrc = clonePoly(fs)
+      gsrc = clonePoly(gs)
+    zintRebuildCrt(fsrc, slen, true)
+    zintRebuildCrt(gsrc, slen, true)
     u = slen
     while u < tlen:
       let
@@ -1410,12 +1420,52 @@ proc makeFg(f, g: openArray[int8], logn, depth: int, outNtt: bool): tuple[f, g: 
     inc d
   makeFgStep(current.f, current.g, logn - depth + 1, depth - 1, true, outNtt)
 
-proc solveNtruDeepest(lognTop: int, f, g: openArray[int8]): tuple[ok: bool, F, G: RnsPoly] =
-  let len = falconMaxBlSmall[lognTop]
-  let fg = makeFg(f, g, lognTop, lognTop, false)
+proc buildPlainFgFromNtt(fgNtt: tuple[f, g: RnsPoly], lognTop, depth: int): tuple[f, g: RnsPoly] =
+  let
+    logn = lognTop - depth
+    slen = falconMaxBlSmall[depth]
+  result.f = clonePoly(fgNtt.f)
+  result.g = clonePoly(fgNtt.g)
+  var u = 0
+  while u < slen:
+    let
+      prime = falconPrimes[u]
+      runtime = getFalconPrimeRuntime(u)
+      tables = getFalconNttTables(logn, u)
+    modpIntt2Ext(result.f.coeffs, u, slen, tables.igm, logn, prime.p, runtime.p0i)
+    modpIntt2Ext(result.g.coeffs, u, slen, tables.igm, logn, prime.p, runtime.p0i)
+    inc u
+  zintRebuildCrt(result.f, slen, true)
+  zintRebuildCrt(result.g, slen, true)
+
+proc buildFgViewChain(f, g: openArray[int8], lognTop: int): seq[FalconFgViews] =
+  result = newSeq[FalconFgViews](lognTop + 1)
+  result[0].ntt = makeFg(f, g, lognTop, 0, true)
+  result[0].plain = buildPlainFgFromNtt(result[0].ntt, lognTop, 0)
+  if lognTop <= 0:
+    return
   var
-    fp = fg.f
-    gp = fg.g
+    current = result[0].ntt
+    depth = 1
+  while depth <= lognTop:
+    current = makeFgStep(current.f, current.g, lognTop - depth + 1, depth - 1, true, true)
+    result[depth].ntt = current
+    result[depth].plain = buildPlainFgFromNtt(current, lognTop, depth)
+    inc depth
+
+proc deepestFgFromNttChain(lognTop: int,
+    fgNtt: openArray[FalconFgViews]): tuple[f, g: RnsPoly] =
+  if lognTop <= 0:
+    return makeFgStep(fgNtt[0].ntt.f, fgNtt[0].ntt.g, 1, 0, true, false)
+  result = makeFgStep(fgNtt[lognTop - 1].ntt.f, fgNtt[lognTop - 1].ntt.g,
+    1, lognTop - 1, true, false)
+
+proc solveNtruDeepest(lognTop: int,
+    fgValue: tuple[f, g: RnsPoly]): tuple[ok: bool, F, G: RnsPoly] =
+  let len = falconMaxBlSmall[lognTop]
+  var
+    fp = clonePoly(fgValue.f)
+    gp = clonePoly(fgValue.g)
     Fp = newSeq[uint32](len)
     Gp = newSeq[uint32](len)
   zintRebuildCrt(fp, len, false)
@@ -1697,8 +1747,9 @@ proc reduceIntermediateLogn4(ft, gt: RnsPoly, slen: int, Ft, Gt: var RnsPoly,
     llen, depth: int): tuple[ok: bool, F, G: RnsPoly] =
   reduceIntermediateExact(ft, gt, slen, Ft, Gt, llen, depth, 16)
 
-proc solveNtruIntermediate(lognTop: int, f, g: openArray[int8],
-    depth: int, Fd, Gd: RnsPoly): tuple[ok: bool, F, G: RnsPoly] =
+proc solveNtruIntermediate(lognTop: int,
+    fgValue: FalconFgViews, depth: int,
+    Fd, Gd: RnsPoly): tuple[ok: bool, F, G: RnsPoly] =
   let
     logn = lognTop - depth
     n = 1 shl logn
@@ -1707,9 +1758,10 @@ proc solveNtruIntermediate(lognTop: int, f, g: openArray[int8],
     dlen = falconMaxBlSmall[depth + 1]
     llen = falconMaxBlLarge[depth]
   var
-    fg = makeFg(f, g, lognTop, depth, true)
-    ft = fg.f
-    gt = fg.g
+    ftNtt = fgValue.ntt.f
+    gtNtt = fgValue.ntt.g
+    ft = fgValue.plain.f
+    gt = fgValue.plain.g
     Ft = initRnsPoly(n, llen)
     Gt = initRnsPoly(n, llen)
     fx = newSeq[uint32](n)
@@ -1722,17 +1774,12 @@ proc solveNtruIntermediate(lognTop: int, f, g: openArray[int8],
       prime = falconPrimes[u]
       runtime = getFalconPrimeRuntime(u)
       tables = getFalconNttTables(logn, u)
-    if u == slen:
-      zintRebuildCrt(ft, slen, true)
-      zintRebuildCrt(gt, slen, true)
     if u < slen:
       var v = 0
       while v < n:
-        fx[v] = ft.coeffs[v * slen + u]
-        gx[v] = gt.coeffs[v * slen + u]
+        fx[v] = ftNtt.coeffs[v * slen + u]
+        gx[v] = gtNtt.coeffs[v * slen + u]
         inc v
-      modpIntt2Ext(ft.coeffs, u, slen, tables.igm, logn, prime.p, runtime.p0i)
-      modpIntt2Ext(gt.coeffs, u, slen, tables.igm, logn, prime.p, runtime.p0i)
     else:
       let Rx = modpRx(slen, prime.p, runtime.p0i, runtime.r2)
       var v = 0
@@ -1875,8 +1922,8 @@ proc packSigned31(x: int64): tuple[ok: bool, word: uint32] {.inline.} =
   result.ok = true
   result.word = cast[uint32](cast[int32](x)) and falconWordMask
 
-proc solveNtruBinaryDepth1(lognTop: int, f, g: openArray[int8],
-    Fd, Gd: RnsPoly): tuple[ok: bool, F, G: RnsPoly] =
+proc solveNtruBinaryDepth1(lognTop: int,
+    fgValue: FalconFgViews, Fd, Gd: RnsPoly): tuple[ok: bool, F, G: RnsPoly] =
   let
     depth = 1
     logn = lognTop - depth
@@ -1886,9 +1933,10 @@ proc solveNtruBinaryDepth1(lognTop: int, f, g: openArray[int8],
     dlen = falconMaxBlSmall[depth + 1]
     llen = falconMaxBlLarge[depth]
   var
-    fg = makeFg(f, g, lognTop, depth, true)
-    ft = fg.f
-    gt = fg.g
+    ftNtt = fgValue.ntt.f
+    gtNtt = fgValue.ntt.g
+    ft = fgValue.plain.f
+    gt = fgValue.plain.g
     Ft = initRnsPoly(n, llen)
     Gt = initRnsPoly(n, llen)
     fx = newSeq[uint32](n)
@@ -1901,17 +1949,12 @@ proc solveNtruBinaryDepth1(lognTop: int, f, g: openArray[int8],
       prime = falconPrimes[u]
       runtime = getFalconPrimeRuntime(u)
       tables = getFalconNttTables(logn, u)
-    if u == slen:
-      zintRebuildCrt(ft, slen, true)
-      zintRebuildCrt(gt, slen, true)
     if u < slen:
       var v = 0
       while v < n:
-        fx[v] = ft.coeffs[v * slen + u]
-        gx[v] = gt.coeffs[v * slen + u]
+        fx[v] = ftNtt.coeffs[v * slen + u]
+        gx[v] = gtNtt.coeffs[v * slen + u]
         inc v
-      modpIntt2Ext(ft.coeffs, u, slen, tables.igm, logn, prime.p, runtime.p0i)
-      modpIntt2Ext(gt.coeffs, u, slen, tables.igm, logn, prime.p, runtime.p0i)
     else:
       let Rx = modpRx(slen, prime.p, runtime.p0i, runtime.r2)
       var v = 0
@@ -2092,7 +2135,10 @@ proc solveNtruBinaryDepth0(logn: int, f, g: openArray[int8],
   result.G = Gpoly
 
 proc solveNtru(logn: int, f, g: openArray[int8], lim: int): tuple[ok: bool, F, G: seq[int8]] =
-  let deepest = solveNtruDeepest(logn, f, g)
+  let
+    fgViews = buildFgViewChain(f, g, logn)
+    fgDeepest = deepestFgFromNttChain(logn, fgViews)
+    deepest = solveNtruDeepest(logn, fgDeepest)
   if not deepest.ok:
     return
   var
@@ -2102,7 +2148,7 @@ proc solveNtru(logn: int, f, g: openArray[int8], lim: int): tuple[ok: bool, F, G
   if logn <= 2:
     while depth > 0:
       dec depth
-      let step = solveNtruIntermediate(logn, f, g, depth, curF, curG)
+      let step = solveNtruIntermediate(logn, fgViews[depth], depth, curF, curG)
       if not step.ok:
         return
       curF = step.F
@@ -2110,12 +2156,12 @@ proc solveNtru(logn: int, f, g: openArray[int8], lim: int): tuple[ok: bool, F, G
   else:
     while depth > 2:
       dec depth
-      let step = solveNtruIntermediate(logn, f, g, depth, curF, curG)
+      let step = solveNtruIntermediate(logn, fgViews[depth], depth, curF, curG)
       if not step.ok:
         return
       curF = step.F
       curG = step.G
-    let step1 = solveNtruBinaryDepth1(logn, f, g, curF, curG)
+    let step1 = solveNtruBinaryDepth1(logn, fgViews[1], curF, curG)
     if not step1.ok:
       return
     curF = step1.F
