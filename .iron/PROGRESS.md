@@ -1,4 +1,4 @@
-Commit Message: consolidate x25519 passes into single hardened impl and clean none_pq leftovers
+Commit Message: constant-time and secret-wiping hardening for ed25519 signing
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -981,3 +981,18 @@ Verification:
 - `nim c -r tests/test_x25519_simd.nim` (plain and `-d:avx2`) - SSE2x/AVX4x batches match scalar, small-order lanes isolated.
 - `nim c -r tests/test_ed25519_custom.nim` (plain and `-d:avx2`) - RFC 8032 vectors 1+2, tamper rejection, SSE2x/AVX4x batch APIs all OK.
 - `nim check` clean on `src/tyr_crypto.nim`, `tests/test_x25519_perf.nim`, `tests/test_otter_perf_x25519.nim`, all three tools, and the `--cpu:arm64 -d:neon` cross-check of `tests/test_x25519_simd.nim`.
+
+## 2026-07-08 Ed25519 Constant-Time + Secret-Lifetime Hardening
+Summary:
+- Signing and key derivation in `ed25519_impl.nim` now run constant time:
+  - `pointScalarMultCt` add-always ladder (add + masked select + double for every bit) replaces the branch-per-bit ladder for secret scalars; `geBase` always uses it. Verification keeps the faster variable-time ladder (`pointScalarMultVartime`) because it only handles public data.
+  - Mod-L scalar arithmetic is branch-free: `scalarAddMod` reduces via `scalarGeLMask` + `scalarCondSubL` (full borrow chains, masked subtract) instead of early-exit compare + conditional subtract.
+  - `reduceWide` adds a masked 0/1 per bit instead of branching - critical because it reduces the secret nonce digest, and a nonce timing leak recovers the private key.
+  - `scalarMulAdd` (S = r + hram*a) adds a masked copy of the running multiple instead of branching.
+- Secret lifetime: volatile wipes (`secureClearPod`/`secureClearBytes`) added to `sha512Hash` (padded message seq, schedule, working registers), `pointAdd`/`pointDouble` field temporaries, the CT ladder state, `reduceWide`/`reduce64`/`reduce32`, `scalarMulAdd`, `publicKeyFromSeed`, `ed25519TyrPublicKey`, `ed25519TyrKeypairFromSeed`, and `ed25519TyrSign` (seed, digest, clamped scalar, prefix||msg buffer, nonce digest, nonce).
+- Cost on this machine (release build, 50-op average): sign 0.26 ms -> 0.36 ms (+38%), verify 0.38 ms -> 0.44 ms (+16% from the point-op wipes).
+
+Verification:
+- `nim c -r tests/test_ed25519_custom.nim` (plain and `-d:avx2`) - RFC 8032 vectors 1+2 byte-exact, tamper rejection, SSE2x/AVX4x batch APIs all OK.
+- `nim check src/tyr_crypto.nim` clean.
+- Release-mode before/after benchmark of sign/verify confirms correct signatures and the expected slowdown only.

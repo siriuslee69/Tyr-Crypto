@@ -6,6 +6,17 @@
 ##   seed -> SHA-512 -> clamped scalar -> [scalar]B -> public key
 ##   msg  -> SHA-512(prefix || msg) -> R -> S -> signature
 ##
+## Hardening:
+##   - Signing and key derivation run constant time: the base-point
+##     ladder does the same add + select + double work for every scalar
+##     bit, and the mod-L scalar reduction adds a masked value instead
+##     of branching on secret bits.
+##   - Verification only touches public data (signature, public key,
+##     message), so it uses the faster variable-time ladder.
+##   - Secret scratch (SHA-512 buffers, digests, clamped scalars, the
+##     nonce and every ladder intermediate) is wiped with volatile
+##     stores before the procs return.
+##
 ## This module is intentionally self-contained.  It does not call C
 ## crypto backends, so the wrapper can use Ed25519 without libsodium.
 ##
@@ -135,6 +146,9 @@ proc store64Be(A: var openArray[byte], o: int, v: uint64) {.inline.} =
   A[o + 7] = byte(v and 0xff'u64)
 
 proc sha512Hash*(A: openArray[byte]): Ed25519Bytes64 =
+  ## The input may be secret (seeds, nonce prefixes), so every internal
+  ## copy of it - padded message, message schedule, working registers -
+  ## is wiped with volatile stores when the proc returns.
   var
     h: array[8, uint64] = [
       0x6a09e667f3bcc908'u64, 0xbb67ae8584caa73b'u64,
@@ -145,11 +159,31 @@ proc sha512Hash*(A: openArray[byte]): Ed25519Bytes64 =
     msg: seq[byte] = @[]
     bitLen: uint64 = uint64(A.len) * 8'u64
     w: array[80, uint64]
+    a, b, c, d, e, f, g, hh: uint64
+    s0, s1, ch, maj, temp1, temp2: uint64
     offset: int = 0
     i: int = 0
+  defer:
+    secureClearBytes(msg)
+    secureClearPod(w)
+    secureClearPod(h)
+    secureClearPod(a)
+    secureClearPod(b)
+    secureClearPod(c)
+    secureClearPod(d)
+    secureClearPod(e)
+    secureClearPod(f)
+    secureClearPod(g)
+    secureClearPod(hh)
+    secureClearPod(s0)
+    secureClearPod(s1)
+    secureClearPod(ch)
+    secureClearPod(maj)
+    secureClearPod(temp1)
+    secureClearPod(temp2)
   msg = newSeqOfCap[byte](A.len + 128)
-  for b in A:
-    msg.add(b)
+  for inputByte in A:
+    msg.add(inputByte)
   msg.add(0x80'u8)
   while (msg.len mod 128) != 112:
     msg.add(0'u8)
@@ -167,27 +201,26 @@ proc sha512Hash*(A: openArray[byte]): Ed25519Bytes64 =
       w[i] = load64Be(msg, offset + 8 * i)
       inc i
     while i < 80:
-      var s0 = rotr64(w[i - 15], 1) xor rotr64(w[i - 15], 8) xor (w[i - 15] shr 7)
-      var s1 = rotr64(w[i - 2], 19) xor rotr64(w[i - 2], 61) xor (w[i - 2] shr 6)
+      s0 = rotr64(w[i - 15], 1) xor rotr64(w[i - 15], 8) xor (w[i - 15] shr 7)
+      s1 = rotr64(w[i - 2], 19) xor rotr64(w[i - 2], 61) xor (w[i - 2] shr 6)
       w[i] = w[i - 16] + s0 + w[i - 7] + s1
       inc i
-    var
-      a = h[0]
-      b = h[1]
-      c = h[2]
-      d = h[3]
-      e = h[4]
-      f = h[5]
-      g = h[6]
-      hh = h[7]
+    a = h[0]
+    b = h[1]
+    c = h[2]
+    d = h[3]
+    e = h[4]
+    f = h[5]
+    g = h[6]
+    hh = h[7]
     i = 0
     while i < 80:
-      var s1 = rotr64(e, 14) xor rotr64(e, 18) xor rotr64(e, 41)
-      var ch = (e and f) xor ((not e) and g)
-      var temp1 = hh + s1 + ch + sha512K[i] + w[i]
-      var s0 = rotr64(a, 28) xor rotr64(a, 34) xor rotr64(a, 39)
-      var maj = (a and b) xor (a and c) xor (b and c)
-      var temp2 = s0 + maj
+      s1 = rotr64(e, 14) xor rotr64(e, 18) xor rotr64(e, 41)
+      ch = (e and f) xor ((not e) and g)
+      temp1 = hh + s1 + ch + sha512K[i] + w[i]
+      s0 = rotr64(a, 28) xor rotr64(a, 34) xor rotr64(a, 39)
+      maj = (a and b) xor (a and c) xor (b and c)
+      temp2 = s0 + maj
       hh = g
       g = f
       f = e
@@ -492,8 +525,34 @@ proc pointIdentity(p: var Ed25519Point) {.inline.} =
   fe1(p.z)
   fe0(p.t)
 
+proc feCmov(f: var Ed25519Field, g: Ed25519Field, mask: uint64) {.inline.} =
+  ## Constant-time select: f = g where mask is all-ones, f unchanged
+  ## where mask is zero.  No branches, no secret-dependent memory access.
+  f[0] = f[0] xor (mask and (f[0] xor g[0]))
+  f[1] = f[1] xor (mask and (f[1] xor g[1]))
+  f[2] = f[2] xor (mask and (f[2] xor g[2]))
+  f[3] = f[3] xor (mask and (f[3] xor g[3]))
+  f[4] = f[4] xor (mask and (f[4] xor g[4]))
+
+proc pointCmov(p: var Ed25519Point, q: Ed25519Point, mask: uint64) {.inline.} =
+  feCmov(p.x, q.x, mask)
+  feCmov(p.y, q.y, mask)
+  feCmov(p.z, q.z, mask)
+  feCmov(p.t, q.t, mask)
+
 proc pointAdd(r: var Ed25519Point, p, q: Ed25519Point) =
   var a, b, c, d, e, f, g, h, t0, t1: Ed25519Field
+  defer:
+    secureClearPod(a)
+    secureClearPod(b)
+    secureClearPod(c)
+    secureClearPod(d)
+    secureClearPod(e)
+    secureClearPod(f)
+    secureClearPod(g)
+    secureClearPod(h)
+    secureClearPod(t0)
+    secureClearPod(t1)
   feSub(t0, p.y, p.x)
   feSub(t1, q.y, q.x)
   feMul(a, t0, t1)
@@ -515,6 +574,15 @@ proc pointAdd(r: var Ed25519Point, p, q: Ed25519Point) =
 
 proc pointDouble(r: var Ed25519Point, p: Ed25519Point) =
   var a, b, c, e, f, g, h, t0: Ed25519Field
+  defer:
+    secureClearPod(a)
+    secureClearPod(b)
+    secureClearPod(c)
+    secureClearPod(e)
+    secureClearPod(f)
+    secureClearPod(g)
+    secureClearPod(h)
+    secureClearPod(t0)
   feSq(a, p.x)
   feSq(b, p.y)
   feSq(t0, p.z)
@@ -580,7 +648,9 @@ proc basePoint(): Ed25519Point =
   if not pointDecode(result, basePointCompressed):
     raise newException(ValueError, "invalid Ed25519 base point")
 
-proc pointScalarMult(p: Ed25519Point, scalar: Ed25519Bytes32): Ed25519Point =
+proc pointScalarMultVartime(p: Ed25519Point, scalar: Ed25519Bytes32): Ed25519Point =
+  ## Variable-time double-and-add.  ONLY for public scalars
+  ## (verification); the branch per bit leaks the scalar via timing.
   var
     q: Ed25519Point
     n = p
@@ -596,8 +666,36 @@ proc pointScalarMult(p: Ed25519Point, scalar: Ed25519Bytes32): Ed25519Point =
     inc i
   result = q
 
+proc pointScalarMultCt(p: Ed25519Point, scalar: Ed25519Bytes32): Ed25519Point =
+  ## Constant-time ladder for secret scalars (signing, key derivation).
+  ## Every bit runs the exact same add + select + double sequence, so
+  ## runtime and access pattern are independent of the scalar.  The
+  ## extended-coordinate addition used by pointAdd is complete on this
+  ## curve, so adding the identity in the "bit = 0" lanes is safe.
+  var
+    q: Ed25519Point
+    n = p
+    stepped: Ed25519Point
+    mask: uint64 = 0
+    i: int = 0
+  defer:
+    secureClearPod(n)
+    secureClearPod(stepped)
+    secureClearPod(mask)
+  pointIdentity(q)
+  while i < 256:
+    pointAdd(stepped, q, n)
+    mask = 0'u64 - uint64((scalar[i div 8] shr (i and 7)) and 1'u8)
+    pointCmov(q, stepped, mask)
+    pointDouble(stepped, n)
+    n = stepped
+    inc i
+  result = q
+
 proc geBase(scalar: Ed25519Bytes32): Ed25519Point =
-  result = pointScalarMult(basePoint(), scalar)
+  ## [scalar]B - the scalar is secret in every caller (signing nonce,
+  ## clamped secret scalar), so this always uses the constant-time ladder.
+  result = pointScalarMultCt(basePoint(), scalar)
 
 proc scalarBytesToLimbs(s: Ed25519Bytes32): array[4, uint64] {.inline.} =
   result[0] = load64Le(s, 0)
@@ -614,34 +712,61 @@ proc scalarCmpL(a: array[4, uint64]): int {.inline.} =
     dec i
   result = 0
 
-proc scalarSubL(a: var array[4, uint64]) {.inline.} =
-  var L: array[4, uint64] = [l0, l1, l2, l3]
+proc scalarGeLMask(a: array[4, uint64]): uint64 {.inline.} =
+  ## Constant-time: all-ones when a >= L, zero otherwise.  Runs the
+  ## full borrow chain of a - L instead of comparing limbs with
+  ## early exits, so timing never depends on the (secret) value.
   var
-    i: int = 0
+    L: array[4, uint64] = [l0, l1, l2, l3]
     borrow: uint64 = 0
+    d: uint64 = 0
+    b0: uint64 = 0
+    b1: uint64 = 0
+    i: int = 0
   while i < 4:
-    var sub = L[i] + borrow
-    var nextBorrow = uint64(a[i] < sub)
-    if borrow == 1'u64 and sub == 0'u64:
-      nextBorrow = 1'u64
-    a[i] = a[i] - sub
-    borrow = nextBorrow
+    d = a[i] - L[i]
+    b0 = uint64(a[i] < L[i])
+    b1 = uint64(d < borrow)
+    borrow = b0 or b1
+    inc i
+  result = borrow - 1'u64
+
+proc scalarCondSubL(a: var array[4, uint64], mask: uint64) {.inline.} =
+  ## Constant-time: subtract L where mask is all-ones, no-op where zero.
+  var
+    L: array[4, uint64] = [l0, l1, l2, l3]
+    borrow: uint64 = 0
+    sub: uint64 = 0
+    d: uint64 = 0
+    b0: uint64 = 0
+    b1: uint64 = 0
+    i: int = 0
+  while i < 4:
+    sub = L[i] and mask
+    d = a[i] - sub
+    b0 = uint64(a[i] < sub)
+    b1 = uint64(d < borrow)
+    a[i] = d - borrow
+    borrow = b0 or b1
     inc i
 
 proc scalarAddMod(a: var array[4, uint64], b: array[4, uint64]) {.inline.} =
+  ## Constant-time a = (a + b) mod L: the final reduction is a masked
+  ## subtraction instead of a branch on the (secret) sum.
   var
     i: int = 0
     carry: uint64 = 0
+    old: uint64 = 0
+    c0: uint64 = 0
   while i < 4:
-    var old = a[i]
+    old = a[i]
     a[i] = a[i] + b[i]
-    var c0 = uint64(a[i] < old)
+    c0 = uint64(a[i] < old)
     old = a[i]
     a[i] = a[i] + carry
     carry = c0 or uint64(a[i] < old)
     inc i
-  if carry != 0'u64 or scalarCmpL(a) >= 0:
-    scalarSubL(a)
+  scalarCondSubL(a, (0'u64 - carry) or scalarGeLMask(a))
 
 proc scalarDoubleMod(a: var array[4, uint64]) {.inline.} =
   var b = a
@@ -657,20 +782,29 @@ proc getBitWide(A: array[8, uint64], pos: int): uint64 {.inline.} =
   result = (A[pos div 64] shr (pos and 63)) and 1'u64
 
 proc reduceWide(A: array[8, uint64]): Ed25519Bytes32 =
+  ## Constant-time bit-serial reduction mod L.  Every bit adds a masked
+  ## 0/1 value instead of branching, because A is secret in the nonce
+  ## path (r = SHA-512(prefix || msg) mod L) and a timing leak of the
+  ## nonce recovers the private key.
   var
     rem: array[4, uint64]
+    bitAdd: array[4, uint64]
     i: int = 511
+  defer:
+    secureClearPod(rem)
+    secureClearPod(bitAdd)
   while i >= 0:
     scalarDoubleMod(rem)
-    if getBitWide(A, i) == 1'u64:
-      var one: array[4, uint64] = [1'u64, 0, 0, 0]
-      scalarAddMod(rem, one)
+    bitAdd[0] = getBitWide(A, i)
+    scalarAddMod(rem, bitAdd)
     dec i
   result = scalarToBytes(rem)
 
 proc reduce64(A: Ed25519Bytes64): Ed25519Bytes32 =
   var wide: array[8, uint64]
   var i: int = 0
+  defer:
+    secureClearPod(wide)
   while i < 8:
     wide[i] = load64Le(A, i * 8)
     inc i
@@ -679,6 +813,8 @@ proc reduce64(A: Ed25519Bytes64): Ed25519Bytes32 =
 proc reduce32(A: Ed25519Bytes32): Ed25519Bytes32 =
   var wide: array[8, uint64]
   var i: int = 0
+  defer:
+    secureClearPod(wide)
   while i < 4:
     wide[i] = load64Le(A, i * 8)
     inc i
@@ -688,14 +824,29 @@ proc scalarIsCanonical(s: Ed25519Bytes32): bool =
   result = scalarCmpL(scalarBytesToLimbs(s)) < 0
 
 proc scalarMulAdd(k, s, r: Ed25519Bytes32): Ed25519Bytes32 =
+  ## Constant-time r + k*s (mod L).  s (clamped secret scalar) and
+  ## r (nonce) are secret, so every bit adds a masked copy of the
+  ## running multiple instead of branching.
   var
     acc = scalarBytesToLimbs(reduce32(r))
     cur = scalarBytesToLimbs(reduce32(s))
     kk = reduce32(k)
+    masked: array[4, uint64]
+    mask: uint64 = 0
     i: int = 0
+  defer:
+    secureClearPod(acc)
+    secureClearPod(cur)
+    secureClearPod(kk)
+    secureClearPod(masked)
+    secureClearPod(mask)
   while i < 256:
-    if ((kk[i div 8] shr (i and 7)) and 1'u8) == 1'u8:
-      scalarAddMod(acc, cur)
+    mask = 0'u64 - uint64((kk[i div 8] shr (i and 7)) and 1'u8)
+    masked[0] = cur[0] and mask
+    masked[1] = cur[1] and mask
+    masked[2] = cur[2] and mask
+    masked[3] = cur[3] and mask
+    scalarAddMod(acc, masked)
     scalarDoubleMod(cur)
     inc i
   result = scalarToBytes(acc)
@@ -731,12 +882,18 @@ proc clampDigestScalar(h: Ed25519Bytes64): Ed25519Bytes32 =
   result[31] = (result[31] and 63'u8) or 64'u8
 
 proc publicKeyFromSeed(seed: Ed25519Bytes32): Ed25519Bytes32 =
-  var h = sha512Hash(seed)
-  var a = clampDigestScalar(h)
+  var
+    h = sha512Hash(seed)
+    a = clampDigestScalar(h)
+  defer:
+    secureClearPod(h)
+    secureClearPod(a)
   result = pointEncode(geBase(a))
 
 proc ed25519TyrPublicKey*(seed: openArray[byte]): seq[byte] =
   var s = toFixed32Ed(seed, "seed")
+  defer:
+    secureClearPod(s)
   result = toSeq32(publicKeyFromSeed(s))
 
 proc ed25519TyrKeypairFromSeed*(seed: openArray[byte]): Ed25519Keypair =
@@ -744,6 +901,8 @@ proc ed25519TyrKeypairFromSeed*(seed: openArray[byte]): Ed25519Keypair =
     s = toFixed32Ed(seed, "seed")
     pk = publicKeyFromSeed(s)
     i: int = 0
+  defer:
+    secureClearPod(s)
   result.publicKey = toSeq32(pk)
   result.secretKey = newSeq[byte](64)
   while i < 32:
@@ -774,6 +933,13 @@ proc ed25519TyrSign*(message, secretKey: openArray[byte]): seq[byte] =
     s: Ed25519Bytes32
     sig: Ed25519Bytes64
     i: int = 0
+  defer:
+    secureClearPod(seed)
+    secureClearPod(h)
+    secureClearPod(a)
+    secureClearBytes(prefixMsg)
+    secureClearPod(rDigest)
+    secureClearPod(r)
   if secretKey.len != 64:
     raise newException(ValueError, "invalid Ed25519 secret key length")
   while i < 32:
@@ -850,8 +1016,8 @@ proc ed25519TyrVerify*(message, signature, publicKey: openArray[byte]): bool =
     hramInput.add(b)
   hramDigest = sha512Hash(hramInput)
   hram = reduce64(hramDigest)
-  sB = geBase(sigS)
-  hA = pointScalarMult(aPoint, hram)
+  sB = pointScalarMultVartime(basePoint(), sigS)
+  hA = pointScalarMultVartime(aPoint, hram)
   pointAdd(rhs, rPoint, hA)
   result = pointEncode(sB) == pointEncode(rhs)
 
