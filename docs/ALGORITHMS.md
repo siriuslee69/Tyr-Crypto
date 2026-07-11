@@ -106,7 +106,9 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 | FireSaber | 5 | 1,312 | 3,040 | 1,472 | 32 |
 
 - **Security foundation:** Module-LWR (learning with rounding)
-- **Polynomial mul:** Default: temp/reduce schoolbook. Stack SHAKE buffers for noise generation
+- **Polynomial mul:** Scalar temp/reduce schoolbook; AVX2 uses 16 coefficient lanes and NEON uses 8 coefficient lanes for fixed-schedule negacyclic schoolbook multiplication
+- **SSE2:** Reduction-only SIMD; it does not vectorize the multiplication core
+- **Backend label:** `saberClean` / `saberAvx2` is compatibility/reporting metadata; arithmetic is compile-time selected and does not dispatch to PQClean at runtime
 - **Decaps:** Constant-time FO with cmov
 
 ### Classic McEliece
@@ -122,6 +124,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 - **Security foundation:** Goppa code-based cryptography
 - **Largest public keys** (~0.5–1.3 MB) but **smallest ciphertexts** of any PQ KEM
 - **Key generation** is the bottleneck (Goppa code selection)
+- **SIMD:** AVX2 matrix fill plus AVX2/SSE2/NEON masked row XOR during public-key generation; decoding remains scalar
 - **Optimized:** 64×64 bit-matrix transpose, masked row XOR, public syndrome bit limit
 
 ---
@@ -171,7 +174,8 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 - **Security foundation:** Stateless hash-based (XMSS + FORS)
 - **Largest signature size** (~17 KB) but **smallest keys** (32/64 bytes)
 - **No rejection sampling** — fully deterministic, no secret-dependent branches
-- **Optimized:** Fixed one-block SHAKE fast paths + 2/4-lane WOTS hash batching
+- **SIMD:** SSE2/NEON two-way and AVX2 four-way SHAKE/WOTS batching
+- **Optimized:** Fixed one-block SHAKE fast paths plus batched WOTS/Merkle work
 
 ---
 

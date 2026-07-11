@@ -513,12 +513,18 @@ proc pkGen*(p: McElieceParams, g: openArray[GF], perm: openArray[uint32],
         if (((mat[rowStart + i] shr j) and 1'u8) == 0'u8):
           return false
         k = 0
+        while k < row:
+          kStart = k * fullRowBytes
+          mask = byte((mat[kStart + i] shr j) and 1'u8)
+          mask = 0'u8 - mask
+          xorRowMasked(mat, kStart, rowStart, fullRowBytes, mask)
+          k = k + 1
+        k = row + 1
         while k < p.pkNRows:
-          if k != row:
-            kStart = k * fullRowBytes
-            mask = byte((mat[kStart + i] shr j) and 1'u8)
-            mask = 0'u8 - mask
-            xorRowMasked(mat, kStart, rowStart, fullRowBytes, mask)
+          kStart = k * fullRowBytes
+          mask = byte((mat[kStart + i] shr j) and 1'u8)
+          mask = 0'u8 - mask
+          xorRowMasked(mat, kStart, rowStart, fullRowBytes, mask)
           k = k + 1
         j = j + 1
       i = i + 1

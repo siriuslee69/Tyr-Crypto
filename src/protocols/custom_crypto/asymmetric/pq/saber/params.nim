@@ -9,7 +9,7 @@ type
     saber,
     fireSaber
 
-  ## Runtime-selectable implementation backend.
+  ## Compatibility/reporting label; arithmetic is selected at compile time.
   SaberBackend* = enum
     saberAuto,
     saberClean,
@@ -117,14 +117,14 @@ proc saberBackendAvailable*(backend: SaberBackend): bool {.inline.} =
       result = false
 
 proc saberDefaultBackend*(): SaberBackend {.inline.} =
-  ## Prefer the upstream AVX2 backend when this build enables it.
+  ## Report the pure-Nim AVX2 mode when this build enables it.
   when defined(avx2):
     result = saberAvx2
   else:
     result = saberClean
 
 proc saberResolveBackend*(backend: SaberBackend): SaberBackend =
-  ## Resolve `auto` and reject unavailable explicit backends.
+  ## Resolve `auto` and reject modes unavailable in this build.
   result = backend
   if result == saberAuto:
     result = saberDefaultBackend()

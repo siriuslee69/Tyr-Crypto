@@ -1043,3 +1043,43 @@ Verification:
   passed.
 - `nim c -r -o:build/test_gimli_vectors_hardened --nimcache:build/nimcache_audit_gimli_vectors tests/test_gimli_vectors.nim`
   passed.
+## 2026-07-12 SIMD Coverage Audit and SABER/McEliece Pass
+
+Summary: corrected stale SIMD documentation, added pure-Nim AVX2/NEON SABER multiplication, and retained a measured branch-removal cleanup in McEliece elimination.
+
+Implemented:
+- SABER:
+  - added fixed-schedule negacyclic schoolbook multiplication using 16 AVX2 `uint16` lanes.
+  - added the matching 8-lane ARM64/NEON path through SIMD-Nexus low-half multiplication.
+  - kept scalar tails determined only by the public coefficient index.
+  - clarified that the backend enum is compatibility/reporting metadata; arithmetic is compile-time selected and does not call the unused PQClean binding.
+- McEliece:
+  - split the elimination pass around the public pivot-row index, removing the repeated `k != row` branch without changing masks, row order, memory access, or failure behavior.
+- Documentation:
+  - replaced the README yes/no SIMD matrix with exact partial-path descriptions.
+  - corrected stale NEON omissions for Kyber, Frodo, BIKE, NTRU alternatives, Dilithium, McEliece, and SPHINCS+.
+  - separated scalar ChaCha20 from the batched XChaCha20 SIMD API.
+  - documented benchmark build labels and PQClean's role as pinned C reference/vendor code.
+
+Verification:
+- scalar SABER official KAT and roundtrip tests: pass.
+- AVX2 SABER official KAT and roundtrip tests: pass.
+- ARM64/NEON SABER compile check: pass.
+- AVX2 McEliece full focused test: pass.
+- AVX2 and ARM64/NEON McEliece compile checks: pass.
+- asymmetric benchmark collector AVX2 build: pass.
+
+Measured on the same Linux host:
+- SABER AVX2 versus scalar row-unroll control:
+  - LightSaber: `0.694 ms -> 0.335 ms` (about 2.1x).
+  - Saber: `1.128 ms -> 0.398 ms` (about 2.8x).
+  - FireSaber: `1.691 ms -> 0.493 ms` (about 3.4x).
+- McEliece split elimination loops versus the prior branch:
+  - 6688128f: `204.2 ms -> 201.1 ms` (about 1.5%).
+  - 6960119f: `191.1 ms -> 184.9 ms` (about 3.2%).
+  - 8192128f: `220.5 ms -> 215.9 ms` (about 2.1%).
+
+Current conclusion:
+- SABER now has a real pure-Nim vectorized multiplication core on AVX2 and ARM64/NEON rather than SIMD only in reduction.
+- McEliece remains only partially vectorized, but the retained elimination cleanup is constant-schedule and measured as a small win.
+- Curated cross-device SABER snapshots predate the new core and should be refreshed before changing README guidance numbers.

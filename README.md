@@ -1,6 +1,6 @@
 # Tyr-Crypto
 
-Experimental Nim crypto toolkit. Pure-Nim implementations for post-quantum KEMs, signatures, symmetric primitives, and key agreement — plus optional native backend paths (libsodium, liboqs, OpenSSL).
+Experimental Nim crypto toolkit. Pure-Nim implementations for post-quantum KEMs, signatures, symmetric primitives, and key agreement, plus optional native backend paths through libsodium, liboqs, and OpenSSL.
 
 ```
 IMPORTANT: This is custom cryptographic code. Treat local Tyr implementations as
@@ -9,7 +9,7 @@ independently reviewed for your use case.
 
 The current code does **not** make a blanket constant-time claim: Dilithium
 signing, Falcon signing/key generation, and Argon2id retain algorithm-level
-timing or memory-access caveats. See the audited status table in
+timing or memory-access caveats. See the reviewed status table in
 [docs/ALGORITHMS.md](docs/ALGORITHMS.md#constant-time--side-channel-notes).
 ```
 
@@ -37,7 +37,6 @@ var sig = dilithiumTyrSign(dilithium65, msg, kp2.secretKey)
 doAssert dilithiumTyrVerify(dilithium65, msg, sig, kp2.publicKey)
 
 # ---- AEAD (XChaCha20-Poly1305 via typed material) ----
-import tyr_crypto
 var m: xchacha20TyrCipherM
 for i in 0 ..< m.key.len:    m.key[i] = 0x11'u8
 for i in 0 ..< m.nonce.len:  m.nonce[i] = 0x22'u8
@@ -51,43 +50,51 @@ More examples: [examples/](examples/readme.md)
 
 ## Algorithm Overview
 
-The SIMD columns say whether that implementation is available for the primitive;
-individual calls may still select the scalar path or require a batched API. For
-the custom KDF, `yes` means its selected BLAKE3, Gimli, SHA3, XChaCha20, or
-AES-CTR generator has that implementation—not that the KDF's memory-mixing loop
-itself is vectorized. Performance wording is based on the curated snapshots in
+The SIMD column names the code that actually uses vector lanes. It does not imply
+that the complete algorithm is vectorized. Some paths require a batched API or a
+compile define such as `-d:avx2`; there is no general runtime CPU-feature dispatcher.
+For the custom KDF, SIMD belongs to the selected generator, not to the KDF's
+memory-mixing loop. Performance wording is based on the curated snapshots in
 [docs/benchmarks/](docs/benchmarks/) and the benchmark notes in
 [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ### Symmetric (all pure Nim)
 
-| Primitive | SSE | AVX | NEON | Use |
-|-----------|-----|-----|------|-----|
-| BLAKE3 | yes | yes | yes | Hash, keyed hash, derive-key KDF, XOF |
-| SHA3-224/256/384/512, SHAKE128/256 | yes | yes | yes | FIPS 202 hash/XOF |
-| Gimli | yes | yes | yes | Lightweight sponge (hash, tag, stream) |
-| ChaCha20 / XChaCha20 | yes | yes | yes | Stream cipher (IETF RFC 8439, 192-bit nonce for XChaCha20) |
-| Poly1305 | yes | yes | yes | One-time MAC |
-| AES-CTR | yes | yes | yes | AES in CTR mode |
-| Argon2id/i | yes | yes | yes | Memory-hard password hashing |
-| Custom KDF | yes | yes | yes | Memory-hard key derivation (tail-indexed xor rounds) |
+| Primitive | SIMD coverage | Use |
+|-----------|---------------|-----|
+| BLAKE3 | SSE2, AVX2, NEON compression paths | Hash, keyed hash, derive-key KDF, XOF |
+| SHA3-224/256/384/512, SHAKE128/256 | SSE2/NEON two-lane and AVX2 four-lane batching | FIPS 202 hash/XOF |
+| Gimli | SSE2, AVX2, NEON state operations | Lightweight sponge (hash, tag, stream) |
+| ChaCha20 | scalar | IETF RFC 8439 stream cipher |
+| XChaCha20 | SSE2/NEON four-block and AVX2 eight-block stream API | Stream cipher with a 192-bit nonce |
+| Poly1305 | SSE2/NEON two-message and AVX2 four-message batch APIs | One-time MAC |
+| AES-CTR | SSE2, AVX2, NEON counter/XOR paths; AES-NI is separately selected | AES in CTR mode |
+| Argon2id/i | SSE2, AVX2, NEON block operations | Memory-hard password hashing |
+| Custom KDF | Depends on the selected generator; mixing remains scalar | Memory-hard key derivation (tail-indexed xor rounds) |
 
 Curated benchmark snapshots currently focus on the asymmetric and key-agreement paths. For symmetric tuning runs, use `nimble bench_custom_crypto` and `nimble bench_custom_kdf`.
 
 ### Asymmetric (pure Nim unless noted)
 
-| Category | Algorithms | Implementation | SSE | AVX | NEON | Benchmark-guided profile |
-|----------|------------|----------------|-----|-----|------|--------------------------|
-| **KEM** | Kyber (ML-KEM-512/768/1024) | Pure Nim | yes | yes | no | Fastest PQ KEM family in the current curated snapshots; sub-ms on desktop and still sub-ms on the measured phones |
-| **KEM** | FrodoKEM (640/976/1344, AES + SHAKE) | Pure Nim (streamed matrix) | yes | yes | no | Conservative, high-bandwidth path; much slower than Kyber/SABER/NTRU, with AES variants clearly faster than SHAKE on desktop |
-| **KEM** | BIKE-L1 | Pure Nim (constant-time decoder) | no | no | no | Tens-of-ms KEM in the current snapshots |
-| **KEM** | NTRU (HPS-509/677/821, HRSS-701) | Pure Nim (Toom-4 + K2 default) | no | yes | no | Mid-latency KEM; clearly slower than Kyber/SABER, but far below Frodo/BIKE/McEliece |
-| **KEM** | SABER (LightSaber/Saber/FireSaber) | Pure Nim | no | no | no | Same low-latency class as Kyber in the current snapshots; sub-ms on desktop and on the measured phones |
-| **KEM** | Classic McEliece (6688128f/6960119f/8192128f) | Pure Nim | no | no | no | Slowest measured KEM here; key generation dominates, but ciphertexts stay very small |
-| **Sign** | Dilithium (ML-DSA-44/65/87) | Pure Nim | yes | yes | no | Fastest measured PQ signature family in the current curated snapshots |
-| **Sign** | Falcon (512/1024, scalar + SIMD backends) | Pure Nim | yes | no | yes | Smallest PQ signatures here, but current curated pure-Nim snapshots are strongly keygen-dominated and much slower than Dilithium |
-| **Sign** | SPHINCS+-SHAKE-128f-simple | Pure Nim | no | no | no | Slower than Dilithium, but still far below the current Falcon totals |
-| **KA** | X25519 | Pure Nim (5 passes, SIMD batching) | yes | yes | yes | Best current results come from the SIMD batch paths; still a sub-ms path on desktop and phones |
+| Category | Algorithms | SIMD coverage | Benchmark-guided profile |
+|----------|------------|---------------|--------------------------|
+| **KEM** | Kyber (ML-KEM-512/768/1024) | SSE2/NEON four-pair and AVX2 eight-pair polynomial accumulation; coefficient helpers | Fastest PQ KEM family in the current curated snapshots; sub-ms on desktop and the measured phones |
+| **KEM** | FrodoKEM (640/976/1344, AES + SHAKE) | SSE2/NEON 128-bit and AVX2 256-bit matrix dot products; AES paths also depend on the AES backend | Conservative, high-bandwidth path; much slower than Kyber/SABER/NTRU, with AES variants faster than SHAKE on the measured desktop |
+| **KEM** | BIKE-L1 | SSE2/NEON 128-bit decoder word helpers; multiplication remains scalar/Karatsuba | Tens-of-ms KEM in the current snapshots |
+| **KEM** | NTRU (HPS-509/677/821, HRSS-701) | Default Toom-4 + K2 multiplication is scalar; optional temp/reduce kernels have SSE2/AVX2/NEON reduction | Mid-latency KEM; slower than Kyber/SABER, but far below BIKE/McEliece and the slower Frodo variants |
+| **KEM** | SABER (LightSaber/Saber/FireSaber) | AVX2 16-lane and NEON 8-lane schoolbook multiplication; SSE2 reduction-only path | Same low-latency class as Kyber in the curated snapshots; current SIMD core needs refreshed cross-device snapshots |
+| **KEM** | Classic McEliece (6688128f/6960119f/8192128f) | AVX2 matrix fill plus AVX2/SSE2/NEON masked row XOR in key generation; decoder remains scalar | Slowest measured KEM here; key generation dominates, but ciphertexts stay very small |
+| **Sign** | Dilithium (ML-DSA-44/65/87) | AVX2 polynomial products and SSE2/NEON coefficient/hash batching | Fastest measured PQ signature family in the current curated snapshots |
+| **Sign** | Falcon (512/1024) | SSE2/NEON two-lane FFT and norm helpers; most key generation remains scalar | Smallest PQ signatures here, but current pure-Nim snapshots are strongly keygen-dominated |
+| **Sign** | SPHINCS+-SHAKE-128f-simple | AVX2 four-way and SSE2/NEON two-way SHAKE/WOTS batching | Slower than Dilithium, but far below current Falcon key-generation-dominated totals |
+| **KA** | X25519 | SSE2/NEON two-way and AVX2 four-way batch APIs | Best current results come from SIMD batch paths; still sub-ms on desktop and phones |
+
+`native_avx2`, `native_sse2`, and `native_neon` in benchmark JSON describe how
+the executable was compiled. They do not assert that every listed algorithm is
+fully vectorized. The SABER `saberClean`/`saberAvx2` value is compatibility and
+reporting metadata: arithmetic is selected at compile time, so even an explicit
+`saberClean` argument in an AVX2 build uses the pure-Nim AVX2 core. It does not
+dispatch to the vendored PQClean C code.
 
 Detailed parameter tables, key sizes, CT notes, and speed ranking: [docs/ALGORITHMS.md](docs/ALGORITHMS.md)
 
@@ -102,7 +109,7 @@ These numbers are not protocol guarantees. They are README-level guidance taken 
 | Family | Desktop guidance | ARM64 phone guidance | Notes |
 |--------|------------------|----------------------|-------|
 | Kyber | about `0.06-0.13 ms` | about `0.33-0.91 ms` | Lowest-latency PQ KEM family in the current curated set |
-| SABER | about `0.14-0.27 ms` | about `0.29-0.75 ms` | Same low-latency class as Kyber in practice |
+| SABER | historical snapshot: about `0.14-0.27 ms` | historical snapshot: about `0.29-0.75 ms` | Predates the new AVX2/NEON multiplication core; use a fresh local benchmark for current numbers |
 | NTRU | about `2.34-4.57 ms` | about `6.54-20.85 ms` | Current default uses the promoted Toom-4 + K2 path |
 | FrodoKEM | about `1.24-45.27 ms` | about `21-133 ms` | AES variants are much faster than SHAKE on desktop; the gap narrows on phones |
 | BIKE-L1 | about `65 ms` | about `50-74 ms` | Decoder-heavy, sits in the tens-of-ms range in current snapshots |
@@ -246,6 +253,14 @@ Missing optional libraries raise `LibraryUnavailableError`.
 | Otter-RepoEvaluation | `submodules/otter_repo_evaluation` |
 
 Local path overrides go in `.iron/.local.gitmodules.toml` (gitignored).
+
+PQClean is a vendored collection of standalone C implementations of
+post-quantum algorithms. Tyr uses it for reference vectors, interoperability,
+and selected bindings. It is not the same as Tyr's pure-Nim `custom_crypto`
+implementation, and merely having a PQClean AVX2 directory does not make that
+code part of a Tyr call path. Upstream PQClean is no longer actively maintained,
+so its code should be treated as pinned reference/vendor code rather than an
+automatically updated security dependency.
 
 ## NixOS
 

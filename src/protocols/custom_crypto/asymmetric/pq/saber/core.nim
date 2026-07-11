@@ -446,6 +446,93 @@ proc polyMulIntoRowsUnroll4(c: var SaberPoly, a, b: SaberPoly, accumulate: bool)
       k = k + 1
     i = i + 1
 
+when defined(avx2):
+  proc polyMulIntoAvx2(c: var SaberPoly, a, b: SaberPoly,
+      accumulate: bool) {.inline.} =
+    ## Multiply 16 coefficients per step. Lane arithmetic wraps modulo 2^16,
+    ## matching the scalar SABER ring arithmetic exactly.
+    var
+      i: int = 0
+      j: int = 0
+      k: int = 0
+      av: i16x16
+      bv: i16x16
+      cv: i16x16
+    if not accumulate:
+      clearPoly(c)
+    i = 0
+    while i < saberN:
+      av = i16x16(mm256_set1_epi16(a.coeffs[i]))
+      j = 0
+      k = i
+      while k + 16 <= saberN:
+        bv = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr b.coeffs[j])))
+        cv = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr c.coeffs[k])))
+        cv = cv + i16x16(mm256_mullo_epi16(av.M256i, bv.M256i))
+        mm256_storeu_si256(cast[pointer](unsafeAddr c.coeffs[k]), cv.M256i)
+        j = j + 16
+        k = k + 16
+      while k < saberN:
+        c.coeffs[k] = u16Add(c.coeffs[k], u16Mul(a.coeffs[i], b.coeffs[j]))
+        j = j + 1
+        k = k + 1
+      k = 0
+      while j + 16 <= saberN:
+        bv = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr b.coeffs[j])))
+        cv = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr c.coeffs[k])))
+        cv = cv - i16x16(mm256_mullo_epi16(av.M256i, bv.M256i))
+        mm256_storeu_si256(cast[pointer](unsafeAddr c.coeffs[k]), cv.M256i)
+        j = j + 16
+        k = k + 16
+      while j < saberN:
+        c.coeffs[k] = u16Sub(c.coeffs[k], u16Mul(a.coeffs[i], b.coeffs[j]))
+        j = j + 1
+        k = k + 1
+      i = i + 1
+
+when defined(neon) or defined(arm64) or defined(aarch64):
+  proc polyMulIntoNeon(c: var SaberPoly, a, b: SaberPoly,
+      accumulate: bool) {.inline.} =
+    ## Multiply eight coefficients per step with a fixed public loop schedule.
+    var
+      i: int = 0
+      j: int = 0
+      k: int = 0
+      av: uint16x8
+      bv: uint16x8
+      cv: uint16x8
+    if not accumulate:
+      clearPoly(c)
+    i = 0
+    while i < saberN:
+      av = vmovq_n_u16(a.coeffs[i])
+      j = 0
+      k = i
+      while k + 8 <= saberN:
+        bv = vld1q_u16(cast[pointer](unsafeAddr b.coeffs[j]))
+        cv = vld1q_u16(cast[pointer](unsafeAddr c.coeffs[k]))
+        cv = cv + mulLoI16[uint16x8](av, bv)
+        vst1q_u16(cast[pointer](unsafeAddr c.coeffs[k]), cv)
+        j = j + 8
+        k = k + 8
+      while k < saberN:
+        c.coeffs[k] = u16Add(c.coeffs[k], u16Mul(a.coeffs[i], b.coeffs[j]))
+        j = j + 1
+        k = k + 1
+      k = 0
+      while j + 8 <= saberN:
+        bv = vld1q_u16(cast[pointer](unsafeAddr b.coeffs[j]))
+        cv = vld1q_u16(cast[pointer](unsafeAddr c.coeffs[k]))
+        cv = cv - mulLoI16[uint16x8](av, bv)
+        vst1q_u16(cast[pointer](unsafeAddr c.coeffs[k]), cv)
+        j = j + 8
+        k = k + 8
+      while j < saberN:
+        c.coeffs[k] = u16Sub(c.coeffs[k], u16Mul(a.coeffs[i], b.coeffs[j]))
+        j = j + 1
+        k = k + 1
+      i = i + 1
+
 proc polyMulIntoCoeff(c: var SaberPoly, a, b: SaberPoly, accumulate: bool) {.inline.} =
   var
     k: int = 0
@@ -1091,6 +1178,10 @@ proc polyMulInto(c: var SaberPoly, a, b: SaberPoly, accumulate: bool) {.otterBen
     polyMulIntoToom4Mod(c, a, b, accumulate)
   elif defined(saberMulToom4):
     polyMulIntoToom4(c, a, b, accumulate)
+  elif defined(avx2):
+    polyMulIntoAvx2(c, a, b, accumulate)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    polyMulIntoNeon(c, a, b, accumulate)
   else:
     polyMulIntoTmp(c, a, b, accumulate)
 

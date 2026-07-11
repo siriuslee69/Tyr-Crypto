@@ -1,5 +1,5 @@
 ## ----------------------------------------------------------------
-## SABER Tyr Tests <- official KAT vectors and optional AVX2 parity
+## SABER Tyr Tests <- official KAT vectors and AVX2-core parity
 ## ----------------------------------------------------------------
 
 import std/[os, strutils, unittest]
@@ -131,7 +131,7 @@ suite "saber tyr":
     runSaberKatCase(custom_saber.fireSaber, custom_saber.saberClean)
 
   when defined(avx2):
-    test "AVX2 SABER matches official reference KAT vectors":
+    test "AVX2 multiplication core matches official reference KAT vectors":
       runSaberKatCase(custom_saber.lightSaber, custom_saber.saberAvx2)
       runSaberKatCase(custom_saber.saber, custom_saber.saberAvx2)
       runSaberKatCase(custom_saber.fireSaber, custom_saber.saberAvx2)
