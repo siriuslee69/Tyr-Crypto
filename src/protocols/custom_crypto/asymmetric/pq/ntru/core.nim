@@ -1063,10 +1063,7 @@ proc polyRqInv*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
     polyRqMul(c, p, r, b)
     c.coeffs[0] = u16Add(c.coeffs[0], 2)
     polyRqMul(s, p, c, r)
-    if iter == 3:
-      r = s
-    else:
-      r = s
+    r = s
     iter = iter + 1
 
 proc polyLift*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
@@ -1158,50 +1155,10 @@ proc sampleFixedTypeSort(r: var NtruPoly, p: NtruParams,
     r.coeffs[i] = uint16(S[i] and 3)
     i = i + 1
 
-proc sampleFixedTypeIso(r: var NtruPoly, p: NtruParams,
-    U: openArray[byte]) {.inline.} =
-  var
-    I: seq[int16] = @[]
-    i: int = 0
-    j: int = 0
-    m: uint32 = 0
-    l: uint16 = 0
-    s: uint16 = 0
-    t: uint16 = 0
-    c0: int32 = 0
-    c01: int32 = 0
-    t0: int32 = 0
-    t1: int32 = 0
-  I = newSeq[int16](p.n - 1)
-  i = 0
-  j = p.n - 1
-  while i < p.n - 1:
-    s = uint16(p.n - 1 - i)
-    t = uint16(65536'u32 mod uint32(s))
-    m = uint32(load16Le(U, 2 * i)) * uint32(s)
-    l = uint16(m and 0xffff'u32)
-    while l < t:
-      m = uint32(load16Le(U, 2 * j)) * uint32(s)
-      l = uint16(m and 0xffff'u32)
-      j = j + 1
-    I[i] = int16(m shr 16)
-    i = i + 1
-  c0 = int32(p.n - 1 - p.weight)
-  c01 = int32(p.n - 1 - (p.weight div 2))
-  i = 0
-  while i < p.n - 1:
-    t0 = negativeMaskInt32(int32(I[i]) - c0)
-    t1 = negativeMaskInt32(int32(I[i]) - c01)
-    c0 = c0 + t0
-    c01 = c01 + t1
-    r.coeffs[i] = uint16(2'i32 + t0 + t1)
-    i = i + 1
-
 proc sampleFixedType(r: var NtruPoly, p: NtruParams, U: openArray[byte]) {.otterBench.} =
-  when defined(ntruIsoSample):
-    sampleFixedTypeIso(r, p, U)
-  else:
-    sampleFixedTypeSort(r, p, U)
+  ## The fixed sorting network is data-oblivious. The removed ISO rejection
+  ## sampler had secret-dependent work and could read beyond its input.
+  sampleFixedTypeSort(r, p, U)
   r.coeffs[p.n - 1] = 0
 
 proc sampleIidPlus(r: var NtruPoly, p: NtruParams, U: openArray[byte]) {.otterBench.} =

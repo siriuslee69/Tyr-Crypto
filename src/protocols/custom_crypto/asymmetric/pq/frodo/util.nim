@@ -219,8 +219,8 @@ proc ctVerifyWords*(A, B: openArray[uint16]): int8 =
     while i < A.len:
       r = r or (A[i] xor B[i])
       i = i + 1
-    r = cast[uint16]((-(cast[int16](r shr 1)) or -(cast[int16](r and 1'u16))) shr 15)
-    result = cast[int8](r)
+    r = 0'u16 - ((r or (0'u16 - r)) shr 15)
+    result = cast[int8](uint8(r))
 
 proc ctSelectBytes*(dst: var openArray[byte], A, B: openArray[byte], selector: int8) =
   ## Copy `A` into `dst` when selector is `0`, else copy `B`.

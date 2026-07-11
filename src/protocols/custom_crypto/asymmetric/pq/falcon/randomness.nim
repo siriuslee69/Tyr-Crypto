@@ -23,9 +23,10 @@ proc falconRandomBytesInto*(dst: var openArray[byte]) =
   if falconRandombytesCallback != nil:
     falconRandombytesCallback(cast[ptr uint8](unsafeAddr dst[0]), csize_t(dst.len))
     return
-  var rnd = cryptoRandomBytes(dst.len)
+  var
+    rnd: seq[byte] = cryptoRandomBytes(dst.len)
   copyBytes(dst, 0, rnd)
-  clearBytes(rnd)
+  secureClearBytes(rnd)
 
 proc falconRandomBytes*(length: int): seq[byte] =
   if length < 0:

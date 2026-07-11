@@ -27,8 +27,12 @@ const
     FalconParams(publicKeyBytes: 1793, secretKeyBytes: 2305, signatureBytes: 1462, logn: 10)
   ]
 
-  falconCompileHasSimd* =
-    defined(avx2) or defined(sse2) or defined(amd64) or defined(neon) or defined(arm64) or defined(aarch64)
+  ## Native floating-point SIMD is faster, but its division latency is not
+  ## portable constant-time. Keep the integer-emulated scalar backend as the
+  ## default even in SIMD builds. The unsafe backend requires an explicit opt-in.
+  falconCompileHasSimd* = defined(falconUnsafeNativeFloatSimd) and (
+    defined(avx2) or defined(sse2) or defined(amd64) or defined(neon) or
+    defined(arm64) or defined(aarch64))
 
 var
   falconSimdEnabled {.threadvar.}: bool

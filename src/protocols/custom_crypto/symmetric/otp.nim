@@ -3,7 +3,7 @@
 ## ---------------------------------------------------------
 
 import ../blake3
-import ../gimli
+import ../gimli_sponge
 import ../xchacha20
 import ../xchacha20_simd
 
@@ -23,6 +23,10 @@ const
   blake3OtpIv: array[8, uint32] = [
     0x6a09e667'u32, 0xbb67ae85'u32, 0x3c6ef372'u32, 0xa54ff53a'u32,
     0x510e527f'u32, 0x9b05688c'u32, 0x1f83d9ab'u32, 0x5be0cd19'u32
+  ]
+  gimliOtpDomain: array[9, byte] = [
+    byte('o'), byte('t'), byte('p'), byte(':'),
+    byte('g'), byte('i'), byte('m'), byte('l'), byte('i')
   ]
 
 proc load32Le(data: openArray[byte], offset: int): uint32 {.inline.} =
@@ -261,81 +265,26 @@ proc digestBlake3Simd(secret: openArray[byte], counter: uint64; b: OtpBackend): 
       resolveBlake3Backend(b))
   result = blake3OutToBytes(outs[0])
 
-proc bytesToGimliState(bs: openArray[byte]): Gimli_Block =
-  var
-    i = 0
-    padded = newSeq[byte](48)
-  while i < 48:
-    padded[i] = bs[i mod max(1, bs.len)]
-    i.inc
-  i = 0
-  while i < 12:
-    result[i] = load32Le(padded, i * 4)
-    i.inc
-
-proc gimliStateToBytes(st: Gimli_Block): seq[byte] =
-  result = newSeq[byte](48)
-  var i = 0
-  while i < 12:
-    writeWordLe(result, i * 4, st[i])
-    i.inc
-
 proc digestGimliScalar(secret: openArray[byte], counter: uint64): seq[byte] =
-  var st = bytesToGimliState(mixMaterial(secret, counter, "otp:gimli", 48))
-  gimliPermute(st)
-  result = gimliStateToBytes(st)
+  var
+    cb: array[8, byte] = counterBytes(counter)
+  result = gimliXof(secret, cb, gimliOtpDomain, 48)
 
 proc digestGimliSimd(secret: openArray[byte], counter: uint64; b: OtpBackend): seq[byte] =
-  var st = bytesToGimliState(mixMaterial(secret, counter, "otp:gimli", 48))
-  case b
-  of obScalar:
-    gimliPermute(st)
-  of obSimdSse2:
-    when declared(gimliPermuteSse):
-      gimliPermuteSse(st)
-    else:
-      gimliPermute(st)
-  of obSimdAvx2:
-    when declared(gimliPermuteSse):
-      gimliPermuteSse(st)
-    else:
-      gimliPermute(st)
-  of obSimdAuto:
-    # Keep OTP single-block dispatch on the stable SSE path for now.
-    when declared(gimliPermuteSse):
-      gimliPermuteSse(st)
-    else:
-      gimliPermute(st)
-  result = gimliStateToBytes(st)
+  ## A raw Gimli permutation is invertible and therefore is not a digest.
+  ## Keep every backend on the capacity-preserving sponge construction.
+  discard b
+  result = digestGimliScalar(secret, counter)
 
 proc digestGimliBatchSimd(secret: openArray[byte], counters: openArray[uint64];
     b: OtpBackend): seq[seq[byte]] =
-  ## SIMD batch Gimli OTP digest path with one distinct counter per lane.
+  ## Use the secure sponge independently for each public counter.
   result = newSeq[seq[byte]](counters.len)
-  if counters.len == 0:
-    return
-  var i = 0
-  # Keep batch OTP dispatch on the stable SSE-lane path for now.
-  when declared(gimliPermuteSse4x):
-    if b != obScalar:
-      while i + 4 <= counters.len:
-        var
-          batch: array[4, Gimli_Block]
-          j = 0
-        while j < 4:
-          batch[j] = bytesToGimliState(mixMaterial(secret, counters[i + j], "otp:gimli", 48))
-          j.inc
-        gimliPermuteSse4x(batch)
-        j = 0
-        while j < 4:
-          result[i + j] = gimliStateToBytes(batch[j])
-          j.inc
-        i = i + 4
+  var
+    i: int = 0
+  discard b
   while i < counters.len:
-    if b == obScalar:
-      result[i] = digestGimliScalar(secret, counters[i])
-    else:
-      result[i] = digestGimliSimd(secret, counters[i], b)
+    result[i] = digestGimliScalar(secret, counters[i])
     i.inc
 
 proc chachaKeyNonce(secret: openArray[byte], counter: uint64): tuple[key: seq[byte],

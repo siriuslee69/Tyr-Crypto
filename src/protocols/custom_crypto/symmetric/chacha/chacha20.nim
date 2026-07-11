@@ -1,4 +1,5 @@
 import std/bitops
+import ../secure_memory
 
 const
   chacha20BlockSize* = 64
@@ -71,6 +72,9 @@ proc writeChaCha20Block(baseState: ChaCha20State, counter: uint32,
     state: ChaCha20State
     working: ChaCha20State
     i: int = 0
+  defer:
+    secureClearPod(state)
+    secureClearPod(working)
   state = baseState
   state[12] = counter
   working = state
@@ -98,6 +102,8 @@ proc chacha20Block*(key: openArray[byte], nonce: openArray[byte], counter: uint3
   ## 12-byte nonce (IETF variant), and a 32-bit block counter.
   var
     baseState: ChaCha20State
+  defer:
+    secureClearPod(baseState)
   requireChaCha20Inputs(key, nonce)
   baseState = initChaCha20State(key, nonce)
   writeChaCha20Block(baseState, counter, result, 0)
@@ -111,6 +117,9 @@ proc chacha20Xor*(key, nonce: openArray[byte], initialCounter: uint32, input: op
     i: int = 0
     blockBytes: array[chacha20BlockSize, byte]
     baseState: ChaCha20State
+  defer:
+    secureClearBytes(blockBytes)
+    secureClearPod(baseState)
   requireChaCha20Inputs(key, nonce)
   requireChaCha20BlockRange(initialCounter, input.len)
   baseState = initChaCha20State(key, nonce)
@@ -141,6 +150,9 @@ proc chacha20XorInPlace*(key, nonce: openArray[byte], initialCounter: uint32, bu
     i: int = 0
     blockBytes: array[chacha20BlockSize, byte]
     baseState: ChaCha20State
+  defer:
+    secureClearBytes(blockBytes)
+    secureClearPod(baseState)
   requireChaCha20Inputs(key, nonce)
   requireChaCha20BlockRange(initialCounter, buffer.len)
   baseState = initChaCha20State(key, nonce)

@@ -4,12 +4,16 @@
 
 import ./protocols/wrapper/helpers/algorithms
 import ./protocols/custom_crypto/random
+import ./protocols/custom_crypto/aes_core
+import ./protocols/custom_crypto/aes_ctr
 import ./protocols/custom_crypto/blake3
 import ./protocols/custom_crypto/sphincs
+import ./protocols/custom_crypto/gimli
 import ./protocols/custom_crypto/gimli_sponge
 import ./protocols/custom_crypto/sha3
 import ./protocols/custom_crypto/poly1305
 import ./protocols/custom_crypto/chacha20
+import ./protocols/custom_crypto/xchacha20
 import ./protocols/custom_crypto/x25519
 import ./protocols/custom_crypto/ed25519
 import ./protocols/custom_crypto/dilithium
@@ -18,6 +22,8 @@ import ./protocols/custom_crypto/bike
 import ./protocols/custom_crypto/frodo
 import ./protocols/custom_crypto/kyber
 import ./protocols/custom_crypto/mceliece
+import ./protocols/custom_crypto/ntru
+import ./protocols/custom_crypto/saber
 import ./protocols/wrapper/basic_api
 import ./protocols/wrapper/public_key_verify
 import ./protocols/custom_crypto/otp
@@ -28,12 +34,16 @@ import ./protocols/wrapper/helpers/signature_support
 
 export algorithms
 export random
+export aes_core
+export aes_ctr
 export blake3
 export sphincs
+export gimli
 export gimli_sponge
 export sha3
 export poly1305
 export chacha20
+export xchacha20
 export x25519
 export ed25519
 export dilithium
@@ -42,6 +52,8 @@ export bike
 export frodo
 export kyber
 export mceliece
+export ntru
+export saber
 export basic_api
 export public_key_verify
 export otp

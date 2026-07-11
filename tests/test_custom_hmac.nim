@@ -107,10 +107,18 @@ suite "custom hmac":
     check a.len == 16
     check a != c
 
-  test "poly1305 custom mac is a direct one-time tag":
-    let
-      key = hexToBytes("4242424242424242424242424242424242424242424242424242424242424242")
-      msg = toBytes("poly1305 direct tag")
-      tag = poly1305CustomHmac(key, msg)
-    check tag == poly1305Tag(key, msg)
+  test "poly1305 custom mac derives a distinct one-time key":
+    var
+      key: seq[byte] =
+        hexToBytes("4242424242424242424242424242424242424242424242424242424242424242")
+      msg: seq[byte] = toBytes("poly1305 derived tag")
+      changed: seq[byte] = toBytes("poly1305 derived tah")
+      tag: seq[byte] = poly1305CustomHmac(key, msg)
+      repeated: seq[byte] = poly1305CustomHmac(key, msg)
+      changedTag: seq[byte] = poly1305CustomHmac(key, changed)
+    check tag == repeated
+    check tag != poly1305Tag(key, msg)
+    check tag != changedTag
     check tag.len == 16
+    check hmacVerify(tag, repeated)
+    check not hmacVerify(tag, changedTag)

@@ -1,5 +1,6 @@
 import std/bitops
 import ./chacha20
+import ../secure_memory
 
 const
   xchacha20NonceSize* = 24
@@ -36,7 +37,12 @@ proc hchacha20*(key, nonce: openArray[byte]): array[32, byte] =
   if nonce.len != hchacha20InputSize:
     raise newException(ValueError, "HChaCha20 requires a 16-byte nonce")
 
-  var state: array[16, uint32]
+  var
+    state: array[16, uint32]
+    working: array[16, uint32]
+  defer:
+    secureClearPod(state)
+    secureClearPod(working)
   for i in 0 .. 3:
     state[i] = sigma[i]
   for i in 0 .. 7:
@@ -44,7 +50,7 @@ proc hchacha20*(key, nonce: openArray[byte]): array[32, byte] =
   for i in 0 .. 3:
     state[12 + i] = load32Le(nonce, i * 4)
 
-  var working = state
+  working = state
   for _ in 0 ..< 10:
     quarterRound(working[0], working[4], working[8], working[12])
     quarterRound(working[1], working[5], working[9], working[13])
@@ -77,6 +83,8 @@ proc xchacha20Xor*(key, nonce: openArray[byte], initialCounter: uint32,
   var
     subkey: array[32, byte]
     chachaNonce: array[12, byte]
+  defer:
+    secureClearBytes(subkey)
   if key.len != 32:
     raise newException(ValueError, "XChaCha20 requires a 32-byte key")
   if nonce.len != xchacha20NonceSize:
@@ -84,7 +92,7 @@ proc xchacha20Xor*(key, nonce: openArray[byte], initialCounter: uint32,
 
   subkey = deriveXChaCha20Key(key, nonce)
   chachaNonce = buildChaChaNonce(nonce)
-  chacha20Xor(subkey, chachaNonce, initialCounter, input)
+  result = chacha20Xor(subkey, chachaNonce, initialCounter, input)
 
 proc xchacha20Xor*(key, nonce: openArray[byte], input: openArray[byte]): seq[byte] =
   ## Convenience overload that starts from counter zero.
@@ -96,6 +104,8 @@ proc xchacha20XorInPlace*(key, nonce: openArray[byte], initialCounter: uint32,
   var
     subkey: array[32, byte]
     chachaNonce: array[12, byte]
+  defer:
+    secureClearBytes(subkey)
   if key.len != 32:
     raise newException(ValueError, "XChaCha20 requires a 32-byte key")
   if nonce.len != xchacha20NonceSize:
@@ -111,6 +121,8 @@ proc xchacha20Stream*(key, nonce: openArray[byte], length: int,
   var
     subkey: array[32, byte]
     chachaNonce: array[12, byte]
+  defer:
+    secureClearBytes(subkey)
   if length < 0:
     raise newException(ValueError, "length must be non-negative")
   if key.len != 32:

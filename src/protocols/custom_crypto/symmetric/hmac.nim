@@ -6,6 +6,8 @@ import ../blake3
 import ../gimli_sponge
 import ../sha3 as customSha3
 import ../poly1305 as customPoly1305
+import ../asymmetric/pq/common/ct_compare
+import ./secure_memory
 
 type
   ## HashProc: unkeyed hash callback used by the generic HMAC helper.
@@ -18,7 +20,7 @@ const
   hmacConstA* = 0x36'u8
   hmacConstB* = 0x5c'u8
   blake3HmacBlockLen* = 64
-  gimliHmacBlockLen* = 48
+  gimliHmacBlockLen* = 16
   poly1305HmacOutLen* = 16
 
 proc sha3HmacBlockLen*(outLen: int): int =
@@ -98,7 +100,7 @@ proc applyHmacConst*(keyMaterial: openArray[byte], c: uint8): seq[byte] =
     i = i + 1
 
 proc normalizeHmacKeyWithHash*(key: openArray[byte], blockLen, outLen: int,
-    hashFn: HashProc): seq[byte] =
+    hashFn: HashProc, keyHashLen: int = 0): seq[byte] =
   ## key: caller key bytes.
   ## blockLen: HMAC block length.
   ## outLen: requested output length.
@@ -107,12 +109,16 @@ proc normalizeHmacKeyWithHash*(key: openArray[byte], blockLen, outLen: int,
     keyMaterial: seq[byte] = @[]
     i: int = 0
     hashLen: int = 0
+  defer:
+    secureClearBytes(keyMaterial)
   if blockLen <= 0:
     raise newException(ValueError, "hmac block length must be positive")
   if outLen <= 0:
     raise newException(ValueError, "hmac output length must be positive")
   if key.len > blockLen:
-    hashLen = resolvedHmacKeyHashLen(blockLen, outLen)
+    hashLen = keyHashLen
+    if hashLen <= 0:
+      hashLen = resolvedHmacKeyHashLen(blockLen, outLen)
     keyMaterial = hashFn(key, hashLen)
   else:
     keyMaterial = newSeq[byte](key.len)
@@ -129,6 +135,8 @@ proc prepareKeyedHmacKey*(keyMaterial: openArray[byte], keyedKeyLen: int,
   ## hashFn: reducer used when the keyed hash requires a fixed-length key.
   var
     reduced: seq[byte] = @[]
+  defer:
+    secureClearBytes(reduced)
   if keyedKeyLen <= 0:
     return copyBytes(keyMaterial)
   if hashFn == nil:
@@ -139,7 +147,7 @@ proc prepareKeyedHmacKey*(keyMaterial: openArray[byte], keyedKeyLen: int,
 
 proc customHmacFromHash*(key, msg: openArray[byte], blockLen, outLen: int,
     hashFn: HashProc, constA: uint8 = hmacConstA,
-    constB: uint8 = hmacConstB): seq[byte] =
+    constB: uint8 = hmacConstB, keyHashLen: int = 0): seq[byte] =
   ## key: HMAC key bytes.
   ## msg: message bytes.
   ## blockLen: HMAC block length.
@@ -154,7 +162,15 @@ proc customHmacFromHash*(key, msg: openArray[byte], blockLen, outLen: int,
     mac: seq[byte] = @[]
     innerInput: seq[byte] = @[]
     outerInput: seq[byte] = @[]
-  normalizedKey = normalizeHmacKeyWithHash(key, blockLen, outLen, hashFn)
+  defer:
+    secureClearBytes(normalizedKey)
+    secureClearBytes(innerKey)
+    secureClearBytes(outerKey)
+    secureClearBytes(mac)
+    secureClearBytes(innerInput)
+    secureClearBytes(outerInput)
+  normalizedKey = normalizeHmacKeyWithHash(key, blockLen, outLen, hashFn,
+    keyHashLen)
   innerKey = applyHmacConst(normalizedKey, constA)
   outerKey = applyHmacConst(normalizedKey, constB)
   innerInput = @[]
@@ -169,7 +185,7 @@ proc customHmacFromHash*(key, msg: openArray[byte], blockLen, outLen: int,
 proc customHmacFromKeyedHash*(key, msg: openArray[byte], blockLen, outLen: int,
     keyedHashFn: KeyedHashProc, keyHashFn: HashProc = nil,
     keyedKeyLen: int = 0, constA: uint8 = hmacConstA,
-    constB: uint8 = hmacConstB): seq[byte] =
+    constB: uint8 = hmacConstB, keyHashLen: int = 0): seq[byte] =
   ## key: HMAC key bytes.
   ## msg: message bytes.
   ## blockLen: HMAC block length.
@@ -186,10 +202,18 @@ proc customHmacFromKeyedHash*(key, msg: openArray[byte], blockLen, outLen: int,
     innerKey: seq[byte] = @[]
     outerKey: seq[byte] = @[]
     mac: seq[byte] = @[]
+  defer:
+    secureClearBytes(normalizedKey)
+    secureClearBytes(innerKeyMaterial)
+    secureClearBytes(outerKeyMaterial)
+    secureClearBytes(innerKey)
+    secureClearBytes(outerKey)
+    secureClearBytes(mac)
   if key.len > blockLen and keyHashFn == nil:
     raise newException(ValueError,
       "keyed hmac long-key reduction requires a reducer hash function")
-  normalizedKey = normalizeHmacKeyWithHash(key, blockLen, outLen, keyHashFn)
+  normalizedKey = normalizeHmacKeyWithHash(key, blockLen, outLen, keyHashFn,
+    keyHashLen)
   innerKeyMaterial = applyHmacConst(normalizedKey, constA)
   outerKeyMaterial = applyHmacConst(normalizedKey, constB)
   innerKey = prepareKeyedHmacKey(innerKeyMaterial, keyedKeyLen, keyHashFn)
@@ -239,7 +263,7 @@ proc blake3CustomHmac*(key, msg: openArray[byte], outLen: int = outLenDefault,
   ## constA: inner xor constant.
   ## constB: outer xor constant.
   result = customHmacFromKeyedHash(key, msg, blockLen, outLen,
-    blake3KeyedHashAdapter, blake3HashAdapter, 32, constA, constB)
+    blake3KeyedHashAdapter, blake3HashAdapter, 32, constA, constB, 32)
 
 proc blake3CustomHmacFromHash*(key, msg: openArray[byte],
     outLen: int = outLenDefault, blockLen: int = blake3HmacBlockLen,
@@ -251,7 +275,7 @@ proc blake3CustomHmacFromHash*(key, msg: openArray[byte],
   ## constA: inner xor constant.
   ## constB: outer xor constant.
   result = customHmacFromHash(key, msg, blockLen, outLen,
-    blake3HashAdapter, constA, constB)
+    blake3HashAdapter, constA, constB, 32)
 
 proc gimliCustomHmac*(key, msg: openArray[byte],
     outLen: int = gimliTagLenDefault, blockLen: int = gimliHmacBlockLen,
@@ -263,12 +287,12 @@ proc gimliCustomHmac*(key, msg: openArray[byte],
   ## constA: inner xor constant.
   ## constB: outer xor constant.
   result = customHmacFromKeyedHash(key, msg, blockLen, outLen,
-    gimliKeyedHashAdapter, gimliHashAdapter, 32, constA, constB)
+    gimliKeyedHashAdapter, gimliHashAdapter, 32, constA, constB, 32)
 
 proc poly1305CustomHmac*(key, msg: openArray[byte],
     outLen: int = poly1305HmacOutLen, blockLen: int = 0,
     constA: uint8 = hmacConstA, constB: uint8 = hmacConstB): seq[byte] =
-  ## key: Poly1305 one-time key bytes.
+  ## key: 32-byte master key used to derive a fresh Poly1305 key per message.
   ## msg: message bytes.
   ## outLen: requested output length. Must be `16`.
   discard blockLen
@@ -278,7 +302,15 @@ proc poly1305CustomHmac*(key, msg: openArray[byte],
     raise newException(ValueError, "poly1305 keyed hash requires a 32-byte key")
   if outLen != poly1305HmacOutLen:
     raise newException(ValueError, "poly1305 keyed hash requires a 16-byte output length")
-  result = customPoly1305.poly1305Tag(key, msg)
+  var
+    masterKey: seq[byte] = @[]
+    oneTimeKey: seq[byte] = @[]
+  defer:
+    secureClearBytes(masterKey)
+    secureClearBytes(oneTimeKey)
+  masterKey = blake3DeriveKey("Tyr-Crypto Poly1305 MAC master key v2", key, 32)
+  oneTimeKey = blake3KeyedHash(masterKey, msg, customPoly1305.poly1305KeyBytes)
+  result = customPoly1305.poly1305Tag(oneTimeKey, msg)
 
 proc sha3CustomHmac*(key, msg: openArray[byte], outLen: int = 32,
     blockLen: int = 0, constA: uint8 = hmacConstA,
@@ -293,4 +325,8 @@ proc sha3CustomHmac*(key, msg: openArray[byte], outLen: int = 32,
     if blockLen == 0: sha3HmacBlockLen(outLen)
     else: blockLen
   result = customHmacFromHash(key, msg, resolvedBlockLen, outLen,
-    sha3HashAdapter, constA, constB)
+    sha3HashAdapter, constA, constB, outLen)
+
+proc hmacVerify*(expected, actual: openArray[byte]): bool =
+  ## Compare equal-length authentication tags without early exit.
+  result = verifyBytes(expected, actual) == 0

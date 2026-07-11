@@ -124,8 +124,8 @@ proc prngInit*(p: var FalconPrng, seedMaterial: openArray[byte]) =
     raw[i] = tmp[i]
     i = i + 1
   prngInit(p, raw)
-  clearPlainData(raw)
-  clearBytes(tmp)
+  clearSensitivePlainData(raw)
+  secureClearBytes(tmp)
 
 proc prngInit*(p: var FalconPrng, rawSeed56: array[56, byte]) =
   var

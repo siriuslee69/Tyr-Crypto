@@ -996,3 +996,50 @@ Verification:
 - `nim c -r tests/test_ed25519_custom.nim` (plain and `-d:avx2`) - RFC 8032 vectors 1+2 byte-exact, tamper rejection, SSE2x/AVX4x batch APIs all OK.
 - `nim check src/tyr_crypto.nim` clean.
 - Release-mode before/after benchmark of sign/verify confirms correct signatures and the expected slowdown only.
+
+## 2026-07-09 custom_crypto Constant-Time and Secret-Lifetime Audit
+Summary:
+- Completed a focused hardening pass over the local `custom_crypto` paths and
+  corrected documentation that previously implied a stronger blanket
+  constant-time guarantee than the source can provide.
+
+Implemented:
+- Added `symmetric/secure_memory.nim`: volatile byte and POD wipes used by the
+  symmetric primitives and keyed state. AES-CTR, ChaCha20/XChaCha20, Argon2,
+  BLAKE3 derive-key processing, HMAC, Poly1305, Gimli, and OTP now clear their
+  short-lived secret working state where practical.
+- Hardened the Gimli construction: changed the sponge rate from the full
+  48-byte state to the reference 16-byte rate / 32-byte capacity, restored the
+  reference `0x1f` + `0x80` padding, frames keyed tuples, separates XOF/tag/
+  stream domains, and clears sponge state. This removes the previous
+  permutation-state exposure and prevents an empty tag from matching stream
+  output.
+- Corrected custom HMAC handling: long keys are reduced to the active hash
+  length, verification is constant-time, and the Poly1305 adapter derives a
+  fresh one-time key per message rather than reusing its master key directly.
+- Removed secret-bit branching in BIKE GF(2) multiplication; corrected Frodo's
+  full-byte comparison mask; selected NTRU's fixed-work sort sampler instead
+  of the variable-work ISO rejection sampler; and made Falcon's default FPR
+  arithmetic integer-emulated rather than native floating point. The optional
+  native-float SIMD path is now explicitly opt-in (`-d:falconUnsafeNativeFloatSimd`).
+- Documented the remaining unavoidable/non-remediated timing limits: Argon2id
+  addressing, Dilithium's abort loop, and Falcon's Gaussian sampler are not
+  claimed constant-time.
+- `src/tyr_crypto.nim` now exports AES, Gimli, XChaCha20, NTRU, and SABER as
+  the canonical all-in-one API. Existing small `custom_crypto` facade modules
+  remain compatibility imports.
+- Reworked README and algorithm tables to use explicit `SSE | AVX | NEON`
+  yes/no columns. Argon2 and the generator-selectable custom KDF now reflect
+  their available SIMD paths.
+
+Verification:
+- `nim check --nimcache:build/nimcache_public_all_exports src/tyr_crypto.nim`
+  passed.
+- `nim c -r -o:build/test_custom_crypto_hardened --nimcache:build/nimcache_audit_custom tests/test_custom_crypto.nim`
+  passed, including the reference Gimli XOF and new domain-separation checks.
+- `nim c -r -o:build/test_custom_hmac_hardened --nimcache:build/nimcache_audit_hmac tests/test_custom_hmac.nim`
+  passed.
+- `nim c -r -o:build/test_frodo_tyr_hardened --nimcache:build/nimcache_audit_frodo tests/test_frodo_tyr.nim`
+  passed.
+- `nim c -r -o:build/test_gimli_vectors_hardened --nimcache:build/nimcache_audit_gimli_vectors tests/test_gimli_vectors.nim`
+  passed.

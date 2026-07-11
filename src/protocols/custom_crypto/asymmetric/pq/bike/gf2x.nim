@@ -34,6 +34,7 @@ proc gf2xMulBasePort(C: var seq[uint64], cOff: int, a, b: uint64) =
     j: int = 0
     b0m: uint64 = b and ((1'u64 shl 61) - 1'u64)
     idx: uint64 = 0
+    mask: uint64 = 0
   u[0] = 0
   u[1] = b0m
   u[2] = u[1] shl 1
@@ -67,9 +68,9 @@ proc gf2xMulBasePort(C: var seq[uint64], cOff: int, a, b: uint64) =
 
   i = 61
   while i < 64:
-    if ((b shr i) and 1'u64) == 1'u64:
-      l = l xor (a shl i)
-      h = h xor (a shr (64 - i))
+    mask = 0'u64 - ((b shr i) and 1'u64)
+    l = l xor ((a shl i) and mask)
+    h = h xor ((a shr (64 - i)) and mask)
     i = i + 1
 
   C[cOff] = l
@@ -219,8 +220,8 @@ proc kSqrPort*(A: BikePadPoly, lParam: int): BikePadPoly =
   idx = 0
   while idx < bikeRBytes * 8:
     pos = (lParam * idx) mod bikeRBits
-    if getBitRaw(rawA, pos) == 1'u8:
-      setBitRaw(rawC, idx)
+    rawC[idx shr 3] = rawC[idx shr 3] or
+      byte(getBitRaw(rawA, pos) shl (idx and 7))
     idx = idx + 1
   maskRawLastByte(rawC)
   result = rawToPadPoly(rawC)

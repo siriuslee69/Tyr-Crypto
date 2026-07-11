@@ -6,6 +6,11 @@ Experimental Nim crypto toolkit. Pure-Nim implementations for post-quantum KEMs,
 IMPORTANT: This is custom cryptographic code. Treat local Tyr implementations as
 experimental unless the exact primitive, mode, and deployment environment have been
 independently reviewed for your use case.
+
+The current code does **not** make a blanket constant-time claim: Dilithium
+signing, Falcon signing/key generation, and Argon2id retain algorithm-level
+timing or memory-access caveats. See the audited status table in
+[docs/ALGORITHMS.md](docs/ALGORITHMS.md#constant-time--side-channel-notes).
 ```
 
 ---
@@ -20,15 +25,15 @@ var d = blake3Hash(@[byte 1, 2, 3])
 doAssert d.len == 32
 
 # ---- KEM (Kyber768) ----
-let kp = kyberTyrKeypair(kyber768)
-let ct = kyberTyrEncaps(kyber768, kp.publicKey)
-let shared = kyberTyrDecaps(kyber768, kp.secretKey, ct.ciphertext)
+var kp = kyberTyrKeypair(kyber768)
+var ct = kyberTyrEncaps(kyber768, kp.publicKey)
+var shared = kyberTyrDecaps(kyber768, kp.secretKey, ct.ciphertext)
 doAssert shared == ct.sharedSecret
 
 # ---- Sign (Dilithium65) ----
-let msg = @[byte 'M', 'e', 's', 's', 'a', 'g', 'e']
-let kp2 = dilithiumTyrKeypair(dilithium65)
-let sig = dilithiumTyrSign(dilithium65, msg, kp2.secretKey)
+var msg = @[byte 'M', 'e', 's', 's', 'a', 'g', 'e']
+var kp2 = dilithiumTyrKeypair(dilithium65)
+var sig = dilithiumTyrSign(dilithium65, msg, kp2.secretKey)
 doAssert dilithiumTyrVerify(dilithium65, msg, sig, kp2.publicKey)
 
 # ---- AEAD (XChaCha20-Poly1305 via typed material) ----
@@ -36,7 +41,7 @@ import tyr_crypto
 var m: xchacha20TyrCipherM
 for i in 0 ..< m.key.len:    m.key[i] = 0x11'u8
 for i in 0 ..< m.nonce.len:  m.nonce[i] = 0x22'u8
-let cipher = encrypt(@[byte 1,2,3,4], m)
+var cipher = encrypt(@[byte 1,2,3,4], m)
 doAssert decrypt(cipher, m) == @[byte 1,2,3,4]
 ```
 
@@ -46,37 +51,43 @@ More examples: [examples/](examples/readme.md)
 
 ## Algorithm Overview
 
-SIMD and ARM64/NEON status are listed consistently below. Performance wording is based on the curated snapshots in [docs/benchmarks/](docs/benchmarks/) and the benchmark notes in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+The SIMD columns say whether that implementation is available for the primitive;
+individual calls may still select the scalar path or require a batched API. For
+the custom KDF, `yes` means its selected BLAKE3, Gimli, SHA3, XChaCha20, or
+AES-CTR generator has that implementation—not that the KDF's memory-mixing loop
+itself is vectorized. Performance wording is based on the curated snapshots in
+[docs/benchmarks/](docs/benchmarks/) and the benchmark notes in
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ### Symmetric (all pure Nim)
 
-| Primitive | SIMD on x86 | ARM64 / NEON | Use |
-|-----------|-------------|--------------|-----|
-| BLAKE3 | SSE2 / AVX2 | NEON | Hash, keyed hash, derive-key KDF, XOF |
-| SHA3-224/256/384/512, SHAKE128/256 | SSE2 / AVX2 | ARM64 compile-checked | FIPS 202 hash/XOF |
-| Gimli | SSE2 | NEON | Lightweight sponge (hash, tag, stream) |
-| ChaCha20 / XChaCha20 | SSE2 / AVX2 | NEON | Stream cipher (IETF RFC 8439, 192-bit nonce for XChaCha20) |
-| Poly1305 | SSE2 / AVX2 | NEON | One-time MAC |
-| AES-CTR | AES-NI | ARM64 compile-checked | AES in CTR mode |
-| Argon2id/i | scalar | scalar | Memory-hard password hashing |
-| Custom KDF | scalar | scalar | Memory-hard key derivation (tail-indexed xor rounds) |
+| Primitive | SSE | AVX | NEON | Use |
+|-----------|-----|-----|------|-----|
+| BLAKE3 | yes | yes | yes | Hash, keyed hash, derive-key KDF, XOF |
+| SHA3-224/256/384/512, SHAKE128/256 | yes | yes | yes | FIPS 202 hash/XOF |
+| Gimli | yes | yes | yes | Lightweight sponge (hash, tag, stream) |
+| ChaCha20 / XChaCha20 | yes | yes | yes | Stream cipher (IETF RFC 8439, 192-bit nonce for XChaCha20) |
+| Poly1305 | yes | yes | yes | One-time MAC |
+| AES-CTR | yes | yes | yes | AES in CTR mode |
+| Argon2id/i | yes | yes | yes | Memory-hard password hashing |
+| Custom KDF | yes | yes | yes | Memory-hard key derivation (tail-indexed xor rounds) |
 
 Curated benchmark snapshots currently focus on the asymmetric and key-agreement paths. For symmetric tuning runs, use `nimble bench_custom_crypto` and `nimble bench_custom_kdf`.
 
 ### Asymmetric (pure Nim unless noted)
 
-| Category | Algorithms | Implementation | SIMD on x86 | ARM64 / NEON | Benchmark-guided profile |
-|----------|------------|----------------|-------------|--------------|--------------------------|
-| **KEM** | Kyber (ML-KEM-512/768/1024) | Pure Nim | SSE2 / AVX2 NTT | ARM64 compile-checked | Fastest PQ KEM family in the current curated snapshots; sub-ms on desktop and still sub-ms on the measured phones |
-| **KEM** | FrodoKEM (640/976/1344, AES + SHAKE) | Pure Nim (streamed matrix) | SSE2 / AVX2 helpers | ARM64 compile-checked | Conservative, high-bandwidth path; much slower than Kyber/SABER/NTRU, with AES variants clearly faster than SHAKE on desktop |
-| **KEM** | BIKE-L1 | Pure Nim (constant-time decoder) | portable word helpers | ARM64 compile-checked | Tens-of-ms KEM in the current snapshots |
-| **KEM** | NTRU (HPS-509/677/821, HRSS-701) | Pure Nim (Toom-4 + K2 default) | AVX2-tested build profile | ARM64 compile-checked | Mid-latency KEM; clearly slower than Kyber/SABER, but far below Frodo/BIKE/McEliece |
-| **KEM** | SABER (LightSaber/Saber/FireSaber) | Pure Nim | portable scalar default | ARM64 compile-checked | Same low-latency class as Kyber in the current snapshots; sub-ms on desktop and on the measured phones |
-| **KEM** | Classic McEliece (6688128f/6960119f/8192128f) | Pure Nim | portable scalar | ARM64 compile-checked | Slowest measured KEM here; key generation dominates, but ciphertexts stay very small |
-| **Sign** | Dilithium (ML-DSA-44/65/87) | Pure Nim | SSE2 / AVX2 SIMD lanes | ARM64 compile-checked | Fastest measured PQ signature family in the current curated snapshots |
-| **Sign** | Falcon (512/1024, scalar + SIMD backends) | Pure Nim | SSE2 helper path | NEON helper path | Smallest PQ signatures here, but current curated pure-Nim snapshots are strongly keygen-dominated and much slower than Dilithium |
-| **Sign** | SPHINCS+-SHAKE-128f-simple | Pure Nim | portable scalar | ARM64 compile-checked | Slower than Dilithium, but still far below the current Falcon totals |
-| **KA** | X25519 | Pure Nim (5 passes, SIMD batching) | SSE2 / AVX2 batches | NEON batches | Best current results come from the SIMD batch paths; still a sub-ms path on desktop and phones |
+| Category | Algorithms | Implementation | SSE | AVX | NEON | Benchmark-guided profile |
+|----------|------------|----------------|-----|-----|------|--------------------------|
+| **KEM** | Kyber (ML-KEM-512/768/1024) | Pure Nim | yes | yes | no | Fastest PQ KEM family in the current curated snapshots; sub-ms on desktop and still sub-ms on the measured phones |
+| **KEM** | FrodoKEM (640/976/1344, AES + SHAKE) | Pure Nim (streamed matrix) | yes | yes | no | Conservative, high-bandwidth path; much slower than Kyber/SABER/NTRU, with AES variants clearly faster than SHAKE on desktop |
+| **KEM** | BIKE-L1 | Pure Nim (constant-time decoder) | no | no | no | Tens-of-ms KEM in the current snapshots |
+| **KEM** | NTRU (HPS-509/677/821, HRSS-701) | Pure Nim (Toom-4 + K2 default) | no | yes | no | Mid-latency KEM; clearly slower than Kyber/SABER, but far below Frodo/BIKE/McEliece |
+| **KEM** | SABER (LightSaber/Saber/FireSaber) | Pure Nim | no | no | no | Same low-latency class as Kyber in the current snapshots; sub-ms on desktop and on the measured phones |
+| **KEM** | Classic McEliece (6688128f/6960119f/8192128f) | Pure Nim | no | no | no | Slowest measured KEM here; key generation dominates, but ciphertexts stay very small |
+| **Sign** | Dilithium (ML-DSA-44/65/87) | Pure Nim | yes | yes | no | Fastest measured PQ signature family in the current curated snapshots |
+| **Sign** | Falcon (512/1024, scalar + SIMD backends) | Pure Nim | yes | no | yes | Smallest PQ signatures here, but current curated pure-Nim snapshots are strongly keygen-dominated and much slower than Dilithium |
+| **Sign** | SPHINCS+-SHAKE-128f-simple | Pure Nim | no | no | no | Slower than Dilithium, but still far below the current Falcon totals |
+| **KA** | X25519 | Pure Nim (5 passes, SIMD batching) | yes | yes | yes | Best current results come from the SIMD batch paths; still a sub-ms path on desktop and phones |
 
 Detailed parameter tables, key sizes, CT notes, and speed ranking: [docs/ALGORITHMS.md](docs/ALGORITHMS.md)
 
@@ -142,6 +153,12 @@ Compatibility aliases still exist in `basic_api.nim` for older callers:
 - `asymKeypair` / `asymEnc` / `asymDec` / `asymSign` / `asymVerify`
 
 Local pure-Nim implementations use `Tyr` suffixed names (e.g. `kyberTyrKeypair`, `blake3TyrHashM`). Unsuffixed names may resolve to native backend paths when available.
+
+`import tyr_crypto` is the supported all-in-one import and now exports the AES,
+Gimli, XChaCha20, NTRU, and SABER facades as well. The small
+`protocols/custom_crypto/*.nim` facades remain as compatibility imports for
+existing callers; they are intentionally not removed, because removing them
+would break direct imports without improving the canonical API.
 
 ---
 

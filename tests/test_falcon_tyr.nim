@@ -6,6 +6,7 @@
 import std/[os, strutils, unittest]
 
 import ../src/protocols/custom_crypto/falcon
+import ../src/protocols/custom_crypto/asymmetric/pq/falcon/fpr
 import ../src/protocols/custom_crypto/asymmetric/pq/falcon/format
 import ../src/protocols/custom_crypto/asymmetric/pq/falcon/pure_verify
 import ../src/protocols/custom_crypto/asymmetric/pq/falcon/sign
@@ -60,6 +61,22 @@ template falcon1024Test(testName: string, body: untyped) =
       body
 
 suite "falcon tyr":
+  test "integer FPR arithmetic preserves exact small values":
+    var
+      three: FalconFpr = fprOf(3)
+      four: FalconFpr = fprOf(4)
+      seven: FalconFpr = fprOf(7)
+      twelve: FalconFpr = fprOf(12)
+      two: FalconFpr = fprOf(2)
+    check fprAdd(three, four) == seven
+    check fprMul(three, four) == twelve
+    check fprDiv(twelve, four) == three
+    check fprSqrt(four) == two
+    check fprRint(fprOneHalf) == 0
+    check fprRint(fprAdd(fprOne, fprOneHalf)) == 2
+    check fprFloor(fprNeg(fprOneHalf)) == -1
+    check fprTrunc(fprNeg(fprOneHalf)) == 0
+
   falcon512Test "falcon512 scalar roundtrip succeeds":
     var
       msg = newSeq[byte](96)

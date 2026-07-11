@@ -15,19 +15,19 @@
 
 All symmetric primitives are **pure Nim** implementations under `src/protocols/custom_crypto/symmetric/`.
 
-| Primitive | Block / Rate | Digest | SIMD | Notes |
-|-----------|-------------|--------|------|-------|
-| **BLAKE3** | 1024-bit state | 256-bit (extendable) | SSE2/AVX2/NEON | Keyed/derive-key modes, XOF |
-| **SHA3-224/256/384/512** | 1600-bit sponge | 224/256/384/512 | SSE2/AVX2 | FIPS 202 |
-| **SHAKE128/256** | 1600-bit sponge | arbitrary | SSE2/AVX2 | XOF |
-| **Gimli** | 384-bit sponge | arbitrary | SSE2/NEON | Lightweight sponge |
-| **ChaCha20** | 512-bit block | stream | SSE2/AVX2/NEON | IETF RFC 8439 |
-| **XChaCha20** | 512-bit block | stream | SSE2/AVX2/NEON | Extended (192-bit) nonce via HChaCha20 |
-| **Poly1305** | 16-byte blocks | 128-bit tag | SSE2/AVX2/NEON | RFC 8439 MAC |
-| **AES-CTR** | 128-bit block | stream | AES-NI | OpenSSL-backed core |
-| **HMAC** | — | variable | — | Generic over BLAKE3/SHA3/Gimli |
-| **Argon2id/i** | 1024 KB blocks | variable | — | Memory-hard KDF (RFC 9106) |
-| **Custom KDF** | tail-indexed xor rounds | variable | — | Memory-hard; Gimli/BLAKE3/SHA3 generators |
+| Primitive | Block / Rate | Digest | SSE | AVX | NEON | Notes |
+|-----------|-------------|--------|-----|-----|------|-------|
+| **BLAKE3** | 1024-bit state | 256-bit (extendable) | yes | yes | yes | Keyed/derive-key modes, XOF |
+| **SHA3-224/256/384/512** | 1600-bit sponge | 224/256/384/512 | yes | yes | yes | FIPS 202 |
+| **SHAKE128/256** | 1600-bit sponge | arbitrary | yes | yes | yes | XOF |
+| **Gimli** | 384-bit sponge | arbitrary | yes | yes | yes | Lightweight sponge |
+| **ChaCha20** | 512-bit block | stream | no | no | no | IETF RFC 8439 scalar primitive |
+| **XChaCha20** | 512-bit block | stream | yes | yes | yes | Extended (192-bit) nonce via HChaCha20 |
+| **Poly1305** | 16-byte blocks | 128-bit tag | yes | yes | yes | RFC 8439 MAC |
+| **AES-CTR** | 128-bit block | stream | yes | yes | yes | Constant-time core plus SIMD XOR path |
+| **HMAC** | — | variable | no | no | no | Generic over BLAKE3/SHA3/Gimli |
+| **Argon2id/i** | 1024 KB blocks | variable | yes | yes | yes | Memory-hard KDF (RFC 9106) |
+| **Custom KDF** | tail-indexed xor rounds | variable | yes | yes | yes | Generator-dependent; mixing loop is scalar |
 
 ---
 
@@ -91,6 +91,8 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 
 - **Security foundation:** NTRU (ring LWE variant)
 - **Polynomial mul:** Default: Toom-4 + 2-level Karatsuba (K2). Alternative: coefficient, row, Toom-4 flags
+- **Sampling:** The variable-work ISO rejection sampler is not selected; the
+  fixed-work sort sampler is the default
 - **KAT validated:** NIST DRBG replay + liboqs/PQClean hash
 
 ### SABER
@@ -219,25 +221,28 @@ SPHINCS+      combined sign+verify ~20.9 ms                         │  current
 
 ## Constant-Time & Side-Channel Notes
 
-Detailed audit in [SECURITY.md](../SECURITY.md) (top-level) and the 2025-07-02 audit notes.
+This is an implementation review, not a formal side-channel proof. “Reviewed”
+means the current path was inspected for obvious secret-dependent branches and
+table lookups; it does not make a pure-Nim implementation suitable for every
+co-resident or microarchitectural threat model. Public lengths, parameter sets,
+and malformed-input rejection can still change runtime.
 
-| Algorithm | CT status | Notes |
-|-----------|-----------|-------|
-| X25519 | ✅ Fully | Montgomery ladder, feCswap, secureZeroMem(volatileStore) |
-| ChaCha20 | ✅ N/A | Word-level XOR/add/rotate only |
-| Poly1305 | ✅ N/A | Field arithmetic only |
-| BLAKE3/SHA3/Gimli | ✅ N/A | Permutation-based |
-| Kyber KEM | ✅ Good | cmovBytes, verifyBytes, CBD noise; rejUniformFill on public data only |
-| NTRU KEM | ✅ Good | Constant-time + isochronous sampling experimental path |
-| SABER KEM | ✅ Good | cmov FO, no secret-dependent branches |
-| BIKE KEM | ✅ Good | Constant-time decoder |
-| McEliece | ✅ Good | ctMask helpers, volatileClear |
-| FrodoKEM | ✅ Good | Streamed matrix, no branching on secrets |
-| **Dilithium** | **⚠️ Known leak** | Rejection loop (`while true` at operations.nim:359) + non-CT `makeHint`/`useHint` |
-| Falcon | **⚠️ Variable Gaussian** | Gaussian sampler is inherently non-constant-time |
-| SPHINCS+ | ✅ Fully | Stateless hash-based — no rejection, no branching on secrets |
-
-**Dilithium remediation priority:** The `while true` rejection loop in `dilithiumTyrSignDerandInto` leaks signing attempt count via timing. `makeHint`/`useHint` in `arith.nim` use secret-dependent `if` branches. Fix with fixed iteration bound and arithmetic masking.
+| Algorithm | Status | Notes |
+|-----------|--------|-------|
+| X25519 / Ed25519 | reviewed | Branch-free ladder/scalar path; transient secrets use volatile wiping helpers |
+| ChaCha20 / Poly1305 | reviewed | Word-level arithmetic; Poly1305 keys are wiped after use |
+| BLAKE3 / SHA3 / Gimli | reviewed | Permutation paths do not branch on secret contents; Gimli uses a 16-byte-rate sponge with separate XOF/tag/stream domains |
+| AES-CTR | reviewed by default | The default S-box path is constant-time; `-d:unsafeFastAes` deliberately enables unsafe secret-indexed lookup tables |
+| HMAC | reviewed | Constant-time verification; long keys are reduced correctly; the Poly1305 adapter derives a distinct one-time key per message |
+| Custom KDF | reviewed | Memory schedule is driven by public parameters; selected generators determine available SIMD paths |
+| Argon2i | reviewed with algorithm caveat | Data-independent addressing, but use only the standard parameter constraints |
+| **Argon2id** | **not constant-time by design** | Later passes use data-dependent memory addressing; this is part of Argon2id's tradeoff, not a suitable primitive for a strict CT claim |
+| Kyber / SABER / Frodo | reviewed | FO checks use masks; no newly identified secret-dependent branch in the reviewed KEM paths |
+| NTRU | reviewed with sampler caveat | The default is fixed-work sort sampling; do not re-enable the ISO rejection sampler for secret material |
+| BIKE | reviewed with decoder caveat | GF(2) multiplication no longer branches on secret bits; the decoder still needs dedicated timing measurement on each target |
+| McEliece / SPHINCS+ | reviewed | Masked helpers / deterministic hash-based paths; not formally verified |
+| **Dilithium signing** | **not constant-time** | Fiat-Shamir-with-aborts rejection count remains observable; do not use where signing timing is attacker-observable |
+| **Falcon signing/keygen** | **not constant-time** | Gaussian sampling is variable-time; default FPR code avoids native floating point, but this does not make the scheme CT |
 
 ---
 

@@ -176,8 +176,12 @@ suite "custom crypto":
     expect ValueError:
       xchacha20XorInPlace(key, nonce, uint32.high, inPlace)
 
-  test "Gimli XOF vector locks little-endian absorb and squeeze":
-    let expected = hexToBytes("69278f88816d44133aa1cbfaa56e3364ea39f11784843ac008472aa6508001c5")
+  test "Gimli XOF matches the published empty-input vector":
+    let expected = hexToBytes("b0634b2c0b082aedc5c0a2fe4ee3adcfc989ec05de6f00addb04b3aaac271f67")
+    check gimliXof(@[], @[], @[], 32) == expected
+
+  test "Gimli keyed XOF frames its input tuple":
+    let expected = hexToBytes("126ce01bde68d9ebaa0c649f96b46615fb2df25c3fbd9632d8d77ef6f1da9d95")
     check gimliXof(@[byte 1, 2, 3], @[byte 4, 5], @[byte 6, 7, 8, 9], 32) == expected
 
   test "Gimli keyed tag and stream require sized key and nonce":
@@ -187,6 +191,8 @@ suite "custom crypto":
       msg = toBytes("gimli sized inputs")
     check gimliTag(key, nonce, msg, 16).len == 16
     check gimliStreamXor(key, nonce, msg).len == msg.len
+    check gimliTag(key, nonce, @[], 16) != gimliStreamXor(key, nonce,
+      newSeq[byte](16))
     expect ValueError:
       discard gimliTag(@[], nonce, msg, 16)
     expect ValueError:

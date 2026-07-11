@@ -5,6 +5,7 @@
 ## ------------------------------------------------------
 
 import std/[dynlib, os, strutils]
+import ../secure_memory
 
 when defined(aesni):
   import nimsimd/sse2
@@ -49,6 +50,19 @@ type
   EvpEncryptFinalExProc = proc (ctx: ptr EVP_CIPHER_CTX, outBuf: ptr uint8,
     outLen: ptr cint): cint {.cdecl.}
   EvpCipherCtxSetPaddingProc = proc (ctx: ptr EVP_CIPHER_CTX, pad: cint): cint {.cdecl.}
+
+proc clear*(ctx: var Aes128Ctx) {.inline, raises: [].} =
+  ## Overwrite the expanded AES-128 key schedule.
+  secureClearPod(ctx)
+
+proc clear*(ctx: var Aes256Ctx) {.inline, raises: [].} =
+  ## Overwrite the expanded AES-256 key schedule.
+  secureClearPod(ctx)
+
+when defined(aesni):
+  proc clear*(ctx: var Aes128NiCtx) {.inline, raises: [].} =
+    ## Overwrite the AES-NI expanded key schedule.
+    secureClearPod(ctx)
 
 const
   opensslAesLibNames = when defined(windows):

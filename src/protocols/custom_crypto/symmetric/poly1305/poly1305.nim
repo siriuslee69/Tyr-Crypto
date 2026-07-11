@@ -2,6 +2,8 @@
 ## Poly1305 <- scalar one-time authenticator over LE message
 ## ---------------------------------------------------------
 
+import ../secure_memory
+
 const
   poly1305KeyBytes* = 32
   poly1305TagBytes* = 16
@@ -57,6 +59,13 @@ proc finalizeTag(h0In, h1In, h2In, h3In, h4In: uint64,
     w1: uint32 = 0
     w2: uint32 = 0
     w3: uint32 = 0
+  defer:
+    secureClearPod(h0)
+    secureClearPod(h1)
+    secureClearPod(h2)
+    secureClearPod(h3)
+    secureClearPod(h4)
+    secureClearPod(f)
 
   c = h1 shr 26
   h1 = h1 and poly1305Mask26
@@ -152,6 +161,31 @@ proc poly1305Mac*(key, msg: openArray[byte]): Poly1305Tag =
     pad2: uint32 = 0
     pad3: uint32 = 0
     i: int = 0
+  defer:
+    secureClearPod(r0)
+    secureClearPod(r1)
+    secureClearPod(r2)
+    secureClearPod(r3)
+    secureClearPod(r4)
+    secureClearPod(s1)
+    secureClearPod(s2)
+    secureClearPod(s3)
+    secureClearPod(s4)
+    secureClearPod(h0)
+    secureClearPod(h1)
+    secureClearPod(h2)
+    secureClearPod(h3)
+    secureClearPod(h4)
+    secureClearPod(d0)
+    secureClearPod(d1)
+    secureClearPod(d2)
+    secureClearPod(d3)
+    secureClearPod(d4)
+    secureClearBytes(blk)
+    secureClearPod(pad0)
+    secureClearPod(pad1)
+    secureClearPod(pad2)
+    secureClearPod(pad3)
   if key.len != poly1305KeyBytes:
     raise newException(ValueError, "poly1305 requires a 32-byte key")
 

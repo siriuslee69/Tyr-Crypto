@@ -6,6 +6,7 @@
 
 import ../blake3/blake3
 import ../gimli/gimli_sponge
+import ../secure_memory
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   import ./argon2_simd
@@ -177,6 +178,9 @@ proc compressBlake2b(S: var Blake2bState, isLast: bool) =
     V: array[16, uint64]
     M: array[16, uint64]
     i: int = 0
+  defer:
+    secureClearPod(V)
+    secureClearPod(M)
   i = 0
   while i < 8:
     V[i] = S.chain[i]
@@ -278,6 +282,8 @@ proc blake2bHash(A: openArray[byte], outLen: int): seq[byte] =
   ## outLen: requested digest length in bytes.
   var
     S: Blake2bState
+  defer:
+    secureClearPod(S)
   initBlake2b(S, outLen)
   updateBlake2b(S, A)
   result = finishBlake2b(S)
@@ -484,8 +490,11 @@ proc buildInitialHash(a: Argon2Algorithm, password, salt: openArray[byte],
   ## salt: salt bytes.
   ## p: Argon2 parameter set.
   ## h: selected hash primitive.
-  result = fixedHash(buildInitialHashInput(a, password, salt, p),
-    argon2PrehashDigestLength, h)
+  var
+    input: seq[byte] = buildInitialHashInput(a, password, salt, p)
+  defer:
+    secureClearBytes(input)
+  result = fixedHash(input, argon2PrehashDigestLength, h)
 
 
 proc buildFirstBlockSeed(initialHash: openArray[byte], blockIndex,
@@ -761,6 +770,11 @@ proc generateAddresses(I: ArgonInstance, P: ArgonPosition,
     addressBlock: ArgonBlock
     tmpBlock: ArgonBlock
     i: int = 0
+  defer:
+    secureClearPod(zeroBlock)
+    secureClearPod(inputBlock)
+    secureClearPod(addressBlock)
+    secureClearPod(tmpBlock)
   if R.len != I.segmentLength:
     R.setLen(I.segmentLength)
   inputBlock[0] = uint64(P.passIndex)
@@ -834,6 +848,8 @@ proc fillFirstBlocks(I: var ArgonInstance, initialHash: openArray[byte],
   var
     laneIndex: int = 0
     seedBytes: seq[byte] = @[]
+  defer:
+    secureClearBytes(seedBytes)
   laneIndex = 0
   while laneIndex < I.laneCount:
     seedBytes = buildFirstBlockSeed(initialHash, 0, laneIndex)
@@ -842,6 +858,7 @@ proc fillFirstBlocks(I: var ArgonInstance, initialHash: openArray[byte],
     seedBytes = buildFirstBlockSeed(initialHash, 1, laneIndex)
     I.memory[laneIndex * I.laneLength + 1] = loadBlock(xofHash(seedBytes,
       argon2BlockSize, h))
+    secureClearBytes(seedBytes)
     laneIndex = laneIndex + 1
 
 
@@ -908,8 +925,22 @@ proc initInstance(a: Argon2Algorithm, p: Argon2Params): ArgonInstance =
   result.memory = newSeq[ArgonBlock](result.memoryBlocks)
   result.pseudoRands = newSeq[uint64](result.segmentLength)
 
+proc clearInstance(I: var ArgonInstance) {.raises: [].} =
+  ## Overwrite the full memory-hard work area before releasing it.
+  var
+    i: int = 0
+  while i < I.memory.len:
+    secureClearPod(I.memory[i])
+    i = i + 1
+  i = 0
+  while i < I.pseudoRands.len:
+    secureClearPod(I.pseudoRands[i])
+    i = i + 1
+  I.memory.setLen(0)
+  I.pseudoRands.setLen(0)
 
-proc finalizeInstance(I: ArgonInstance, outLen: int,
+
+proc finalizeInstance(I: var ArgonInstance, outLen: int,
     h: Argon2HashAlgorithm): seq[byte] =
   ## I: current Argon2 instance state.
   ## outLen: requested hash length in bytes.
@@ -917,11 +948,16 @@ proc finalizeInstance(I: ArgonInstance, outLen: int,
   var
     finalBlock: ArgonBlock = I.memory[I.laneLength - 1]
     laneIndex: int = 1
+    finalBytes: seq[byte] = @[]
+  defer:
+    secureClearPod(finalBlock)
+    secureClearBytes(finalBytes)
   laneIndex = 1
   while laneIndex < I.laneCount:
     xorBlock(finalBlock, I.memory[laneIndex * I.laneLength + (I.laneLength - 1)])
     laneIndex = laneIndex + 1
-  result = xofHash(blockToBytes(finalBlock), outLen, h)
+  finalBytes = blockToBytes(finalBlock)
+  result = xofHash(finalBytes, outLen, h)
 
 
 proc argon2Hash*(a: Argon2Algorithm, password, salt: openArray[byte],
@@ -938,6 +974,9 @@ proc argon2Hash*(a: Argon2Algorithm, password, salt: openArray[byte],
     sliceIndex: int = 0
     laneIndex: int = 0
     backend: Argon2Backend
+  defer:
+    clearInstance(I)
+    secureClearBytes(initialHash)
   validateArgon2Params(p, password.len, salt.len)
   backend = resolveArgon2Backend(b)
   I = initInstance(a, p)
@@ -977,6 +1016,9 @@ proc argon2Hash*(a: Argon2Algorithm, password, salt: openArray[byte],
     sliceIndex: int = 0
     laneIndex: int = 0
     backend: Argon2Backend
+  defer:
+    clearInstance(I)
+    secureClearBytes(initialHash)
   validateArgon2Params(p, password.len, salt.len)
   backend = resolveArgon2Backend(b)
   I = initInstance(a, p)

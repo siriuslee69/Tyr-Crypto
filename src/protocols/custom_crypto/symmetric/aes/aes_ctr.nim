@@ -1,4 +1,5 @@
 import ./aes_core as aesCore
+import ../secure_memory
 
 when defined(avx2):
   import nimsimd/avx
@@ -117,6 +118,12 @@ proc aesCtrXor*(k, n, ps: openArray[uint8], b: AesCtrBackend = acbAuto): ByteSeq
       ks1: AesBlock
       ks32: array[32, uint8]
       i: int = 0
+  defer:
+    aesCore.clear(ctx)
+    secureClearBytes(ks0)
+    when defined(avx2):
+      secureClearBytes(ks1)
+      secureClearBytes(ks32)
   if k.len != 32:
     raise newException(ValueError, "aes ctr requires 32-byte key")
   if n.len != aesCtrNonceLen:
@@ -184,6 +191,10 @@ proc initAesCtrState*(k, n: openArray[uint8]): AesCtrState =
   s.counter = initCounter(n)
   result = s
 
+proc clear*(s: var AesCtrState) {.inline, raises: [].} =
+  ## End a streaming operation by wiping its expanded key and counter.
+  secureClearPod(s)
+
 proc aesCtrXorInPlace*(s: var AesCtrState, ps: var openArray[uint8],
     b: AesCtrBackend = acbAuto) =
   ## s: AES-CTR streaming state.
@@ -199,6 +210,11 @@ proc aesCtrXorInPlace*(s: var AesCtrState, ps: var openArray[uint8],
       ks1: AesBlock
       ks32: array[32, uint8]
       i: int = 0
+  defer:
+    secureClearBytes(ks0)
+    when defined(avx2):
+      secureClearBytes(ks1)
+      secureClearBytes(ks32)
   backend = resolveBackend(b)
   case backend
   of acbAvx2:

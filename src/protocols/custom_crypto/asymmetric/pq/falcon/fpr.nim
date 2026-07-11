@@ -2,8 +2,6 @@
 ## Falcon Fpr <- integer-backed binary64 helpers for the pure-Nim port
 ## ------------------------------------------------------------------
 
-import std/math
-
 type
   FalconFpr* = uint64
 
@@ -74,8 +72,10 @@ proc fprUrsh*(x: uint64, n: int): uint64 {.inline.} =
   v shr (n and 31)
 
 proc fprIrsh*(x: int64, n: int): int64 {.inline.} =
-  var v = x xor ((x xor (x shr 32)) and (0'i64 - int64(n shr 5)))
-  v shr (n and 31)
+  var
+    v: int64 = x
+  v = v xor ((v xor ashr(v, 32)) and (0'i64 - int64(n shr 5)))
+  result = ashr(v, n and 31)
 
 proc fprUlsh*(x: uint64, n: int): uint64 {.inline.} =
   var v = x xor ((x xor (x shl 32)) and (0'u64 - uint64(n shr 5)))
@@ -147,38 +147,114 @@ proc fprOf*(i: int64): FalconFpr {.inline.} =
   fprScaled(i, 0)
 
 proc fprToFloat*(x: FalconFpr): float64 {.inline.} =
+  ## Debug/unsafe-native-backend conversion only. Secret arithmetic uses the
+  ## integer helpers below so floating-point latency cannot reveal operands.
   cast[float64](x)
 
 proc fprIsFinite*(x: FalconFpr): bool {.inline.} =
   ((uint64(x) shr 52) and 0x7ff'u64) != 0x7ff'u64
 
 proc floatToFpr*(x: float64): FalconFpr {.inline.} =
+  ## Debug/unsafe-native-backend conversion only.
   cast[FalconFpr](x)
 
 proc fprRint*(x: FalconFpr): int64 =
   var
-    v: float64 = fprToFloat(x)
-    base: float64 = floor(v)
-    frac: float64 = v - base
-    even: int64 = 0
-  if frac < 0.5:
-    return int64(base)
-  if frac > 0.5:
-    return int64(base + 1.0)
-  even = int64(base)
-  if (even and 1'i64) == 0'i64:
-    even
-  else:
-    even + 1'i64
+    m: uint64 = 0
+    d: uint64 = 0
+    e: int = 0
+    s: uint32 = 0
+    dd: uint32 = 0
+    f: uint32 = 0
+  m = ((x shl 10) or (1'u64 shl 62)) and ((1'u64 shl 63) - 1'u64)
+  e = 1085 - int((x shr 52) and 0x7ff'u64)
+  m = m and (0'u64 - uint64(uint32(e - 64) shr 31))
+  e = e and 63
+  d = fprUlsh(m, 63 - e)
+  dd = uint32(d) or (uint32(d shr 32) and 0x1fffffff'u32)
+  f = uint32(d shr 61) or ((dd or (0'u32 - dd)) shr 31)
+  m = fprUrsh(m, e) + uint64((0xc8'u32 shr f) and 1'u32)
+  s = uint32(x shr 63)
+  result = (cast[int64](m) xor (0'i64 - int64(s))) + int64(s)
 
 proc fprFloor*(x: FalconFpr): int64 =
-  int64(floor(fprToFloat(x)))
+  var
+    t: uint64 = 0
+    xi: int64 = 0
+    e: int = 0
+    cc: int = 0
+  e = int((x shr 52) and 0x7ff'u64)
+  t = x shr 63
+  xi = cast[int64](((x shl 10) or (1'u64 shl 62)) and
+    ((1'u64 shl 63) - 1'u64))
+  xi = (xi xor (0'i64 - int64(t))) + int64(t)
+  cc = 1085 - e
+  xi = fprIrsh(xi, cc and 63)
+  xi = xi xor ((xi xor (0'i64 - int64(t))) and
+    (0'i64 - int64(uint32(63 - cc) shr 31)))
+  result = xi
 
 proc fprTrunc*(x: FalconFpr): int64 =
-  int64(trunc(fprToFloat(x)))
+  var
+    t: uint64 = 0
+    xu: uint64 = 0
+    e: int = 0
+    cc: int = 0
+  e = int((x shr 52) and 0x7ff'u64)
+  xu = ((x shl 10) or (1'u64 shl 62)) and ((1'u64 shl 63) - 1'u64)
+  cc = 1085 - e
+  xu = fprUrsh(xu, cc and 63)
+  xu = xu and (0'u64 - uint64(uint32(cc - 64) shr 31))
+  t = x shr 63
+  xu = (xu xor (0'u64 - t)) + t
+  result = cast[int64](xu)
 
 proc fprAdd*(x, y: FalconFpr): FalconFpr =
-  floatToFpr(fprToFloat(x) + fprToFloat(y))
+  var
+    xx: uint64 = x
+    yy: uint64 = y
+    m: uint64 = 0
+    xu: uint64 = 0
+    yu: uint64 = 0
+    za: uint64 = 0
+    cs: uint32 = 0
+    ex: int = 0
+    ey: int = 0
+    sx: int = 0
+    sy: int = 0
+    cc: int = 0
+  m = (1'u64 shl 63) - 1'u64
+  za = (xx and m) - (yy and m)
+  cs = uint32(za shr 63) or
+    ((1'u32 - uint32((0'u64 - za) shr 63)) and uint32(xx shr 63))
+  m = (xx xor yy) and (0'u64 - uint64(cs))
+  xx = xx xor m
+  yy = yy xor m
+  ex = int(xx shr 52)
+  sx = ex shr 11
+  ex = ex and 0x7ff
+  m = uint64(uint32((ex + 0x7ff) shr 11)) shl 52
+  xu = ((xx and ((1'u64 shl 52) - 1'u64)) or m) shl 3
+  ex = ex - 1078
+  ey = int(yy shr 52)
+  sy = ey shr 11
+  ey = ey and 0x7ff
+  m = uint64(uint32((ey + 0x7ff) shr 11)) shl 52
+  yu = ((yy and ((1'u64 shl 52) - 1'u64)) or m) shl 3
+  ey = ey - 1078
+  cc = ex - ey
+  yu = yu and (0'u64 - uint64(uint32(cc - 60) shr 31))
+  cc = cc and 63
+  m = fprUlsh(1'u64, cc) - 1'u64
+  yu = yu or ((yu and m) + m)
+  yu = fprUrsh(yu, cc)
+  xu = xu + yu - ((yu shl 1) and
+    (0'u64 - uint64(sx xor sy)))
+  norm64(xu, ex)
+  xu = xu or (uint64(uint32(xu) and 0x1ff'u32) + 0x1ff'u64)
+  xu = xu shr 9
+  ex = ex + 9
+  result = makeFpr(sx, ex, xu)
 
 proc fprSub*(x, y: FalconFpr): FalconFpr {.inline.} =
   fprAdd(x, y xor (1'u64 shl 63))
@@ -187,28 +263,153 @@ proc fprNeg*(x: FalconFpr): FalconFpr {.inline.} =
   x xor (1'u64 shl 63)
 
 proc fprHalf*(x: FalconFpr): FalconFpr {.inline.} =
-  floatToFpr(fprToFloat(x) * 0.5)
+  var
+    t: uint32 = 0
+    y: uint64 = x
+  y = y - (1'u64 shl 52)
+  t = (((uint32(y shr 52) and 0x7ff'u32) + 1'u32) shr 11)
+  result = y and (uint64(t) - 1'u64)
 
 proc fprDouble*(x: FalconFpr): FalconFpr {.inline.} =
-  floatToFpr(fprToFloat(x) * 2.0)
+  result = x + (uint64(((uint32(x shr 52) and 0x7ff'u32) +
+    0x7ff'u32) shr 11) shl 52)
 
 proc fprMul*(x, y: FalconFpr): FalconFpr =
-  floatToFpr(fprToFloat(x) * fprToFloat(y))
+  var
+    xu: uint64 = 0
+    yu: uint64 = 0
+    w: uint64 = 0
+    zu: uint64 = 0
+    zv: uint64 = 0
+    x0: uint32 = 0
+    x1: uint32 = 0
+    y0: uint32 = 0
+    y1: uint32 = 0
+    z0: uint32 = 0
+    z1: uint32 = 0
+    z2: uint32 = 0
+    ex: int = 0
+    ey: int = 0
+    d: int = 0
+    e: int = 0
+    s: int = 0
+  xu = (x and ((1'u64 shl 52) - 1'u64)) or (1'u64 shl 52)
+  yu = (y and ((1'u64 shl 52) - 1'u64)) or (1'u64 shl 52)
+  x0 = uint32(xu) and 0x01ffffff'u32
+  x1 = uint32(xu shr 25)
+  y0 = uint32(yu) and 0x01ffffff'u32
+  y1 = uint32(yu shr 25)
+  w = uint64(x0) * uint64(y0)
+  z0 = uint32(w) and 0x01ffffff'u32
+  z1 = uint32(w shr 25)
+  w = uint64(x0) * uint64(y1)
+  z1 = z1 + (uint32(w) and 0x01ffffff'u32)
+  z2 = uint32(w shr 25)
+  w = uint64(x1) * uint64(y0)
+  z1 = z1 + (uint32(w) and 0x01ffffff'u32)
+  z2 = z2 + uint32(w shr 25)
+  zu = uint64(x1) * uint64(y1)
+  z2 = z2 + (z1 shr 25)
+  z1 = z1 and 0x01ffffff'u32
+  zu = zu + uint64(z2)
+  zu = zu or uint64(((z0 or z1) + 0x01ffffff'u32) shr 25)
+  zv = (zu shr 1) or (zu and 1'u64)
+  w = zu shr 55
+  zu = zu xor ((zu xor zv) and (0'u64 - w))
+  ex = int((x shr 52) and 0x7ff'u64)
+  ey = int((y shr 52) and 0x7ff'u64)
+  e = ex + ey - 2100 + int(w)
+  s = int((x xor y) shr 63)
+  d = ((ex + 0x7ff) and (ey + 0x7ff)) shr 11
+  zu = zu and (0'u64 - uint64(d))
+  result = makeFpr(s, e, zu)
 
 proc fprSqr*(x: FalconFpr): FalconFpr {.inline.} =
   fprMul(x, x)
 
 proc fprDiv*(x, y: FalconFpr): FalconFpr =
-  floatToFpr(fprToFloat(x) / fprToFloat(y))
+  var
+    xu: uint64 = 0
+    yu: uint64 = 0
+    q: uint64 = 0
+    q2: uint64 = 0
+    w: uint64 = 0
+    b: uint64 = 0
+    i: int = 0
+    ex: int = 0
+    ey: int = 0
+    e: int = 0
+    d: int = 0
+    s: int = 0
+  xu = (x and ((1'u64 shl 52) - 1'u64)) or (1'u64 shl 52)
+  yu = (y and ((1'u64 shl 52) - 1'u64)) or (1'u64 shl 52)
+  while i < 55:
+    b = ((xu - yu) shr 63) - 1'u64
+    xu = xu - (b and yu)
+    q = q or (b and 1'u64)
+    xu = xu shl 1
+    q = q shl 1
+    i = i + 1
+  q = q or ((xu or (0'u64 - xu)) shr 63)
+  q2 = (q shr 1) or (q and 1'u64)
+  w = q shr 55
+  q = q xor ((q xor q2) and (0'u64 - w))
+  ex = int((x shr 52) and 0x7ff'u64)
+  ey = int((y shr 52) and 0x7ff'u64)
+  e = ex - ey - 55 + int(w)
+  s = int((x xor y) shr 63)
+  d = (ex + 0x7ff) shr 11
+  s = s and d
+  e = e and (0 - d)
+  q = q and (0'u64 - uint64(d))
+  result = makeFpr(s, e, q)
 
 proc fprInv*(x: FalconFpr): FalconFpr {.inline.} =
   fprDiv(fprOne, x)
 
 proc fprSqrt*(x: FalconFpr): FalconFpr =
-  floatToFpr(sqrt(fprToFloat(x)))
+  var
+    xu: uint64 = 0
+    q: uint64 = 0
+    s: uint64 = 0
+    r: uint64 = 0
+    t: uint64 = 0
+    b: uint64 = 0
+    ex: int = 0
+    e: int = 0
+    i: int = 0
+  xu = (x and ((1'u64 shl 52) - 1'u64)) or (1'u64 shl 52)
+  ex = int((x shr 52) and 0x7ff'u64)
+  e = ex - 1023
+  xu = xu + (xu and (0'u64 - uint64(e and 1)))
+  e = ashr(e, 1)
+  xu = xu shl 1
+  r = 1'u64 shl 53
+  while i < 54:
+    t = s + r
+    b = ((xu - t) shr 63) - 1'u64
+    s = s + ((r shl 1) and b)
+    xu = xu - (t and b)
+    q = q + (r and b)
+    xu = xu shl 1
+    r = r shr 1
+    i = i + 1
+  q = q shl 1
+  q = q or ((xu or (0'u64 - xu)) shr 63)
+  e = e - 54
+  q = q and (0'u64 - uint64((ex + 0x7ff) shr 11))
+  result = makeFpr(0, e, q)
 
 proc fprLt*(x, y: FalconFpr): bool {.inline.} =
-  fprToFloat(x) < fprToFloat(y)
+  var
+    cc0: int = 0
+    cc1: int = 0
+    sx: int64 = cast[int64](x)
+    sy: int64 = cast[int64](y)
+  sy = sy and not ashr(sx xor sy, 63)
+  cc0 = int(ashr(sx - sy, 63)) and 1
+  cc1 = int(ashr(sy - sx, 63)) and 1
+  result = (cc0 xor ((cc0 xor cc1) and int((x and y) shr 63))) != 0
 
 proc fprExpmP63*(x, ccs: FalconFpr): uint64 =
   const C: array[13, uint64] = [

@@ -1,4 +1,5 @@
 import std/bitops
+import ../secure_memory
 
 when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defined(aarch64):
   import ./blake3_simd
@@ -478,7 +479,11 @@ proc blake3KeyedHash*(key, input: openArray[byte],
 proc blake3DeriveKey*(context, material: openArray[byte],
     outLen: int = outLenDefault): seq[byte] =
   ## Derives key material using the standard two-phase BLAKE3 derive-key mode.
-  var contextKey = blake3Digest(context, b3mDeriveKeyContext, [], outLenDefault)
+  var
+    contextKey: seq[byte] =
+      blake3Digest(context, b3mDeriveKeyContext, [], outLenDefault)
+  defer:
+    secureClearBytes(contextKey)
   result = blake3Digest(material, b3mDeriveKeyMaterial, contextKey, outLen)
 
 proc stringToBytes(s: string): seq[byte] =

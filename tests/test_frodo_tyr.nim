@@ -165,6 +165,21 @@ when defined(hasLibOqs):
           oqsEnv.ciphertext) == oqsEnv.sharedSecret
 
 suite "frodo tyr":
+  test "constant-time word verification returns full-byte masks":
+    var
+      equalA: array[3, uint16] = [1'u16, 2'u16, 3'u16]
+      equalB: array[3, uint16] = [1'u16, 2'u16, 3'u16]
+      changed: array[3, uint16] = [1'u16, 2'u16, 7'u16]
+      selected: array[3, byte]
+      accepted: array[3, byte] = [0x12'u8, 0x34'u8, 0x56'u8]
+      rejected: array[3, byte] = [0xa1'u8, 0xb2'u8, 0xc3'u8]
+      selector: int8 = 0
+    check custom_frodo.ctVerifyWords(equalA, equalB) == 0'i8
+    selector = custom_frodo.ctVerifyWords(equalA, changed)
+    check selector == -1'i8
+    custom_frodo.ctSelectBytes(selected, accepted, rejected, selector)
+    check selected == rejected
+
   when not defined(release):
     test "pure-nim Frodo roundtrip is release-only due runtime cost":
       checkpoint("Frodo pure-Nim runtime checks are only enabled in release builds")

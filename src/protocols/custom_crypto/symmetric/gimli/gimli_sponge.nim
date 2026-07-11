@@ -3,12 +3,32 @@
 ## ----------------------------------------------------
 
 import ./gimli
+import ../secure_memory
 
 const
-  gimliBlockLen = 48
+  ## Gimli-Hash uses a 16-byte rate and keeps 32 bytes as capacity.
+  gimliBlockLen = 16
   gimliTagLenDefault* = 16
   gimliKeyBytes* = 32
   gimliNonceBytes* = 24
+  gimliXofDomain: array[16, uint8] = [
+    uint8('T'), uint8('Y'), uint8('R'), uint8('-'),
+    uint8('G'), uint8('I'), uint8('M'), uint8('L'),
+    uint8('I'), uint8('-'), uint8('X'), uint8('O'),
+    uint8('F'), uint8('-'), uint8('v'), uint8('2')
+  ]
+  gimliTagDomain: array[16, uint8] = [
+    uint8('T'), uint8('Y'), uint8('R'), uint8('-'),
+    uint8('G'), uint8('I'), uint8('M'), uint8('L'),
+    uint8('I'), uint8('-'), uint8('T'), uint8('A'),
+    uint8('G'), uint8('-'), uint8('v'), uint8('2')
+  ]
+  gimliStreamDomain: array[16, uint8] = [
+    uint8('T'), uint8('Y'), uint8('R'), uint8('-'),
+    uint8('G'), uint8('I'), uint8('M'), uint8('L'),
+    uint8('I'), uint8('-'), uint8('S'), uint8('T'),
+    uint8('R'), uint8('M'), uint8('-'), uint8('2')
+  ]
 
 type
   ByteSeq = seq[uint8]
@@ -41,39 +61,13 @@ proc loadU32(bs: openArray[uint8], o: int): uint32 =
   result = b0 or b1 or b2 or b3
 
 
-## storeU32: store a little-endian u32 into bytes.
-## v: value to store.
-## bs: byte sequence to update.
-## o: byte offset.
-proc storeU32(v: uint32, bs: var ByteSeq, o: int) =
-  bs[o] = uint8(v and 0xff)
-  bs[o + 1] = uint8((v shr 8) and 0xff)
-  bs[o + 2] = uint8((v shr 16) and 0xff)
-  bs[o + 3] = uint8((v shr 24) and 0xff)
-
-
-## absorbBlock: xor a 48-byte block into the gimli state.
-## st: gimli state.
-## bs: block bytes.
-proc absorbBlock(st: var Gimli_Block, bs: ByteSeq) =
-  var
-    i: int = 0
-    offset: int = 0
-  i = 0
-  offset = 0
-  while i < 12:
-    st[i] = st[i] xor loadU32(bs, offset)
-    i = i + 1
-    offset = offset + 4
-
-
 proc absorbBlockArr(st: var Gimli_Block, bs: array[gimliBlockLen, uint8]) =
   var
     i: int = 0
     offset: int = 0
   i = 0
   offset = 0
-  while i < 12:
+  while i < 4:
     st[i] = st[i] xor loadU32(bs, offset)
     i = i + 1
     offset = offset + 4
@@ -83,7 +77,7 @@ proc fillRateBuf(st: Gimli_Block, bs: var array[gimliBlockLen, uint8]) =
   var
     i: int = 0
   i = 0
-  while i < 12:
+  while i < 4:
     bs[i * 4] = uint8(st[i] and 0xff)
     bs[i * 4 + 1] = uint8((st[i] shr 8) and 0xff)
     bs[i * 4 + 2] = uint8((st[i] shr 16) and 0xff)
@@ -91,8 +85,15 @@ proc fillRateBuf(st: Gimli_Block, bs: var array[gimliBlockLen, uint8]) =
     i = i + 1
 
 
+proc gimliClear*(s: var GimliSpongeState) {.inline, raises: [].} =
+  ## Overwrite a keyed sponge after its final output is consumed.
+  secureClearPod(s)
+
 proc gimliAbsorbInit*(s: var GimliSpongeState) =
+  ## Discard a previous state before beginning a fresh absorb operation.
+  gimliClear(s)
   s.st = default(Gimli_Block)
+  s.bufs = default(array[gimliBlockLen, uint8])
   s.l = 0
   s.outOffset = 0
   s.squeezing = false
@@ -123,7 +124,11 @@ proc gimliAbsorbFinal*(s: var GimliSpongeState) =
   while i < gimliBlockLen:
     s.bufs[i] = 0'u8
     i = i + 1
-  s.bufs[s.l] = s.bufs[s.l] xor 0x80'u8
+  ## The repository's Gimli permutation vector is the original C reference
+  ## variant. Its sponge uses byte-aligned multi-rate padding: `0x1f` at the
+  ## message end and `0x80` at the rate boundary.
+  s.bufs[s.l] = s.bufs[s.l] xor 0x1f'u8
+  s.bufs[gimliBlockLen - 1] = s.bufs[gimliBlockLen - 1] xor 0x80'u8
   absorbBlockArr(s.st, s.bufs)
   gimliPermute(s.st)
   s.squeezing = true
@@ -146,99 +151,54 @@ proc gimliSqueezeInto*(s: var GimliSpongeState, ds: var openArray[uint8]) =
     s.outOffset = s.outOffset + 1
     i = i + 1
 
-## fillBlock: populate a 48-byte buffer from src.
-## buf: block buffer to update.
-## src: input bytes.
-## o: offset in src.
-## take: number of bytes to copy.
-## pad: whether to apply 0x80 padding when take < block size.
-proc fillBlock(buf: var ByteSeq, src: openArray[uint8], o, take: int, pad: bool) =
+proc absorbFramedInput(s: var GimliSpongeState, domain, ks, ns,
+    ms: openArray[uint8]) =
+  ## Absorb standard unkeyed input directly. Keyed calls are length-framed so
+  ## `(key, nonce, message)` tuples cannot alias one another.
   var
+    L: array[8, uint8]
     i: int = 0
+    n: uint64 = 0
+  if ks.len == 0 and ns.len == 0:
+    gimliAbsorbUpdate(s, ms)
+    return
+  gimliAbsorbUpdate(s, domain)
+  n = uint64(ks.len)
   i = 0
-  while i < gimliBlockLen:
-    if i < take:
-      buf[i] = src[o + i]
-    else:
-      buf[i] = 0'u8
+  while i < L.len:
+    L[i] = uint8((n shr (i * 8)) and 0xff'u64)
     i = i + 1
-  if pad and take < gimliBlockLen:
-    buf[take] = buf[take] xor 0x80'u8
+  gimliAbsorbUpdate(s, L)
+  gimliAbsorbUpdate(s, ks)
+  n = uint64(ns.len)
+  i = 0
+  while i < L.len:
+    L[i] = uint8((n shr (i * 8)) and 0xff'u64)
+    i = i + 1
+  gimliAbsorbUpdate(s, L)
+  gimliAbsorbUpdate(s, ns)
+  n = uint64(ms.len)
+  i = 0
+  while i < L.len:
+    L[i] = uint8((n shr (i * 8)) and 0xff'u64)
+    i = i + 1
+  gimliAbsorbUpdate(s, L)
+  gimliAbsorbUpdate(s, ms)
 
 
-## absorbSequence: absorb bytes into the gimli state.
-## st: gimli state.
-## src: input bytes.
-## pad: whether to pad the final partial block.
-proc absorbSequence(st: var Gimli_Block, src: openArray[uint8], pad: bool) =
+proc gimliXofWithDomain(ks, ns, ms, domain: openArray[uint8],
+    outLen: int): ByteSeq =
   var
-    buf: ByteSeq = @[]
-    offset: int = 0
-    remaining: int = 0
-    take: int = 0
-  buf.setLen(gimliBlockLen)
-  if src.len == 0 and pad:
-    fillBlock(buf, src, 0, 0, true)
-    absorbBlock(st, buf)
-    gimliPermute(st)
-    return
-  offset = 0
-  while offset < src.len:
-    remaining = src.len - offset
-    take = gimliBlockLen
-    if remaining < take:
-      take = remaining
-    fillBlock(buf, src, offset, take, pad)
-    absorbBlock(st, buf)
-    gimliPermute(st)
-    offset = offset + take
-
-
-## squeezeState: write sponge output into bytes.
-## st: gimli state (mutated between output blocks).
-## outLen: desired output length.
-proc squeezeState(st: var Gimli_Block, outLen: int): ByteSeq =
-  var
-    rs: ByteSeq = @[]
-    buf: ByteSeq = @[]
-    outOffset: int = 0
-    take: int = 0
-    i: int = 0
-  rs.setLen(outLen)
-  buf.setLen(gimliBlockLen)
-  outOffset = 0
-  while outOffset < outLen:
-    i = 0
-    while i < 12:
-      storeU32(st[i], buf, i * 4)
-      i = i + 1
-    take = gimliBlockLen
-    if outLen - outOffset < take:
-      take = outLen - outOffset
-    i = 0
-    while i < take:
-      rs[outOffset + i] = buf[i]
-      i = i + 1
-    outOffset = outOffset + take
-    if outOffset < outLen:
-      gimliPermute(st)
-  result = rs
-
-
-## squeezeStateDiscard: advance sponge state for outLen bytes without storing output.
-## This is useful for benchmarks where the output buffer is discarded.
-proc squeezeStateDiscard(st: var Gimli_Block, outLen: int) =
-  var remaining: int = outLen
-  var take: int = 0
-  if remaining <= 0:
-    return
-  while remaining > 0:
-    take = gimliBlockLen
-    if remaining < take:
-      take = remaining
-    remaining = remaining - take
-    if remaining > 0:
-      gimliPermute(st)
+    s: GimliSpongeState
+  defer:
+    gimliClear(s)
+  if outLen < 0:
+    raise newException(ValueError, "gimli output length must not be negative")
+  gimliAbsorbInit(s)
+  absorbFramedInput(s, domain, ks, ns, ms)
+  gimliAbsorbFinal(s)
+  result = newSeq[uint8](outLen)
+  gimliSqueezeInto(s, result)
 
 
 ## gimliXof: sponge output over key + nonce + message.
@@ -247,24 +207,28 @@ proc squeezeStateDiscard(st: var Gimli_Block, outLen: int) =
 ## ms: message bytes.
 ## outLen: output length.
 proc gimliXof*(ks, ns, ms: openArray[uint8], outLen: int): ByteSeq =
-  var
-    st: Gimli_Block
-  st = default(Gimli_Block)
-  absorbSequence(st, ks, false)
-  absorbSequence(st, ns, false)
-  absorbSequence(st, ms, true)
-  result = squeezeState(st, outLen)
+  result = gimliXofWithDomain(ks, ns, ms, gimliXofDomain, outLen)
 
 
 ## gimliXofDiscard: absorb key/nonce/message and discard output blocks.
 proc gimliXofDiscard*(ks, ns, ms: openArray[uint8], outLen: int) =
   var
-    st: Gimli_Block
-  st = default(Gimli_Block)
-  absorbSequence(st, ks, false)
-  absorbSequence(st, ns, false)
-  absorbSequence(st, ms, true)
-  squeezeStateDiscard(st, outLen)
+    s: GimliSpongeState
+    remaining: int = outLen
+    chunk: array[gimliBlockLen, uint8]
+    take: int = 0
+  defer:
+    gimliClear(s)
+    secureClearBytes(chunk)
+  if outLen < 0:
+    raise newException(ValueError, "gimli output length must not be negative")
+  gimliAbsorbInit(s)
+  absorbFramedInput(s, gimliXofDomain, ks, ns, ms)
+  gimliAbsorbFinal(s)
+  while remaining > 0:
+    take = min(remaining, chunk.len)
+    gimliSqueezeInto(s, chunk.toOpenArray(0, take - 1))
+    remaining = remaining - take
 
 
 ## gimliTag: compute a Gimli tag for key + nonce + message.
@@ -277,7 +241,7 @@ proc gimliTag*(ks, ns, ms: openArray[uint8], outLen: int): ByteSeq =
     raise newException(ValueError, "gimli tag requires a 32-byte key")
   if ns.len != gimliNonceBytes:
     raise newException(ValueError, "gimli tag requires a 24-byte nonce")
-  result = gimliXof(ks, ns, ms, outLen)
+  result = gimliXofWithDomain(ks, ns, ms, gimliTagDomain, outLen)
 
 
 ## gimliTag: compute a Gimli tag with default length.
@@ -285,7 +249,7 @@ proc gimliTag*(ks, ns, ms: openArray[uint8], outLen: int): ByteSeq =
 ## ns: nonce bytes.
 ## ms: message bytes.
 proc gimliTag*(ks, ns, ms: openArray[uint8]): ByteSeq =
-  result = gimliXof(ks, ns, ms, gimliTagLenDefault)
+  result = gimliTag(ks, ns, ms, gimliTagLenDefault)
 
 
 ## gimliStreamXor: apply a Gimli-based keystream to input.
@@ -297,11 +261,13 @@ proc gimliStreamXor*(ks, ns, input: openArray[uint8]): ByteSeq =
     ksBytes: ByteSeq = @[]
     outBytes: ByteSeq = @[]
     i: int = 0
+  defer:
+    secureClearBytes(ksBytes)
   if ks.len != gimliKeyBytes:
     raise newException(ValueError, "gimli stream requires a 32-byte key")
   if ns.len != gimliNonceBytes:
     raise newException(ValueError, "gimli stream requires a 24-byte nonce")
-  ksBytes = gimliXof(ks, ns, @[], input.len)
+  ksBytes = gimliXofWithDomain(ks, ns, @[], gimliStreamDomain, input.len)
   outBytes.setLen(input.len)
   i = 0
   while i < input.len:
