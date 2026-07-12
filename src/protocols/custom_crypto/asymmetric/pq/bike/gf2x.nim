@@ -13,6 +13,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
 const
   bikeKSqrThreshold = 64
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `gf2xModAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gf2xModAdd*(C: var BikePadPoly, A, B: BikePadPoly) =
   ## Compute `C = A + B mod 2` over padded qwords.
   var
@@ -23,6 +24,7 @@ proc gf2xModAdd*(C: var BikePadPoly, A, B: BikePadPoly) =
     C[i] = A[i] xor B[i]
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `gf2xMulBasePort`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gf2xMulBasePort(C: var seq[uint64], cOff: int, a, b: uint64) =
   var
     h: uint64 = 0
@@ -76,6 +78,7 @@ proc gf2xMulBasePort(C: var seq[uint64], cOff: int, a, b: uint64) =
   C[cOff] = l
   C[cOff + 1] = h
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `gf2xSqrPort`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gf2xSqrPort(A: BikePadPoly): BikeDoublePadPoly =
   var
     i: int = 0
@@ -85,6 +88,7 @@ proc gf2xSqrPort(A: BikePadPoly): BikeDoublePadPoly =
     gf2xMulBasePort(result, 2 * i, A[i], A[i])
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `gf2xRedPort`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gf2xRedPort(A: BikeDoublePadPoly): BikePadPoly =
   var
     i: int = 0
@@ -105,6 +109,7 @@ proc gf2xRedPort(A: BikeDoublePadPoly): BikePadPoly =
     result[i] = 0'u64
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `karatsubaAdd1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc karatsubaAdd1(alah, blbh: var seq[uint64], A, B: seq[uint64],
     aOff, bOff, qLen: int) =
   var
@@ -115,6 +120,7 @@ proc karatsubaAdd1(alah, blbh: var seq[uint64], A, B: seq[uint64],
     blbh[i] = B[bOff + i] xor B[bOff + qLen + i]
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `karatsubaAdd2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc karatsubaAdd2(Z: var seq[uint64], X, Y: seq[uint64], xOff, yOff, qLen: int) =
   var
     i: int = 0
@@ -123,6 +129,7 @@ proc karatsubaAdd2(Z: var seq[uint64], X, Y: seq[uint64], xOff, yOff, qLen: int)
     Z[i] = X[xOff + i] xor Y[yOff + i]
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `karatsubaAdd3`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc karatsubaAdd3(C: var seq[uint64], cOff: int, mid: seq[uint64], qLen: int) =
   var
     i: int = 0
@@ -142,6 +149,7 @@ proc karatsubaAdd3(C: var seq[uint64], cOff: int, mid: seq[uint64], qLen: int) =
     C[cOff + (2 * qLen) + i] = vt xor vr2 xor vr3
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `karatsuba`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc karatsuba(C: var seq[uint64], cOff: int, A, B: seq[uint64], aOff, bOff,
     qLen, qPad: int, sec: var seq[uint64], secOff: int) =
   ## Paper note: BIKE's current spec uses GF(2) polynomial multiplication over
@@ -172,6 +180,7 @@ proc karatsuba(C: var seq[uint64], cOff: int, A, B: seq[uint64], aOff, bOff,
   karatsuba(C, cOff + half, alah, blbh, 0, 0, half, half, sec, secOff + (3 * half))
   karatsubaAdd3(C, cOff, tmp, half)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `toPadSeq`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc toPadSeq(A: BikePadPoly): seq[uint64] =
   result = newSeq[uint64](bikeRPaddedQWords)
   var
@@ -181,6 +190,7 @@ proc toPadSeq(A: BikePadPoly): seq[uint64] =
     result[i] = A[i]
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `gf2xModMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gf2xModMul*(A, B: BikePadPoly): BikePadPoly =
   ## Multiply two padded BIKE polynomials modulo `x^r - 1`.
   ## Paper note: this is the concrete BIKE-spec multiplication call site that
@@ -210,6 +220,7 @@ proc gf2xModMul*(A, B: BikePadPoly): BikePadPoly =
     zeroWords(sec)
     zeroWords(dbl)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `kSqrPort`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc kSqrPort*(A: BikePadPoly, lParam: int): BikePadPoly =
   var
     rawA: BikeRawPoly
@@ -226,6 +237,7 @@ proc kSqrPort*(A: BikePadPoly, lParam: int): BikePadPoly =
   maskRawLastByte(rawC)
   result = rawToPadPoly(rawC)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `gf2xModSqrInPlace`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gf2xModSqrInPlace(A: var BikePadPoly) =
   var
     dbl: BikeDoublePadPoly = @[]
@@ -233,6 +245,7 @@ proc gf2xModSqrInPlace(A: var BikePadPoly) =
   A = gf2xRedPort(dbl)
   zeroWords(dbl)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `repeatedSquaring`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc repeatedSquaring(A: BikePadPoly, numSqrs: int): BikePadPoly =
   var
     i: int = 0
@@ -242,6 +255,7 @@ proc repeatedSquaring(A: BikePadPoly, numSqrs: int): BikePadPoly =
     gf2xModSqrInPlace(result)
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `gf2xModInv`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gf2xModInv*(A: BikePadPoly): BikePadPoly =
   ## Invert a BIKE-L1 polynomial modulo `x^r - 1`.
   ## Paper note: inversion follows the BIKE exponentiation/squaring schedule from

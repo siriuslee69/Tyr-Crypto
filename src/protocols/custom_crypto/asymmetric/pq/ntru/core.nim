@@ -22,6 +22,7 @@ type
   NtruPoly* = object
     coeffs*: array[ntruMaxN, uint16]
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `secureClearPoly`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc secureClearPoly(a: var NtruPoly) {.raises: [].} =
   ## Volatile zeroization for secret polynomial scratch (cannot be elided).
   var
@@ -30,36 +31,46 @@ proc secureClearPoly(a: var NtruPoly) {.raises: [].} =
     volatileStore(addr a.coeffs[i], 0'u16)
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `q`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc q(p: NtruParams): uint16 {.inline.} =
   result = uint16(1 shl p.logQ)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `qMask`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc qMask(p: NtruParams): uint16 {.inline.} =
   result = uint16((1 shl p.logQ) - 1)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `modQ`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc modQ(p: NtruParams, x: uint16): uint16 {.inline.} =
   result = x and qMask(p)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `u16Add`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc u16Add(a, b: uint16): uint16 {.inline.} =
   result = uint16((uint32(a) + uint32(b)) and 0xffff'u32)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `u16Sub`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc u16Sub(a, b: uint16): uint16 {.inline.} =
   result = uint16((uint32(a) + 0x10000'u32 - uint32(b)) and 0xffff'u32)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `u16Mul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc u16Mul(a, b: uint16): uint16 {.inline.} =
   result = uint16((uint32(a) * uint32(b)) and 0xffff'u32)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `u16Neg`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc u16Neg(a: uint16): uint16 {.inline.} =
   result = uint16((0x10000'u32 - uint32(a)) and 0xffff'u32)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `i64ToU16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc i64ToU16(a: int64): uint16 {.inline.} =
   result = uint16(cast[uint64](a) and 0xffff'u64)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `load16Le`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc load16Le(A: openArray[byte], o: int): uint16 {.inline.} =
   var
     t: uint16 = 0
   t = uint16(A[o]) or uint16(uint16(A[o + 1]) shl 8)
   result = t
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `copyBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc copyBytes(dst: var openArray[byte], o: int, src: openArray[byte]) =
   var
     i: int = 0
@@ -68,12 +79,14 @@ proc copyBytes(dst: var openArray[byte], o: int, src: openArray[byte]) =
     dst[o + i] = src[i]
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `nonzeroToOne`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc nonzeroToOne(t: uint32): int {.inline.} =
   var
     x: uint64 = 0
   x = (0x100000000'u64 - uint64(t)) and 0xffffffff'u64
   result = int((x shr 31) and 1'u64)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `mod3`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc mod3(a: uint16): uint16 =
   var
     r: uint16 = 0
@@ -84,6 +97,7 @@ proc mod3(a: uint16): uint16 =
   r = ((r shr 2) + r) and 0x03'u16
   result = (r + ((r + 1'u16) shr 2)) and 0x03'u16
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `mod3Small`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc mod3Small(a: uint8): uint8 =
   var
     r: uint16 = 0
@@ -93,12 +107,14 @@ proc mod3Small(a: uint8): uint8 =
   r = ((r shr 2) + r) and 0x03'u16
   result = byte((r + ((r + 1'u16) shr 2)) and 0x03'u16)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `bothNegativeMask`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bothNegativeMask(x, y: int16): int16 {.inline.} =
   var
     b: uint16 = 0
   b = (cast[uint16](x) and cast[uint16](y)) shr 15
   result = int16(0 - int(b))
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `int32Minmax`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc int32Minmax(a, b: var int32) =
   var
     ab: int32 = 0
@@ -114,12 +130,14 @@ proc int32Minmax(a, b: var int32) =
   a = a xor c
   b = b xor c
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `negativeMaskInt32`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc negativeMaskInt32(x: int32): int32 {.inline.} =
   var
     b: uint32 = 0
   b = (cast[uint32](x) shr 31) and 1'u32
   result = int32(0 - int(b))
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `sortInt32Fixed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc sortInt32Fixed(A: var openArray[int32]) {.otterBench.} =
   var
     pass: int = 0
@@ -132,6 +150,7 @@ proc sortInt32Fixed(A: var openArray[int32]) {.otterBench.} =
       j = j + 2
     pass = pass + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `clearNtruPolyActive`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clearNtruPolyActive(r: var NtruPoly, p: NtruParams) {.inline.} =
   var
     i: int = 0
@@ -140,6 +159,7 @@ proc clearNtruPolyActive(r: var NtruPoly, p: NtruParams) {.inline.} =
     r.coeffs[i] = 0
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `packBits`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packBits(dst: var openArray[byte], V: openArray[uint16], bits, count: int,
     mask: uint16) =
   var
@@ -165,6 +185,7 @@ proc packBits(dst: var openArray[byte], V: openArray[uint16], bits, count: int,
   if accBits > 0 and outIdx < dst.len:
     dst[outIdx] = byte(acc and 0xff'u32)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `unpackBits`; pitfall: reject malformed or non-canonical input before indexed access.
 proc unpackBits(V: var openArray[uint16], src: openArray[byte], bits, count: int) =
   var
     mask: uint32 = 0
@@ -184,8 +205,10 @@ proc unpackBits(V: var openArray[uint16], src: openArray[byte], bits, count: int
     accBits = accBits - bits
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyMod3Phi`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMod3Phi*(r: var NtruPoly, p: NtruParams)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyS3ToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyS3ToBytes*(dst: var openArray[byte], p: NtruParams, a: NtruPoly) =
   var
     i: int = 0
@@ -208,6 +231,7 @@ proc polyS3ToBytes*(dst: var openArray[byte], p: NtruParams, a: NtruPoly) =
       j = j - 1
     dst[i] = c
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyS3FromBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyS3FromBytes*(r: var NtruPoly, p: NtruParams, src: openArray[byte]) =
   var
     i: int = 0
@@ -232,6 +256,7 @@ proc polyS3FromBytes*(r: var NtruPoly, p: NtruParams, src: openArray[byte]) =
   r.coeffs[p.n - 1] = 0
   polyMod3Phi(r, p)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polySqToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polySqToBytes*(dst: var openArray[byte], p: NtruParams, a: NtruPoly) =
   var
     T: array[ntruMaxN, uint16]
@@ -242,13 +267,16 @@ proc polySqToBytes*(dst: var openArray[byte], p: NtruParams, a: NtruPoly) =
     i = i + 1
   packBits(dst, T, p.logQ, p.packDeg, qMask(p))
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polySqFromBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polySqFromBytes*(r: var NtruPoly, p: NtruParams, src: openArray[byte]) =
   unpackBits(r.coeffs, src, p.logQ, p.packDeg)
   r.coeffs[p.n - 1] = 0
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqSumZeroToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqSumZeroToBytes*(dst: var openArray[byte], p: NtruParams, a: NtruPoly) =
   polySqToBytes(dst, p, a)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqSumZeroFromBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqSumZeroFromBytes*(r: var NtruPoly, p: NtruParams, src: openArray[byte]) =
   var
     i: int = 0
@@ -259,6 +287,7 @@ proc polyRqSumZeroFromBytes*(r: var NtruPoly, p: NtruParams, src: openArray[byte
     r.coeffs[p.n - 1] = u16Sub(r.coeffs[p.n - 1], r.coeffs[i])
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyZ3ToZq`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyZ3ToZq*(r: var NtruPoly, p: NtruParams) =
   var
     i: int = 0
@@ -267,6 +296,7 @@ proc polyZ3ToZq*(r: var NtruPoly, p: NtruParams) =
     r.coeffs[i] = r.coeffs[i] or (u16Neg(r.coeffs[i] shr 1) and qMask(p))
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyTrinaryZqToZ3`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyTrinaryZqToZ3*(r: var NtruPoly, p: NtruParams) =
   var
     i: int = 0
@@ -276,6 +306,7 @@ proc polyTrinaryZqToZ3*(r: var NtruPoly, p: NtruParams) =
     r.coeffs[i] = 3'u16 and (r.coeffs[i] xor (r.coeffs[i] shr (p.logQ - 1)))
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyMod3Phi`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMod3Phi*(r: var NtruPoly, p: NtruParams) =
   var
     i: int = 0
@@ -284,6 +315,7 @@ proc polyMod3Phi*(r: var NtruPoly, p: NtruParams) =
     r.coeffs[i] = mod3(u16Add(r.coeffs[i], uint16(2'u32 * uint32(r.coeffs[p.n - 1]))))
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyModQPhi`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyModQPhi*(r: var NtruPoly, p: NtruParams) =
   var
     i: int = 0
@@ -292,6 +324,7 @@ proc polyModQPhi*(r: var NtruPoly, p: NtruParams) =
     r.coeffs[i] = u16Sub(r.coeffs[i], r.coeffs[p.n - 1])
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqToS3`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqToS3*(r: var NtruPoly, p: NtruParams, a: NtruPoly) =
   var
     i: int = 0
@@ -305,6 +338,7 @@ proc polyRqToS3*(r: var NtruPoly, p: NtruParams, a: NtruPoly) =
   polyMod3Phi(r, p)
 
 when defined(sse2):
+  ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `reduceCyclicSse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc reduceCyclicSse(r: var NtruPoly, p: NtruParams,
       C: array[2 * ntruMaxN, uint16]) =
     var
@@ -324,6 +358,7 @@ when defined(sse2):
       i = i + 1
 
 when defined(avx2):
+  ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `reduceCyclicAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc reduceCyclicAvx2(r: var NtruPoly, p: NtruParams,
       C: array[2 * ntruMaxN, uint16]) =
     var
@@ -343,6 +378,7 @@ when defined(avx2):
       i = i + 1
 
 when defined(sse2) and not defined(avx2):
+  ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqMulSse2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyRqMulSse2(r: var NtruPoly, p: NtruParams,
       a, b: NtruPoly) {.inline.} =
     ## Multiply eight cyclic-ring coefficients per fixed public step.
@@ -385,6 +421,7 @@ when defined(sse2) and not defined(avx2):
       i = i + 1
 
 when defined(neon) or defined(arm64) or defined(aarch64):
+  ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `reduceCyclicNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc reduceCyclicNeon(r: var NtruPoly, p: NtruParams,
       C: array[2 * ntruMaxN, uint16]) =
     var
@@ -401,6 +438,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       r.coeffs[i] = u16Add(C[i], C[p.n + i])
       i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqMulTmp`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqMulTmp(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.} =
   var
     C: array[2 * ntruMaxN, uint16]
@@ -431,6 +469,7 @@ proc polyRqMulTmp(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.} =
       r.coeffs[i] = u16Add(C[i], C[p.n + i])
       i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqMulRows`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqMulRows(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.} =
   var
     i: int = 0
@@ -457,6 +496,7 @@ proc polyRqMulRows(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.} =
       k = k + 1
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqMulCoeff`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqMulCoeff(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.} =
   var
     k: int = 0
@@ -481,6 +521,7 @@ proc polyRqMulCoeff(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.} =
     r.coeffs[k] = acc
     k = k + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqMulRowsUnroll4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqMulRowsUnroll4(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.} =
   var
     i: int = 0
@@ -519,6 +560,7 @@ proc polyRqMulRowsUnroll4(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inli
     i = i + 1
 
 when defined(avx2):
+  ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqMulAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyRqMulAvx2(r: var NtruPoly, p: NtruParams,
       a, b: NtruPoly) {.inline.} =
     ## Multiply 16 cyclic-ring coefficients per fixed public step.
@@ -561,6 +603,7 @@ when defined(avx2):
       i = i + 1
 
 when defined(neon) or defined(arm64) or defined(aarch64):
+  ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqMulNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyRqMulNeon(r: var NtruPoly, p: NtruParams,
       a, b: NtruPoly) {.inline.} =
     ## Multiply eight cyclic-ring coefficients per fixed public step.
@@ -624,30 +667,37 @@ type
   NtruToomK2Tmp = array[4 * ntruToomK2BaseMax, uint16]
   NtruToomK2Wide = array[2 * ntruToomK2PadMax, uint16]
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `ntruToomLen`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ntruToomLen(p: NtruParams): int {.inline.} =
   result = ((p.n + 3) div 4) * 4
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `ntruToomK2Len`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ntruToomK2Len(p: NtruParams): int {.inline.} =
   result = ((p.n + 31) div 32) * 32
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `u16MulSmall`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc u16MulSmall(a: uint16, b: int): uint16 {.inline.} =
   result = uint16((uint32(a) * uint32(b)) and 0xffff'u32)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `u16FromI64`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc u16FromI64(a: int64): uint16 {.inline.} =
   result = uint16(cast[uint64](a) and 0xffff'u64)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `cShrI64ToU16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cShrI64ToU16(a: int64, s: int): uint16 {.inline.} =
   var
     t: uint64 = 0
   t = cast[uint64](a) and 0xffffffff'u64
   result = uint16((t shr s) and 0xffff'u64)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `ntruToomCoeffAt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ntruToomCoeffAt(A: NtruPoly, p: NtruParams, i: int): int64 {.inline.} =
   if i < p.n:
     result = int64(A.coeffs[i])
   else:
     result = 0
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `evalNtruToomPoint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc evalNtruToomPoint(E: var NtruToomEval, p: NtruParams, A: NtruPoly,
     point, m: int) {.inline.} =
   var
@@ -679,6 +729,7 @@ proc evalNtruToomPoint(E: var NtruToomEval, p: NtruParams, A: NtruPoly,
       E[i] = a3
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `mulNtruToomEvals`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc mulNtruToomEvals(R: var NtruToomProd, A, B: NtruToomEval, m: int) {.inline.} =
   var
     i: int = 0
@@ -697,6 +748,7 @@ proc mulNtruToomEvals(R: var NtruToomProd, A, B: NtruToomEval, m: int) {.inline.
       j = j + 1
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `mulNtruToomPoint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc mulNtruToomPoint(R: var NtruToomProd, p: NtruParams, a, b: NtruPoly,
     point, m: int) {.inline.} =
   var
@@ -706,6 +758,7 @@ proc mulNtruToomPoint(R: var NtruToomProd, p: NtruParams, a, b: NtruPoly,
   evalNtruToomPoint(B, p, b, point, m)
   mulNtruToomEvals(R, A, B, m)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `interpolateNtruToom`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc interpolateNtruToom(C: var NtruToomWide, W: NtruToomProducts, l, m: int) {.inline.} =
   var
     i: int = 0
@@ -757,6 +810,7 @@ proc interpolateNtruToom(C: var NtruToomWide, W: NtruToomProducts, l, m: int) {.
     C[6 * m + i] = C[6 * m + i] + c6
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqMulToom4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqMulToom4(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.} =
   var
     W: NtruToomProducts
@@ -779,6 +833,7 @@ proc polyRqMulToom4(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.} =
     r.coeffs[i] = i64ToU16(C[i] + C[p.n + i])
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `k2x2Eval`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc k2x2Eval(E: var NtruToomK2Eval, k: int) {.inline.} =
   var
     i: int = 0
@@ -795,6 +850,7 @@ proc k2x2Eval(E: var NtruToomK2Eval, k: int) {.inline.} =
     E[8 * k + i] = u16Add(E[5 * k + i], E[6 * k + i])
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `evalNtruToomK2Point`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc evalNtruToomK2Point(E: var NtruToomK2Eval, A: NtruToomK2Padded,
     point, m, k: int) {.inline.} =
   var
@@ -830,6 +886,7 @@ proc evalNtruToomK2Point(E: var NtruToomK2Eval, A: NtruToomK2Padded,
     i = i + 1
   k2x2Eval(E, k)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `schoolbookKxK`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc schoolbookKxK(R: var NtruToomK2Prod, rOff: int, A: NtruToomK2Eval,
     aOff: int, B: NtruToomK2Eval, bOff, k: int) {.inline.} =
   var
@@ -850,6 +907,7 @@ proc schoolbookKxK(R: var NtruToomK2Prod, rOff: int, A: NtruToomK2Eval,
     i = i + 1
   R[rOff + 2 * k - 1] = 0
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `toomK2BaseMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc toomK2BaseMul(R: var NtruToomK2Prod, A, B: NtruToomK2Eval,
     k: int) {.inline.} =
   var
@@ -859,6 +917,7 @@ proc toomK2BaseMul(R: var NtruToomK2Prod, A, B: NtruToomK2Eval,
     schoolbookKxK(R, i * 2 * k, A, i * k, B, i * k, k)
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `toomK2PointMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc toomK2PointMul(R: var NtruToomK2Prod, A, B: NtruToomK2Padded,
     point, m, k: int) {.inline.} =
   var
@@ -868,6 +927,7 @@ proc toomK2PointMul(R: var NtruToomK2Prod, A, B: NtruToomK2Padded,
   evalNtruToomK2Point(BE, B, point, m, k)
   toomK2BaseMul(R, AE, BE, k)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `k2x2Interpolate`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc k2x2Interpolate(R: var NtruToomK2Chunk, A: NtruToomK2Prod,
     k: int) {.inline.} =
   var
@@ -912,6 +972,7 @@ proc k2x2Interpolate(R: var NtruToomK2Chunk, A: NtruToomK2Prod,
     R[2 * k + i] = u16Add(R[2 * k + i], tmp[i])
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `copyK2ChunkToWide`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc copyK2ChunkToWide(C: var NtruToomK2Wide, o: int, A: NtruToomK2Chunk,
     n: int) {.inline.} =
   var
@@ -921,6 +982,7 @@ proc copyK2ChunkToWide(C: var NtruToomK2Wide, o: int, A: NtruToomK2Chunk,
     C[o + i] = A[i]
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `interpolateNtruToomK2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc interpolateNtruToomK2(C: var NtruToomK2Wide, W: NtruToomK2Products,
     m, k: int) {.inline.} =
   const
@@ -979,6 +1041,7 @@ proc interpolateNtruToomK2(C: var NtruToomK2Wide, W: NtruToomK2Products,
     C[5 * m + i] = u16Add(C[5 * m + i], pm1[i])
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqMulToom4K2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqMulToom4K2(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.} =
   var
     A: NtruToomK2Padded
@@ -1014,6 +1077,7 @@ proc polyRqMulToom4K2(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.}
     r.coeffs[i] = u16Add(C[i], C[p.n + i])
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqMul*(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.otterBench.} =
   when defined(ntruMulTmp):
     polyRqMulTmp(r, p, a, b)
@@ -1036,10 +1100,12 @@ proc polyRqMul*(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.otterBench.} =
   else:
     polyRqMulToom4K2(r, p, a, b)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polySqMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polySqMul*(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.otterBench.} =
   polyRqMul(r, p, a, b)
   polyModQPhi(r, p)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyS3Mul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyS3Mul*(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.otterBench.} =
   var
     i: int = 0
@@ -1050,6 +1116,7 @@ proc polyS3Mul*(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.otterBench.} =
     i = i + 1
   polyMod3Phi(r, p)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyR2Inv`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyR2Inv*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
   var
     f: NtruPoly
@@ -1111,6 +1178,7 @@ proc polyR2Inv*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
     i = i + 1
   r.coeffs[p.n - 1] = 0
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyS3Inv`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyS3Inv*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
   var
     f: NtruPoly
@@ -1174,6 +1242,7 @@ proc polyS3Inv*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
     i = i + 1
   r.coeffs[p.n - 1] = 0
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqInv`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqInv*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
   var
     ai2: NtruPoly
@@ -1196,6 +1265,7 @@ proc polyRqInv*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
     r = s
     iter = iter + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyLift`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyLift*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
   var
     b: NtruPoly
@@ -1238,6 +1308,7 @@ proc polyLift*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
     r.coeffs[i + 1] = u16Sub(b.coeffs[i], b.coeffs[i + 1])
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `sampleIid`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc sampleIid(r: var NtruPoly, p: NtruParams, U: openArray[byte]) {.otterBench.} =
   var
     i: int = 0
@@ -1247,6 +1318,7 @@ proc sampleIid(r: var NtruPoly, p: NtruParams, U: openArray[byte]) {.otterBench.
     i = i + 1
   r.coeffs[p.n - 1] = 0
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `sampleFixedTypeSort`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc sampleFixedTypeSort(r: var NtruPoly, p: NtruParams,
     U: openArray[byte]) {.inline.} =
   var
@@ -1285,12 +1357,14 @@ proc sampleFixedTypeSort(r: var NtruPoly, p: NtruParams,
     r.coeffs[i] = uint16(S[i] and 3)
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `sampleFixedType`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc sampleFixedType(r: var NtruPoly, p: NtruParams, U: openArray[byte]) {.otterBench.} =
   ## The fixed sorting network is data-oblivious. The removed ISO rejection
   ## sampler had secret-dependent work and could read beyond its input.
   sampleFixedTypeSort(r, p, U)
   r.coeffs[p.n - 1] = 0
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `sampleIidPlus`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc sampleIidPlus(r: var NtruPoly, p: NtruParams, U: openArray[byte]) {.otterBench.} =
   var
     i: int = 0
@@ -1314,6 +1388,7 @@ proc sampleIidPlus(r: var NtruPoly, p: NtruParams, U: openArray[byte]) {.otterBe
     r.coeffs[i] = 3'u16 and (r.coeffs[i] xor (r.coeffs[i] shr 15))
     i = i + 1
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `sampleFg`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc sampleFg(f, g: var NtruPoly, p: NtruParams, U: openArray[byte]) {.otterBench.} =
   if p.hps:
     sampleIid(f, p, U.toOpenArray(0, p.sampleIidBytes - 1))
@@ -1322,6 +1397,7 @@ proc sampleFg(f, g: var NtruPoly, p: NtruParams, U: openArray[byte]) {.otterBenc
     sampleIidPlus(f, p, U.toOpenArray(0, p.sampleIidBytes - 1))
     sampleIidPlus(g, p, U.toOpenArray(p.sampleIidBytes, p.sampleFgBytes - 1))
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `sampleRm`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc sampleRm(r, m: var NtruPoly, p: NtruParams, U: openArray[byte]) {.otterBench.} =
   if p.hps:
     sampleIid(r, p, U.toOpenArray(0, p.sampleIidBytes - 1))
@@ -1330,6 +1406,7 @@ proc sampleRm(r, m: var NtruPoly, p: NtruParams, U: openArray[byte]) {.otterBenc
     sampleIid(r, p, U.toOpenArray(0, p.sampleIidBytes - 1))
     sampleIid(m, p, U.toOpenArray(p.sampleIidBytes, p.sampleRmBytes - 1))
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `owcpaCheckCiphertext`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc owcpaCheckCiphertext(p: NtruParams, ciphertext: openArray[byte]): int =
   var
     t: uint16 = 0
@@ -1339,6 +1416,7 @@ proc owcpaCheckCiphertext(p: NtruParams, ciphertext: openArray[byte]): int =
   t = t and uint16(0xff'u16 shl (8 - used))
   result = nonzeroToOne(uint32(t))
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `owcpaCheckR`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc owcpaCheckR(p: NtruParams, r: NtruPoly): int =
   var
     i: int = 0
@@ -1353,6 +1431,7 @@ proc owcpaCheckR(p: NtruParams, r: NtruPoly): int =
   t = t or uint32(r.coeffs[p.n - 1])
   result = nonzeroToOne(t)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `owcpaCheckM`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc owcpaCheckM(p: NtruParams, m: NtruPoly): int =
   var
     i: int = 0
@@ -1368,6 +1447,7 @@ proc owcpaCheckM(p: NtruParams, m: NtruPoly): int =
   t = t or uint32(ms xor uint16(p.weight))
   result = nonzeroToOne(t)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `owcpaKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc owcpaKeypair*(pk, sk: var openArray[byte], p: NtruParams, seed: openArray[byte]) {.otterBench.} =
   ## Generate an NTRU OWC-CPA keypair.
   var
@@ -1414,6 +1494,7 @@ proc owcpaKeypair*(pk, sk: var openArray[byte], p: NtruParams, seed: openArray[b
   secureClearPoly(tmp)
   secureClearPoly(invh)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `owcpaEnc`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc owcpaEnc*(c: var openArray[byte], p: NtruParams, r, m: NtruPoly,
     pk: openArray[byte]) {.otterBench.} =
   ## Encrypt one NTRU OWC-CPA message.
@@ -1432,6 +1513,7 @@ proc owcpaEnc*(c: var openArray[byte], p: NtruParams, r, m: NtruPoly,
   polyRqSumZeroToBytes(c, p, ct)
   secureClearPoly(liftm)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `owcpaDec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc owcpaDec*(rm: var openArray[byte], p: NtruParams, ciphertext,
     secretkey: openArray[byte]): int {.otterBench.} =
   ## Decrypt and validate one NTRU OWC-CPA ciphertext.
@@ -1480,6 +1562,7 @@ proc owcpaDec*(rm: var openArray[byte], p: NtruParams, ciphertext,
   secureClearPoly(b)
   secureClearPoly(liftm)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `ntruKemKeypairInto`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc ntruKemKeypairInto*(pk, sk: var openArray[byte], p: NtruParams,
     R: var PqRandomContext) {.otterBench.} =
   ## Generate an NTRU KEM keypair.
@@ -1493,6 +1576,7 @@ proc ntruKemKeypairInto*(pk, sk: var openArray[byte], p: NtruParams,
   secureClearBytes(seed)
   secureClearBytes(prf)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `ntruKemEncInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ntruKemEncInto*(ciphertext, sharedSecret: var openArray[byte],
     pk: openArray[byte], p: NtruParams, R: var PqRandomContext) {.otterBench.} =
   ## Encapsulate with pure-Nim NTRU.
@@ -1514,6 +1598,7 @@ proc ntruKemEncInto*(ciphertext, sharedSecret: var openArray[byte],
   secureClearBytes(rm)
   secureClearBytes(rmSeed)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `ntruKemDecInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ntruKemDecInto*(sharedSecret: var openArray[byte], sk, ciphertext: openArray[byte],
     p: NtruParams) {.otterBench.} =
   ## Decapsulate with pure-Nim NTRU.

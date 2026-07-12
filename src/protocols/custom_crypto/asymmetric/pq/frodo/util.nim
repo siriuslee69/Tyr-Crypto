@@ -6,6 +6,7 @@ import std/volatile
 
 import ../../../../helpers/otter_support
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `secureClearBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc secureClearBytes*(A: var openArray[byte]) {.raises: [].} =
   ## Volatile zeroization for secret byte buffers (cannot be elided).
   var
@@ -14,6 +15,7 @@ proc secureClearBytes*(A: var openArray[byte]) {.raises: [].} =
     volatileStore(addr A[i], 0'u8)
     i = i + 1
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `secureClearWords`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc secureClearWords*(W: var openArray[uint16]) {.raises: [].} =
   ## Volatile zeroization for secret word buffers (cannot be elided).
   var
@@ -22,18 +24,23 @@ proc secureClearWords*(W: var openArray[uint16]) {.raises: [].} =
     volatileStore(addr W[i], 0'u16)
     i = i + 1
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `frodoPackInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc frodoPackInto*(dst: var openArray[byte], input: openArray[uint16], lsb: int)
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `frodoUnpackInto`; pitfall: reject malformed or non-canonical input before indexed access.
 proc frodoUnpackInto*(dst: var openArray[uint16], input: openArray[byte], lsb: int)
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `loadU16Le`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc loadU16Le*(A: openArray[byte], o: int = 0): uint16 {.inline.} =
   ## Load one 16-bit little-endian word.
   result = uint16(A[o]) or (uint16(A[o + 1]) shl 8)
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `storeU16Le`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc storeU16Le*(A: var openArray[byte], o: int, v: uint16) {.inline.} =
   ## Store one 16-bit little-endian word.
   A[o] = byte(v and 0xff'u16)
   A[o + 1] = byte((v shr 8) and 0xff'u16)
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `wordsToBytesLe`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc wordsToBytesLe*(W: openArray[uint16]): seq[byte] =
   ## Serialize a word vector in little-endian order.
   otterSpan("frodo.wordsToBytesLe"):
@@ -45,6 +52,7 @@ proc wordsToBytesLe*(W: openArray[uint16]): seq[byte] =
       storeU16Le(result, i * 2, W[i])
       i = i + 1
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `wordsToBytesLeInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc wordsToBytesLeInto*(dst: var openArray[byte], W: openArray[uint16]) =
   ## Serialize a word vector into a preallocated little-endian byte buffer.
   otterSpan("frodo.wordsToBytesLeInto"):
@@ -57,6 +65,7 @@ proc wordsToBytesLeInto*(dst: var openArray[byte], W: openArray[uint16]) =
       storeU16Le(dst, i * 2, W[i])
       i = i + 1
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `bytesToWordsLe`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bytesToWordsLe*(A: openArray[byte]): seq[uint16] =
   ## Deserialize a byte vector into little-endian words.
   otterSpan("frodo.bytesToWordsLe"):
@@ -70,6 +79,7 @@ proc bytesToWordsLe*(A: openArray[byte]): seq[uint16] =
       result[i] = loadU16Le(A, i * 2)
       i = i + 1
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `bytesToWordsLeInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bytesToWordsLeInto*(dst: var openArray[uint16], A: openArray[byte]) =
   ## Deserialize bytes into a preallocated little-endian word buffer.
   otterSpan("frodo.bytesToWordsLeInto"):
@@ -84,6 +94,7 @@ proc bytesToWordsLeInto*(dst: var openArray[uint16], A: openArray[byte]) =
       dst[i] = loadU16Le(A, i * 2)
       i = i + 1
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `clearBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clearBytes*(A: var seq[byte]) =
   ## Zero a byte sequence in place.
   var
@@ -93,6 +104,7 @@ proc clearBytes*(A: var seq[byte]) =
     A[i] = 0'u8
     i = i + 1
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `clearWords`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clearWords*(W: var seq[uint16]) =
   ## Zero a word sequence in place.
   var
@@ -102,12 +114,14 @@ proc clearWords*(W: var seq[uint16]) =
     W[i] = 0'u16
     i = i + 1
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `frodoPack`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc frodoPack*(outLen: int, input: openArray[uint16], lsb: int): seq[byte] =
   ## Pack `lsb` low bits from each Frodo word into a byte string.
   otterSpan("frodo.frodoPack"):
     result = newSeq[byte](outLen)
     frodoPackInto(result, input, lsb)
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `frodoPackInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc frodoPackInto*(dst: var openArray[byte], input: openArray[uint16], lsb: int) =
   ## Pack `lsb` low bits from each Frodo word into a preallocated byte string.
   otterSpan("frodo.frodoPackInto"):
@@ -155,12 +169,14 @@ proc frodoPackInto*(dst: var openArray[byte], input: openArray[uint16], lsb: int
       if b == 8:
         i = i + 1
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `frodoUnpack`; pitfall: reject malformed or non-canonical input before indexed access.
 proc frodoUnpack*(outLen: int, input: openArray[byte], lsb: int): seq[uint16] =
   ## Unpack Frodo words from a packed byte string.
   otterSpan("frodo.frodoUnpack"):
     result = newSeq[uint16](outLen)
     frodoUnpackInto(result, input, lsb)
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `frodoUnpackInto`; pitfall: reject malformed or non-canonical input before indexed access.
 proc frodoUnpackInto*(dst: var openArray[uint16], input: openArray[byte], lsb: int) =
   ## Unpack Frodo words into a preallocated word buffer.
   otterSpan("frodo.frodoUnpackInto"):
@@ -207,6 +223,7 @@ proc frodoUnpackInto*(dst: var openArray[uint16], input: openArray[byte], lsb: i
       if b == lsb:
         i = i + 1
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `ctVerifyWords`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc ctVerifyWords*(A, B: openArray[uint16]): int8 =
   ## Return `0` when arrays match, else `-1`, in constant time.
   otterSpan("frodo.ctVerifyWords"):
@@ -222,6 +239,7 @@ proc ctVerifyWords*(A, B: openArray[uint16]): int8 =
     r = 0'u16 - ((r or (0'u16 - r)) shr 15)
     result = cast[int8](uint8(r))
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `ctSelectBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ctSelectBytes*(dst: var openArray[byte], A, B: openArray[byte], selector: int8) =
   ## Copy `A` into `dst` when selector is `0`, else copy `B`.
   var

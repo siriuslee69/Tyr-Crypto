@@ -21,15 +21,18 @@ type
     publicKey*: seq[byte]
     secretKey*: seq[byte]
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; key generation, encapsulation/signing, and decapsulation/verification algorithms for `initCtxFromSk`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc initCtxFromSk(sk: openArray[byte]): SphincsCtx =
   if sk.len < (3 * spxN):
     raise newException(ValueError, "SPHINCS secret key must include skSeed and pubSeed")
   copyMem(addr result.skSeed[0], unsafeAddr sk[0], spxN)
   copyMem(addr result.pubSeed[0], unsafeAddr sk[2 * spxN], spxN)
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; key generation, encapsulation/signing, and decapsulation/verification algorithms for `copyRoot`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc copyRoot(dst: var array[spxN, byte], src: openArray[byte]) =
   copyMem(addr dst[0], unsafeAddr src[0], spxN)
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sphincsTyrSeedKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc sphincsTyrSeedKeypair*(v: SphincsVariant, seed: openArray[byte]): SphincsTyrKeypair {.otterTrace.} =
   var
     p = params(v)
@@ -50,6 +53,7 @@ proc sphincsTyrSeedKeypair*(v: SphincsVariant, seed: openArray[byte]): SphincsTy
   copyMem(addr result.secretKey[3 * spxN], addr root[0], spxN)
   copyMem(addr result.publicKey[spxN], addr root[0], spxN)
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sphincsTyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc sphincsTyrKeypair*(v: SphincsVariant, seed: seq[byte] = @[]): SphincsTyrKeypair {.otterTrace.} =
   var
     randomness: seq[byte] = @[]
@@ -63,8 +67,12 @@ proc sphincsTyrKeypair*(v: SphincsVariant, seed: seq[byte] = @[]): SphincsTyrKey
     clearSensitiveBytes(randomness)
   result = sphincsTyrSeedKeypair(v, randomness)
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sphincsTyrSignDerand`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc sphincsTyrSignDerand*(v: SphincsVariant, msg: openArray[byte], sk: openArray[byte],
     optrand: openArray[byte]): seq[byte] {.otterTrace.} =
+  ## Reference: SPHINCS+ v3.1 algorithm 22, `spx_sign`. This legacy API
+  ## signs the caller's raw message. FIPS 205 algorithms 23-24 instead sign
+  ## `0 || len(ctx) || ctx || M`; adding that prefix requires a distinct API.
   var
     p = params(v)
     ctx: SphincsCtx
@@ -106,10 +114,14 @@ proc sphincsTyrSignDerand*(v: SphincsVariant, msg: openArray[byte], sk: openArra
     tree = tree shr p.treeHeight
   result = sig
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sphincsTyrSign`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc sphincsTyrSign*(v: SphincsVariant, msg: openArray[byte], sk: openArray[byte]): seq[byte] {.otterTrace.} =
   result = sphincsTyrSignDerand(v, msg, sk, cryptoRandomBytes(16))
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sphincsTyrVerify`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc sphincsTyrVerify*(v: SphincsVariant, msg, sig, pk: openArray[byte]): bool {.otterTrace.} =
+  ## Reference: SPHINCS+ v3.1 algorithm 23, `spx_verify`. This verifies the
+  ## legacy raw-message transcript and therefore is not SLH-DSA verification.
   var
     p = params(v)
     ctx: SphincsCtx

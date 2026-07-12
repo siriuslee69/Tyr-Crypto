@@ -17,6 +17,7 @@ type
     secretKey*: seq[byte]
 
 {.push boundChecks: off, overflowChecks: off.}
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `variantFromParams`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc variantFromParams(p: DilithiumParams): DilithiumVariant {.inline.} =
   if p.k == 4:
     result = dilithium44
@@ -26,6 +27,7 @@ proc variantFromParams(p: DilithiumParams): DilithiumVariant {.inline.} =
     return
   result = dilithium87
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `writePre`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc writePre(ctx: openArray[byte], pre: var array[257, byte]): int {.inline.} =
   var
     i: int = 0
@@ -39,10 +41,12 @@ proc writePre(ctx: openArray[byte], pre: var array[257, byte]): int {.inline.} =
     i = i + 1
   result = ctx.len + 2
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `messageDigestInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc messageDigestInto(tr, pre, msg: openArray[byte],
     dst: var array[dilithiumCrhBytes, byte]) {.inline.} =
   shake256Into(dst, tr, pre, msg)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sampleSecretVectorsEta`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc sampleSecretVectorsEta(p: DilithiumParams, s1: var DilithiumPolyVecL,
     s2: var DilithiumPolyVecK, seed: array[dilithiumCrhBytes, byte]) {.inline, otterBench.} =
   ## Secret eta sampling now uses the fixed-work sampler, so keygen can batch
@@ -50,11 +54,13 @@ proc sampleSecretVectorsEta(p: DilithiumParams, s1: var DilithiumPolyVecL,
   polyveclUniformEta(p, s1, seed, 0'u16)
   polyveckUniformEta(p, s2, seed, uint16(p.l))
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `expandPointwiseRow`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc expandPointwiseRow(p: DilithiumParams, t: var DilithiumPoly, row: var DilithiumPolyVecL,
     rho: array[dilithiumSeedBytes, byte], rowIndex: int, v: DilithiumPolyVecL) {.inline, raises: [].} =
   polyvecMatrixExpandRowInto(p, row, rho, rowIndex)
   polyveclPointwiseAccMontgomery(t, row, v)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `matrixVectorPointwiseByRowsKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc matrixVectorPointwiseByRowsKeypair(p: DilithiumParams, t: var DilithiumPolyVecK,
     rho: array[dilithiumSeedBytes, byte], v: DilithiumPolyVecL) {.inline, otterBench.} =
   var
@@ -89,6 +95,7 @@ proc matrixVectorPointwiseByRowsKeypair(p: DilithiumParams, t: var DilithiumPoly
     expandPointwiseRow(p, t.vec[i], row, rho, i, v)
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `matrixVectorPointwiseByRows`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc matrixVectorPointwiseByRows(p: DilithiumParams, t: var DilithiumPolyVecK,
     rho: array[dilithiumSeedBytes, byte], v: DilithiumPolyVecL) {.inline, otterBench.} =
   var
@@ -142,10 +149,12 @@ proc matrixVectorPointwiseByRows(p: DilithiumParams, t: var DilithiumPolyVecK,
     polyveclPointwiseAccMontgomery(t.vec[i], row, v)
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sampleIntermediateVectorGamma1`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 template sampleIntermediateVectorGamma1(p, z, seed, nonceBase: untyped) =
   polyveclUniformGamma1BaseNonce(p, z, seed, nonceBase)
   nonceBase = nonceBase + uint16(p.l)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `signMatrixVectorDecompose`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 template signMatrixVectorDecompose(p, w1, w0, tmpL, mat, z: untyped) =
   tmpL = z
   polyveclNtt(tmpL)
@@ -155,6 +164,7 @@ template signMatrixVectorDecompose(p, w1, w0, tmpL, mat, z: untyped) =
   polyveckCaddq(w1)
   polyveckDecompose(p, w1, w0, w1)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `signChallengeFromW1`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 template signChallengeFromW1(p, cp, cseed, mu, packedW1, w1: untyped) =
   polyveckPackW1(p, packedW1.toOpenArray(0, p.k * p.polyW1PackedBytes - 1), w1)
   shake256Into(cseed.toOpenArray(0, p.ctildeBytes - 1), mu,
@@ -162,6 +172,7 @@ template signChallengeFromW1(p, cp, cseed, mu, packedW1, w1: untyped) =
   polyChallengeSeed(p, cp, cseed.toOpenArray(0, p.ctildeBytes - 1))
   polyNtt(cp)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `signRejectZ`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 template signRejectZ(p, z, tmpL, cp, s1: untyped): untyped =
   block:
     polyveclPointwisePolyMontgomery(tmpL, cp, s1)
@@ -170,6 +181,7 @@ template signRejectZ(p, z, tmpL, cp, s1: untyped): untyped =
     polyveclReduce(z)
     polyveclChkNorm(z, p.gamma1 - p.beta)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `signRejectW0`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 template signRejectW0(p, h, w0, cp, s2: untyped): untyped =
   block:
     polyveckPointwisePolyMontgomery(h, cp, s2)
@@ -178,6 +190,7 @@ template signRejectW0(p, h, w0, cp, s2: untyped): untyped =
     polyveckReduce(w0)
     polyveckChkNorm(w0, p.gamma2 - p.beta)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `signRejectHints`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 template signRejectHints(p, h, w0, w1, cp, t0: untyped): untyped =
   block:
     polyveckPointwisePolyMontgomery(h, cp, t0)
@@ -189,6 +202,7 @@ template signRejectHints(p, h, w0, w1, cp, t0: untyped): untyped =
       polyveckAdd(w0, w0, h)
       polyveckMakeHint(p, h, w0, w1) > uint32(p.omega)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `keypairFromRandomSeedInto`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc keypairFromRandomSeedInto(p: DilithiumParams, seed: openArray[byte], publicKey,
     secretKey: var openArray[byte]) {.otterBench.} =
   var
@@ -250,12 +264,14 @@ proc keypairFromRandomSeedInto(p: DilithiumParams, seed: openArray[byte], public
   shake256Into(tr, publicKey)
   packSkInto(p, secretKey, rho, tr, key, t0, s1, s2)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `keypairFromRandomSeed`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc keypairFromRandomSeed(p: DilithiumParams, seed: openArray[byte]): DilithiumTyrKeypair =
   result.variant = variantFromParams(p)
   result.publicKey = newSeq[byte](p.publicKeyBytes)
   result.secretKey = newSeq[byte](p.secretKeyBytes)
   keypairFromRandomSeedInto(p, seed, result.publicKey, result.secretKey)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dilithiumTyrKeypairInto`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc dilithiumTyrKeypairInto*(v: DilithiumVariant, publicKey,
     secretKey: var openArray[byte]) =
   ## Generate a pure-Nim ML-DSA keypair into caller-owned buffers.
@@ -271,6 +287,7 @@ proc dilithiumTyrKeypairInto*(v: DilithiumVariant, publicKey,
   randomness = cryptoRandomBytes(dilithiumSeedBytes)
   keypairFromRandomSeedInto(p, randomness, publicKey, secretKey)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dilithiumTyrKeypairInto`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc dilithiumTyrKeypairInto*(v: DilithiumVariant, publicKey, secretKey: var openArray[byte],
     seed: openArray[byte]) =
   ## Generate a deterministic pure-Nim ML-DSA keypair into caller-owned buffers.
@@ -283,6 +300,7 @@ proc dilithiumTyrKeypairInto*(v: DilithiumVariant, publicKey, secretKey: var ope
     raise newException(ValueError, "Dilithium secret key buffer has wrong size for variant")
   keypairFromRandomSeedInto(p, seed, publicKey, secretKey)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dilithiumTyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc dilithiumTyrKeypair*(v: DilithiumVariant, seed: seq[byte] = @[]): DilithiumTyrKeypair {.otterTrace.} =
   ## Generate a pure-Nim ML-DSA keypair.
   var
@@ -295,6 +313,7 @@ proc dilithiumTyrKeypair*(v: DilithiumVariant, seed: seq[byte] = @[]): Dilithium
   else:
     dilithiumTyrKeypairInto(v, result.publicKey, result.secretKey, seed)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dilithiumTyrSignDerandInto`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc dilithiumTyrSignDerandInto*(v: DilithiumVariant, sig: var openArray[byte], msg: openArray[byte],
     sk: openArray[byte], rnd: openArray[byte], ctx: openArray[byte] = @[]) {.otterBench.} =
   ## Sign a message with explicit ML-DSA randomness into a caller-owned buffer.
@@ -372,6 +391,7 @@ proc dilithiumTyrSignDerandInto*(v: DilithiumVariant, sig: var openArray[byte], 
     packSigInto(p, sig, cseed.toOpenArray(0, p.ctildeBytes - 1), z, h)
     break
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dilithiumTyrSignDerand`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc dilithiumTyrSignDerand*(v: DilithiumVariant, msg: openArray[byte], sk: openArray[byte],
     rnd: openArray[byte], ctx: openArray[byte] = @[]): seq[byte] {.otterTrace.} =
   ## Sign a message with explicit ML-DSA randomness.
@@ -379,6 +399,7 @@ proc dilithiumTyrSignDerand*(v: DilithiumVariant, msg: openArray[byte], sk: open
   result = newSeq[byte](p.signatureBytes)
   dilithiumTyrSignDerandInto(v, result, msg, sk, rnd, ctx)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dilithiumTyrSignDeterministicInto`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc dilithiumTyrSignDeterministicInto*(v: DilithiumVariant, sig: var openArray[byte],
     msg: openArray[byte], sk: openArray[byte], ctx: openArray[byte] = @[]) =
   ## Sign deterministically with zeroed ML-DSA randomness into a caller-owned buffer.
@@ -386,6 +407,7 @@ proc dilithiumTyrSignDeterministicInto*(v: DilithiumVariant, sig: var openArray[
     rnd: array[dilithiumRndBytes, byte]
   dilithiumTyrSignDerandInto(v, sig, msg, sk, rnd, ctx)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dilithiumTyrSignDeterministic`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc dilithiumTyrSignDeterministic*(v: DilithiumVariant, msg: openArray[byte], sk: openArray[byte],
     ctx: openArray[byte] = @[]): seq[byte] {.otterTrace.} =
   ## Sign deterministically with zeroed ML-DSA randomness.
@@ -393,6 +415,7 @@ proc dilithiumTyrSignDeterministic*(v: DilithiumVariant, msg: openArray[byte], s
   result = newSeq[byte](p.signatureBytes)
   dilithiumTyrSignDeterministicInto(v, result, msg, sk, ctx)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dilithiumTyrSignInto`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc dilithiumTyrSignInto*(v: DilithiumVariant, sig: var openArray[byte], msg: openArray[byte],
     sk: openArray[byte], ctx: openArray[byte] = @[]) =
   ## Sign using liboqs-compatible randomized ML-DSA signing into a caller-owned buffer.
@@ -403,6 +426,7 @@ proc dilithiumTyrSignInto*(v: DilithiumVariant, sig: var openArray[byte], msg: o
   rnd = cryptoRandomBytes(dilithiumRndBytes)
   dilithiumTyrSignDerandInto(v, sig, msg, sk, rnd, ctx)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dilithiumTyrSign`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc dilithiumTyrSign*(v: DilithiumVariant, msg: openArray[byte], sk: openArray[byte],
     ctx: openArray[byte] = @[]): seq[byte] {.otterTrace.} =
   ## Sign using liboqs-compatible randomized ML-DSA signing.
@@ -410,6 +434,7 @@ proc dilithiumTyrSign*(v: DilithiumVariant, msg: openArray[byte], sk: openArray[
   result = newSeq[byte](p.signatureBytes)
   dilithiumTyrSignInto(v, result, msg, sk, ctx)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dilithiumTyrVerify`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc dilithiumTyrVerify*(v: DilithiumVariant, msg, sig, pk: openArray[byte],
     ctx: openArray[byte] = @[]): bool {.otterBench, otterTrace.} =
   ## Verify a signature with the pure-Nim ML-DSA backend.

@@ -8,6 +8,7 @@ import ./context
 import ./hash
 import ./util
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hypertree and authentication-path algorithms for `computeRoot`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc computeRoot*(root: var openArray[byte], leaf: openArray[byte], leafIdx,
     idxOffset, treeHeight: uint32, authPath: openArray[byte], ctx: SphincsCtx,
     A: var SphincsAddress) =
@@ -41,6 +42,7 @@ proc computeRoot*(root: var openArray[byte], leaf: openArray[byte], leafIdx,
   setTreeIndex(A, currentLeafIdx + currentOffset)
   thash(root, buffer, 2, ctx, A)
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hypertree and authentication-path algorithms for `treehashx1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc treehashx1*[T](root: var openArray[byte], authPath: var openArray[byte],
     ctx: SphincsCtx, leafIdx, idxOffset, treeHeight: uint32,
     genLeaf: proc (leaf: var openArray[byte], ctx: SphincsCtx, addrIdx: uint32,

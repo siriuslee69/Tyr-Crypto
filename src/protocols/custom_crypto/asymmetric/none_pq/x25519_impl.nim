@@ -31,6 +31,7 @@ const
   ]
   feMask = 0x7ffffffffffff'u64
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `load64Le`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc load64Le(input: openArray[byte], offset: int): uint64 {.inline.} =
   result = uint64(input[offset + 0])
   result = result or (uint64(input[offset + 1]) shl 8)
@@ -41,6 +42,7 @@ proc load64Le(input: openArray[byte], offset: int): uint64 {.inline.} =
   result = result or (uint64(input[offset + 6]) shl 48)
   result = result or (uint64(input[offset + 7]) shl 56)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `store64Le`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc store64Le(output: var X25519Bytes32, offset: int, value: uint64) {.inline.} =
   output[offset + 0] = byte(value and 0xff'u64)
   output[offset + 1] = byte((value shr 8) and 0xff'u64)
@@ -51,6 +53,7 @@ proc store64Le(output: var X25519Bytes32, offset: int, value: uint64) {.inline.}
   output[offset + 6] = byte((value shr 48) and 0xff'u64)
   output[offset + 7] = byte((value shr 56) and 0xff'u64)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `mulWideFallback`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc mulWideFallback(a, b: uint64, lo, hi: var uint64) {.inline.} =
   let
     a0 = a and 0xffff_ffff'u64
@@ -65,6 +68,7 @@ proc mulWideFallback(a, b: uint64, lo, hi: var uint64) {.inline.} =
   lo = (p00 and 0xffff_ffff'u64) or (middle shl 32)
   hi = p11 + (p01 shr 32) + (p10 shr 32) + (middle shr 32)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `mulWide`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc mulWide(a, b: uint64, lo, hi: var uint64) {.inline.} =
   when defined(sizeof_Int128):
     type
@@ -75,31 +79,38 @@ proc mulWide(a, b: uint64, lo, hi: var uint64) {.inline.} =
   else:
     mulWideFallback(a, b, lo, hi)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `add64To128`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc add64To128(lo, hi: var uint64, value: uint64) {.inline.} =
   let prev = lo
   lo += value
   hi += uint64(lo < prev)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `add128`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc add128(lo, hi: var uint64, addLo, addHi: uint64) {.inline.} =
   add64To128(lo, hi, addLo)
   hi += addHi
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `addMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc addMul(lo, hi: var uint64, a, b: uint64) {.inline.} =
   var prodLo: uint64 = 0
   var prodHi: uint64 = 0
   mulWide(a, b, prodLo, prodHi)
   add128(lo, hi, prodLo, prodHi)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `shift51`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc shift51(lo, hi: uint64): uint64 {.inline.} =
   result = (lo shr 51) or (hi shl 13)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `fe0`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fe0(h: var X25519Field) {.inline.} =
   zeroMem(addr h[0], sizeof(X25519Field))
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `fe1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fe1(h: var X25519Field) {.inline.} =
   zeroMem(addr h[0], sizeof(X25519Field))
   h[0] = 1'u64
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feAddRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feAddRaw(h: ptr X25519Field, f, g: ptr X25519Field) {.inline.} =
   h[][0] = f[][0] + g[][0]
   h[][1] = f[][1] + g[][1]
@@ -107,9 +118,11 @@ proc feAddRaw(h: ptr X25519Field, f, g: ptr X25519Field) {.inline.} =
   h[][3] = f[][3] + g[][3]
   h[][4] = f[][4] + g[][4]
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template feAdd(h, f, g: untyped) =
   feAddRaw(addr h, unsafeAddr f, unsafeAddr g)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feSubRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feSubRaw(h: ptr X25519Field, f, g: ptr X25519Field) {.inline.} =
   var
     h0 = g[][0]
@@ -133,15 +146,19 @@ proc feSubRaw(h: ptr X25519Field, f, g: ptr X25519Field) {.inline.} =
   h[][3] = (f[][3] + 0x00ff_ffff_ffff_ffe'u64) - h3
   h[][4] = (f[][4] + 0x00ff_ffff_ffff_ffe'u64) - h4
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feSub`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template feSub(h, f, g: untyped) =
   feSubRaw(addr h, unsafeAddr f, unsafeAddr g)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feCopyRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feCopyRaw(h: ptr X25519Field, f: ptr X25519Field) {.inline.} =
   copyMem(addr h[][0], unsafeAddr f[][0], sizeof(X25519Field))
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feCopy`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template feCopy(h, f: untyped) =
   feCopyRaw(addr h, unsafeAddr f)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feCswap`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feCswap(f, g: var X25519Field, b: uint32) {.inline.} =
   let mask = uint64(-int64(b))
   var
@@ -161,6 +178,7 @@ proc feCswap(f, g: var X25519Field, b: uint32) {.inline.} =
   g[3] = g[3] xor x3
   g[4] = g[4] xor x4
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `reduceMulAcc`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: uint64,
     outH: var X25519Field) {.inline.} =
   var
@@ -197,6 +215,7 @@ proc reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: ui
   outH[1] = outH[1] and feMask
   outH[2] += carry
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feMulRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feMulRaw(h: ptr X25519Field, f, g: ptr X25519Field) {.inline.} =
   otterSpan(x25519BenchTag & ".feMul"):
     let
@@ -243,9 +262,11 @@ proc feMulRaw(h: ptr X25519Field, f, g: ptr X25519Field) {.inline.} =
     addMul(r4lo, r4hi, f4, g0)
     reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi, h[])
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template feMul(h, f, g: untyped) =
   feMulRaw(addr h, unsafeAddr f, unsafeAddr g)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feSqRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feSqRaw(h: ptr X25519Field, f: ptr X25519Field) {.inline.} =
   otterSpan(x25519BenchTag & ".feSq"):
     let
@@ -280,9 +301,11 @@ proc feSqRaw(h: ptr X25519Field, f: ptr X25519Field) {.inline.} =
     addMul(r4lo, r4hi, f2, f2)
     reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi, h[])
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feSq`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template feSq(h, f: untyped) =
   feSqRaw(addr h, unsafeAddr f)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feMul32Raw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feMul32Raw(h: ptr X25519Field, f: ptr X25519Field, n: uint32) {.inline.} =
   let sn = uint64(n)
   var
@@ -309,9 +332,11 @@ proc feMul32Raw(h: ptr X25519Field, f: ptr X25519Field, n: uint32) {.inline.} =
   h[][4] = lo and feMask
   h[][0] += 19'u64 * shift51(lo, hi)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feMul32`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template feMul32(h, f, n: untyped) =
   feMul32Raw(addr h, unsafeAddr f, n)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feFromBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feFromBytes(h: var X25519Field, s: X25519Bytes32) {.inline.} =
   h[0] = load64Le(s, 0) and feMask
   h[1] = (load64Le(s, 6) shr 3) and feMask
@@ -319,6 +344,7 @@ proc feFromBytes(h: var X25519Field, s: X25519Bytes32) {.inline.} =
   h[3] = (load64Le(s, 19) shr 1) and feMask
   h[4] = (load64Le(s, 24) shr 12) and feMask
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feReduce(h: var X25519Field, f: X25519Field) {.inline.} =
   var
     t0 = f[0]
@@ -377,6 +403,7 @@ proc feReduce(h: var X25519Field, f: X25519Field) {.inline.} =
   h[3] = t3
   h[4] = t4
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feToBytes(outBytes: var X25519Bytes32, h: X25519Field) {.inline.} =
   var t: X25519Field
   defer:
@@ -392,12 +419,14 @@ proc feToBytes(outBytes: var X25519Bytes32, h: X25519Field) {.inline.} =
   store64Le(outBytes, 16, t2)
   store64Le(outBytes, 24, t3)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feSqRepeat`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feSqRepeat(h: var X25519Field, count: int) {.inline.} =
   var i: int = 0
   while i < count:
     feSq(h, h)
     inc i
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feInvert`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feInvert(outField: var X25519Field, z: X25519Field) {.inline.} =
   otterSpan(x25519BenchTag & ".feInvert"):
     var
@@ -439,9 +468,11 @@ proc feInvert(outField: var X25519Field, z: X25519Field) {.inline.} =
     feSqRepeat(t1, 5)
     feMul(outField, t1, t0)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `scalarBit`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc scalarBit(t: X25519Bytes32, pos: int): uint32 {.inline.} =
   result = uint32((t[pos div 8] shr (pos and 7)) and 1'u8)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `initScalarmultState`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc initScalarmultState(publicKey: X25519Bytes32, x1, x2, x3, z2, z3: var X25519Field) {.inline.} =
   feFromBytes(x1, publicKey)
   fe1(x2)
@@ -449,6 +480,7 @@ proc initScalarmultState(publicKey: X25519Bytes32, x1, x2, x3, z2, z3: var X2551
   feCopy(x3, x1)
   fe1(z3)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `ladderStep`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ladderStep(x1: X25519Field, x2, x3, z2, z3, a, b, aa, bb, e, da, cb: var X25519Field) {.inline.} =
   feAdd(a, x2, z2)
   feSub(b, x2, z2)
@@ -469,12 +501,14 @@ proc ladderStep(x1: X25519Field, x2, x3, z2, z3, a, b, aa, bb, e, da, cb: var X2
   feAdd(z2, z2, bb)
   feMul(z2, z2, e)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `finalizeScalarmult`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc finalizeScalarmult(outShared: var X25519Bytes32, x2, z2: var X25519Field, outResult: var bool) {.inline.} =
   feInvert(z2, z2)
   feMul(x2, x2, z2)
   feToBytes(outShared, x2)
   outResult = not isAllZero(outShared)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519ScalarmultRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc x25519ScalarmultRaw*(outShared: var X25519Bytes32, secretKey,
     publicKey: X25519Bytes32): bool =
   otterSpan(x25519BenchTag & ".scalarmult"):
@@ -515,10 +549,12 @@ proc x25519ScalarmultRaw*(outShared: var X25519Bytes32, secretKey,
     feCswap(z2, z3, swap)
     finalizeScalarmult(outShared, x2, z2, result)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519ScalarmultBaseRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc x25519ScalarmultBaseRaw*(publicKey: var X25519Bytes32,
     secretKey: X25519Bytes32): bool =
   result = x25519ScalarmultRaw(publicKey, secretKey, x25519Basepoint)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrShared`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc x25519TyrShared*(secretKey, publicKey: openArray[byte]): seq[byte] =
   var
     sk = toFixed32(secretKey)
@@ -532,6 +568,7 @@ proc x25519TyrShared*(secretKey, publicKey: openArray[byte]): seq[byte] =
     raise newException(ValueError, "X25519 shared secret derivation failed")
   result = toSeqBytes(shared)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrPublicKey`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc x25519TyrPublicKey*(secretKey: openArray[byte]): seq[byte] =
   var
     sk = toFixed32(secretKey)
@@ -543,6 +580,7 @@ proc x25519TyrPublicKey*(secretKey: openArray[byte]): seq[byte] =
     raise newException(ValueError, "X25519 public key derivation failed")
   result = toSeqBytes(pk)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc x25519TyrKeypair*(): X25519TyrKeypair =
   var
     sk = randomSecret32()
@@ -555,6 +593,7 @@ proc x25519TyrKeypair*(): X25519TyrKeypair =
   result.publicKey = toSeqBytes(pk)
   result.secretKey = toSeqBytes(sk)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrKeypairFromSeed`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc x25519TyrKeypairFromSeed*(seed: openArray[byte]): X25519TyrKeypair =
   var
     sk = deriveSeedSecretCompat(seed)
@@ -572,31 +611,40 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     X25519FieldVec[T: SimdU64] = array[5, T]
 
   when defined(neon) or defined(arm64) or defined(aarch64):
+    ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `loadLaneVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
     proc loadLaneVec(vals: array[2, uint64]): uint64x2 {.inline.} =
       result = loadU64x2[uint64x2](vals)
 
+    ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `storeLaneVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
     proc storeLaneVec(v: uint64x2): array[2, uint64] {.inline.} =
       result = storeU64x2(v)
   else:
+    ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `loadLaneVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
     proc loadLaneVec(vals: array[2, uint64]): u64x2 {.inline.} =
       result = loadU64x2[u64x2](vals)
 
+    ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `storeLaneVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
     proc storeLaneVec(v: u64x2): array[2, uint64] {.inline.} =
       result = storeU64x2(v)
 
   when defined(avx2):
+    ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `loadLaneVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
     proc loadLaneVec(vals: array[4, uint64]): u64x4 {.inline.} =
       result = loadU64x4[u64x4](vals)
 
+    ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `storeLaneVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
     proc storeLaneVec(v: u64x4): array[4, uint64] {.inline.} =
       result = storeU64x4(v)
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `subVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc subVec[T: SimdU64](a, b: T): T {.inline.} =
     result = a + (not b) + set1U64[T](1'u64)
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `mulBy19Vec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc mulBy19Vec[T: SimdU64](a: T): T {.inline.} =
     result = a + (a shl 1) + (a shl 4)
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `fe0Vec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc fe0Vec[T: SimdU64](h: var X25519FieldVec[T]) {.inline.} =
     let zero = set1U64[T](0'u64)
     h[0] = zero
@@ -605,6 +653,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     h[3] = zero
     h[4] = zero
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `fe1Vec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc fe1Vec[T: SimdU64](h: var X25519FieldVec[T]) {.inline.} =
     let
       zero = set1U64[T](0'u64)
@@ -615,6 +664,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     h[3] = zero
     h[4] = zero
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `packMaskVec`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
   proc packMaskVec[T: SimdU64](bits: openArray[uint32]): T {.inline.} =
     const lanes = lanesU64[T]()
     var
@@ -627,6 +677,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
       inc lane
     result = loadLaneVec(maskVals)
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `packFieldVec`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
   proc packFieldVec[T: SimdU64](fields: array[lanesU64[T](), X25519Field]): X25519FieldVec[T] {.inline.} =
     const lanes = lanesU64[T]()
     var
@@ -642,6 +693,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
       result[limb] = loadLaneVec(limbVals)
       inc limb
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `unpackFieldVec`; pitfall: reject malformed or non-canonical input before indexed access.
   proc unpackFieldVec[T: SimdU64](v: X25519FieldVec[T]): array[lanesU64[T](), X25519Field] {.inline.} =
     const lanes = lanesU64[T]()
     var
@@ -657,6 +709,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
         inc lane
       inc limb
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feAddVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc feAddVec[T: SimdU64](h: var X25519FieldVec[T], f, g: X25519FieldVec[T]) {.inline.} =
     h[0] = f[0] + g[0]
     h[1] = f[1] + g[1]
@@ -664,6 +717,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     h[3] = f[3] + g[3]
     h[4] = f[4] + g[4]
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feSubVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc feSubVec[T: SimdU64](h: var X25519FieldVec[T], f, g: X25519FieldVec[T]) {.inline.} =
     let
       mask = set1U64[T](feMask)
@@ -691,6 +745,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     h[3] = subVec(f[3] + bias, h3)
     h[4] = subVec(f[4] + bias, h4)
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feCswapVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc feCswapVec[T: SimdU64](f, g: var X25519FieldVec[T],
       bits: openArray[uint32]) {.inline.} =
     let mask = packMaskVec[T](bits)
@@ -711,6 +766,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     g[3] = g[3] xor x3
     g[4] = g[4] xor x4
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feMulVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc feMulVec[T: SimdU64](h: var X25519FieldVec[T], f, g: X25519FieldVec[T]) {.inline.} =
     const lanes = lanesU64[T]()
     var
@@ -723,6 +779,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
       inc lane
     h = packFieldVec[T](sh)
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feSqVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc feSqVec[T: SimdU64](h: var X25519FieldVec[T], f: X25519FieldVec[T]) {.inline.} =
     const lanes = lanesU64[T]()
     var
@@ -734,6 +791,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
       inc lane
     h = packFieldVec[T](sh)
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feMul32Vec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc feMul32Vec[T: SimdU64](h: var X25519FieldVec[T], f: X25519FieldVec[T],
       n: uint32) {.inline.} =
     const lanes = lanesU64[T]()
@@ -746,6 +804,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
       inc lane
     h = packFieldVec[T](sh)
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feInvertBatchFields`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc feInvertBatchFields[L: static[int]](outInv, zs: var array[L, X25519Field]) {.inline.} =
     var
       prefix: array[L, X25519Field]
@@ -770,6 +829,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
       dec lane
     feCopy(outInv[0], invAll)
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519ScalarmultBatchRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc x25519ScalarmultBatchRaw*[T: SimdU64](outShared: var array[lanesU64[T](), X25519Bytes32],
       secretKeys, publicKeys: array[lanesU64[T](), X25519Bytes32]): array[lanesU64[T](), bool] =
     otterSpan(x25519BenchTag & ".scalarmultBatch"):
@@ -873,6 +933,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
           result[lane] = not isAllZero(outShared[lane])
           inc lane
 
+  ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519ScalarmultBatch2Impl`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc x25519ScalarmultBatch2Impl[T: SimdU64](outShared: var array[2, X25519Bytes32],
       secretKeys, publicKeys: array[2, X25519Bytes32]): array[2, bool] =
     var
@@ -894,10 +955,12 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     result = x25519ScalarmultBatchRaw[T](outShared, secretKeys, publicKeys)
 
   when defined(amd64) or defined(i386):
+    ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519ScalarmultBatchSse2x`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
     proc x25519ScalarmultBatchSse2x*(outShared: var array[2, X25519Bytes32],
         secretKeys, publicKeys: array[2, X25519Bytes32]): array[2, bool] =
       result = x25519ScalarmultBatch2Impl[u64x2](outShared, secretKeys, publicKeys)
 
+    ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrSharedSse2x`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
     proc x25519TyrSharedSse2x*(secretKeys, publicKeys: array[2, seq[byte]]): array[2, seq[byte]] =
       var
         sk: array[2, X25519Bytes32]
@@ -918,10 +981,12 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
         inc lane
 
   when defined(neon) or defined(arm64) or defined(aarch64):
+    ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519ScalarmultBatchNeon2x`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
     proc x25519ScalarmultBatchNeon2x*(outShared: var array[2, X25519Bytes32],
         secretKeys, publicKeys: array[2, X25519Bytes32]): array[2, bool] =
       result = x25519ScalarmultBatch2Impl[uint64x2](outShared, secretKeys, publicKeys)
 
+    ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrSharedNeon2x`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
     proc x25519TyrSharedNeon2x*(secretKeys, publicKeys: array[2, seq[byte]]): array[2, seq[byte]] =
       var
         sk: array[2, X25519Bytes32]
@@ -942,6 +1007,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
         inc lane
 
   when defined(avx2):
+    ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519ScalarmultBatchAvx4x`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
     proc x25519ScalarmultBatchAvx4x*(outShared: var array[4, X25519Bytes32],
         secretKeys, publicKeys: array[4, X25519Bytes32]): array[4, bool] =
       var
@@ -962,6 +1028,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
         return
       result = x25519ScalarmultBatchRaw[u64x4](outShared, secretKeys, publicKeys)
 
+    ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrSharedAvx4x`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
     proc x25519TyrSharedAvx4x*(secretKeys, publicKeys: array[4, seq[byte]]): array[4, seq[byte]] =
       var
         sk: array[4, X25519Bytes32]

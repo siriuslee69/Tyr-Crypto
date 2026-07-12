@@ -72,6 +72,7 @@ const mcParamsTable*: array[McElieceVariant, McElieceParams] = [
   )
 ]
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; parameter-set tables for `params`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc params*(v: McElieceVariant): McElieceParams {.inline.} =
   ## Return the fixed parameter set for the given Classic McEliece f-variant.
   mcParamsTable[v]

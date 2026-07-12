@@ -4,6 +4,7 @@ import ./params
 import ./gf
 import ./util
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `genpolyGen`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc genpolyGen*(p: McElieceParams; outPoly: var seq[GF]; f: openArray[GF]): bool =
   ## Derive the minimal polynomial of f (length sysT) into outPoly (length sysT).
   ## Returns true on success, false if the matrix is singular.
@@ -23,6 +24,7 @@ proc genpolyGen*(p: McElieceParams; outPoly: var seq[GF]; f: openArray[GF]): boo
   defer:
     clearSensitiveWords(mat)
 
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `cell`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template cell(row, col: int): untyped =
     mat[(row * cols) + col]
 

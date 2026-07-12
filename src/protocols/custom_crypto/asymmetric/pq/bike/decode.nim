@@ -11,6 +11,7 @@ import ../../../../helpers/otter_support
 when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
   import ./simd_words
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `log2Msb`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc log2Msb(v: int): int =
   var
     t: int = v
@@ -19,6 +20,7 @@ proc log2Msb(v: int): int =
     result = result + 1
     t = t shr 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `copySyndrome`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc copySyndrome(A: BikeSyndrome): BikeSyndrome =
   result = newSyndrome()
   var
@@ -28,6 +30,7 @@ proc copySyndrome(A: BikeSyndrome): BikeSyndrome =
     result[i] = A[i]
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `dupPort`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc dupPort(S: var BikeSyndrome) =
   var
     i: int = 0
@@ -39,6 +42,7 @@ proc dupPort(S: var BikeSyndrome) =
       (S[i] shr bikeLastRQWordTrail) or (S[i + 1] shl bikeLastRQWordLead)
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `rotrBig`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc rotrBig(outS: var BikeSyndrome, inS: BikeSyndrome, qwNumIn: int) =
   var
     qwNum: int = qwNumIn
@@ -58,6 +62,7 @@ proc rotrBig(outS: var BikeSyndrome, inS: BikeSyndrome, qwNumIn: int) =
       i = i + 1
     idx = idx shr 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `rotrSmall`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc rotrSmall(outS: var BikeSyndrome, inS: BikeSyndrome, bits: int) =
   var
     mask: uint64 = 0
@@ -74,6 +79,7 @@ proc rotrSmall(outS: var BikeSyndrome, inS: BikeSyndrome, bits: int) =
     outS[i] = lowPart or highPart
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `rotateRightPort`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc rotateRightPort*(inS: BikeSyndrome, bitsCount: int): BikeSyndrome =
   ## Rotate the first `r` syndrome bits right by `bitsCount`.
   var
@@ -83,6 +89,7 @@ proc rotateRightPort*(inS: BikeSyndrome, bitsCount: int): BikeSyndrome =
   rotrBig(tmp, inS, bitsCount div 64)
   rotrSmall(result, tmp, bitsCount mod 64)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `bitSlicedAdderPort`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bitSlicedAdderPort*(U: var BikeUpc, rotated: var BikeSyndrome, numSlices: int) =
   ## Add one rotated syndrome into the UPC bit-slice accumulator.
   ## Paper note: this is the UPC bit-sliced adder described in
@@ -103,6 +110,7 @@ proc bitSlicedAdderPort*(U: var BikeUpc, rotated: var BikeSyndrome, numSlices: i
       i = i + 1
     j = j + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `bitSliceFullSubtractPort`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bitSliceFullSubtractPort*(U: var BikeUpc, vIn: int) =
   ## Paper note: this subtracts the decoder threshold in bit-sliced form, so the
   ## candidate masks are derived without branches on secret syndrome positions.
@@ -132,6 +140,7 @@ proc bitSliceFullSubtractPort*(U: var BikeUpc, vIn: int) =
       i = i + 1
     j = j + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `syndromeToRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc syndromeToRaw(S: BikeSyndrome): BikeRawPoly =
   var
     i: int = 0
@@ -150,6 +159,7 @@ proc syndromeToRaw(S: BikeSyndrome): BikeRawPoly =
     i = i + 1
   maskRawLastByte(result)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `computeSyndrome`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc computeSyndrome(c0, h0: BikePadPoly): BikeSyndrome =
   var
     padS: BikePadPoly = @[]
@@ -162,6 +172,7 @@ proc computeSyndrome(c0, h0: BikePadPoly): BikeSyndrome =
     i = i + 1
   dupPort(result)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `recomputeSyndrome`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc recomputeSyndrome(c0, h0, pk: BikePadPoly, E: BikeRawError): BikeSyndrome =
   var
     ePad: array[bikeN0, BikePadPoly]
@@ -172,6 +183,7 @@ proc recomputeSyndrome(c0, h0, pk: BikePadPoly, E: BikeRawError): BikeSyndrome =
   gf2xModAdd(tmpC0, tmpC0, ePad[0])
   result = computeSyndrome(tmpC0, h0)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `mul64High`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc mul64High(a, b: uint64): uint64 =
   var
     aLo: uint64 = a and 0xffffffff'u64
@@ -180,6 +192,7 @@ proc mul64High(a, b: uint64): uint64 =
     bHi: uint64 = b shr 32
   result = aHi * bHi + ((aHi * bLo + aLo * bHi) shr 32)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `getThreshold`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc getThreshold(S: BikeSyndrome): int =
   ## Paper note: the threshold formula comes from the BIKE decoder parameters;
   ## it is computed from syndrome weight and clamped with a mask.
@@ -195,6 +208,7 @@ proc getThreshold(S: BikeSyndrome): int =
   thr = (uint64(mask) and thr) or (uint64(not mask) and uint64(bikeThresholdMin))
   result = int(thr)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `updateErrorSlice`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc updateErrorSlice(E: var BikeRawError, slot: int, lastSlice: BikePadPoly,
     sourceMask: BikeRawPoly) =
   var
@@ -209,6 +223,7 @@ proc updateErrorSlice(E: var BikeRawError, slot: int, lastSlice: BikePadPoly,
     j = j + 1
   maskRawLastByte(E[slot])
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `fillPotentialMask`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fillPotentialMask(dst: var BikeRawPoly, lastSlice: BikePadPoly) =
   var
     rawSlice: BikeRawPoly
@@ -220,6 +235,7 @@ proc fillPotentialMask(dst: var BikeRawPoly, lastSlice: BikePadPoly) =
     j = j + 1
   maskRawLastByte(dst)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `findErr1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc findErr1(E, blackE, grayE: var BikeRawError, S: BikeSyndrome,
     wlist: BikeDualIndexList, threshold: int) =
   ## Paper note: this is the black/gray first-pass error search from the
@@ -261,6 +277,7 @@ proc findErr1(E, blackE, grayE: var BikeRawError, S: BikeSyndrome,
     maskRawLastByte(grayE[slot])
     slot = slot + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `findErr2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc findErr2(E: var BikeRawError, posE: BikeRawError, S: BikeSyndrome,
     wlist: BikeDualIndexList, threshold: int) =
   var
@@ -282,6 +299,7 @@ proc findErr2(E: var BikeRawError, posE: BikeRawError, S: BikeSyndrome,
     updateErrorSlice(E, slot, lastSlice, posE[slot])
     slot = slot + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `decodeBike`; pitfall: reject malformed or non-canonical input before indexed access.
 proc decodeBike*(ct: BikeCiphertextRaw, sk: BikeSecretKeyState): BikeRawError =
   ## Decode the BIKE-L1 error vector during decapsulation.
   otterSpan("bike.decodeBike"):

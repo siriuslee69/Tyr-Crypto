@@ -18,9 +18,11 @@ when (defined(avx2) or defined(sse2) or defined(neon) or defined(arm64) or
     gfVectorBits = 13
     gfVectorMask = 0x1fff'u32
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `evalPoly`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc evalPoly*(p: McElieceParams; f: openArray[GF]; a: GF): GF
 
 when defined(avx2) and not defined(mcelieceScalarRoot):
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `gfMulAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc gfMulAvx2(a, b: M256i): M256i {.inline.} =
     ## Carryless GF(2^13) multiplication in eight independent lanes.
     var
@@ -48,6 +50,7 @@ when defined(avx2) and not defined(mcelieceScalarRoot):
     t = mm256_xor_si256(t, mm256_srli_epi32(x, 13))
     result = mm256_and_si256(t, mm256_set1_epi32(int32(gfVectorMask)))
 
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `rootEvalAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc rootEvalAvx2(p: McElieceParams, f: openArray[GF], L: openArray[GF],
       outVals: var seq[GF]) =
     var
@@ -80,6 +83,7 @@ when defined(avx2) and not defined(mcelieceScalarRoot):
       i = i + 1
 
 when defined(sse2) and not defined(avx2) and not defined(mcelieceScalarRoot):
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `gfMulSse2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc gfMulSse2(a, b: M128i): M128i {.inline.} =
     ## Carryless GF(2^13) multiplication in four independent lanes.
     var
@@ -107,6 +111,7 @@ when defined(sse2) and not defined(avx2) and not defined(mcelieceScalarRoot):
     t = mm_xor_si128(t, mm_srli_epi32(x, 13))
     result = mm_and_si128(t, mm_set1_epi32(int32(gfVectorMask)))
 
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `rootEvalSse2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc rootEvalSse2(p: McElieceParams, f: openArray[GF], L: openArray[GF],
       outVals: var seq[GF]) =
     var
@@ -140,6 +145,7 @@ when defined(sse2) and not defined(avx2) and not defined(mcelieceScalarRoot):
 
 when (defined(neon) or defined(arm64) or defined(aarch64)) and
     not defined(mcelieceScalarRoot):
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `gfMulNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc gfMulNeon(a, b: uint32x4): uint32x4 {.inline.} =
     ## Carryless GF(2^13) multiplication in four independent lanes.
     var
@@ -168,6 +174,7 @@ when (defined(neon) or defined(arm64) or defined(aarch64)) and
     t = veorq_u32(t, vshlq_u32(x, cast[uint32x4](vmovq_n_s32(-13))))
     result = vandq_u32(t, vmovq_n_u32(gfVectorMask))
 
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `rootEvalNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc rootEvalNeon(p: McElieceParams, f: openArray[GF], L: openArray[GF],
       outVals: var seq[GF]) =
     var
@@ -199,6 +206,7 @@ when (defined(neon) or defined(arm64) or defined(aarch64)) and
       outVals[i] = evalPoly(p, f, L[i])
       i = i + 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `evalPoly`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc evalPoly*(p: McElieceParams; f: openArray[GF]; a: GF): GF =
   ## Evaluate polynomial f at point a (f[0] is constant term).
   assert f.len >= p.sysT + 1
@@ -211,6 +219,7 @@ proc evalPoly*(p: McElieceParams; f: openArray[GF]; a: GF): GF =
     dec i
   r
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `rootEval`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc rootEval*(p: McElieceParams; f: openArray[GF]; L: openArray[GF]; outVals: var seq[GF]) =
   ## Evaluate polynomial f at every support element in L.
   assert f.len >= p.sysT + 1

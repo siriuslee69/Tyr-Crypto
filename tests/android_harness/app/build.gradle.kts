@@ -6,6 +6,7 @@ plugins {
 android {
   namespace = "org.tyrcrypto.harness"
   compileSdk = 36
+  buildToolsVersion = "35.0.0"
 
   defaultConfig {
     applicationId = "org.tyrcrypto.harness"

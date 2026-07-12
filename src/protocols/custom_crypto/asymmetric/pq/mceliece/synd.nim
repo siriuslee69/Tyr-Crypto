@@ -5,6 +5,7 @@ import ./util
 import ./gf
 import ./root
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `synd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc synd*(p: McElieceParams; f: openArray[GF]; L: openArray[GF]; r: openArray[byte]; outS: var seq[GF];
     bitLimit: int = -1) =
   ## Compute the 2*sysT syndrome for received word r (bit-packed) with Goppa poly f and support L.

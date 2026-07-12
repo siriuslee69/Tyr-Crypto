@@ -4,6 +4,7 @@ import ./params
 import ./gf
 import ./util
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `berlekampMassey`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
 proc berlekampMassey*(p: McElieceParams; s: openArray[GF]; outPoly: var seq[GF]) =
   ## Compute the minimal polynomial of the syndrome sequence `s`.
   ## `s` must contain `2 * sysT` field elements.

@@ -4,6 +4,7 @@
 import ../../../../helpers/otter_support
 
 {.push checks: off.}
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `int32MinMax`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc int32MinMax(a, b: var int32) {.inline.} =
   var
     ab: int32 = b xor a
@@ -15,6 +16,7 @@ proc int32MinMax(a, b: var int32) {.inline.} =
   b = b xor c
 {.pop.}
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `uint64MinMax`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc uint64MinMax(a, b: var uint64) {.inline.} =
   var
     c: uint64 = b - a
@@ -26,12 +28,14 @@ proc uint64MinMax(a, b: var uint64) {.inline.} =
 
 ## In-place constant-time sort of int32 values (bitonic network).
 {.push checks: off.}
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `int32SortTop`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc int32SortTop(n: int): int {.inline.} =
   var top: int = 1
   while top < n - top:
     top = top + top
   result = top
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `int32SortLeadPass`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc int32SortLeadPass(x: ptr UncheckedArray[int32], n, p: int) {.inline.} =
   var i: int = 0
   while i < n - p:
@@ -39,12 +43,14 @@ proc int32SortLeadPass(x: ptr UncheckedArray[int32], n, p: int) {.inline.} =
       int32MinMax(x[i], x[i + p])
     i = i + 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `int32SortCascade`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc int32SortCascade(a: var int32, x: ptr UncheckedArray[int32], i, q, p: int) {.inline.} =
   var r: int = q
   while r > p:
     int32MinMax(a, x[i + r])
     r = r shr 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `int32SortTailPass`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc int32SortTailPass(x: ptr UncheckedArray[int32], n, top, p: int) {.inline.} =
   var
     i: int = 0
@@ -59,6 +65,7 @@ proc int32SortTailPass(x: ptr UncheckedArray[int32], n, top, p: int) {.inline.} 
       i = i + 1
     q = q shr 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `int32SortRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc int32SortRaw*(x: ptr UncheckedArray[int32], n: int) {.otterBench.} =
   if n < 2:
     return
@@ -73,15 +80,18 @@ proc int32SortRaw*(x: ptr UncheckedArray[int32], n: int) {.otterBench.} =
     int32SortTailPass(x, n, top, p)
     p = p shr 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `int32Sort`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc int32Sort*(x: var openArray[int32]) =
   int32SortRaw(cast[ptr UncheckedArray[int32]](unsafeAddr x[0]), x.len)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `uint64SortTop`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc uint64SortTop(n: int): int {.inline.} =
   var top: int = 1
   while top < n - top:
     top = top + top
   result = top
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `uint64SortLeadPass`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc uint64SortLeadPass(x: ptr UncheckedArray[uint64], n, p: int) {.inline.} =
   var i: int = 0
   while i < n - p:
@@ -89,12 +99,14 @@ proc uint64SortLeadPass(x: ptr UncheckedArray[uint64], n, p: int) {.inline.} =
       uint64MinMax(x[i], x[i + p])
     i = i + 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `uint64SortCascade`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc uint64SortCascade(a: var uint64, x: ptr UncheckedArray[uint64], i, q, p: int) {.inline.} =
   var r: int = q
   while r > p:
     uint64MinMax(a, x[i + r])
     r = r shr 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `uint64SortTailPass`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc uint64SortTailPass(x: ptr UncheckedArray[uint64], n, top, p: int) {.inline.} =
   var
     i: int = 0
@@ -109,6 +121,7 @@ proc uint64SortTailPass(x: ptr UncheckedArray[uint64], n, top, p: int) {.inline.
       i = i + 1
     q = q shr 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `uint64SortRawNim`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc uint64SortRawNim*(x: ptr UncheckedArray[uint64], n: int) =
   if n < 2:
     return
@@ -123,22 +136,26 @@ proc uint64SortRawNim*(x: ptr UncheckedArray[uint64], n: int) =
     uint64SortTailPass(x, n, top, p)
     p = p shr 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `uint64SortRawC`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc uint64SortRawC*(x: ptr UncheckedArray[uint64], n: int) =
   ## Compatibility alias retained for old benchmark flags; now pure Nim.
   uint64SortRawNim(x, n)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `uint64SortC`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc uint64SortC*(x: var openArray[uint64]) =
   ## Compatibility alias retained for old benchmark flags; now pure Nim.
   if x.len < 2:
     return
   uint64SortRawNim(cast[ptr UncheckedArray[uint64]](unsafeAddr x[0]), x.len)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `uint64SortNim`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc uint64SortNim*(x: var openArray[uint64]) =
   if x.len < 2:
     return
   uint64SortRawNim(cast[ptr UncheckedArray[uint64]](unsafeAddr x[0]), x.len)
 
 ## In-place constant-time sort of uint64 values (bitonic network).
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; fixed-schedule sorting used by key generation and sampling for `uint64Sort`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc uint64Sort*(x: var openArray[uint64]) =
   uint64SortNim(x)
 {.pop.}

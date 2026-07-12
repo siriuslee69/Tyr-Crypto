@@ -125,10 +125,40 @@ suite "saber tyr":
     runSaberRoundtripCase(custom_saber.saber, 29, 79)
     runSaberRoundtripCase(custom_saber.fireSaber, 31, 83)
 
-  test "clean SABER matches official reference KAT vectors":
-    runSaberKatCase(custom_saber.lightSaber, custom_saber.saberClean)
-    runSaberKatCase(custom_saber.saber, custom_saber.saberClean)
-    runSaberKatCase(custom_saber.fireSaber, custom_saber.saberClean)
+  test "invalid SABER ciphertext uses deterministic implicit rejection":
+    var
+      v = custom_saber.lightSaber
+      p: custom_saber.SaberParams = custom_saber.saberParamsTable[v]
+      keySeed: seq[byte] = newSeq[byte](pqc.pqKatSeedBytes)
+      encSeed: seq[byte] = newSeq[byte](pqc.pqKatSeedBytes)
+    fillSaberSeed(keySeed, 107)
+    fillSaberSeed(encSeed, 157)
+    var kp = custom_saber.saberTyrKeypairDerand(v, keySeed,
+      custom_saber.saberClean)
+    var env = custom_saber.saberTyrEncapsDerand(v, kp.publicKey, encSeed,
+      custom_saber.saberClean)
+    var tampered = env.ciphertext
+    tampered[0] = tampered[0] xor 1'u8
+    var bad0 = custom_saber.saberTyrDecaps(v, kp.secretKey, tampered,
+      custom_saber.saberClean)
+    var bad1 = custom_saber.saberTyrDecaps(v, kp.secretKey, tampered,
+      custom_saber.saberClean)
+    check bad0.len == p.sharedSecretBytes
+    check bad0 == bad1
+    check bad0 != env.sharedSecret
+    pqc.secureClearBytes(keySeed)
+    pqc.secureClearBytes(encSeed)
+    pqc.secureClearBytes(bad0)
+    pqc.secureClearBytes(bad1)
+
+  when defined(tyrAndroidHarness):
+    test "file-backed SABER KAT vectors remain host-only":
+      checkpoint("Android harness runs SABER roundtrip and rejection regressions")
+  else:
+    test "clean SABER matches official reference KAT vectors":
+      runSaberKatCase(custom_saber.lightSaber, custom_saber.saberClean)
+      runSaberKatCase(custom_saber.saber, custom_saber.saberClean)
+      runSaberKatCase(custom_saber.fireSaber, custom_saber.saberClean)
 
   when defined(avx2):
     test "AVX2 multiplication core matches official reference KAT vectors":

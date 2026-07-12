@@ -24,9 +24,11 @@ const
     0x61707865'u32, 0x3320646e'u32, 0x79622d32'u32, 0x6b206574'u32
   ]
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; random-source and deterministic KAT generation rules for `rotl32`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc rotl32(x: uint32, n: int): uint32 {.inline.} =
   (x shl n) or (x shr (32 - n))
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; random-source and deterministic KAT generation rules for `qround`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template qround(state: var array[16, uint32], a, b, c, d: static[int]) =
   state[a] = state[a] + state[b]
   state[d] = state[d] xor state[a]
@@ -41,6 +43,7 @@ template qround(state: var array[16, uint32], a, b, c, d: static[int]) =
   state[b] = state[b] xor state[c]
   state[b] = rotl32(state[b], 7)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; random-source and deterministic KAT generation rules for `prngRefill`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc prngRefill*(p: var FalconPrng) =
   var
     counter = load64Le(p.state.d, 48)
@@ -113,6 +116,7 @@ proc prngRefill*(p: var FalconPrng) =
   store64Le(p.state.d, counter, 48)
   p.pos = 0
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; random-source and deterministic KAT generation rules for `prngInit`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc prngInit*(p: var FalconPrng, seedMaterial: openArray[byte]) =
   ## Seed Falcon's internal ChaCha20 PRNG from arbitrary local SHAKE256 input.
   var
@@ -127,6 +131,7 @@ proc prngInit*(p: var FalconPrng, seedMaterial: openArray[byte]) =
   clearSensitivePlainData(raw)
   secureClearBytes(tmp)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; random-source and deterministic KAT generation rules for `prngInit`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc prngInit*(p: var FalconPrng, rawSeed56: array[56, byte]) =
   var
     i: int = 0
@@ -158,12 +163,14 @@ proc prngInit*(p: var FalconPrng, rawSeed56: array[56, byte]) =
   store64Le(p.state.d, tl + (th shl 32), 48)
   prngRefill(p)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; random-source and deterministic KAT generation rules for `prngInitFromShake`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc prngInitFromShake*(p: var FalconPrng, ctx: var FalconShake256) =
   var seed: array[56, byte]
   extractFalconShake256(ctx, seed)
   prngInit(p, seed)
   clearPlainData(seed)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; random-source and deterministic KAT generation rules for `prngGetBytes`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc prngGetBytes*(p: var FalconPrng, dst: var openArray[byte]) =
   var
     produced: int = 0
@@ -178,6 +185,7 @@ proc prngGetBytes*(p: var FalconPrng, dst: var openArray[byte]) =
     if p.pos == p.buf.d.len:
       prngRefill(p)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; random-source and deterministic KAT generation rules for `prngGetU64`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc prngGetU64*(p: var FalconPrng): uint64 {.inline.} =
   var u = p.pos
   if u >= p.buf.d.len - 9:
@@ -186,6 +194,7 @@ proc prngGetU64*(p: var FalconPrng): uint64 {.inline.} =
   p.pos = u + 8
   load64Le(p.buf.d, u)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; random-source and deterministic KAT generation rules for `prngGetU8`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc prngGetU8*(p: var FalconPrng): uint32 {.inline.} =
   result = uint32(p.buf.d[p.pos])
   p.pos = p.pos + 1

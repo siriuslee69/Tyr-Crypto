@@ -23,6 +23,7 @@ type
     deterministic*: bool
     drbg*: PqNistDrbgState
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `secureClearBytes`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc secureClearBytes*(A: var openArray[byte]) {.raises: [].} =
   ## Volatile short-lived byte buffer wipe for secret material.
   var
@@ -36,11 +37,13 @@ proc secureClearBytes*(A: var openArray[byte]) {.raises: [].} =
     volatileStore(addr B[i], 0'u8)
     i = i + 1
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `secureClearBytes`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc secureClearBytes*(S: var seq[byte]) {.raises: [].} =
   ## Volatile short-lived byte sequence wipe for secret material.
   if S.len > 0:
     secureClearBytes(S.toOpenArray(0, S.len - 1))
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `incrementV`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc incrementV(S: var PqNistDrbgState) =
   var
     i: int = 15
@@ -53,12 +56,14 @@ proc incrementV(S: var PqNistDrbgState) =
       S.v[i] = S.v[i] + 1'u8
       break
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `aes256EcbBlock`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc aes256EcbBlock(k: openArray[byte], input: array[16, byte]): array[16, byte] =
   var
     ctx: Aes256Ctx
   ctx.init(k)
   result = encryptBlock(ctx, input)
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `nistDrbgUpdate`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc nistDrbgUpdate*(S: var PqNistDrbgState,
     provided: ptr array[pqKatEntropyBytes, byte] = nil) =
   ## Apply the NIST KAT AES-256-CTR DRBG update function.
@@ -88,6 +93,7 @@ proc nistDrbgUpdate*(S: var PqNistDrbgState,
   secureClearBytes(temp)
   secureClearBytes(blk)
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `initNistDrbg`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc initNistDrbg*(entropy: openArray[byte],
     personalization: openArray[byte] = @[]): PqNistDrbgState =
   ## Initialize the same AES-256-CTR DRBG used by NIST KAT files.
@@ -108,6 +114,7 @@ proc initNistDrbg*(entropy: openArray[byte],
   result.reseedCounter = 1
   secureClearBytes(seedMaterial)
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `nistDrbgRandomBytes`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc nistDrbgRandomBytes*(S: var PqNistDrbgState, n: int): seq[byte] =
   ## Generate bytes from the NIST KAT DRBG and update state once per call.
   var
@@ -130,6 +137,7 @@ proc nistDrbgRandomBytes*(S: var PqNistDrbgState, n: int): seq[byte] =
   S.reseedCounter = S.reseedCounter + 1
   secureClearBytes(blk)
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `initPqKatRandomContext`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc initPqKatRandomContext*(seed: openArray[byte]): PqRandomContext =
   ## Build a deterministic random context from a 48-byte KAT seed.
   if seed.len != pqKatSeedBytes:
@@ -137,10 +145,12 @@ proc initPqKatRandomContext*(seed: openArray[byte]): PqRandomContext =
   result.deterministic = true
   result.drbg = initNistDrbg(seed)
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `initPqSystemRandomContext`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc initPqSystemRandomContext*(): PqRandomContext =
   ## Build a system-random context.
   result.deterministic = false
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `pqRandomBytes`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc pqRandomBytes*(S: var PqRandomContext, n: int): seq[byte] =
   ## Return `n` random bytes with KAT-compatible per-call DRBG updates.
   if n < 0:
@@ -150,6 +160,7 @@ proc pqRandomBytes*(S: var PqRandomContext, n: int): seq[byte] =
   else:
     result = cryptoRandomBytes(n)
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `clearPqRandomContext`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc clearPqRandomContext*(S: var PqRandomContext) =
   ## Wipe deterministic DRBG state when present.
   if S.deterministic:

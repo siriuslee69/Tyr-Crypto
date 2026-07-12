@@ -18,24 +18,30 @@ when defined(avx2):
 when defined(neon) or defined(arm64) or defined(aarch64):
   import nimsimd/neon
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `ctMaskEqualU64`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc ctMaskEqualU64(a, b: uint64): uint64 {.inline.} =
   var x = a xor b
   x = x - 1'u64
   x = x shr 63
   result = 0'u64 - x
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `load64At`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc load64At(mat: openArray[byte], offset: int): uint64 {.inline.} =
   result = load8(mat.toOpenArray(offset, offset + 7))
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `store64At`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc store64At(mat: var openArray[byte], offset: int, v: uint64) {.inline.} =
   store8(mat.toOpenArray(offset, offset + 7), v)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `load64Copy`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc load64Copy(mat: openArray[byte], offset: int): uint64 {.inline.} =
   result = load64At(mat, offset)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `store64Copy`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc store64Copy(mat: var openArray[byte], offset: int, v: uint64) {.inline.} =
   store64At(mat, offset, v)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `xorRowMaskedWords`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc xorRowMaskedWords(mat: var seq[byte], dstStart, srcStart, startByte, fullRowBytes: int,
     mask: byte, maskWord: uint64) {.inline.} =
   var
@@ -63,6 +69,7 @@ proc xorRowMaskedWords(mat: var seq[byte], dstStart, srcStart, startByte, fullRo
     mat[dstStart + c] = mat[dstStart + c] xor (mat[srcStart + c] and mask)
     c = c + 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `loadColumnBlock`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc loadColumnBlock(mat: openArray[byte], rowStart, blockIdx, tail: int): uint64 {.inline.} =
   if tail == 0:
     return load64At(mat, rowStart + blockIdx)
@@ -74,6 +81,7 @@ proc loadColumnBlock(mat: openArray[byte], rowStart, blockIdx, tail: int): uint6
     tmp[j] = byte(((int(tmp[j]) shr tail) or (int(tmp[j + 1]) shl (8 - tail))) and 0xFF)
   result = load8(tmp.toOpenArray(0, 7))
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `storeColumnBlock`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc storeColumnBlock(mat: var openArray[byte], rowStart, blockIdx, tail: int, v: uint64) {.inline.} =
   if tail == 0:
     store64At(mat, rowStart + blockIdx, v)
@@ -96,6 +104,7 @@ proc storeColumnBlock(mat: var openArray[byte], rowStart, blockIdx, tail: int, v
     mat[rowStart + blockIdx + j] = byte(
       ((int(tmp[j]) shl tail) or (int(tmp[j - 1]) shr (8 - tail))) and 0xFF)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `batchInvertNonZero`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc batchInvertNonZero(vals: var seq[GF], prefix: var seq[GF], n: int) {.inline.} =
   ## Paper note: the Classic McEliece implementation guide uses Montgomery's
   ## trick here: one inversion plus prefix/suffix products replaces many GF inversions.
@@ -118,6 +127,7 @@ proc batchInvertNonZero(vals: var seq[GF], prefix: var seq[GF], n: int) {.inline
   vals[0] = invAcc
 
 when defined(avx2):
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `fillMatrixTransposedAvx`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc fillMatrixTransposedAvx(p: McElieceParams; L: openArray[GF];
       inv: var seq[GF]; mat: var seq[byte]; fullRowBytes: int) =
     ## Paper note: public-key generation follows the Classic McEliece bit-matrix
@@ -194,6 +204,7 @@ when defined(avx2):
           lane = lane + 1
       i = i + 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `xorRowMasked`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc xorRowMasked(mat: var seq[byte], dstStart, srcStart, fullRowBytes: int,
     mask: byte) {.inline.} =
   ## Paper note: Gaussian elimination uses masked row XORs, matching the
@@ -330,6 +341,7 @@ proc xorRowMasked(mat: var seq[byte], dstStart, srcStart, fullRowBytes: int,
   else:
     xorRowMaskedWords(mat, dstStart, srcStart, 0, fullRowBytes, mask, maskWord)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `movColumns`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc movColumns(mat: var seq[byte], pi: var seq[int16], pivots: var uint64,
     p: McElieceParams, fullRowBytes: int): bool =
   var
@@ -409,6 +421,7 @@ proc movColumns(mat: var seq[byte], pi: var seq[int16], pivots: var uint64,
 
   result = true
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `pkGen`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc pkGen*(p: McElieceParams, g: openArray[GF], perm: openArray[uint32],
     pi: var seq[int16], pk: var seq[byte], pivots: var uint64): bool =
   ## Generate a systematic public key from a Goppa polynomial and permutation.

@@ -30,10 +30,12 @@ const zetas*: array[128, int16] = [
    -108'i16,  -308'i16,   996'i16,   991'i16,   958'i16, -1460'i16,  1522'i16,  1628'i16
 ]
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `fqMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fqMul(a, b: int16): int16 {.inline.} =
   result = montgomeryReduce(int32(a) * int32(b))
 
 when defined(avx2):
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `nttButterflyChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc nttButterflyChunk8(aPtr, bPtr: ptr int16, zeta: int16) {.inline.} =
     var
       aVec: navx.M256i = loadI16x8AsI32x8(aPtr)
@@ -43,6 +45,7 @@ when defined(avx2):
     packStoreI32x8ToI16x8(aPtr, navx2.mm256_add_epi32(aVec, tVec))
     packStoreI32x8ToI16x8(bPtr, navx2.mm256_sub_epi32(aVec, tVec))
 
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `nttButterflyInterleavedChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc nttButterflyInterleavedChunk8(aPtr, bPtr, cPtr, dPtr: ptr int16,
       zetaUpper, zetaLower0, zetaLower1: int16) {.inline.} =
     var
@@ -74,6 +77,7 @@ when defined(avx2):
     packStoreI32x8ToI16x8(cPtr, navx2.mm256_add_epi32(hi0, lower1))
     packStoreI32x8ToI16x8(dPtr, navx2.mm256_sub_epi32(hi0, lower1))
 
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `invNttButterflyChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc invNttButterflyChunk8(aPtr, bPtr: ptr int16, zeta: int16) {.inline.} =
     var
       aVec: navx.M256i = loadI16x8AsI32x8(aPtr)
@@ -85,6 +89,7 @@ when defined(avx2):
     packStoreI32x8ToI16x8(aPtr, sumVec)
     packStoreI32x8ToI16x8(bPtr, diffVec)
 
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `invNttButterflyInterleavedChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc invNttButterflyInterleavedChunk8(aPtr, bPtr, cPtr, dPtr: ptr int16,
       zetaLower0, zetaLower1, zetaUpper: int16) {.inline.} =
     var
@@ -120,6 +125,7 @@ when defined(avx2):
     packStoreI32x8ToI16x8(cPtr, upperSum1)
     packStoreI32x8ToI16x8(dPtr, upperDiff1)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `ntt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ntt*(R: var array[kyberN, int16]) {.inline.} =
   ## Forward NTT from standard order to bit-reversed order.
   var
@@ -197,6 +203,7 @@ proc ntt*(R: var array[kyberN, int16]) {.inline.} =
       start = j + len
     len = len shr 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `invNtt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
   ## Inverse NTT back to standard order and Montgomery scale factor.
   var
@@ -291,6 +298,7 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
         start = j + len
       len = len shl 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `baseMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc baseMul*(R: var array[2, int16], A, B: array[2, int16], zeta: int16) {.inline.} =
   ## Multiply two degree-1 polynomials in Z_q[X]/(X^2 - zeta).
   R[0] = fqMul(A[1], B[1])

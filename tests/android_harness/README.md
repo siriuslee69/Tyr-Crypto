@@ -12,3 +12,9 @@ Behavior:
 
 This harness exists to validate ARM64/NEON and emulator-hosted native test
 executables without wiring a full JNI surface for the whole Tyr API.
+
+The `asymmetric_full` target includes every pure-Nim asymmetric family plus the
+strict certificate codec suite. Real Ed25519 PKCS#8 and X.509 fixture bytes are
+embedded at compile time. NTRU and SABER response-file KATs remain host-only;
+the device bundle runs their deterministic roundtrip and implicit-rejection
+regressions.

@@ -12,11 +12,13 @@ const
   kyberXofBlockBytes* = 168 ## SHAKE128 rate in bytes.
 
 type
-  ## Concrete Kyber / ML-KEM parameter family.
+  ## Legacy CRYSTALS-Kyber round-3 parameter family.
+  ## These sizes match ML-KEM, but the KEM transcript does not: FIPS 203
+  ## algorithms 19-21 removed Kyber round 3's pre-hash of encapsulation m.
   KyberVariant* = enum
-    kyber512, ## original Kyber512 / standardized ML-KEM-512
-    kyber768, ## original Kyber768 / standardized ML-KEM-768
-    kyber1024 ## original Kyber1024 / standardized ML-KEM-1024
+    kyber512, ## CRYSTALS-Kyber512 round 3; not FIPS 203 ML-KEM-512
+    kyber768, ## CRYSTALS-Kyber768 round 3; not FIPS 203 ML-KEM-768
+    kyber1024 ## CRYSTALS-Kyber1024 round 3; not FIPS 203 ML-KEM-1024
 
   ## Fixed parameter record for one Kyber family member.
   KyberParams* = object
@@ -94,6 +96,7 @@ const kyberParamsTable*: array[KyberVariant, KyberParams] = [
   )
 ]
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; parameter-set tables for `params`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc params*(v: KyberVariant): KyberParams {.inline.} =
   ## Return the fixed parameter set for one Kyber variant.
   result = kyberParamsTable[v]

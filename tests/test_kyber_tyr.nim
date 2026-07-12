@@ -3,7 +3,7 @@ import std/unittest
 import ../src/protocols/wrapper/basic_api
 import ../src/protocols/custom_crypto/kyber as custom_kyber
 import ../src/protocols/custom_crypto/asymmetric/pq/kyber/[
-  params, types, poly, polyvec, symmetric]
+  params, types, poly, polyvec, symmetric, indcpa]
 
 when defined(hasLibOqs):
   import ../src/protocols/wrapper/helpers/algorithms
@@ -196,6 +196,63 @@ suite "kyber tyr":
     let shared = open(env, openM)
     check env.ciphertext.len == 1568
     check shared == env.sharedSecret
+
+  test "encapsulation remains the round-3 Kyber transcript":
+    ## Round-3 algorithm 8 encrypts H(randomness). FIPS 203 ML-KEM encrypts the
+    ## randomness directly. Reconstructing the round-3 transcript here prevents
+    ## a size-compatible but wire-incompatible identity change.
+    var
+      keySeed = newSeq[byte](32)
+      encapsSeed = newSeq[byte](32)
+      p = kyberParamsTable[custom_kyber.kyber768]
+      m = newSeq[byte](kyberSymBytes)
+      pkHash = newSeq[byte](kyberSymBytes)
+      input = newSeq[byte](2 * kyberSymBytes)
+      kr = newSeq[byte](2 * kyberSymBytes)
+      ctHash = newSeq[byte](kyberSymBytes)
+      expectedShared = newSeq[byte](kyberSharedSecretBytes)
+      i: int = 0
+    fillPatternSeed(keySeed, 37)
+    fillPatternSeed(encapsSeed, 109)
+    var kp = custom_kyber.kyberTyrKeypair(custom_kyber.kyber768, keySeed)
+    var env = custom_kyber.kyberTyrEncaps(custom_kyber.kyber768,
+      kp.publicKey, encapsSeed)
+    hashHInto(m, encapsSeed)
+    hashHInto(pkHash, kp.publicKey)
+    while i < kyberSymBytes:
+      input[i] = m[i]
+      input[kyberSymBytes + i] = pkHash[i]
+      i = i + 1
+    hashGInto(kr, input)
+    var expectedCiphertext = indcpaEnc(p, m, kp.publicKey,
+      kr.toOpenArray(kyberSymBytes, 2 * kyberSymBytes - 1))
+    hashHInto(ctHash, expectedCiphertext)
+    i = 0
+    while i < kyberSymBytes:
+      kr[kyberSymBytes + i] = ctHash[i]
+      i = i + 1
+    kdfInto(expectedShared, kr)
+    check env.ciphertext == expectedCiphertext
+    check env.sharedSecret == expectedShared
+
+  test "invalid Kyber ciphertext uses deterministic implicit rejection":
+    var
+      keySeed = newSeq[byte](32)
+      encapsSeed = newSeq[byte](32)
+    fillPatternSeed(keySeed, 43)
+    fillPatternSeed(encapsSeed, 127)
+    var kp = custom_kyber.kyberTyrKeypair(custom_kyber.kyber768, keySeed)
+    var env = custom_kyber.kyberTyrEncaps(custom_kyber.kyber768,
+      kp.publicKey, encapsSeed)
+    var tampered = env.ciphertext
+    tampered[0] = tampered[0] xor 1'u8
+    var bad0 = custom_kyber.kyberTyrDecaps(custom_kyber.kyber768,
+      kp.secretKey, tampered)
+    var bad1 = custom_kyber.kyberTyrDecaps(custom_kyber.kyber768,
+      kp.secretKey, tampered)
+    check bad0.len == env.sharedSecret.len
+    check bad0 == bad1
+    check bad0 != env.sharedSecret
 
   when defined(hasLibOqs):
     test "tier-0 pure-nim Kyber matches liboqs byte-for-byte with deterministic RNG":

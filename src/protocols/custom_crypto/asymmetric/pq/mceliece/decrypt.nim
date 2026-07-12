@@ -10,6 +10,7 @@ import ./synd
 import ./benes
 import ../../../../helpers/otter_support
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; decoding, malformed-input rejection, and verification rules for `decodeErrorVector`; pitfall: reject malformed or non-canonical input before indexed access.
 proc decodeErrorVector*(p: McElieceParams, skTail, ciphertext: openArray[byte]): tuple[ok: bool, okMask: uint16, errorVec: seq[byte]] =
   ## Decode a Niederreiter ciphertext into the bit-packed error vector using the secret-key tail.
   ## `skTail` layout: irreducible polynomial || control bits || secret s.

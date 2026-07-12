@@ -82,6 +82,7 @@ const
     0, 0, 0, 0, 0, 6162, 0, 0, 0, 0, 0, 0, 242, 5717
   ]
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; parameter-set tables for `params`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc params*(v: BikeVariant): BikeParams =
   ## Return the fixed parameter bundle for one BIKE variant.
   case v

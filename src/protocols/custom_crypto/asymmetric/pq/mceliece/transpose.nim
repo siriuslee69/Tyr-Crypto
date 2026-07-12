@@ -4,6 +4,7 @@
 import std/assertions
 
 ## Transpose a 64x64 matrix of bits stored as 64 little-endian 64-bit rows.
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; portable representation and constant-schedule support for `transpose64x64`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc transpose64x64*(outm: var array[64, uint64], inm: openArray[uint64]) =
   assert inm.len >= 64, "input must contain at least 64 rows"
   for i in 0 .. 63:
@@ -38,4 +39,3 @@ proc transpose64x64*(outm: var array[64, uint64], inm: openArray[uint64]) =
         j = j + 1
       i += s * 2
     dec d
-

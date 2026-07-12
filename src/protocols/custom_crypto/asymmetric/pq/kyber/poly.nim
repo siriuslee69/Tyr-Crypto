@@ -21,6 +21,7 @@ when defined(sse2):
   ## style from `2021-0986_neon_ntt_dilithium_kyber_saber.pdf` and
   ## `2018-0039_vectorized_ntt_implementations.pdf`, without changing Kyber's
   ## reference arithmetic schedule.
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyAddSimdSse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyAddSimdSse(r: var Poly, a, b: Poly) =
     var
       i: int = 0
@@ -38,6 +39,7 @@ when defined(sse2):
       r.coeffs[i] = a.coeffs[i] + b.coeffs[i]
       i = i + 1
 
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polySubSimdSse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polySubSimdSse(r: var Poly, a, b: Poly) =
     var
       i: int = 0
@@ -59,6 +61,7 @@ when defined(avx2):
   ## Paper note: AVX2 handles public coefficient positions in 16-lane chunks,
   ## matching the vectorized-NTT implementation pattern stored in
   ## `docs/research/pq_non_ntru_saber/papers/2018-0039_vectorized_ntt_implementations.pdf`.
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyAddSimdAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyAddSimdAvx2(r: var Poly, a, b: Poly) =
     var
       i: int = 0
@@ -76,6 +79,7 @@ when defined(avx2):
       r.coeffs[i] = a.coeffs[i] + b.coeffs[i]
       i = i + 1
 
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polySubSimdAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polySubSimdAvx2(r: var Poly, a, b: Poly) =
     var
       i: int = 0
@@ -96,6 +100,7 @@ when defined(avx2):
 when defined(neon) or defined(arm64) or defined(aarch64):
   ## Paper note: this is the ARM128 version of the same public coefficient
   ## lane idea described in `2021-0986_neon_ntt_dilithium_kyber_saber.pdf`.
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyAddSimdNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyAddSimdNeon(r: var Poly, a, b: Poly) =
     var
       i: int = 0
@@ -111,6 +116,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       r.coeffs[i] = a.coeffs[i] + b.coeffs[i]
       i = i + 1
 
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polySubSimdNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polySubSimdNeon(r: var Poly, a, b: Poly) =
     var
       i: int = 0
@@ -126,8 +132,10 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       r.coeffs[i] = a.coeffs[i] - b.coeffs[i]
       i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyReduce*(r: var Poly) {.inline.}
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyCompressInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyCompressInto*(dst: var openArray[byte], p: KyberParams, a: Poly) =
   ## Compress and serialize one Kyber polynomial into a caller-provided buffer.
   var
@@ -181,11 +189,13 @@ proc polyCompressInto*(dst: var openArray[byte], p: KyberParams, a: Poly) =
 
   raise newException(ValueError, "unsupported Kyber polynomial compression size")
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyCompress`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyCompress*(p: KyberParams, a: Poly): seq[byte] =
   ## Compress and serialize one Kyber polynomial.
   result = newSeq[byte](p.polyCompressedBytes)
   polyCompressInto(result, p, a)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyDecompressInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyDecompressInto*(r: var Poly, p: KyberParams, A: openArray[byte]) =
   ## Decompress and deserialize one Kyber polynomial into a caller-provided polynomial.
   var
@@ -223,10 +233,12 @@ proc polyDecompressInto*(r: var Poly, p: KyberParams, A: openArray[byte]) =
 
   raise newException(ValueError, "unsupported Kyber polynomial compression size")
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyDecompress`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyDecompress*(p: KyberParams, A: openArray[byte]): Poly =
   ## Decompress and deserialize one Kyber polynomial.
   polyDecompressInto(result, p, A)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyToBytesInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyToBytesInto*(dst: var openArray[byte], a: Poly) =
   ## Serialize one Kyber polynomial into a caller-provided buffer.
   var
@@ -246,11 +258,13 @@ proc polyToBytesInto*(dst: var openArray[byte], a: Poly) =
     dst[3 * i + 2] = byte(t1 shr 4)
     i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyToBytes*(a: Poly): seq[byte] =
   ## Serialize one Kyber polynomial.
   result = newSeq[byte](kyberPolyBytes)
   polyToBytesInto(result, a)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyFromBytesInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyFromBytesInto*(r: var Poly, A: openArray[byte]) =
   ## Deserialize one Kyber polynomial into a caller-provided polynomial.
   var
@@ -265,10 +279,12 @@ proc polyFromBytesInto*(r: var Poly, A: openArray[byte]) =
       int16(((uint16(A[3 * i + 1]) shr 4) or (uint16(A[3 * i + 2]) shl 4)) and 0x0fff'u16)
     i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyFromBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyFromBytes*(A: openArray[byte]): Poly =
   ## Deserialize one Kyber polynomial.
   polyFromBytesInto(result, A)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyFromMsg`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyFromMsg*(r: var Poly, A: openArray[byte]) =
   ## Convert a 32-byte message into a Kyber polynomial.
   var
@@ -286,10 +302,12 @@ proc polyFromMsg*(r: var Poly, A: openArray[byte]) =
       j = j + 1
     i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyFromMsg`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyFromMsg*(A: openArray[byte]): Poly =
   ## Convert a 32-byte message into a Kyber polynomial.
   polyFromMsg(result, A)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyToMsgInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyToMsgInto*(dst: var openArray[byte], a: Poly) =
   ## Convert a Kyber polynomial back into a 32-byte message into a caller-provided buffer.
   var
@@ -313,11 +331,13 @@ proc polyToMsgInto*(dst: var openArray[byte], a: Poly) =
       j = j + 1
     i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyToMsg`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyToMsg*(a: Poly): seq[byte] =
   ## Convert a Kyber polynomial back into a 32-byte message.
   result = newSeq[byte](kyberSymBytes)
   polyToMsgInto(result, a)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyGetNoiseEta1Into`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc polyGetNoiseEta1Into*(p: KyberParams, r: var Poly, seed: openArray[byte], nonce: byte) =
   ## Deterministically sample an eta1-noise polynomial into a caller-owned polynomial.
   var
@@ -327,10 +347,12 @@ proc polyGetNoiseEta1Into*(p: KyberParams, r: var Poly, seed: openArray[byte], n
   prfInto(buf.toOpenArray(0, bufLen - 1), seed, nonce)
   polyCbdEta1Into(p, r, buf.toOpenArray(0, bufLen - 1))
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyGetNoiseEta1`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc polyGetNoiseEta1*(p: KyberParams, seed: openArray[byte], nonce: byte): Poly =
   ## Deterministically sample an eta1-noise polynomial.
   polyGetNoiseEta1Into(p, result, seed, nonce)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyGetNoiseEta2Into`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc polyGetNoiseEta2Into*(p: KyberParams, r: var Poly, seed: openArray[byte], nonce: byte) =
   ## Deterministically sample an eta2-noise polynomial into a caller-owned polynomial.
   var
@@ -340,19 +362,23 @@ proc polyGetNoiseEta2Into*(p: KyberParams, r: var Poly, seed: openArray[byte], n
   prfInto(buf.toOpenArray(0, bufLen - 1), seed, nonce)
   polyCbdEta2Into(p, r, buf.toOpenArray(0, bufLen - 1))
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyGetNoiseEta2`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc polyGetNoiseEta2*(p: KyberParams, seed: openArray[byte], nonce: byte): Poly =
   ## Deterministically sample an eta2-noise polynomial.
   polyGetNoiseEta2Into(p, result, seed, nonce)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyNtt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyNtt*(r: var Poly) {.inline.} =
   ## Apply the forward NTT to one polynomial.
   ntt(r.coeffs)
   polyReduce(r)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyInvNttToMont`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyInvNttToMont*(r: var Poly) {.inline.} =
   ## Apply the inverse NTT to one polynomial.
   invNtt(r.coeffs)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyBaseMulMontgomery`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyBaseMulMontgomery*(r: var Poly, a, b: Poly) {.inline.} =
   ## Multiply two NTT-domain polynomials coefficient pairs at a time.
   var
@@ -379,6 +405,7 @@ proc polyBaseMulMontgomery*(r: var Poly, a, b: Poly) {.inline.} =
     r.coeffs[4 * i + 3] = pr[1]
     i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyToMont`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyToMont*(r: var Poly) {.inline.} =
   ## Convert polynomial coefficients into Montgomery form.
   var
@@ -398,6 +425,7 @@ proc polyToMont*(r: var Poly) {.inline.} =
       r.coeffs[i] = montgomeryReduce(int32(r.coeffs[i]) * int32(f))
       i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyReduce*(r: var Poly) {.inline.} =
   ## Apply Barrett reduction to all coefficients.
   var
@@ -416,6 +444,7 @@ proc polyReduce*(r: var Poly) {.inline.} =
       r.coeffs[i] = barrettReduce(r.coeffs[i])
       i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyAdd*(r: var Poly, a, b: Poly) {.inline.} =
   ## Add two polynomials without immediate modular reduction.
   ## Paper note: the backend split differs from PQClean clean by selecting the
@@ -434,6 +463,7 @@ proc polyAdd*(r: var Poly, a, b: Poly) {.inline.} =
       r.coeffs[i] = a.coeffs[i] + b.coeffs[i]
       i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polySub`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polySub*(r: var Poly, a, b: Poly) {.inline.} =
   ## Subtract two polynomials without immediate modular reduction.
   ## Paper note: subtraction uses the same fixed public-lane SIMD dispatch as

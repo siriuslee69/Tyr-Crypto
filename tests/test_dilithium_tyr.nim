@@ -106,6 +106,66 @@ suite "dilithium tyr":
       check sig == sigRef
       check custom_dilithium.dilithiumTyrVerify(v, msg, sig, pk)
 
+  test "ML-DSA rejects repeated non-canonical hint indices":
+    ## FIPS 204 algorithm 27 requires strict ordering inside each hint block.
+    ## This mutation is the <= versus < defect class from CVE-2026-24850.
+    var
+      seed = newSeq[byte](32)
+      msg = @[0x63'u8, 0x76'u8, 0x65'u8]
+      v = custom_dilithium.dilithium44
+      p = custom_dilithium.dilithiumParamsTable[v]
+      kp: custom_dilithium.DilithiumTyrKeypair
+      sig: seq[byte]
+      hintOffset: int = p.ctildeBytes + p.l * p.polyZPackedBytes
+      firstEnd: int = 0
+    fillDiliSeed(seed, 113)
+    kp = custom_dilithium.dilithiumTyrKeypair(v, seed)
+    sig = custom_dilithium.dilithiumTyrSignDeterministic(v, msg, kp.secretKey)
+    check custom_dilithium.dilithiumTyrVerify(v, msg, sig, kp.publicKey)
+    firstEnd = int(sig[hintOffset + p.omega])
+    if firstEnd >= 2:
+      sig[hintOffset + 1] = sig[hintOffset]
+    else:
+      sig[hintOffset] = 7'u8
+      sig[hintOffset + 1] = 7'u8
+      sig[hintOffset + p.omega] = 2'u8
+      for i in 1 ..< p.k:
+        if sig[hintOffset + p.omega + i] < 2'u8:
+          sig[hintOffset + p.omega + i] = 2'u8
+    check not custom_dilithium.dilithiumTyrVerify(v, msg, sig, kp.publicKey)
+
+  test "ML-DSA rejects descending hint indices and nonzero padding":
+    var
+      seed = newSeq[byte](32)
+      msg = @[0x68'u8, 0x69'u8, 0x6e'u8, 0x74'u8]
+      v = custom_dilithium.dilithium44
+      p = custom_dilithium.dilithiumParamsTable[v]
+      kp: custom_dilithium.DilithiumTyrKeypair
+      canonical, descending, padded: seq[byte]
+      hintOffset: int = p.ctildeBytes + p.l * p.polyZPackedBytes
+      i: int = 0
+    fillDiliSeed(seed, 149)
+    kp = custom_dilithium.dilithiumTyrKeypair(v, seed)
+    canonical = custom_dilithium.dilithiumTyrSignDeterministic(v, msg,
+      kp.secretKey)
+    descending = canonical
+    padded = canonical
+    while i < p.omega + p.k:
+      descending[hintOffset + i] = 0'u8
+      padded[hintOffset + i] = 0'u8
+      i = i + 1
+    descending[hintOffset] = 9'u8
+    descending[hintOffset + 1] = 8'u8
+    i = 0
+    while i < p.k:
+      descending[hintOffset + p.omega + i] = 2'u8
+      i = i + 1
+    padded[hintOffset] = 1'u8
+    check not custom_dilithium.dilithiumTyrVerify(v, msg, descending,
+      kp.publicKey)
+    check not custom_dilithium.dilithiumTyrVerify(v, msg, padded,
+      kp.publicKey)
+
   test "basic_api Dilithium Tyr wrappers work":
     var
       seed = newSeq[byte](32)

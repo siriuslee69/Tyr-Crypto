@@ -1,10 +1,14 @@
-include "test_common"
-include "test_x25519_custom"
-include "test_x25519_simd"
-include "test_kyber_tyr"
-include "test_bike_tyr"
-include "test_dilithium_tyr"
-include "test_falcon_tyr_android_smoke"
+import ./[
+  test_common,
+  test_x25519_custom,
+  test_x25519_simd,
+  test_ed25519_custom,
+  test_kyber_tyr,
+  test_bike_tyr,
+  test_dilithium_tyr,
+  test_falcon_tyr_android_smoke,
+  test_certificate_codecs
+]
 
 when isMainModule:
   discard

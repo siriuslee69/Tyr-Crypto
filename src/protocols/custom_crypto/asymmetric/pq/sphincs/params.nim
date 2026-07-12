@@ -4,6 +4,8 @@
 
 type
   ## Concrete SPHINCS+ parameter family implemented locally.
+  ## This is the round-3 SPHINCS+ API, not FIPS 205 SLH-DSA: SLH-DSA's
+  ## external signing interface prepends `0 || len(ctx) || ctx` to messages.
   SphincsVariant* = enum
     sphincsShake128fSimple
 
@@ -73,6 +75,7 @@ const
   spxOffsetTreeHgt* = 27
   spxOffsetTreeIndex* = 28
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; parameter-set tables for `buildSphincsShake128fSimple`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildSphincsShake128fSimple(): SphincsParams =
   result = SphincsParams(
     name: "SPHINCS+-SHAKE-128f-simple",
@@ -102,6 +105,8 @@ const sphincsParamsTable*: array[SphincsVariant, SphincsParams] = [
   sphincsShake128fSimple: buildSphincsShake128fSimple()
 ]
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; parameter-set tables for `params`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc params*(v: SphincsVariant): SphincsParams {.inline.} =
-  ## Return the fixed parameter set for one SPHINCS+ variant.
+  ## Reference: SPHINCS+ v3.1 section 5.1 parameter table. Return the
+  ## SHAKE-128f-simple round-3 set; do not identify it as FIPS 205 SLH-DSA.
   result = sphincsParamsTable[v]

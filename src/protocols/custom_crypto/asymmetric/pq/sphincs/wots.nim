@@ -9,6 +9,7 @@ import ./hash
 import ./util
 
 when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64) or defined(avx2):
+  ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; WOTS+ algorithms for `applyWotsHashStep`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc applyWotsHashStep(node: var array[spxN, byte], ctx: SphincsCtx,
       A: var SphincsAddress, hashAddr: uint32) {.inline.} =
     ## Paper note: scalar WOTS steps remain available for lanes that cannot be
@@ -16,6 +17,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64) or def
     setHashAddr(A, hashAddr)
     thash(node, node, 1, ctx, A)
 
+  ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; WOTS+ algorithms for `applyWotsHashStep2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc applyWotsHashStep2(nodes: var array[2, array[spxN, byte]], ctx: SphincsCtx,
       addrs: var array[2, SphincsAddress], hashAddr: uint32) =
     ## Paper note: two WOTS chains at the same public hash address are batched
@@ -25,6 +27,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64) or def
     thash1Batch2(nodes, nodes, ctx, addrs)
 
 when defined(avx2):
+  ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; WOTS+ algorithms for `applyWotsHashStep2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc applyWotsHashStep2(nodes: var array[4, array[spxN, byte]], ctx: SphincsCtx,
       addrs: array[4, SphincsAddress], lane0, lane1: int, hashAddr: uint32) =
     ## Paper note: AVX2 verifier code batches only active lane pairs when four
@@ -42,6 +45,7 @@ when defined(avx2):
     nodes[lane0] = pairNodes[0]
     nodes[lane1] = pairNodes[1]
 
+  ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; WOTS+ algorithms for `applyWotsHashStep4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc applyWotsHashStep4(nodes: var array[4, array[spxN, byte]], ctx: SphincsCtx,
       addrs: var array[4, SphincsAddress], hashAddr: uint32) =
     ## Paper note: full 4-lane WOTS batching applies only when all lanes share
@@ -54,6 +58,7 @@ when defined(avx2):
       lane = lane + 1
     thash1Batch4(nodes, nodes, ctx, addrs)
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; WOTS+ algorithms for `genChain`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc genChain(outNode: var array[16, byte], input: openArray[byte], start, steps: int,
     ctx: SphincsCtx, A: var SphincsAddress) =
   copyMem(addr outNode[0], unsafeAddr input[0], spxN)
@@ -64,6 +69,7 @@ proc genChain(outNode: var array[16, byte], input: openArray[byte], start, steps
     thash(outNode, outNode, 1, ctx, A)
     i = i + 1
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; WOTS+ algorithms for `baseW`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc baseW*(output: var openArray[uint32], outLen: int, input: openArray[byte]) =
   var
     inIdx: int = 0
@@ -82,6 +88,7 @@ proc baseW*(output: var openArray[uint32], outLen: int, input: openArray[byte]) 
     outIdx = outIdx + 1
     consumed = consumed + 1
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; WOTS+ algorithms for `wotsChecksum`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc wotsChecksum*(output: var openArray[uint32], msgBaseW: openArray[uint32]) =
   var
     csum: uint32 = 0
@@ -92,6 +99,7 @@ proc wotsChecksum*(output: var openArray[uint32], msgBaseW: openArray[uint32]) =
   ullToBytes(csumBytes, uint64(csum))
   baseW(output, spxWotsLen2, csumBytes)
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; WOTS+ algorithms for `chainLengths`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc chainLengths*(output: var openArray[uint32], msg: openArray[byte]) =
   var
     csum: array[spxWotsLen2, uint32]
@@ -100,6 +108,7 @@ proc chainLengths*(output: var openArray[uint32], msg: openArray[byte]) =
   for i in 0 ..< spxWotsLen2:
     output[spxWotsLen1 + i] = csum[i]
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; WOTS+ algorithms for `wotsPkFromSig`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc wotsPkFromSig*(pk: var openArray[byte], sig, msg: openArray[byte],
     ctx: SphincsCtx, A: var SphincsAddress) =
   ## Paper note: verifier-side batching groups public WOTS chain steps; it is a

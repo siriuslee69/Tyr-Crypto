@@ -4,6 +4,7 @@ import ./params
 import ./util
 import ../../../random
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; encapsulation error generation and syndrome computation for `sameMask`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc sameMask(x, y: uint16): byte {.inline.} =
   var
     mask = uint32(x xor y)
@@ -12,6 +13,7 @@ proc sameMask(x, y: uint16): byte {.inline.} =
   mask = 0'u32 - mask
   result = byte(mask and 0xff'u32)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; encapsulation error generation and syndrome computation for `foldParity64`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc foldParity64(x: uint64): byte {.inline.} =
   var t = x
   t = t xor (t shr 32)
@@ -22,10 +24,12 @@ proc foldParity64(x: uint64): byte {.inline.} =
   t = t xor (t shr 1)
   result = byte(t and 1'u64)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; encapsulation error generation and syndrome computation for `mcelieceEncapsRandomBlockBytes`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc mcelieceEncapsRandomBlockBytes*(p: McElieceParams): int {.inline.} =
   ## Return the random-byte block size consumed by PQClean `gen_e`.
   p.sysT * 2 * sizeof(uint16)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; encapsulation error generation and syndrome computation for `indHasDuplicate`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc indHasDuplicate(ind: openArray[uint16], n: int): bool {.inline.} =
   ## Check for duplicate indices (nested search extracted to keep caller flat).
   var
@@ -40,6 +44,7 @@ proc indHasDuplicate(ind: openArray[uint16], n: int): bool {.inline.} =
     i = i + 1
   result = false
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; encapsulation error generation and syndrome computation for `buildErrorVector`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildErrorVector(p: McElieceParams, ind: openArray[uint16], val: openArray[byte]): seq[byte] {.inline.} =
   ## Pack error vector bytes from indices and bit values (nested packing extracted).
   var
@@ -54,6 +59,7 @@ proc buildErrorVector(p: McElieceParams, ind: openArray[uint16], val: openArray[
       j = j + 1
     i = i + 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; encapsulation error generation and syndrome computation for `errorVectorFromRandomBlock`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc errorVectorFromRandomBlock(p: McElieceParams,
     buf: openArray[byte]): tuple[ok: bool, errorVec: seq[byte]] =
   ## Try to derive a bit-packed weight-`sysT` error vector from one PQClean
@@ -86,6 +92,7 @@ proc errorVectorFromRandomBlock(p: McElieceParams,
   result.ok = true
   result.errorVec = buildErrorVector(p, ind, val)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; encapsulation error generation and syndrome computation for `genErrorVectorDerand`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc genErrorVectorDerand*(p: McElieceParams, randomness: openArray[byte]): seq[byte] =
   ## Generate an error vector from one or more PQClean `gen_e` random blocks.
   var
@@ -104,6 +111,7 @@ proc genErrorVectorDerand*(p: McElieceParams, randomness: openArray[byte]): seq[
     offset = offset + blockBytes
   raise newException(ValueError, "McEliece encaps randomness did not produce a valid error vector")
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; encapsulation error generation and syndrome computation for `genErrorVector`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc genErrorVector*(p: McElieceParams): seq[byte] =
   ## Generate a bit-packed weight-`sysT` error vector for the selected McEliece tier.
   var
@@ -118,6 +126,7 @@ proc genErrorVector*(p: McElieceParams): seq[byte] =
     if candidate.ok:
       return candidate.errorVec
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; encapsulation error generation and syndrome computation for `syndromeFromPublicKey`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc syndromeFromPublicKey*(p: McElieceParams, pk, e: openArray[byte]): seq[byte] =
   ## Compute the bit-packed syndrome for public key `pk` and error vector `e`.
   var
@@ -167,11 +176,13 @@ proc syndromeFromPublicKey*(p: McElieceParams, pk, e: openArray[byte]): seq[byte
     pkPtr = pkPtr + p.pkRowBytes
     i = i + 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; encapsulation error generation and syndrome computation for `encryptError`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc encryptError*(p: McElieceParams, pk: openArray[byte]): tuple[syndrome, errorVec: seq[byte]] =
   ## Generate a fresh error vector and its corresponding Niederreiter syndrome.
   result.errorVec = genErrorVector(p)
   result.syndrome = syndromeFromPublicKey(p, pk, result.errorVec)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; encapsulation error generation and syndrome computation for `encryptErrorDerand`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc encryptErrorDerand*(p: McElieceParams, pk, randomness: openArray[byte]): tuple[syndrome, errorVec: seq[byte]] =
   ## Generate a deterministic error vector and its corresponding syndrome.
   result.errorVec = genErrorVectorDerand(p, randomness)

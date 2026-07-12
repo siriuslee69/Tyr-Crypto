@@ -27,33 +27,42 @@ type
   SaberPolyVec* = array[4, SaberPoly]
   SaberMatrix* = array[4, SaberPolyVec]
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `u16Add`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc u16Add(a, b: uint16): uint16 {.inline.} =
   result = uint16((uint32(a) + uint32(b)) and 0xffff'u32)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `u16Sub`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc u16Sub(a, b: uint16): uint16 {.inline.} =
   result = uint16((uint32(a) + 0x10000'u32 - uint32(b)) and 0xffff'u32)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `u16Mul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc u16Mul(a, b: uint16): uint16 {.inline.} =
   result = uint16((uint32(a) * uint32(b)) and 0xffff'u32)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `u16Neg`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc u16Neg(a: uint16): uint16 {.inline.} =
   result = uint16((0x10000'u32 - uint32(a)) and 0xffff'u32)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `i64ToU16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc i64ToU16(a: int64): uint16 {.inline.} =
   result = uint16(cast[uint64](a) and 0xffff'u64)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `u16Shl`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc u16Shl(a: uint16, b: int): uint16 {.inline.} =
   result = uint16((uint32(a) shl b) and 0xffff'u32)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `u16MulSmall`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc u16MulSmall(a: uint16, b: int): uint16 {.inline.} =
   result = uint16((uint32(a) * uint32(b)) and 0xffff'u32)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `cSarDiffU16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cSarDiffU16(a, b: uint16, shift: int): uint16 {.inline.} =
   var
     t: int32 = 0
   t = int32(uint32(a)) - int32(uint32(b))
   result = uint16(cast[uint32](t shr shift) and 0xffff'u32)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `cMulShiftU16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cMulShiftU16(a: int64, m: uint16, shift: int): uint16 {.inline.} =
   var
     x: uint64 = 0
@@ -62,6 +71,7 @@ proc cMulShiftU16(a: int64, m: uint16, shift: int): uint16 {.inline.} =
   y = (x * uint64(m)) and 0xffffffff'u64
   result = uint16((y shr shift) and 0xffff'u64)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `clearPoly`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clearPoly(S: var SaberPoly) =
   var
     i: int = 0
@@ -70,12 +80,14 @@ proc clearPoly(S: var SaberPoly) =
     S.coeffs[i] = 0
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `storeSaberReduced`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc storeSaberReduced(c: var SaberPoly, i: int, v: uint16, accumulate: bool) {.inline.} =
   if accumulate:
     c.coeffs[i] = u16Add(c.coeffs[i], v)
   else:
     c.coeffs[i] = v
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `copyBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc copyBytes(dst: var openArray[byte], o: int, src: openArray[byte]) =
   var
     i: int = 0
@@ -84,6 +96,7 @@ proc copyBytes(dst: var openArray[byte], o: int, src: openArray[byte]) =
     dst[o + i] = src[i]
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `loadLe`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc loadLe(A: openArray[byte], o, n: int): uint64 =
   var
     i: int = 0
@@ -93,6 +106,7 @@ proc loadLe(A: openArray[byte], o, n: int): uint64 =
     result = result or (uint64(A[o + i]) shl (8 * i))
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `packBits`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packBits(dst: var openArray[byte], V: openArray[uint16], bits, count: int) =
   var
     mask: uint32 = 0
@@ -118,6 +132,7 @@ proc packBits(dst: var openArray[byte], V: openArray[uint16], bits, count: int) 
   if accBits > 0 and outIdx < dst.len:
     dst[outIdx] = byte(acc and 0xff'u32)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `unpackBits`; pitfall: reject malformed or non-canonical input before indexed access.
 proc unpackBits(V: var openArray[uint16], src: openArray[byte], bits, count: int) =
   var
     mask: uint32 = 0
@@ -137,24 +152,31 @@ proc unpackBits(V: var openArray[uint16], src: openArray[byte], bits, count: int
     accBits = accBits - bits
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polq2bs`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polq2bs(dst: var openArray[byte], a: SaberPoly) =
   packBits(dst, a.coeffs, saberEq, saberN)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `bs2polq`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bs2polq(r: var SaberPoly, src: openArray[byte]) =
   unpackBits(r.coeffs, src, saberEq, saberN)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polp2bs`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polp2bs(dst: var openArray[byte], a: SaberPoly) =
   packBits(dst, a.coeffs, saberEp, saberN)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `bs2polp`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bs2polp(r: var SaberPoly, src: openArray[byte]) =
   unpackBits(r.coeffs, src, saberEp, saberN)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polt2bs`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polt2bs(dst: var openArray[byte], p: SaberParams, a: SaberPoly) =
   packBits(dst, a.coeffs, p.et, saberN)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `bs2polt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bs2polt(r: var SaberPoly, p: SaberParams, src: openArray[byte]) =
   unpackBits(r.coeffs, src, p.et, saberN)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polvecq2bs`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polvecq2bs(dst: var openArray[byte], p: SaberParams, V: SaberPolyVec) =
   var
     i: int = 0
@@ -165,6 +187,7 @@ proc polvecq2bs(dst: var openArray[byte], p: SaberParams, V: SaberPolyVec) =
     polq2bs(dst.toOpenArray(o, o + saberPolyBytes - 1), V[i])
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `bs2polvecq`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bs2polvecq(V: var SaberPolyVec, p: SaberParams, src: openArray[byte]) =
   var
     i: int = 0
@@ -175,6 +198,7 @@ proc bs2polvecq(V: var SaberPolyVec, p: SaberParams, src: openArray[byte]) =
     bs2polq(V[i], src.toOpenArray(o, o + saberPolyBytes - 1))
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polvecp2bs`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polvecp2bs(dst: var openArray[byte], p: SaberParams, V: SaberPolyVec) =
   var
     i: int = 0
@@ -185,6 +209,7 @@ proc polvecp2bs(dst: var openArray[byte], p: SaberParams, V: SaberPolyVec) =
     polp2bs(dst.toOpenArray(o, o + saberPolyCompressedBytes - 1), V[i])
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `bs2polvecp`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bs2polvecp(V: var SaberPolyVec, p: SaberParams, src: openArray[byte]) =
   var
     i: int = 0
@@ -195,6 +220,7 @@ proc bs2polvecp(V: var SaberPolyVec, p: SaberParams, src: openArray[byte]) =
     bs2polp(V[i], src.toOpenArray(o, o + saberPolyCompressedBytes - 1))
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `bs2polmsg`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bs2polmsg(r: var SaberPoly, src: openArray[byte]) =
   var
     i: int = 0
@@ -207,6 +233,7 @@ proc bs2polmsg(r: var SaberPoly, src: openArray[byte]) =
       i = i + 1
     j = j + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polmsg2bs`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polmsg2bs(dst: var openArray[byte], a: SaberPoly) =
   var
     i: int = 0
@@ -220,6 +247,7 @@ proc polmsg2bs(dst: var openArray[byte], a: SaberPoly) =
       i = i + 1
     j = j + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `cbd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbd(r: var SaberPoly, p: SaberParams, buf: openArray[byte]) {.otterBench.} =
   var
     i: int = 0
@@ -289,6 +317,7 @@ proc cbd(r: var SaberPoly, p: SaberParams, buf: openArray[byte]) {.otterBench.} 
     i = i + 1
 
 when defined(sse2):
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `reduceNegacyclicSse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc reduceNegacyclicSse(c: var SaberPoly, C: array[2 * saberN, uint16],
       accumulate: bool) =
     var
@@ -309,6 +338,7 @@ when defined(sse2):
       i = i + 8
 
 when defined(avx2):
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `reduceNegacyclicAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc reduceNegacyclicAvx2(c: var SaberPoly, C: array[2 * saberN, uint16],
       accumulate: bool) =
     var
@@ -329,6 +359,7 @@ when defined(avx2):
       i = i + 16
 
 when defined(neon) or defined(arm64) or defined(aarch64):
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `reduceNegacyclicNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc reduceNegacyclicNeon(c: var SaberPoly, C: array[2 * saberN, uint16],
       accumulate: bool) =
     var
@@ -348,6 +379,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       storeI16x8At[uint16x8](r, c.coeffs, i)
       i = i + 8
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulIntoTmp`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulIntoTmp(c: var SaberPoly, a, b: SaberPoly, accumulate: bool) {.inline.} =
   var
     C: array[2 * saberN, uint16]
@@ -384,6 +416,7 @@ proc polyMulIntoTmp(c: var SaberPoly, a, b: SaberPoly, accumulate: bool) {.inlin
         c.coeffs[i] = red
       i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulIntoRows`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulIntoRows(c: var SaberPoly, a, b: SaberPoly, accumulate: bool) {.inline.} =
   var
     i: int = 0
@@ -408,6 +441,7 @@ proc polyMulIntoRows(c: var SaberPoly, a, b: SaberPoly, accumulate: bool) {.inli
       k = k + 1
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulIntoRowsUnroll4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulIntoRowsUnroll4(c: var SaberPoly, a, b: SaberPoly, accumulate: bool) {.inline.} =
   var
     i: int = 0
@@ -447,6 +481,7 @@ proc polyMulIntoRowsUnroll4(c: var SaberPoly, a, b: SaberPoly, accumulate: bool)
     i = i + 1
 
 when defined(avx2):
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulIntoAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyMulIntoAvx2(c: var SaberPoly, a, b: SaberPoly,
       accumulate: bool) {.inline.} =
     ## Multiply 16 coefficients per step. Lane arithmetic wraps modulo 2^16,
@@ -491,6 +526,7 @@ when defined(avx2):
       i = i + 1
 
 when defined(neon) or defined(arm64) or defined(aarch64):
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulIntoNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyMulIntoNeon(c: var SaberPoly, a, b: SaberPoly,
       accumulate: bool) {.inline.} =
     ## Multiply eight coefficients per step with a fixed public loop schedule.
@@ -533,6 +569,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
         k = k + 1
       i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulIntoCoeff`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulIntoCoeff(c: var SaberPoly, a, b: SaberPoly, accumulate: bool) {.inline.} =
   var
     k: int = 0
@@ -572,6 +609,7 @@ when defined(saberMulNttScalar):
     saberNttInvNQ1 = 12241'i32
     saberNttInvNQ2 = 40801'i32
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `makeSaberNttPowers`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   func makeSaberNttPowers(modulus, root: int): array[saberN, int32] =
     var
       x: int = 1
@@ -592,6 +630,7 @@ when defined(saberMulNttScalar):
     saberNttTwistQ2 = makeSaberNttPowers(40961, 8603)
     saberNttInvTwistQ2 = makeSaberNttPowers(40961, 39585)
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `subQIfNeeded`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc subQIfNeeded(a, q: int32): int32 {.inline.} =
     var
       t: int32 = 0
@@ -600,9 +639,11 @@ when defined(saberMulNttScalar):
     mask = 0'u32 - ((cast[uint32](t) shr 31) and 1'u32)
     result = t + cast[int32](uint32(q) and mask)
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `addMod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc addMod(a, b, q: int32): int32 {.inline.} =
     result = subQIfNeeded(a + b, q)
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `subMod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc subMod(a, b, q: int32): int32 {.inline.} =
     var
       t: int32 = 0
@@ -611,6 +652,7 @@ when defined(saberMulNttScalar):
     mask = 0'u32 - ((cast[uint32](t) shr 31) and 1'u32)
     result = t + cast[int32](uint32(q) and mask)
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `mulMod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc mulMod(a, b, q: int32, recip: uint64): int32 {.inline.} =
     var
       x: uint64 = 0
@@ -624,6 +666,7 @@ when defined(saberMulNttScalar):
     r = subQIfNeeded(r, q)
     result = subQIfNeeded(r, q)
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `reduceU16Mod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc reduceU16Mod(a: uint16, q: int32): int32 {.inline.} =
     var
       r: int32 = 0
@@ -635,6 +678,7 @@ when defined(saberMulNttScalar):
       i = i + 1
     result = r
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `reduceSigned16Mod`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
   proc reduceSigned16Mod(a: uint16, q: int32): int32 {.inline.} =
     var
       r: int32 = 0
@@ -646,6 +690,7 @@ when defined(saberMulNttScalar):
       i = i + 1
     result = r
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `bitReverse`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc bitReverse(a: var SaberNttPoly) {.inline.} =
     var
       i: int = 1
@@ -665,6 +710,7 @@ when defined(saberMulNttScalar):
         a[j] = tmp
       i = i + 1
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `cyclicNtt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc cyclicNtt(a: var SaberNttPoly, powers: openArray[int32], q: int32,
       recip: uint64) {.inline.} =
     var
@@ -695,6 +741,7 @@ when defined(saberMulNttScalar):
         base = base + length
       length = length shl 1
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `cyclicInvNtt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc cyclicInvNtt(a: var SaberNttPoly, invPowers: openArray[int32],
       q: int32, recip: uint64, invN: int32) {.inline.} =
     var
@@ -705,6 +752,7 @@ when defined(saberMulNttScalar):
       a[i] = mulMod(a[i], invN, q, recip)
       i = i + 1
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `loadTwistedPositive`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc loadTwistedPositive(r: var SaberNttPoly, a: SaberPoly,
       twist: openArray[int32], q: int32, recip: uint64) {.inline.} =
     var
@@ -714,6 +762,7 @@ when defined(saberMulNttScalar):
       r[i] = mulMod(reduceU16Mod(a.coeffs[i], q), twist[i], q, recip)
       i = i + 1
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `loadTwistedSigned`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
   proc loadTwistedSigned(r: var SaberNttPoly, a: SaberPoly,
       twist: openArray[int32], q: int32, recip: uint64) {.inline.} =
     var
@@ -723,6 +772,7 @@ when defined(saberMulNttScalar):
       r[i] = mulMod(reduceSigned16Mod(a.coeffs[i], q), twist[i], q, recip)
       i = i + 1
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `pointwiseMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc pointwiseMul(r: var SaberNttPoly, b: SaberNttPoly, q: int32,
       recip: uint64) {.inline.} =
     var
@@ -732,6 +782,7 @@ when defined(saberMulNttScalar):
       r[i] = mulMod(r[i], b[i], q, recip)
       i = i + 1
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `untwist`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc untwist(r: var SaberNttPoly, invTwist: openArray[int32],
       q: int32, recip: uint64) {.inline.} =
     var
@@ -741,6 +792,7 @@ when defined(saberMulNttScalar):
       r[i] = mulMod(r[i], invTwist[i], q, recip)
       i = i + 1
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `crtToU16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc crtToU16(r1, r2: int32): uint16 {.inline.} =
     var
       diff: int32 = 0
@@ -757,6 +809,7 @@ when defined(saberMulNttScalar):
     centered = x - int64(uint64(saberNttProduct) and mask)
     result = uint16(cast[uint64](centered) and 0xffff'u64)
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `secureClearNttPoly`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc secureClearNttPoly(a: var SaberNttPoly) {.raises: [].} =
     var
       i: int = 0
@@ -767,6 +820,7 @@ when defined(saberMulNttScalar):
       volatileStore(addr p[i], 0'i32)
       i = i + 1
 
+  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulIntoNttSmallB`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyMulIntoNttSmallB(c: var SaberPoly, a, b: SaberPoly,
       accumulate: bool) {.inline.} =
     var
@@ -817,6 +871,7 @@ type
   SaberToomProducts = array[7, SaberToomProd]
   SaberToomWide = array[2 * saberN, int64]
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `evalSaberToomPoint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc evalSaberToomPoint(E: var SaberToomEval, A: SaberPoly, point: int) {.inline.} =
   var
     i: int = 0
@@ -847,6 +902,7 @@ proc evalSaberToomPoint(E: var SaberToomEval, A: SaberPoly, point: int) {.inline
       E[i] = a3
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `mulSaberToomEvals`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc mulSaberToomEvals(R: var SaberToomProd, A, B: SaberToomEval) {.inline.} =
   var
     i: int = 0
@@ -863,6 +919,7 @@ proc mulSaberToomEvals(R: var SaberToomProd, A, B: SaberToomEval) {.inline.} =
       j = j + 1
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `mulSaberToomPoint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc mulSaberToomPoint(R: var SaberToomProd, a, b: SaberPoly, point: int) {.inline.} =
   var
     A: SaberToomEval
@@ -871,6 +928,7 @@ proc mulSaberToomPoint(R: var SaberToomProd, a, b: SaberPoly, point: int) {.inli
   evalSaberToomPoint(B, b, point)
   mulSaberToomEvals(R, A, B)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `interpolateSaberToom`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc interpolateSaberToom(C: var SaberToomWide, W: SaberToomProducts) {.inline.} =
   var
     i: int = 0
@@ -920,6 +978,7 @@ proc interpolateSaberToom(C: var SaberToomWide, W: SaberToomProducts) {.inline.}
     C[6 * saberToomChunk + i] = C[6 * saberToomChunk + i] + c6
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulIntoToom4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulIntoToom4(c: var SaberPoly, a, b: SaberPoly, accumulate: bool) {.inline.} =
   var
     W: SaberToomProducts
@@ -953,6 +1012,7 @@ type
     w6: SaberKaratsuba64
     w7: SaberKaratsuba64
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `karatsuba64Mod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc karatsuba64Mod(R: var SaberKaratsuba127, A, B: SaberKaratsuba64) {.inline.} =
   var
     d01: array[31, uint16]
@@ -1030,6 +1090,7 @@ proc karatsuba64Mod(R: var SaberKaratsuba127, A, B: SaberKaratsuba64) {.inline.}
     R[i + 32] = u16Add(R[i + 32], resultD01[i])
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `evalSaberToom4Mod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc evalSaberToom4Mod(Aw1, Aw2, Aw3, Aw4, Aw5, Aw6, Aw7: var SaberKaratsuba64,
     A: SaberPoly) {.inline.} =
   var
@@ -1067,9 +1128,11 @@ proc evalSaberToom4Mod(Aw1, Aw2, Aw3, Aw4, Aw5, Aw6, Aw7: var SaberKaratsuba64,
     Aw1[j] = r3
     j = j + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `evalSaberToom4Mod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc evalSaberToom4Mod(E: var SaberToom4ModEval, A: SaberPoly) {.inline.} =
   evalSaberToom4Mod(E.w1, E.w2, E.w3, E.w4, E.w5, E.w6, E.w7, A)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `interpolateSaberToom4Mod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc interpolateSaberToom4Mod(C: var SaberToomModWide, W1, W2, W3, W4, W5,
     W6, W7: SaberKaratsuba127) {.inline.} =
   const
@@ -1125,6 +1188,7 @@ proc interpolateSaberToom4Mod(C: var SaberToomModWide, W1, W2, W3, W4, W5,
     C[i + 384] = u16Add(C[i + 384], r0)
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulIntoToom4ModEval`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulIntoToom4ModEval(c: var SaberPoly, a: SaberPoly, B: SaberToom4ModEval,
     accumulate: bool) {.inline.} =
   var
@@ -1160,6 +1224,7 @@ proc polyMulIntoToom4ModEval(c: var SaberPoly, a: SaberPoly, B: SaberToom4ModEva
     storeSaberReduced(c, i, red, accumulate)
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulIntoToom4Mod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulIntoToom4Mod(c: var SaberPoly, a, b: SaberPoly,
     accumulate: bool) {.inline.} =
   var
@@ -1167,6 +1232,7 @@ proc polyMulIntoToom4Mod(c: var SaberPoly, a, b: SaberPoly,
   evalSaberToom4Mod(B, b)
   polyMulIntoToom4ModEval(c, a, B, accumulate)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulInto(c: var SaberPoly, a, b: SaberPoly, accumulate: bool) {.otterBench.} =
   when defined(saberMulRows):
     polyMulIntoRows(c, a, b, accumulate)
@@ -1185,6 +1251,7 @@ proc polyMulInto(c: var SaberPoly, a, b: SaberPoly, accumulate: bool) {.otterBen
   else:
     polyMulIntoTmp(c, a, b, accumulate)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `matrixVectorMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc matrixVectorMul(c: var SaberPolyVec, p: SaberParams, A: SaberMatrix,
     s: SaberPolyVec, transpose: bool) {.otterBench.} =
   when defined(saberMulToom4Cached):
@@ -1234,6 +1301,7 @@ proc matrixVectorMul(c: var SaberPolyVec, p: SaberParams, A: SaberMatrix,
         j = j + 1
     i = i + 1
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `innerProd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc innerProd(c: var SaberPoly, p: SaberParams, b, s: SaberPolyVec) {.otterBench.} =
   when defined(saberMulToom4Cached):
     var
@@ -1265,6 +1333,7 @@ when not defined(saberHeapBuffers):
     saberMaxMatrixBytes = 4 * 4 * saberPolyBytes
     saberMaxSecretBytes = 3 * saberN
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `genMatrix`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc genMatrix(A: var SaberMatrix, p: SaberParams, seed: openArray[byte]) {.otterBench.} =
   when not defined(saberHeapBuffers):
     var
@@ -1294,6 +1363,7 @@ proc genMatrix(A: var SaberMatrix, p: SaberParams, seed: openArray[byte]) {.otte
       i = i + 1
     secureClearBytes(buf)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `genSecret`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc genSecret(s: var SaberPolyVec, p: SaberParams, seed: openArray[byte]) {.otterBench.} =
   when not defined(saberHeapBuffers):
     var
@@ -1323,14 +1393,17 @@ proc genSecret(s: var SaberPolyVec, p: SaberParams, seed: openArray[byte]) {.ott
       i = i + 1
     secureClearBytes(buf)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `h1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc h1(): uint16 {.inline.} =
   result = uint16(1 shl (saberEq - saberEp - 1))
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `h2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc h2(p: SaberParams): uint16 {.inline.} =
   result = uint16((1 shl (saberEp - 2)) -
     (1 shl (saberEp - p.et - 1)) +
     (1 shl (saberEq - saberEp - 1)))
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `indcpaKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc indcpaKeypair*(pk, sk: var openArray[byte], p: SaberParams,
     R: var PqRandomContext) {.otterBench.} =
   ## Generate a SABER IND-CPA keypair into caller-owned buffers.
@@ -1364,6 +1437,7 @@ proc indcpaKeypair*(pk, sk: var openArray[byte], p: SaberParams,
   secureClearBytes(seedHash)
   secureClearBytes(rand)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `indcpaEnc`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc indcpaEnc*(ciphertext: var openArray[byte], m, noiseseed, pk: openArray[byte],
     p: SaberParams) {.otterBench.} =
   ## Encrypt one SABER IND-CPA message.
@@ -1405,6 +1479,7 @@ proc indcpaEnc*(ciphertext: var openArray[byte], m, noiseseed, pk: openArray[byt
   polt2bs(ciphertext.toOpenArray(msgOff, msgOff + p.scaleBytesKem - 1), p, vprime)
   clearPoly(message)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `indcpaDec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc indcpaDec*(m: var openArray[byte], sk, ciphertext: openArray[byte],
     p: SaberParams) {.otterBench.} =
   ## Decrypt one SABER IND-CPA ciphertext.
@@ -1429,6 +1504,7 @@ proc indcpaDec*(m: var openArray[byte], sk, ciphertext: openArray[byte],
     i = i + 1
   polmsg2bs(m, v)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `saberKemKeypairInto`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc saberKemKeypairInto*(pk, sk: var openArray[byte], p: SaberParams,
     R: var PqRandomContext) {.otterBench.} =
   ## Generate a SABER CCA KEM keypair.
@@ -1444,6 +1520,7 @@ proc saberKemKeypairInto*(pk, sk: var openArray[byte], p: SaberParams,
   secureClearBytes(pkHash)
   secureClearBytes(fallback)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `saberKemEncInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc saberKemEncInto*(ciphertext, sharedSecret: var openArray[byte],
     pk: openArray[byte], p: SaberParams, R: var PqRandomContext) {.otterBench.} =
   ## Encapsulate with pure-Nim SABER.
@@ -1463,6 +1540,7 @@ proc saberKemEncInto*(ciphertext, sharedSecret: var openArray[byte],
   secureClearBytes(kr)
   secureClearBytes(buf)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `saberKemDecInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc saberKemDecInto*(sharedSecret: var openArray[byte], sk, ciphertext: openArray[byte],
     p: SaberParams) {.otterBench.} =
   ## Decapsulate with pure-Nim SABER.

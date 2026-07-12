@@ -11,8 +11,10 @@ import ./decode
 import ../../../../helpers/otter_support
 import ../../../sha3
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrKeypairFromParts`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc bikeTyrKeypairFromParts*(v: BikeVariant, seed0, seed1: openArray[byte]): BikeTyrKeypair
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `seedToMessage`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc seedToMessage(seed: BikeSeed): BikeMessage =
   var
     i: int = 0
@@ -21,6 +23,7 @@ proc seedToMessage(seed: BikeSeed): BikeMessage =
     result[i] = seed[i]
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `messageToSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc messageToSeed(m: BikeMessage): BikeSeed =
   var
     i: int = 0
@@ -29,9 +32,11 @@ proc messageToSeed(m: BikeMessage): BikeSeed =
     result[i] = m[i]
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `functionH`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc functionH(m: BikeMessage): BikeRawError =
   result = generateErrorVector(messageToSeed(m))
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `functionL`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc functionL(E: BikeRawError): BikeMessage =
   var
     tmp: seq[byte] = @[]
@@ -48,6 +53,7 @@ proc functionL(E: BikeRawError): BikeMessage =
   secureZeroBytes(tmp)
   secureZeroBytes(dgst)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `functionK`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc functionK(m: BikeMessage, ct: BikeCiphertextRaw): BikeSharedSecret =
   var
     tmp: seq[byte] = @[]
@@ -65,6 +71,7 @@ proc functionK(m: BikeMessage, ct: BikeCiphertextRaw): BikeSharedSecret =
   secureZeroBytes(tmp)
   secureZeroBytes(dgst)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `encryptRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc encryptRaw(E: BikeRawError, pkRaw: BikeRawPoly, m: BikeMessage): BikeCiphertextRaw =
   var
     pk: BikePadPoly = @[]
@@ -83,6 +90,7 @@ proc encryptRaw(E: BikeRawError, pkRaw: BikeRawPoly, m: BikeMessage): BikeCipher
     result.c1[i] = l[i] xor m[i]
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `reencrypt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc reencrypt(E: BikeRawError, ct: BikeCiphertextRaw): BikeMessage =
   var
     l: BikeMessage
@@ -93,6 +101,7 @@ proc reencrypt(E: BikeRawError, ct: BikeCiphertextRaw): BikeMessage =
     result[i] = l[i] xor ct.c1[i]
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrKeypairDerand`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc bikeTyrKeypairDerand*(v: BikeVariant, randomness: openArray[byte]): BikeTyrKeypair {.otterTrace.} =
   ## Generate a pure-Nim BIKE keypair from explicit 64-byte keypair material.
   if randomness.len != bikeKeypairRandomBytes:
@@ -101,6 +110,7 @@ proc bikeTyrKeypairDerand*(v: BikeVariant, randomness: openArray[byte]): BikeTyr
     randomness.toOpenArray(0, bikeSeedBytes - 1),
     randomness.toOpenArray(bikeSeedBytes, bikeKeypairRandomBytes - 1))
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrKeypairFromParts`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc bikeTyrKeypairFromParts*(v: BikeVariant, seed0, seed1: openArray[byte]): BikeTyrKeypair =
   ## Generate a BIKE keypair from the two exact 32-byte seeds used by the KEM.
   var
@@ -134,6 +144,7 @@ proc bikeTyrKeypairFromParts*(v: BikeVariant, seed0, seed1: openArray[byte]): Bi
   secureZeroPod(skState.bin)
   secureZeroPod(skState.sigma)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc bikeTyrKeypair*(v: BikeVariant, randomness: seq[byte] = @[]): BikeTyrKeypair {.otterTrace.} =
   ## Generate a BIKE-L1 keypair, optionally from explicit 64-byte randomness.
   var
@@ -147,6 +158,7 @@ proc bikeTyrKeypair*(v: BikeVariant, randomness: seq[byte] = @[]): BikeTyrKeypai
   result = bikeTyrKeypairDerand(v, material)
   secureZeroBytes(material)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrEncapsDerand`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc bikeTyrEncapsDerand*(v: BikeVariant, pk: openArray[byte],
     randomness: openArray[byte]): BikeTyrCipher {.otterTrace.} =
   ## Encapsulate against a BIKE-L1 public key from explicit 64-byte randomness.
@@ -172,6 +184,7 @@ proc bikeTyrEncapsDerand*(v: BikeVariant, pk: openArray[byte],
   secureZeroPod(E)
   secureZeroPod(ss)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrEncaps`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc bikeTyrEncaps*(v: BikeVariant, pk: openArray[byte],
     randomness: seq[byte] = @[]): BikeTyrCipher {.otterTrace.} =
   ## Encapsulate against a BIKE-L1 public key.
@@ -186,8 +199,12 @@ proc bikeTyrEncaps*(v: BikeVariant, pk: openArray[byte],
   result = bikeTyrEncapsDerand(v, pk, material)
   secureZeroBytes(material)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrTryDecaps`; pitfall: preserve implicit rejection and never expose a secret-dependent validity oracle.
 proc bikeTyrTryDecaps*(v: BikeVariant, sk, ctBytes: openArray[byte]): tuple[sharedSecret: seq[byte], ok: bool] =
-  ## Decapsulate a BIKE-L1 ciphertext and also report whether decode succeeded.
+  ## Decapsulate with implicit rejection. The `ok` result is diagnostic only:
+  ## application code must not branch on it or expose it to a peer because that
+  ## converts the decoder result into a ciphertext-validity oracle. Normal
+  ## callers must use `bikeTyrDecaps` and consume its derived secret uniformly.
   var
     skState: BikeSecretKeyState
     ct: BikeCiphertextRaw
@@ -227,6 +244,7 @@ proc bikeTyrTryDecaps*(v: BikeVariant, sk, ctBytes: openArray[byte]): tuple[shar
   secureZeroPod(mPrime)
   secureZeroPod(ss)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrDecaps`; pitfall: preserve implicit rejection and never expose a secret-dependent validity oracle.
 proc bikeTyrDecaps*(v: BikeVariant, sk, ctBytes: openArray[byte]): seq[byte] {.otterTrace.} =
   ## Decapsulate a BIKE-L1 ciphertext and return the shared secret.
   result = bikeTyrTryDecaps(v, sk, ctBytes).sharedSecret

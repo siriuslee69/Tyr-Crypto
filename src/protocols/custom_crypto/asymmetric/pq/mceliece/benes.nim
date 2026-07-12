@@ -11,6 +11,7 @@ const
   BenesGfBits = 13
   BenesPackedBytes = (1 shl BenesGfBits) div 8
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `layerIn`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc layerIn(data: var array[2, array[64, uint64]], bits: openArray[uint64],
     lgs: int) {.inline.} =
   var
@@ -37,6 +38,7 @@ proc layerIn(data: var array[2, array[64, uint64]], bits: openArray[uint64],
       inc j
     i += s * 2
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `layerEx`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc layerEx(data: var array[128, uint64], bits: openArray[uint64], lgs: int) {.inline.} =
   var
     s: int = 1 shl lgs
@@ -55,6 +57,7 @@ proc layerEx(data: var array[128, uint64], bits: openArray[uint64], lgs: int) {.
       inc j
     i += s * 2
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `applyBenes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc applyBenes*(r: var openArray[byte]; bits: openArray[byte]; gfbits: int;
     rev = false) =
   ## Apply a Benes network to a packed bitstring of length n = 2^gfbits.
@@ -87,14 +90,18 @@ proc applyBenes*(r: var openArray[byte]; bits: openArray[byte]; gfbits: int;
     clearSensitiveWords(bIntV)
     clearSensitiveWords(bIntH)
 
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `load64At`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template load64At(buf: openArray[byte], start: int): uint64 =
     load8(buf.toOpenArray(start, start + 7))
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `store64At`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template store64At(buf: var openArray[byte], start: int, v: uint64) =
     store8(buf.toOpenArray(start, start + 7), v)
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `packHorizontal`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
   template packHorizontal() =
     for i in 0 ..< 64:
       rIntH[i] = rIntH0[i]
       rIntH[i + 64] = rIntH1[i]
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `unpackHorizontal`; pitfall: reject malformed or non-canonical input before indexed access.
   template unpackHorizontal() =
     for i in 0 ..< 64:
       rIntH0[i] = rIntH[i]
@@ -178,6 +185,7 @@ proc applyBenes*(r: var openArray[byte]; bits: openArray[byte]; gfbits: int;
     store64At(r, i * 16 + 8, rIntV[1][i])
     i = i + 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `supportGen`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc supportGen*(outSupport: var openArray[GF]; bits: openArray[byte];
     gfbits, sysN: int) =
   assert gfbits == BenesGfBits

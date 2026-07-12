@@ -74,6 +74,7 @@ when defined(sse2):
   ## SIMD arithmetic direction in `2021-0986_neon_ntt_dilithium_kyber_saber.pdf`
   ## and `2022-0112_kyber_dilithium_speed_memory_cortex_m4.pdf`, while keeping
   ## the reference Dilithium polynomial operations unchanged.
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyAddSimdSse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyAddSimdSse(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
@@ -91,6 +92,7 @@ when defined(sse2):
       c.coeffs[i] = a.coeffs[i] + b.coeffs[i]
       i = i + 1
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polySubSimdSse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polySubSimdSse(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
@@ -108,6 +110,7 @@ when defined(sse2):
       c.coeffs[i] = a.coeffs[i] - b.coeffs[i]
       i = i + 1
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyShiftLSimdSse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyShiftLSimdSse(a: var DilithiumPoly) {.inline.} =
     var
       i: int = 0
@@ -125,6 +128,7 @@ when defined(sse2):
 when defined(neon) or defined(arm64) or defined(aarch64):
   ## Paper note: ARM128 lanes are the local portable NEON version of the public
   ## polynomial arithmetic batching discussed in `2021-0986_neon_ntt_dilithium_kyber_saber.pdf`.
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyAddSimdNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyAddSimdNeon(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
@@ -140,6 +144,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       c.coeffs[i] = a.coeffs[i] + b.coeffs[i]
       i = i + 1
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polySubSimdNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polySubSimdNeon(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
@@ -155,6 +160,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       c.coeffs[i] = a.coeffs[i] - b.coeffs[i]
       i = i + 1
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyShiftLSimdNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyShiftLSimdNeon(a: var DilithiumPoly) {.inline.} =
     var
       i: int = 0
@@ -171,6 +177,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
 when defined(avx2):
   ## Paper note: the eight-lane Montgomery product is the AVX2-side companion to
   ## the vectorized NTT/reduction style in `2018-0039_vectorized_ntt_implementations.pdf`.
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `montgomeryReduceProdVec8Avx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc montgomeryReduceProdVec8Avx2(a, b: navx.M256i): navx.M256i {.inline.} =
     var
       oddA: navx.M256i
@@ -198,6 +205,7 @@ when defined(avx2):
     oddHigh = navx2.mm256_slli_si256(oddHigh, 4)
     result = navx2.mm256_or_si256(evenHigh, oddHigh)
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyPointwiseMontgomerySimdAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyPointwiseMontgomerySimdAvx2(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline, otterBench.} =
     var
       i: int = 0
@@ -214,6 +222,7 @@ when defined(avx2):
       c.coeffs[i] = montgomeryReduce(int64(a.coeffs[i]) * int64(b.coeffs[i]))
       i = i + 1
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclPointwiseAccMontgomeryUsed4SimdAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyveclPointwiseAccMontgomeryUsed4SimdAvx2(w: var DilithiumPoly, u,
       v: DilithiumPolyVecL) {.inline, otterBench.} =
     var
@@ -249,6 +258,7 @@ when defined(avx2):
         montgomeryReduce(int64(u.vec[3].coeffs[i]) * int64(v.vec[3].coeffs[i]))
       i = i + 1
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclPointwiseAccMontgomeryUsed5SimdAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyveclPointwiseAccMontgomeryUsed5SimdAvx2(w: var DilithiumPoly, u,
       v: DilithiumPolyVecL) {.inline, otterBench.} =
     var
@@ -290,6 +300,7 @@ when defined(avx2):
         montgomeryReduce(int64(u.vec[4].coeffs[i]) * int64(v.vec[4].coeffs[i]))
       i = i + 1
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclPointwiseAccMontgomeryUsed7SimdAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyveclPointwiseAccMontgomeryUsed7SimdAvx2(w: var DilithiumPoly, u,
       v: DilithiumPolyVecL) {.inline, otterBench.} =
     var
@@ -343,6 +354,7 @@ when defined(avx2):
         montgomeryReduce(int64(u.vec[6].coeffs[i]) * int64(v.vec[6].coeffs[i]))
       i = i + 1
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclPointwiseAccMontgomerySimdAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyveclPointwiseAccMontgomerySimdAvx2(w: var DilithiumPoly, u,
       v: DilithiumPolyVecL) {.inline, otterBench.} =
     if u.used == 4:
@@ -384,6 +396,7 @@ when defined(avx2):
         j = j + 1
       i = i + 1
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyChkNormSimdAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyChkNormSimdAvx2(a: DilithiumPoly, B: int32): bool {.inline, otterBench.} =
     var
       i: int = 0
@@ -415,6 +428,7 @@ when defined(avx2):
       i = i + 1
     result = navx2.mm256_testz_si256(badVec, badVec) == 0 or bad != 0
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyAddSimdAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyAddSimdAvx2(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
@@ -432,6 +446,7 @@ when defined(avx2):
       c.coeffs[i] = a.coeffs[i] + b.coeffs[i]
       i = i + 1
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polySubSimdAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polySubSimdAvx2(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
@@ -449,6 +464,7 @@ when defined(avx2):
       c.coeffs[i] = a.coeffs[i] - b.coeffs[i]
       i = i + 1
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyShiftLSimdAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc polyShiftLSimdAvx2(a: var DilithiumPoly) {.inline.} =
     var
       i: int = 0
@@ -464,12 +480,15 @@ when defined(avx2):
       i = i + 1
 
 {.pop.}
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `initPolyVecL`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc initPolyVecL*(p: DilithiumParams): DilithiumPolyVecL {.raises: [].} =
   result.used = p.l
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `initPolyVecK`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc initPolyVecK*(p: DilithiumParams): DilithiumPolyVecK {.raises: [].} =
   result.used = p.k
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `initMatrix`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc initMatrix*(p: DilithiumParams): DilithiumMatrix {.inline, raises: [].} =
   var
     i: int = 0
@@ -482,6 +501,7 @@ proc initMatrix*(p: DilithiumParams): DilithiumMatrix {.inline, raises: [].} =
     i = i + 1
   {.pop.}
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `clearBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clearBytes*(A: var seq[byte]) =
   var
     i: int = 0
@@ -490,12 +510,14 @@ proc clearBytes*(A: var seq[byte]) =
     A[i] = 0'u8
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `clearPlainData`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clearPlainData*[T](S: var T) {.raises: [].} =
   when supportsCopyMem(T):
     zeroMem(addr S, sizeof(T))
   else:
     {.error: "clearPlainData requires supportsCopyMem(T)".}
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `clearSensitiveBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clearSensitiveBytes*(A: var seq[byte]) {.raises: [].} =
   var
     i: int = 0
@@ -503,6 +525,7 @@ proc clearSensitiveBytes*(A: var seq[byte]) {.raises: [].} =
     volatileStore(addr A[i], 0'u8)
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `clearSensitivePlainData`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clearSensitivePlainData*[T](S: var T) {.raises: [].} =
   when supportsCopyMem(T):
     var
@@ -514,6 +537,7 @@ proc clearSensitivePlainData*[T](S: var T) {.raises: [].} =
   else:
     {.error: "clearSensitivePlainData requires supportsCopyMem(T)".}
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `sliceBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc sliceBytes*(A: openArray[byte], o, l: int): seq[byte] =
   var
     i: int = 0
@@ -524,6 +548,7 @@ proc sliceBytes*(A: openArray[byte], o, l: int): seq[byte] =
     i = i + 1
 
 {.push boundChecks: off, overflowChecks: off.}
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyReduce*(a: var DilithiumPoly) {.inline, raises: [].} =
   var
     i: int = 0
@@ -532,6 +557,7 @@ proc polyReduce*(a: var DilithiumPoly) {.inline, raises: [].} =
     a.coeffs[i] = reduce32(a.coeffs[i])
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyCaddq`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyCaddq*(a: var DilithiumPoly) {.inline, raises: [].} =
   var
     i: int = 0
@@ -540,6 +566,7 @@ proc polyCaddq*(a: var DilithiumPoly) {.inline, raises: [].} =
     a.coeffs[i] = caddq(a.coeffs[i])
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyAdd*(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline, raises: [].} =
   ## Paper note: this dispatch is where Tyr differs from clean reference code by
   ## selecting fixed public SIMD coefficient lanes when the target supports them.
@@ -557,6 +584,7 @@ proc polyAdd*(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline, raises: [].} 
       c.coeffs[i] = a.coeffs[i] + b.coeffs[i]
       i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polySub`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polySub*(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline, raises: [].} =
   ## Paper note: subtraction uses the same backend split as addition, so the
   ## arithmetic is reference-compatible but packed per target ISA.
@@ -574,6 +602,7 @@ proc polySub*(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline, raises: [].} 
       c.coeffs[i] = a.coeffs[i] - b.coeffs[i]
       i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyShiftL`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyShiftL*(a: var DilithiumPoly) {.inline, raises: [].} =
   when defined(avx2):
     polyShiftLSimdAvx2(a)
@@ -589,12 +618,15 @@ proc polyShiftL*(a: var DilithiumPoly) {.inline, raises: [].} =
       a.coeffs[i] = a.coeffs[i] shl dilithiumD
       i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyNtt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyNtt*(a: var DilithiumPoly) {.inline, otterBench, raises: [].} =
   ntt(a.coeffs)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyInvnttTomont`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyInvnttTomont*(a: var DilithiumPoly) {.inline, otterBench, raises: [].} =
   invnttTomont(a.coeffs)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyPointwiseMontgomery`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyPointwiseMontgomery*(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline, otterBench, raises: [].} =
   ## Paper note: the AVX2 branch packs eight independent Montgomery products,
   ## matching the lane-level multiplication/reduction strategy from the AVX2 NTT paper.
@@ -608,6 +640,7 @@ proc polyPointwiseMontgomery*(c: var DilithiumPoly, a, b: DilithiumPoly) {.inlin
       c.coeffs[i] = montgomeryReduce(int64(a.coeffs[i]) * int64(b.coeffs[i]))
       i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyPower2Round`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyPower2Round*(a1, a0: var DilithiumPoly, a: DilithiumPoly) {.raises: [].} =
   var
     i: int = 0
@@ -619,6 +652,7 @@ proc polyPower2Round*(a1, a0: var DilithiumPoly, a: DilithiumPoly) {.raises: [].
     a0.coeffs[i] = t.a0
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyDecompose`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyDecompose*(p: DilithiumParams, a1, a0: var DilithiumPoly, a: DilithiumPoly) {.raises: [].} =
   var
     i: int = 0
@@ -638,6 +672,7 @@ proc polyDecompose*(p: DilithiumParams, a1, a0: var DilithiumPoly, a: DilithiumP
     a0.coeffs[i] = t.a0
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyMakeHint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMakeHint*(p: DilithiumParams, h: var DilithiumPoly, a0, a1: DilithiumPoly): uint32 {.raises: [].} =
   var
     i: int = 0
@@ -648,6 +683,7 @@ proc polyMakeHint*(p: DilithiumParams, h: var DilithiumPoly, a0, a1: DilithiumPo
     result = result + uint32(h.coeffs[i])
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUseHint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUseHint*(p: DilithiumParams, b: var DilithiumPoly, a, h: DilithiumPoly) {.raises: [].} =
   var
     i: int = 0
@@ -662,6 +698,7 @@ proc polyUseHint*(p: DilithiumParams, b: var DilithiumPoly, a, h: DilithiumPoly)
     b.coeffs[i] = useHintGamma88(a.coeffs[i], uint32(h.coeffs[i]))
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyChkNorm`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyChkNorm*(a: DilithiumPoly, B: int32): bool {.otterBench, raises: [].} =
   when defined(avx2):
     result = polyChkNormSimdAvx2(a, B)
@@ -682,6 +719,7 @@ proc polyChkNorm*(a: DilithiumPoly, B: int32): bool {.otterBench, raises: [].} =
       i = i + 1
     result = bad != 0
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `rejUniform`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc rejUniform(dst: var array[dilithiumN, int32], offset, need: int,
     buf: openArray[byte]): int {.inline, raises: [].} =
   var
@@ -704,6 +742,7 @@ proc rejUniform(dst: var array[dilithiumN, int32], offset, need: int,
       ctr = ctr + 1
   result = ctr
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `rejEta`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc rejEta(p: DilithiumParams, dst: var array[dilithiumN, int32], offset, need: int,
     buf: openArray[byte]): int {.inline, raises: [].} =
   var
@@ -735,28 +774,34 @@ proc rejEta(p: DilithiumParams, dst: var array[dilithiumN, int32], offset, need:
         ctr = ctr + 1
   result = ctr
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `ctMaskLtSmall`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ctMaskLtSmall(a, b: uint32): int32 {.inline, raises: [].} =
   result = int32(((a - b) shr 31) and 1'u32)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `ctSelectInt32`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ctSelectInt32(a, b, m: int32): int32 {.inline, raises: [].} =
   var
     mask: int32 = 0'i32 - m
   result = a xor ((a xor b) and mask)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `ctSelectInt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ctSelectInt(a, b: int, m: int32): int {.inline, raises: [].} =
   var
     mask: int = 0 - int(m)
   result = a xor ((a xor b) and mask)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `etaValueEta2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc etaValueEta2(t: uint32): int32 {.inline, raises: [].} =
   var
     reduced: uint32 = 0
   reduced = t - ((205'u32 * t) shr 10) * 5'u32
   result = 2'i32 - cast[int32](reduced)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `etaValueEta4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc etaValueEta4(t: uint32): int32 {.inline, raises: [].} =
   result = 4'i32 - cast[int32](t)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `appendEtaCt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc appendEtaCt(dst: var array[dilithiumN, int32], ctr: var int,
     value: int32, accept: int32) {.inline, raises: [].} =
   ## Paper note: `2024-1149_dilithium_sampling_implementation_analysis.pdf` and
@@ -770,6 +815,7 @@ proc appendEtaCt(dst: var array[dilithiumN, int32], ctr: var int,
   dst[idx] = ctSelectInt32(dst[idx], value, take)
   ctr = ctr + int(accept)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `fillEtaCtPrefix`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fillEtaCtPrefix[INBYTES: static[int]](p: DilithiumParams, a: var DilithiumPoly,
     buf: var array[INBYTES, byte]): int {.inline, raises: [].} =
   var
@@ -794,6 +840,7 @@ proc fillEtaCtPrefix[INBYTES: static[int]](p: DilithiumParams, a: var DilithiumP
       i = i + 1
   result = ctr
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `finishEtaCtPrefix`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc finishEtaCtPrefix[INBYTES: static[int]](p: DilithiumParams, a: var DilithiumPoly,
     S: var Sha3State, buf: var array[INBYTES, byte]) {.inline, raises: [].} =
   ## Paper note: this completes the fixed-work eta prefix and only falls back to
@@ -809,6 +856,7 @@ proc finishEtaCtPrefix[INBYTES: static[int]](p: DilithiumParams, a: var Dilithiu
       ctr = ctr + rejEta(p, a.coeffs, ctr, dilithiumN - ctr,
         buf.toOpenArray(0, shake256RateBytes - 1))
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `initShake128NonceState`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc initShake128NonceState(S: var Sha3State,
     seed: array[dilithiumSeedBytes, byte], nonce: uint16) {.inline, raises: [].} =
   var
@@ -822,6 +870,7 @@ proc initShake128NonceState(S: var Sha3State,
   shake128AbsorbOnce(S, input)
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `initShake128NonceMsg`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc initShake128NonceMsg(msg: var array[dilithiumSeedBytes + 2, byte],
       seed: array[dilithiumSeedBytes, byte], nonce: uint16) {.inline, raises: [].} =
     var
@@ -832,6 +881,7 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
     msg[dilithiumSeedBytes] = byte(nonce and 0xff'u16)
     msg[dilithiumSeedBytes + 1] = byte((nonce shr 8) and 0xff'u16)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `initShake256NonceState`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc initShake256NonceState(S: var Sha3State,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
   var
@@ -845,6 +895,7 @@ proc initShake256NonceState(S: var Sha3State,
   shake256AbsorbOnce(S, input)
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `initShake256NonceMsg`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc initShake256NonceMsg(msg: var array[dilithiumCrhBytes + 2, byte],
       seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
     var
@@ -855,6 +906,7 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
     msg[dilithiumCrhBytes] = byte(nonce and 0xff'u16)
     msg[dilithiumCrhBytes + 1] = byte((nonce shr 8) and 0xff'u16)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniformSeed(a: var DilithiumPoly,
     seed: array[dilithiumSeedBytes, byte], nonce: uint16) {.inline, raises: [].} =
   var
@@ -881,6 +933,7 @@ when defined(avx2):
   ## Paper note: four-way SHAKE128 expansion is a performance batching of public
   ## matrix/nonces, in the same family as vectorized Dilithium implementations;
   ## each lane still runs the reference rejection sampler for exact output.
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniform4xSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniform4xSeed(a0, a1, a2, a3: var DilithiumPoly,
       seed: array[dilithiumSeedBytes, byte], nonce0, nonce1, nonce2,
       nonce3: uint16) {.inline, otterBench, raises: [].} =
@@ -915,6 +968,7 @@ when defined(avx2):
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   ## Paper note: this 2-lane SHAKE path is the scalar-compatible fallback for
   ## targets without AVX2 4x Keccak, preserving the same per-lane nonce schedule.
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniform2xSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniform2xSeed(a0, a1: var DilithiumPoly,
       seed: array[dilithiumSeedBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
     var
@@ -947,10 +1001,12 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
     clearSensitivePlainData(initBufs)
     clearSensitivePlainData(extraBufs)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniform`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniform*(a: var DilithiumPoly,
     seed: array[dilithiumSeedBytes, byte], nonce: uint16) {.inline, raises: [].} =
   polyUniformSeed(a, seed, nonce)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniform`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniform*(a: var DilithiumPoly, seed: openArray[byte], nonce: uint16) =
   var
     fixedSeed: array[dilithiumSeedBytes, byte]
@@ -962,6 +1018,7 @@ proc polyUniform*(a: var DilithiumPoly, seed: openArray[byte], nonce: uint16) =
     i = i + 1
   polyUniformSeed(a, fixedSeed, nonce)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEtaSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniformEtaSeed*(p: DilithiumParams, a: var DilithiumPoly,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
   if p.eta == 2:
@@ -983,6 +1040,7 @@ proc polyUniformEtaSeed*(p: DilithiumParams, a: var DilithiumPoly,
   clearSensitivePlainData(S)
   clearSensitivePlainData(buf)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEta`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniformEta*(p: DilithiumParams, a: var DilithiumPoly,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
   polyUniformEtaSeed(p, a, seed, nonce)
@@ -990,6 +1048,7 @@ proc polyUniformEta*(p: DilithiumParams, a: var DilithiumPoly,
 when defined(avx2):
   ## Paper note: the 4x eta functions combine AVX2 SHAKE batching with the
   ## fixed-work eta prefix above; they are not the variable-work reference loop.
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEta4xCtSeedEta2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniformEta4xCtSeedEta2(p: DilithiumParams, a0, a1, a2, a3: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1, nonce2,
       nonce3: uint16) {.inline, otterBench, raises: [].} =
@@ -1011,6 +1070,7 @@ when defined(avx2):
     clearSensitivePlainData(bufs)
     clearSensitivePlainData(msgs)
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEta4xCtSeedEta4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniformEta4xCtSeedEta4(p: DilithiumParams, a0, a1, a2, a3: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1, nonce2,
       nonce3: uint16) {.inline, otterBench, raises: [].} =
@@ -1032,6 +1092,7 @@ when defined(avx2):
     clearSensitivePlainData(bufs)
     clearSensitivePlainData(msgs)
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEta4xCtSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniformEta4xCtSeed(p: DilithiumParams, a0, a1, a2, a3: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1, nonce2,
       nonce3: uint16) {.inline, otterBench, raises: [].} =
@@ -1044,6 +1105,7 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
   ## Paper note: the 2x eta functions use the same masked fixed-prefix fill for
   ## SSE2/NEON-class targets, then fall back per lane only if the fixed prefix
   ## did not produce enough accepted coefficients.
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEta2xCtSeedEta2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniformEta2xCtSeedEta2(p: DilithiumParams, a0, a1: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
     var
@@ -1063,6 +1125,7 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
     clearSensitivePlainData(bufs)
     clearSensitivePlainData(msgs)
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEta2xCtSeedEta4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniformEta2xCtSeedEta4(p: DilithiumParams, a0, a1: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
     var
@@ -1082,6 +1145,7 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
     clearSensitivePlainData(bufs)
     clearSensitivePlainData(msgs)
 
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEta2xCtSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniformEta2xCtSeed(p: DilithiumParams, a0, a1: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
     if p.eta == 2:
@@ -1089,6 +1153,7 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
       return
     polyUniformEta2xCtSeedEta4(p, a0, a1, seed, nonce0, nonce1)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEta`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniformEta*(p: DilithiumParams, a: var DilithiumPoly,
     seed: openArray[byte], nonce: uint16) =
   var
@@ -1102,8 +1167,10 @@ proc polyUniformEta*(p: DilithiumParams, a: var DilithiumPoly,
   polyUniformEtaSeed(p, a, fixedSeed, nonce)
   clearSensitivePlainData(fixedSeed)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyZUnpack`; pitfall: reject malformed or non-canonical input before indexed access.
 proc polyZUnpack*(p: DilithiumParams, r: var DilithiumPoly, a: openArray[byte]) {.raises: [].}
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformGamma1Seed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniformGamma1Seed*(p: DilithiumParams, a: var DilithiumPoly,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
   var
@@ -1118,6 +1185,7 @@ proc polyUniformGamma1Seed*(p: DilithiumParams, a: var DilithiumPoly,
 when defined(avx2):
   ## Paper note: gamma1 sampling is batched only at the SHAKE/output-unpack layer,
   ## a performance optimization that preserves the CRYSTALS-Dilithium distribution.
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformGamma14xSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniformGamma14xSeed(p: DilithiumParams, a0, a1, a2, a3: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1, nonce2,
       nonce3: uint16) {.inline, otterBench, raises: [].} =
@@ -1137,6 +1205,7 @@ when defined(avx2):
     polyZUnpack(p, a3, bufs[3].toOpenArray(0, p.polyZPackedBytes - 1))
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
+  ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformGamma12xSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniformGamma12xSeed(p: DilithiumParams, a0, a1: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
     var
@@ -1150,10 +1219,12 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
     clearSensitivePlainData(bufs)
     clearSensitivePlainData(msgs)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformGamma1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniformGamma1*(p: DilithiumParams, a: var DilithiumPoly,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
   polyUniformGamma1Seed(p, a, seed, nonce)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformGamma1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniformGamma1*(p: DilithiumParams, a: var DilithiumPoly,
     seed: openArray[byte], nonce: uint16) =
   var
@@ -1166,6 +1237,7 @@ proc polyUniformGamma1*(p: DilithiumParams, a: var DilithiumPoly,
     i = i + 1
   polyUniformGamma1Seed(p, a, fixedSeed, nonce)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyChallengeSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyChallengeSeed*(p: DilithiumParams, c: var DilithiumPoly,
     seed: openArray[byte]) {.inline, raises: [].} =
   var
@@ -1200,11 +1272,13 @@ proc polyChallengeSeed*(p: DilithiumParams, c: var DilithiumPoly,
     signs = signs shr 1
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyChallenge`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyChallenge*(p: DilithiumParams, c: var DilithiumPoly, seed: openArray[byte]) =
   if seed.len != p.ctildeBytes:
     raise newException(ValueError, "invalid Dilithium challenge seed length")
   polyChallengeSeed(p, c, seed)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyEtaPackInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyEtaPackInto(p: DilithiumParams, r: var openArray[byte],
     a: DilithiumPoly) {.inline, raises: [].} =
   var
@@ -1230,15 +1304,18 @@ proc polyEtaPackInto(p: DilithiumParams, r: var openArray[byte],
     r[i] = t[0] or (t[1] shl 4)
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyEtaPack`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyEtaPack*(p: DilithiumParams, r: var openArray[byte], a: DilithiumPoly) =
   if r.len != p.polyEtaPackedBytes:
     raise newException(ValueError, "invalid Dilithium eta pack buffer length")
   polyEtaPackInto(p, r, a)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyEtaPack`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyEtaPack*(p: DilithiumParams, r: var seq[byte], a: DilithiumPoly) =
   r.setLen(p.polyEtaPackedBytes)
   polyEtaPack(p, r.toOpenArray(0, r.len - 1), a)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyEtaUnpackInto`; pitfall: reject malformed or non-canonical input before indexed access.
 proc polyEtaUnpackInto(p: DilithiumParams, r: var DilithiumPoly,
     a: openArray[byte]) {.inline, raises: [].} =
   var
@@ -1263,9 +1340,11 @@ proc polyEtaUnpackInto(p: DilithiumParams, r: var DilithiumPoly,
     r.coeffs[2 * i + 1] = eta - int32(a[i] shr 4)
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyEtaUnpack`; pitfall: reject malformed or non-canonical input before indexed access.
 proc polyEtaUnpack*(p: DilithiumParams, r: var DilithiumPoly, a: openArray[byte]) {.inline, raises: [].} =
   polyEtaUnpackInto(p, r, a)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyT1PackInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyT1PackInto(r: var openArray[byte], a: DilithiumPoly) {.inline, raises: [].} =
   var
     i: int = 0
@@ -1278,15 +1357,18 @@ proc polyT1PackInto(r: var openArray[byte], a: DilithiumPoly) {.inline, raises: 
     r[5 * i + 4] = byte(a.coeffs[4 * i + 3] shr 2)
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyT1Pack`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyT1Pack*(r: var openArray[byte], a: DilithiumPoly) =
   if r.len != 320:
     raise newException(ValueError, "invalid Dilithium t1 pack buffer length")
   polyT1PackInto(r, a)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyT1Pack`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyT1Pack*(r: var seq[byte], a: DilithiumPoly) =
   r.setLen(320)
   polyT1Pack(r.toOpenArray(0, r.len - 1), a)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyT1Unpack`; pitfall: reject malformed or non-canonical input before indexed access.
 proc polyT1Unpack*(r: var DilithiumPoly, a: openArray[byte]) {.inline, raises: [].} =
   var
     i: int = 0
@@ -1298,6 +1380,7 @@ proc polyT1Unpack*(r: var DilithiumPoly, a: openArray[byte]) {.inline, raises: [
     r.coeffs[4 * i + 3] = cast[int32]((uint32(a[5 * i + 3] shr 6) or (uint32(a[5 * i + 4]) shl 2)) and 0x3ff'u32)
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyT0PackInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyT0PackInto(r: var openArray[byte], a: DilithiumPoly) {.inline, raises: [].} =
   var
     i: int = 0
@@ -1324,15 +1407,18 @@ proc polyT0PackInto(r: var openArray[byte], a: DilithiumPoly) {.inline, raises: 
     r[13*i+12] = byte(t[7] shr 5)
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyT0Pack`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyT0Pack*(r: var openArray[byte], a: DilithiumPoly) =
   if r.len != 416:
     raise newException(ValueError, "invalid Dilithium t0 pack buffer length")
   polyT0PackInto(r, a)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyT0Pack`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyT0Pack*(r: var seq[byte], a: DilithiumPoly) =
   r.setLen(416)
   polyT0Pack(r.toOpenArray(0, r.len - 1), a)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyT0Unpack`; pitfall: reject malformed or non-canonical input before indexed access.
 proc polyT0Unpack*(r: var DilithiumPoly, a: openArray[byte]) {.inline, raises: [].} =
   var
     i: int = 0
@@ -1353,6 +1439,7 @@ proc polyT0Unpack*(r: var DilithiumPoly, a: openArray[byte]) {.inline, raises: [
       j = j + 1
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyZPackInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyZPackInto(p: DilithiumParams, r: var openArray[byte],
     a: DilithiumPoly) {.inline, raises: [].} =
   var
@@ -1388,15 +1475,18 @@ proc polyZPackInto(p: DilithiumParams, r: var openArray[byte],
     r[5*i+4] = byte(t[1] shr 12)
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyZPack`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyZPack*(p: DilithiumParams, r: var openArray[byte], a: DilithiumPoly) =
   if r.len != p.polyZPackedBytes:
     raise newException(ValueError, "invalid Dilithium z pack buffer length")
   polyZPackInto(p, r, a)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyZPack`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyZPack*(p: DilithiumParams, r: var seq[byte], a: DilithiumPoly) =
   r.setLen(p.polyZPackedBytes)
   polyZPack(p, r.toOpenArray(0, r.len - 1), a)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyZUnpack`; pitfall: reject malformed or non-canonical input before indexed access.
 proc polyZUnpack*(p: DilithiumParams, r: var DilithiumPoly, a: openArray[byte]) =
   var
     i: int = 0
@@ -1422,6 +1512,7 @@ proc polyZUnpack*(p: DilithiumParams, r: var DilithiumPoly, a: openArray[byte]) 
     r.coeffs[2*i+1] = p.gamma1 - r.coeffs[2*i+1]
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyW1PackInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyW1PackInto*(p: DilithiumParams, r: var openArray[byte],
     a: DilithiumPoly) {.inline, raises: [].} =
   var
@@ -1439,15 +1530,18 @@ proc polyW1PackInto*(p: DilithiumParams, r: var openArray[byte],
     r[i] = byte(a.coeffs[2*i+0] or (a.coeffs[2*i+1] shl 4))
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyW1Pack`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyW1Pack*(p: DilithiumParams, r: var openArray[byte], a: DilithiumPoly) =
   if r.len != p.polyW1PackedBytes:
     raise newException(ValueError, "invalid Dilithium w1 pack buffer length")
   polyW1PackInto(p, r, a)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyW1Pack`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyW1Pack*(p: DilithiumParams, r: var seq[byte], a: DilithiumPoly) =
   r.setLen(p.polyW1PackedBytes)
   polyW1Pack(p, r.toOpenArray(0, r.len - 1), a)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclUniformEta`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveclUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecL,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
   ## Paper note: vector secrets consume the fixed-work 4x/2x eta samplers above,
@@ -1495,6 +1589,7 @@ proc polyveclUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecL,
     nn = nn + 1'u16
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclUniformEta`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveclUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecL,
     seed: openArray[byte], nonce: uint16) =
   var
@@ -1508,6 +1603,7 @@ proc polyveclUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecL,
   polyveclUniformEta(p, v, fixedSeed, nonce)
   clearSensitivePlainData(fixedSeed)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclUniformGamma1BaseNonce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveclUniformGamma1BaseNonce*(p: DilithiumParams, v: var DilithiumPolyVecL,
     seed: array[dilithiumCrhBytes, byte], baseNonce: uint16) {.inline, otterBench, raises: [].} =
   ## Paper note: this selects the batched gamma1 SHAKE paths for public nonce
@@ -1552,10 +1648,12 @@ proc polyveclUniformGamma1BaseNonce*(p: DilithiumParams, v: var DilithiumPolyVec
     nonceNow = nonceNow + 1'u16
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclUniformGamma1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveclUniformGamma1*(p: DilithiumParams, v: var DilithiumPolyVecL,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
   polyveclUniformGamma1BaseNonce(p, v, seed, uint16(p.l * int(nonce)))
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclUniformGamma1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveclUniformGamma1*(p: DilithiumParams, v: var DilithiumPolyVecL,
     seed: openArray[byte], nonce: uint16) =
   var
@@ -1568,27 +1666,33 @@ proc polyveclUniformGamma1*(p: DilithiumParams, v: var DilithiumPolyVecL,
     i = i + 1
   polyveclUniformGamma1(p, v, fixedSeed, nonce)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveclReduce*(v: var DilithiumPolyVecL) {.inline, raises: [].} =
   for i in 0 ..< v.used:
     polyReduce(v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveclAdd*(w: var DilithiumPolyVecL, u, v: DilithiumPolyVecL) {.inline, raises: [].} =
   for i in 0 ..< w.used:
     polyAdd(w.vec[i], u.vec[i], v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclNtt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveclNtt*(v: var DilithiumPolyVecL) {.inline, raises: [].} =
   for i in 0 ..< v.used:
     polyNtt(v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclInvnttTomont`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveclInvnttTomont*(v: var DilithiumPolyVecL) {.inline, raises: [].} =
   for i in 0 ..< v.used:
     polyInvnttTomont(v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclPointwisePolyMontgomery`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveclPointwisePolyMontgomery*(r: var DilithiumPolyVecL, a: DilithiumPoly,
     v: DilithiumPolyVecL) {.inline, raises: [].} =
   for i in 0 ..< r.used:
     polyPointwiseMontgomery(r.vec[i], a, v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclPointwiseAccMontgomery`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveclPointwiseAccMontgomery*(w: var DilithiumPoly, u, v: DilithiumPolyVecL) {.inline, otterBench, raises: [].} =
   ## Paper note: the AVX2 branch fuses vector pointwise products and accumulation
   ## in fixed public coefficient lanes, following the vectorized NTT implementation style.
@@ -1604,6 +1708,7 @@ proc polyveclPointwiseAccMontgomery*(w: var DilithiumPoly, u, v: DilithiumPolyVe
       polyAdd(w, w, t)
       i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclChkNorm`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveclChkNorm*(v: DilithiumPolyVecL, B: int32): bool {.inline, raises: [].} =
   var bad: bool = false
   for i in 0 ..< v.used:
@@ -1611,6 +1716,7 @@ proc polyveclChkNorm*(v: DilithiumPolyVecL, B: int32): bool {.inline, raises: []
       bad = true
   result = bad
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckUniformEta`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecK,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
   ## Paper note: K-vector eta sampling reuses the same fixed-prefix batched
@@ -1655,6 +1761,7 @@ proc polyveckUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecK,
     nn = nn + 1'u16
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckUniformEta`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecK,
     seed: openArray[byte], nonce: uint16) =
   var
@@ -1668,39 +1775,48 @@ proc polyveckUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecK,
   polyveckUniformEta(p, v, fixedSeed, nonce)
   clearSensitivePlainData(fixedSeed)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckReduce*(v: var DilithiumPolyVecK) {.inline, raises: [].} =
   for i in 0 ..< v.used:
     polyReduce(v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckCaddq`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckCaddq*(v: var DilithiumPolyVecK) {.inline, raises: [].} =
   for i in 0 ..< v.used:
     polyCaddq(v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckAdd*(w: var DilithiumPolyVecK, u, v: DilithiumPolyVecK) {.inline, raises: [].} =
   for i in 0 ..< w.used:
     polyAdd(w.vec[i], u.vec[i], v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckSub`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckSub*(w: var DilithiumPolyVecK, u, v: DilithiumPolyVecK) {.inline, raises: [].} =
   for i in 0 ..< w.used:
     polySub(w.vec[i], u.vec[i], v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckShiftl`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckShiftl*(v: var DilithiumPolyVecK) {.inline, raises: [].} =
   for i in 0 ..< v.used:
     polyShiftL(v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckNtt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckNtt*(v: var DilithiumPolyVecK) {.inline, raises: [].} =
   for i in 0 ..< v.used:
     polyNtt(v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckInvnttTomont`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckInvnttTomont*(v: var DilithiumPolyVecK) {.inline, raises: [].} =
   for i in 0 ..< v.used:
     polyInvnttTomont(v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckPointwisePolyMontgomery`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckPointwisePolyMontgomery*(r: var DilithiumPolyVecK, a: DilithiumPoly,
     v: DilithiumPolyVecK) {.inline, raises: [].} =
   for i in 0 ..< r.used:
     polyPointwiseMontgomery(r.vec[i], a, v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckChkNorm`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckChkNorm*(v: DilithiumPolyVecK, B: int32): bool {.inline, raises: [].} =
   var bad: bool = false
   for i in 0 ..< v.used:
@@ -1708,34 +1824,41 @@ proc polyveckChkNorm*(v: DilithiumPolyVecK, B: int32): bool {.inline, raises: []
       bad = true
   result = bad
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckPower2Round`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckPower2Round*(v1, v0: var DilithiumPolyVecK, v: DilithiumPolyVecK) {.inline, raises: [].} =
   for i in 0 ..< v.used:
     polyPower2Round(v1.vec[i], v0.vec[i], v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckDecompose`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckDecompose*(p: DilithiumParams, v1, v0: var DilithiumPolyVecK,
     v: DilithiumPolyVecK) {.inline, otterBench, raises: [].} =
   for i in 0 ..< v.used:
     polyDecompose(p, v1.vec[i], v0.vec[i], v.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckMakeHint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckMakeHint*(p: DilithiumParams, h: var DilithiumPolyVecK,
     v0, v1: DilithiumPolyVecK): uint32 {.inline, otterBench, raises: [].} =
   for i in 0 ..< h.used:
     result = result + polyMakeHint(p, h.vec[i], v0.vec[i], v1.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckUseHint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckUseHint*(p: DilithiumParams, w: var DilithiumPolyVecK,
     v, h: DilithiumPolyVecK) {.inline, otterBench, raises: [].} =
   for i in 0 ..< w.used:
     polyUseHint(p, w.vec[i], v.vec[i], h.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckPackW1`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyveckPackW1*(p: DilithiumParams, r: var openArray[byte], w1: DilithiumPolyVecK) {.inline, otterBench, raises: [].} =
   for i in 0 ..< p.k:
     polyW1PackInto(p, r.toOpenArray(i * p.polyW1PackedBytes,
       (i + 1) * p.polyW1PackedBytes - 1), w1.vec[i])
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckPackW1`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc polyveckPackW1*(p: DilithiumParams, r: var seq[byte], w1: DilithiumPolyVecK) =
   r.setLen(p.k * p.polyW1PackedBytes)
   polyveckPackW1(p, r.toOpenArray(0, r.len - 1), w1)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyvecMatrixExpandRowInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecMatrixExpandRowInto*(p: DilithiumParams, row: var DilithiumPolyVecL,
     rho: array[dilithiumSeedBytes, byte], rowIndex: int) {.inline, otterBench, raises: [].} =
   ## Paper note: matrix rows use 4x/2x public SHAKE expansion here; this is the
@@ -1782,6 +1905,7 @@ proc polyvecMatrixExpandRowInto*(p: DilithiumParams, row: var DilithiumPolyVecL,
     polyUniform(row.vec[j], rho, uint16((rowIndex shl 8) + j))
     j = j + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyvecMatrixExpand`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecMatrixExpand*(p: DilithiumParams,
     rho: array[dilithiumSeedBytes, byte]): DilithiumMatrix {.inline, otterBench, raises: [].} =
   result = initMatrix(p)
@@ -1812,6 +1936,7 @@ proc polyvecMatrixExpand*(p: DilithiumParams,
   for i in 0 ..< p.k:
     polyvecMatrixExpandRowInto(p, result.mat[i], rho, i)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyvecMatrixExpand`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecMatrixExpand*(p: DilithiumParams, rho: openArray[byte]): DilithiumMatrix =
   var
     fixedRho: array[dilithiumSeedBytes, byte]
@@ -1823,6 +1948,7 @@ proc polyvecMatrixExpand*(p: DilithiumParams, rho: openArray[byte]): DilithiumMa
     i = i + 1
   result = polyvecMatrixExpand(p, fixedRho)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyvecMatrixPointwiseMontgomery`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecMatrixPointwiseMontgomery*(p: DilithiumParams, t: var DilithiumPolyVecK,
     mat: DilithiumMatrix, v: DilithiumPolyVecL) {.inline, otterBench, raises: [].} =
   if p.k == 4:
@@ -1852,6 +1978,7 @@ proc polyvecMatrixPointwiseMontgomery*(p: DilithiumParams, t: var DilithiumPolyV
   for i in 0 ..< p.k:
     polyveclPointwiseAccMontgomery(t.vec[i], mat.mat[i], v)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `packPkIntoUnchecked`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc packPkIntoUnchecked(p: DilithiumParams, dst: var openArray[byte], rho: openArray[byte],
     t1: DilithiumPolyVecK) {.raises: [].} =
   var
@@ -1866,16 +1993,19 @@ proc packPkIntoUnchecked(p: DilithiumParams, dst: var openArray[byte], rho: open
       dilithiumSeedBytes + (i + 1) * p.polyT1PackedBytes - 1), t1.vec[i])
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `packPkInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packPkInto*(p: DilithiumParams, dst: var openArray[byte], rho: openArray[byte],
     t1: DilithiumPolyVecK) =
   if dst.len != p.publicKeyBytes:
     raise newException(ValueError, "invalid Dilithium public key buffer length")
   packPkIntoUnchecked(p, dst, rho, t1)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `packPk`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packPk*(p: DilithiumParams, rho: openArray[byte], t1: DilithiumPolyVecK): seq[byte] {.raises: [].} =
   result = newSeq[byte](p.publicKeyBytes)
   packPkIntoUnchecked(p, result, rho, t1)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `unpackPk`; pitfall: reject malformed or non-canonical input before indexed access.
 proc unpackPk*(p: DilithiumParams, pk: openArray[byte]): DilithiumPublicKeyState {.raises: [].} =
   var
     i: int = 0
@@ -1889,6 +2019,7 @@ proc unpackPk*(p: DilithiumParams, pk: openArray[byte]): DilithiumPublicKeyState
       pk.toOpenArray(dilithiumSeedBytes + i * p.polyT1PackedBytes,
         dilithiumSeedBytes + (i + 1) * p.polyT1PackedBytes - 1))
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `packSkIntoUnchecked`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc packSkIntoUnchecked(p: DilithiumParams, dst: var openArray[byte], rho, tr, key: openArray[byte],
     t0: DilithiumPolyVecK, s1: DilithiumPolyVecL, s2: DilithiumPolyVecK) {.raises: [].} =
   var
@@ -1925,17 +2056,20 @@ proc packSkIntoUnchecked(p: DilithiumParams, dst: var openArray[byte], rho, tr, 
     o = o + p.polyT0PackedBytes
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `packSkInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packSkInto*(p: DilithiumParams, dst: var openArray[byte], rho, tr, key: openArray[byte],
     t0: DilithiumPolyVecK, s1: DilithiumPolyVecL, s2: DilithiumPolyVecK) =
   if dst.len != p.secretKeyBytes:
     raise newException(ValueError, "invalid Dilithium secret key buffer length")
   packSkIntoUnchecked(p, dst, rho, tr, key, t0, s1, s2)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `packSk`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packSk*(p: DilithiumParams, rho, tr, key: openArray[byte], t0: DilithiumPolyVecK,
     s1: DilithiumPolyVecL, s2: DilithiumPolyVecK): seq[byte] {.raises: [].} =
   result = newSeq[byte](p.secretKeyBytes)
   packSkIntoUnchecked(p, result, rho, tr, key, t0, s1, s2)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `unpackSk`; pitfall: reject malformed or non-canonical input before indexed access.
 proc unpackSk*(p: DilithiumParams, sk: openArray[byte]): DilithiumSecretKeyState {.raises: [].} =
   var
     o: int = 0
@@ -1968,6 +2102,7 @@ proc unpackSk*(p: DilithiumParams, sk: openArray[byte]): DilithiumSecretKeyState
     polyT0Unpack(result.t0.vec[i], sk.toOpenArray(o, o + p.polyT0PackedBytes - 1))
     o = o + p.polyT0PackedBytes
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `packSigIntoUnchecked`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc packSigIntoUnchecked(p: DilithiumParams, dst: var openArray[byte], c: openArray[byte],
     z: DilithiumPolyVecL, h: DilithiumPolyVecK) {.raises: [].} =
   var
@@ -2001,18 +2136,26 @@ proc packSigIntoUnchecked(p: DilithiumParams, dst: var openArray[byte], c: openA
     dst[o + p.omega + i] = byte(k)
     i = i + 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `packSigInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packSigInto*(p: DilithiumParams, dst: var openArray[byte], c: openArray[byte],
     z: DilithiumPolyVecL, h: DilithiumPolyVecK) =
   if dst.len != p.signatureBytes:
     raise newException(ValueError, "invalid Dilithium signature buffer length")
   packSigIntoUnchecked(p, dst, c, z, h)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `packSig`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packSig*(p: DilithiumParams, c: openArray[byte], z: DilithiumPolyVecL,
     h: DilithiumPolyVecK): seq[byte] {.raises: [].} =
   result = newSeq[byte](p.signatureBytes)
   packSigIntoUnchecked(p, result, c, z, h)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `unpackSig`; pitfall: reject malformed or non-canonical input before indexed access.
 proc unpackSig*(p: DilithiumParams, sig: openArray[byte]): DilithiumSignatureState {.raises: [].} =
+  ## Reference: FIPS 204 algorithm 27, `HintBitUnpack`, steps 4-8. The
+  ## per-polynomial indices must be strictly increasing and unused slots
+  ## must be zero. In particular, keep `current <= previous` as rejection:
+  ## changing it to `<` recreates the non-canonical-signature CVE class
+  ## described by CVE-2026-24850 / GHSA-5x2r-hc65-25f9.
   var
     o: int = p.ctildeBytes + p.l * p.polyZPackedBytes
     k: int = 0

@@ -156,6 +156,26 @@ suite "mceliece tyr":
         @[], newSeq[byte](custom_mceliece.ciphertextBytes(
           custom_mceliece.mcParamsTable[custom_mceliece.mceliece6688128f])))
 
+  test "invalid McEliece ciphertext keeps diagnostic and fallback secret aligned":
+    var
+      v = custom_mceliece.mceliece6688128f
+      kp = custom_mceliece.mcelieceTyrKeypair(v, buildSeed(131))
+      randomness = buildEncapsRandom(v)
+      env = custom_mceliece.mcelieceTyrEncapsDerand(v, kp.publicKey,
+        randomness)
+      good = custom_mceliece.mcelieceTyrTryDecaps(v, kp.secretKey,
+        env.ciphertext)
+      tampered = env.ciphertext
+    tampered[0] = tampered[0] xor 1'u8
+    var bad = custom_mceliece.mcelieceTyrTryDecaps(v, kp.secretKey, tampered)
+    var fallback = custom_mceliece.mcelieceTyrDecaps(v, kp.secretKey, tampered)
+    check good.ok
+    check good.sharedSecret == env.sharedSecret
+    check not bad.ok
+    check bad.sharedSecret.len == env.sharedSecret.len
+    check bad.sharedSecret != env.sharedSecret
+    check fallback == bad.sharedSecret
+
   when defined(hasLibOqs):
     test "pure-nim McEliece derand encaps matches liboqs deterministic RNG":
       checkDerandEncapsMatchesLiboqs(custom_mceliece.mceliece6688128f,

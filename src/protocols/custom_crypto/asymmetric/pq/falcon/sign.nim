@@ -51,14 +51,17 @@ type
     p: FalconPrng
     sigmaMin: FalconFpr
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `ffLDLTreeSize`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ffLDLTreeSize*(logn: int): int {.inline.} =
   (logn + 1) shl logn
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `copyFprRange`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc copyFprRange(A: openArray[FalconFpr], start, len: int): seq[FalconFpr] =
   result = newSeq[FalconFpr](len)
   if len > 0:
     copyMem(addr result[0], unsafeAddr A[start], len * sizeof(FalconFpr))
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `smallintsToFpr`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc smallintsToFpr*(dst: var seq[FalconFpr], src: openArray[int8], logn: int) =
   let n = mkn(logn)
   dst.setLen(n)
@@ -67,6 +70,7 @@ proc smallintsToFpr*(dst: var seq[FalconFpr], src: openArray[int8], logn: int) =
     dst[i] = fprOf(src[i].int64)
     i = i + 1
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `ffLDLFftInner`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ffLDLFftInner(tree: var seq[FalconFpr], treeOff: int, g0, g1: openArray[FalconFpr], logn: int) =
   let n = mkn(logn)
   if n == 1:
@@ -96,6 +100,7 @@ proc ffLDLFftInner(tree: var seq[FalconFpr], treeOff: int, g0, g1: openArray[Fal
   ffLDLFftInner(tree, treeOff + n, d00Lo, d00Hi, logn - 1)
   ffLDLFftInner(tree, treeOff + n + childLen, d11Lo, d11Hi, logn - 1)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `ffLDLFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ffLDLFft*(tree: var seq[FalconFpr], g00, g01, g11: openArray[FalconFpr], logn: int) =
   let n = mkn(logn)
   if tree.len != ffLDLTreeSize(logn):
@@ -127,6 +132,7 @@ proc ffLDLFft*(tree: var seq[FalconFpr], g00, g01, g11: openArray[FalconFpr], lo
   ffLDLFftInner(tree, n, d00Lo, d00Hi, logn - 1)
   ffLDLFftInner(tree, n + childLen, d11Lo, d11Hi, logn - 1)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `ffLDLBinaryNormalize`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ffLDLBinaryNormalize*(tree: var seq[FalconFpr], treeOff, origLogn, logn: int) =
   let n = mkn(logn)
   if n == 1:
@@ -135,6 +141,7 @@ proc ffLDLBinaryNormalize*(tree: var seq[FalconFpr], treeOff, origLogn, logn: in
   ffLDLBinaryNormalize(tree, treeOff + n, origLogn, logn - 1)
   ffLDLBinaryNormalize(tree, treeOff + n + ffLDLTreeSize(logn - 1), origLogn, logn - 1)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `clearExpandedSecret`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc clearExpandedSecret*(expanded: var FalconExpandedSecret) =
   secureClearSeqData(expanded.b00)
   secureClearSeqData(expanded.b01)
@@ -148,6 +155,7 @@ proc clearExpandedSecret*(expanded: var FalconExpandedSecret) =
   expanded.tree.setLen(0)
   expanded.logn = 0
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `fprSeqIsFinite`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprSeqIsFinite(A: openArray[FalconFpr]): bool =
   var i = 0
   while i < A.len:
@@ -156,6 +164,7 @@ proc fprSeqIsFinite(A: openArray[FalconFpr]): bool =
     i = i + 1
   true
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `validateExpandedSecret`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc validateExpandedSecret*(expanded: FalconExpandedSecret, logn: int): bool =
   if logn < 1 or logn >= fprInvSigma.len:
     return false
@@ -173,6 +182,7 @@ proc validateExpandedSecret*(expanded: FalconExpandedSecret, logn: int): bool =
     fprSeqIsFinite(expanded.b11) and
     fprSeqIsFinite(expanded.tree)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `expandPrivateKey`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc expandPrivateKey*(expanded: var FalconExpandedSecret, decoded: FalconDecodedSecret) {.otterBench.} =
   let logn = decoded.logn
   var
@@ -216,9 +226,11 @@ proc expandPrivateKey*(expanded: var FalconExpandedSecret, decoded: FalconDecode
   secureClearSeqData(g11)
   secureClearSeqData(gxx)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `expandPrivateKey`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc expandPrivateKey*(decoded: FalconDecodedSecret): FalconExpandedSecret =
   expandPrivateKey(result, decoded)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `prepareSecretKey`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc prepareSecretKey*(v: FalconVariant, sk: openArray[byte]): FalconExpandedSecret {.otterBench.} =
   var decoded: FalconDecodedSecret
   if not decodeSecretKey(decoded, sk, v):
@@ -230,6 +242,7 @@ proc prepareSecretKey*(v: FalconVariant, sk: openArray[byte]): FalconExpandedSec
     secureClearSeqData(decoded.G)
   expandPrivateKey(result, decoded)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `gaussian0Sampler`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc gaussian0Sampler*(p: var FalconPrng): int =
   var
     lo = prngGetU64(p)
@@ -250,6 +263,7 @@ proc gaussian0Sampler*(p: var FalconPrng): int =
     result = result + cc.int
     i = i + 3
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `berExp`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc berExp(p: var FalconPrng, x, ccs: FalconFpr): int =
   var
     s = int(fprTrunc(fprMul(x, fprInvLog2)))
@@ -268,6 +282,7 @@ proc berExp(p: var FalconPrng, x, ccs: FalconFpr): int =
       break
   int(w shr 31)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `sampler`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc sampler*(ctx: var FalconSamplerContext, mu, isigma: FalconFpr): int =
   var
     s = int(fprFloor(mu))
@@ -284,6 +299,7 @@ proc sampler*(ctx: var FalconSamplerContext, mu, isigma: FalconFpr): int =
     if berExp(ctx.p, x, ccs) != 0:
       return s + z
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `ffSamplingFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ffSamplingFft(ctx: var FalconSamplerContext, tree, t0, t1: openArray[FalconFpr],
     logn: int): tuple[z0, z1: seq[FalconFpr]] =
   if logn == 2:
@@ -472,6 +488,7 @@ proc ffSamplingFft(ctx: var FalconSamplerContext, tree, t0, t1: openArray[Falcon
   secureClearSeqData(merged.z0)
   secureClearSeqData(merged.z1)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `doSignTree`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc doSignTree(ctx: var FalconSamplerContext, s2: var seq[int16], expanded: FalconExpandedSecret,
     hm: openArray[uint16]): bool =
   let n = mkn(expanded.logn)
@@ -532,6 +549,7 @@ proc doSignTree(ctx: var FalconSamplerContext, s2: var seq[int16], expanded: Fal
   s2 = @s2Tmp
   true
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `signTreeRaw`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc signTreeRaw*(sig: var seq[int16], rng: var FalconShake256, expanded: FalconExpandedSecret,
     hm: openArray[uint16]) {.otterBench.} =
   var ctx: FalconSamplerContext
@@ -541,11 +559,13 @@ proc signTreeRaw*(sig: var seq[int16], rng: var FalconShake256, expanded: Falcon
     if doSignTree(ctx, sig, expanded, hm):
       return
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `hashNonceMessageToPointCt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc hashNonceMessageToPointCt(dst: var seq[uint16], nonce, msg: openArray[byte], logn: int) =
   var ctx: FalconShake256
   initFalconShake256(ctx, nonce, msg)
   hashToPointCt(ctx, dst, logn)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `encodeDetachedSignature`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc encodeDetachedSignature(v: FalconVariant, nonce: openArray[byte], s2: openArray[int16]): seq[byte] =
   let p = params(v)
   result = newSeq[byte](p.signatureBytes)
@@ -557,6 +577,7 @@ proc encodeDetachedSignature(v: FalconVariant, nonce: openArray[byte], s2: openA
     return
   result.setLen(1 + falconNonceLen + used)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `falconSignPreparedDerand`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc falconSignPreparedDerand*(prepared: FalconExpandedSecret, msg, nonce, seed: openArray[byte],
     v: FalconVariant): seq[byte] {.otterBench.} =
   let p = params(v)
@@ -583,6 +604,7 @@ proc falconSignPreparedDerand*(prepared: FalconExpandedSecret, msg, nonce, seed:
     secureClearSeqData(sig)
     sig.setLen(0)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `falconSignPrepared`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc falconSignPrepared*(prepared: FalconExpandedSecret, msg: openArray[byte], v: FalconVariant): seq[byte] {.otterBench.} =
   var
     nonce = falconRandomBytes(falconNonceLen)
@@ -592,12 +614,14 @@ proc falconSignPrepared*(prepared: FalconExpandedSecret, msg: openArray[byte], v
     secureClearBytes(seed)
   result = falconSignPreparedDerand(prepared, msg, nonce, seed, v)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `falconSignDerand`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc falconSignDerand*(v: FalconVariant, msg, sk, nonce, seed: openArray[byte]): seq[byte] {.otterBench.} =
   var prepared = prepareSecretKey(v, sk)
   defer:
     clearExpandedSecret(prepared)
   result = falconSignPreparedDerand(prepared, msg, nonce, seed, v)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `falconSignPure`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc falconSignPure*(v: FalconVariant, msg, sk: openArray[byte]): seq[byte] {.otterBench.} =
   var prepared = prepareSecretKey(v, sk)
   defer:

@@ -28,6 +28,7 @@ type
   ## Cached twiddle-scaled odd coefficients for one Kyber vector.
   PolyVecMulCache* = array[kyberMaxK, PolyMulCache]
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `storeBaseMulAccReducedChunk4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc storeBaseMulAccReducedChunk4(dst: ptr int16, evenTerms, oddTerms: array[4, int32]) {.inline.} =
   var
     dstData = cast[ptr UncheckedArray[int16]](dst)
@@ -42,6 +43,7 @@ when defined(sse2):
   ## Paper note: this SSE2 path fuses cached twiddle terms with pairwise
   ## multiply-add lanes, differing from clean PQClean by avoiding repeated
   ## odd-coefficient twiddle multiplication in the hot polyvec accumulator.
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `baseMulCachedTermsChunk4Sse2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc baseMulCachedTermsChunk4Sse2(aPtr, bPtr, cachePtr: ptr int16,
       acc0, acc1: var array[4, int32]) {.inline.} =
     var
@@ -79,14 +81,19 @@ when defined(neon) or defined(arm64) or defined(aarch64):
     NeonI16x4 {.importc: "int16x4_t", header: "arm_neon.h".} = object
     NeonI16x8 {.importc: "int16x8_t", header: "arm_neon.h".} = object
 
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `vld1q_s16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   func vld1q_s16(p: pointer): NeonI16x8 {.importc, header: "arm_neon.h".}
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `vget_low_s16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   func vget_low_s16(a: NeonI16x8): NeonI16x4 {.importc, header: "arm_neon.h".}
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `vget_high_s16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   func vget_high_s16(a: NeonI16x8): NeonI16x4 {.importc, header: "arm_neon.h".}
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `vmull_s16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   func vmull_s16(a, b: NeonI16x4): int32x4 {.importc, header: "arm_neon.h".}
 
   ## Paper note: NEON uses signed widening multiplies for the same cached
   ## base-multiply accumulator idea documented for ARM in
   ## `2021-0986_neon_ntt_dilithium_kyber_saber.pdf`.
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `maddPairwiseChunk4Neon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc maddPairwiseChunk4Neon(aVec, bVec: NeonI16x8, acc: var array[4, int32]) {.inline.} =
     var
       lo: int32x4 = vmull_s16(vget_low_s16(aVec), vget_low_s16(bVec))
@@ -100,6 +107,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
     acc[2] = acc[2] + hiLanes[0] + hiLanes[1]
     acc[3] = acc[3] + hiLanes[2] + hiLanes[3]
 
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `baseMulCachedTermsChunk4Neon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc baseMulCachedTermsChunk4Neon(aPtr, bPtr, cachePtr: ptr int16,
       acc0, acc1: var array[4, int32]) {.inline.} =
     var
@@ -128,6 +136,7 @@ when defined(avx2):
   ## Paper note: AVX2 packs four NTT base multiplications into one cached
   ## multiply-add chunk; this is the vectorized-NTT/mulcache idea applied at
   ## Tyr's Nim polyvec boundary instead of copying the upstream C layout.
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `baseMulCachedTermsChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc baseMulCachedTermsChunk8(aPtr, bPtr, cachePtr: ptr int16, acc0, acc1: var navx.M256i) {.inline.} =
     var
       aVec: navx.M256i = navx2.mm256_loadu_si256(cast[pointer](aPtr))
@@ -143,6 +152,7 @@ when defined(avx2):
     acc0 = navx2.mm256_add_epi32(acc0, navx2.mm256_madd_epi16(aVec, evenCacheVec))
     acc1 = navx2.mm256_add_epi32(acc1, navx2.mm256_madd_epi16(aVec, oddEvenVec))
 
+  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `storeBaseMulAccReducedChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc storeBaseMulAccReducedChunk8(dstLo, dstHi: ptr int16, evenTerms, oddTerms: navx.M256i) {.inline.} =
     var
       evenReduced: navx.M256i = montgomeryReduceVec8(evenTerms)
@@ -160,6 +170,7 @@ when defined(avx2):
     nsse2.mm_storeu_si128(cast[pointer](dstLo), interleavedLo)
     nsse2.mm_storeu_si128(cast[pointer](dstHi), interleavedHi)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecCompressInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecCompressInto*(dst: var openArray[byte], p: KyberParams, a: PolyVec) =
   ## Compress and serialize a Kyber polynomial vector into a caller-provided buffer.
   var
@@ -233,11 +244,13 @@ proc polyvecCompressInto*(dst: var openArray[byte], p: KyberParams, a: PolyVec) 
 
   raise newException(ValueError, "unsupported Kyber polyvec compression size")
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecCompress`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecCompress*(p: KyberParams, a: PolyVec): seq[byte] =
   ## Compress and serialize a Kyber polynomial vector.
   result = newSeq[byte](p.polyVecCompressedBytes)
   polyvecCompressInto(result, p, a)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecDecompressInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecDecompressInto*(r: var PolyVec, p: KyberParams, A: openArray[byte]) =
   ## Decompress and deserialize a Kyber polynomial vector into a caller-provided vector.
   var
@@ -293,10 +306,12 @@ proc polyvecDecompressInto*(r: var PolyVec, p: KyberParams, A: openArray[byte]) 
 
   raise newException(ValueError, "unsupported Kyber polyvec compression size")
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecDecompress`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecDecompress*(p: KyberParams, A: openArray[byte]): PolyVec =
   ## Decompress and deserialize a Kyber polynomial vector.
   polyvecDecompressInto(result, p, A)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecToBytesInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecToBytesInto*(dst: var openArray[byte], p: KyberParams, a: PolyVec) {.inline.} =
   ## Serialize a Kyber polynomial vector into a caller-provided buffer.
   var
@@ -324,11 +339,13 @@ proc polyvecToBytesInto*(dst: var openArray[byte], p: KyberParams, a: PolyVec) {
       polyToBytesInto(dst.toOpenArray(o, o + kyberPolyBytes - 1), a.vec[i])
       i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecToBytes*(p: KyberParams, a: PolyVec): seq[byte] =
   ## Serialize a Kyber polynomial vector.
   result = newSeq[byte](p.k * kyberPolyBytes)
   polyvecToBytesInto(result, p, a)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecFromBytesInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecFromBytesInto*(r: var PolyVec, p: KyberParams, A: openArray[byte]) {.inline.} =
   ## Deserialize a Kyber polynomial vector into a caller-provided vector.
   var
@@ -356,10 +373,12 @@ proc polyvecFromBytesInto*(r: var PolyVec, p: KyberParams, A: openArray[byte]) {
       polyFromBytesInto(r.vec[i], A.toOpenArray(o, o + kyberPolyBytes - 1))
       i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecFromBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecFromBytes*(p: KyberParams, A: openArray[byte]): PolyVec =
   ## Deserialize a Kyber polynomial vector.
   polyvecFromBytesInto(result, p, A)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecNtt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecNtt*(p: KyberParams, r: var PolyVec) {.inline.} =
   ## Apply forward NTT to each vector element.
   case p.k
@@ -382,6 +401,7 @@ proc polyvecNtt*(p: KyberParams, r: var PolyVec) {.inline.} =
       polyNtt(r.vec[i])
       i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecInvNttToMont`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecInvNttToMont*(p: KyberParams, r: var PolyVec) {.inline.} =
   ## Apply inverse NTT to each vector element.
   case p.k
@@ -404,6 +424,7 @@ proc polyvecInvNttToMont*(p: KyberParams, r: var PolyVec) {.inline.} =
       polyInvNttToMont(r.vec[i])
       i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecBaseMulAccMontgomery`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecBaseMulAccMontgomery*(p: KyberParams, r: var Poly, a, b: PolyVec) {.inline.} =
   ## Multiply and accumulate two Kyber polynomial vectors.
   var
@@ -417,6 +438,7 @@ proc polyvecBaseMulAccMontgomery*(p: KyberParams, r: var Poly, a, b: PolyVec) {.
     i = i + 1
   polyReduce(r)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulCacheCompute`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulCacheCompute*(x: var PolyMulCache, a: Poly) {.inline.} =
   ## Precompute the twiddle-scaled odd coefficients used in NTT base multiplication.
   var
@@ -427,6 +449,7 @@ proc polyMulCacheCompute*(x: var PolyMulCache, a: Poly) {.inline.} =
     x[2 * i + 1] = montgomeryReduce(int32(a.coeffs[4 * i + 3]) * int32(-zetas[64 + i]))
     i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecMulCacheCompute`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecMulCacheCompute*(p: KyberParams, x: var PolyVecMulCache, a: PolyVec) {.inline.} =
   ## Precompute twiddle-scaled odd coefficients for a Kyber polynomial vector.
   case p.k
@@ -449,6 +472,7 @@ proc polyvecMulCacheCompute*(p: KyberParams, x: var PolyVecMulCache, a: PolyVec)
       polyMulCacheCompute(x[i], a.vec[i])
       i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecBaseMulAccMontgomeryCached`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyVec,
     bCache: var PolyVecMulCache) {.inline.} =
   ## Multiply and accumulate two Kyber polynomial vectors using a cached second operand.
@@ -653,6 +677,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
       i = i + 1
   polyReduce(r)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecReduce*(p: KyberParams, r: var PolyVec) {.inline.} =
   ## Apply Barrett reduction to all coefficients of all vector elements.
   case p.k
@@ -675,6 +700,7 @@ proc polyvecReduce*(p: KyberParams, r: var PolyVec) {.inline.} =
       polyReduce(r.vec[i])
       i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecAdd*(p: KyberParams, r: var PolyVec, a, b: PolyVec) {.inline.} =
   ## Add two Kyber polynomial vectors.
   case p.k

@@ -20,6 +20,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     type
       SphincsVec2 = u64x2
 
+  ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `load64LeSphincs`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc load64LeSphincs(A: openArray[byte], o: int): uint64 {.inline.} =
     result =
       uint64(A[o]) or
@@ -31,6 +32,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
       (uint64(A[o + 6]) shl 48) or
       (uint64(A[o + 7]) shl 56)
 
+  ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `packAddrChunkU64x2`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
   proc packAddrChunkU64x2(A: array[2, SphincsAddress], o: int): SphincsVec2 {.inline.} =
     var
       laneVals: array[2, uint64]
@@ -38,6 +40,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     laneVals[1] = load64LeSphincs(A[1], o)
     result = loadU64x2[SphincsVec2](laneVals)
 
+  ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `packNodeChunkU64x2`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
   proc packNodeChunkU64x2(A: var array[2, array[spxN, byte]], o: int): SphincsVec2 {.inline.} =
     var
       laneVals: array[2, uint64]
@@ -45,10 +48,12 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     laneVals[1] = load64LeSphincs(A[1], o)
     result = loadU64x2[SphincsVec2](laneVals)
 
+  ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `broadcastSeedU64x2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc broadcastSeedU64x2(seed: array[spxN, byte], o: int): SphincsVec2 {.inline.} =
     result = set1U64[SphincsVec2](load64LeSphincs(seed, o))
 
   when defined(avx2):
+    ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `packAddrChunkU64x4`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
     proc packAddrChunkU64x4(A: array[4, SphincsAddress], o: int): u64x4 {.inline.} =
       result = u64x4(mm256_set_epi64x(
         cast[int64](load64LeSphincs(A[3], o)),
@@ -57,6 +62,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
         cast[int64](load64LeSphincs(A[0], o))
       ))
 
+    ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `packNodeChunkU64x4`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
     proc packNodeChunkU64x4(A: var array[4, array[spxN, byte]], o: int): u64x4 {.inline.} =
       result = u64x4(mm256_set_epi64x(
         cast[int64](load64LeSphincs(A[3], o)),
@@ -65,9 +71,11 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
         cast[int64](load64LeSphincs(A[0], o))
       ))
 
+    ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `broadcastSeedU64x4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
     proc broadcastSeedU64x4(seed: array[spxN, byte], o: int): u64x4 {.inline.} =
       result = set1U64[u64x4](load64LeSphincs(seed, o))
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `thash`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc thash*(outBytes: var openArray[byte], input: openArray[byte], inblocks: int,
     ctx: SphincsCtx, A: SphincsAddress) =
   ## Match liboqs clean's exact stack buffer sizes and keep the dominant
@@ -108,6 +116,7 @@ proc thash*(outBytes: var openArray[byte], input: openArray[byte], inblocks: int
     copyMem(addr buf[spxN + spxAddrBytes], unsafeAddr input[0], inblocks * spxN)
     shake256Into(outBytes, buf.toOpenArray(0, totalBytes - 1))
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `prfAddr`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc prfAddr*(outBytes: var openArray[byte], ctx: SphincsCtx, A: SphincsAddress) =
   var
     buf: array[(2 * spxN) + spxAddrBytes, byte]
@@ -117,6 +126,7 @@ proc prfAddr*(outBytes: var openArray[byte], ctx: SphincsCtx, A: SphincsAddress)
   shake256OneBlockAlignedInto(outBytes, buf)
 
 when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defined(aarch64):
+  ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `thash1Batch2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc thash1Batch2*(outBytes: var array[2, array[spxN, byte]],
       input: var array[2, array[spxN, byte]], ctx: SphincsCtx,
       A: array[2, SphincsAddress]) =
@@ -133,6 +143,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
       packNodeChunkU64x2(input, 8)
     )
 
+  ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `prfAddrBatch2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc prfAddrBatch2*(outBytes: var array[2, array[spxN, byte]], ctx: SphincsCtx,
       A: array[2, SphincsAddress]) =
     ## Paper note: PRF-address batching uses the same two-lane SHAKE input shape
@@ -149,6 +160,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     )
 
   when defined(avx2):
+    ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `thash1Batch4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
     proc thash1Batch4*(outBytes: var array[4, array[spxN, byte]],
         input: var array[4, array[spxN, byte]], ctx: SphincsCtx,
         A: array[4, SphincsAddress]) =
@@ -165,6 +177,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
         packNodeChunkU64x4(input, 8)
       )
 
+    ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `prfAddrBatch4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
     proc prfAddrBatch4*(outBytes: var array[4, array[spxN, byte]], ctx: SphincsCtx,
         A: array[4, SphincsAddress]) =
       ## Paper note: four-lane PRF-address batching feeds the WOTS signing leaf
@@ -180,11 +193,13 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
         broadcastSeedU64x4(ctx.skSeed, 8)
       )
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `genMessageRandom`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc genMessageRandom*(outR: var openArray[byte], skPrf, optrand, msg: openArray[byte],
     ctx: SphincsCtx) =
   discard ctx
   shake256ChunksInto(outR, skPrf, optrand, msg)
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hash, XOF, and domain-separation rules for `hashMessage`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc hashMessage*(digest: var openArray[byte], tree: var uint64, leafIdx: var uint32,
     r, pk, msg: openArray[byte], ctx: SphincsCtx) =
   const

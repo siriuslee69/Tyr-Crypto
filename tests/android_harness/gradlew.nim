@@ -40,6 +40,8 @@ when isMainModule:
   args.add("-classpath")
   args.add(classpath)
   args.add("org.gradle.wrapper.GradleWrapperMain")
+  args.add("--project-dir")
+  args.add(appHome)
   i = 1
   while i <= paramCount():
     if paramStr(i) != "--":

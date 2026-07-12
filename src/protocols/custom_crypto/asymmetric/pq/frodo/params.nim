@@ -47,6 +47,7 @@ type
     keypairRandomBytes*: int
     encapsRandomBytes*: int
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; parameter-set tables for `buildFrodoParams`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildFrodoParams(name: string, n, logQ, extractedBits, cdfTableLen,
     publicKeyBytes, secretKeyBytes, ciphertextBytes, sharedSecretBytes: int,
     xofKind: FrodoXofKind, matrixGenerator: FrodoMatrixGenerator,
@@ -76,6 +77,7 @@ proc buildFrodoParams(name: string, n, logQ, extractedBits, cdfTableLen,
     encapsRandomBytes: (extractedBits * 8 * 8) div 8
   )
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; parameter-set tables for `buildFrodo640Aes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildFrodo640Aes(): FrodoParams =
   result = buildFrodoParams(
     "frodo640aes",
@@ -93,6 +95,7 @@ proc buildFrodo640Aes(): FrodoParams =
       32525'u16, 32689'u16, 32745'u16, 32762'u16, 32766'u16, 32767'u16]
   )
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; parameter-set tables for `buildFrodo640Shake`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildFrodo640Shake(): FrodoParams =
   result = buildFrodoParams(
     "frodo640shake",
@@ -110,6 +113,7 @@ proc buildFrodo640Shake(): FrodoParams =
       32525'u16, 32689'u16, 32745'u16, 32762'u16, 32766'u16, 32767'u16]
   )
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; parameter-set tables for `buildFrodo976Aes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildFrodo976Aes(): FrodoParams =
   result = buildFrodoParams(
     "frodo976aes",
@@ -127,6 +131,7 @@ proc buildFrodo976Aes(): FrodoParams =
       32731'u16, 32760'u16, 32766'u16, 32767'u16, 0'u16, 0'u16]
   )
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; parameter-set tables for `buildFrodo976Shake`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildFrodo976Shake(): FrodoParams =
   result = buildFrodoParams(
     "frodo976shake",
@@ -144,6 +149,7 @@ proc buildFrodo976Shake(): FrodoParams =
       32731'u16, 32760'u16, 32766'u16, 32767'u16, 0'u16, 0'u16]
   )
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; parameter-set tables for `buildFrodo1344Aes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildFrodo1344Aes(): FrodoParams =
   result = buildFrodoParams(
     "frodo1344aes",
@@ -161,6 +167,7 @@ proc buildFrodo1344Aes(): FrodoParams =
       0'u16, 0'u16, 0'u16, 0'u16, 0'u16, 0'u16]
   )
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; parameter-set tables for `buildFrodo1344Shake`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildFrodo1344Shake(): FrodoParams =
   result = buildFrodoParams(
     "frodo1344shake",
@@ -187,6 +194,7 @@ const frodoParamsTable*: array[FrodoVariant, FrodoParams] = [
   frodo1344shake: buildFrodo1344Shake()
 ]
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; parameter-set tables for `params`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc params*(v: FrodoVariant): FrodoParams {.inline.} =
   ## Return the fixed parameter set for one Frodo variant.
   result = frodoParamsTable[v]

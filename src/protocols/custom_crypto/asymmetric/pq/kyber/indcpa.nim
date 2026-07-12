@@ -19,6 +19,7 @@ const
     kyberXofBlockBytes
   kyberGenMatrixBufBytes = kyberGenMatrixBlockCount * kyberXofBlockBytes + 2
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `packPkInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packPkInto*(dst: var openArray[byte], p: KyberParams, pk: PolyVec, seed: openArray[byte]) =
   ## Serialize a public key as `polyvec || publicSeed` into a caller-provided buffer.
   var
@@ -33,11 +34,13 @@ proc packPkInto*(dst: var openArray[byte], p: KyberParams, pk: PolyVec, seed: op
     dst[p.k * kyberPolyBytes + i] = seed[i]
     i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `packPk`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packPk*(p: KyberParams, pk: PolyVec, seed: openArray[byte]): seq[byte] =
   ## Serialize a public key as `polyvec || publicSeed`.
   result = newSeq[byte](p.indcpaPublicKeyBytes)
   packPkInto(result, p, pk, seed)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `unpackPkInto`; pitfall: reject malformed or non-canonical input before indexed access.
 proc unpackPkInto*(p: KyberParams, pk: var PolyVec, seed: var array[kyberSymBytes, byte],
     packed: openArray[byte]) =
   ## Deserialize a public key into its polynomial vector and matrix seed.
@@ -51,31 +54,37 @@ proc unpackPkInto*(p: KyberParams, pk: var PolyVec, seed: var array[kyberSymByte
     seed[i] = packed[p.k * kyberPolyBytes + i]
     i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `unpackPk`; pitfall: reject malformed or non-canonical input before indexed access.
 proc unpackPk*(p: KyberParams, packed: openArray[byte]): tuple[pk: PolyVec, seed: array[kyberSymBytes, byte]] =
   ## Deserialize a public key into its polynomial vector and matrix seed.
   unpackPkInto(p, result.pk, result.seed, packed)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `packSkInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packSkInto*(dst: var openArray[byte], p: KyberParams, sk: PolyVec) =
   ## Serialize the CPA secret key polynomial vector into a caller-provided buffer.
   if dst.len != p.indcpaSecretKeyBytes:
     raise newException(ValueError, "invalid Kyber secret key length")
   polyvecToBytesInto(dst, p, sk)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `packSk`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packSk*(p: KyberParams, sk: PolyVec): seq[byte] =
   ## Serialize the CPA secret key polynomial vector.
   result = newSeq[byte](p.indcpaSecretKeyBytes)
   packSkInto(result, p, sk)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `unpackSkInto`; pitfall: reject malformed or non-canonical input before indexed access.
 proc unpackSkInto*(p: KyberParams, sk: var PolyVec, packed: openArray[byte]) =
   ## Deserialize the CPA secret key polynomial vector into a caller-provided vector.
   if packed.len != p.indcpaSecretKeyBytes:
     raise newException(ValueError, "invalid Kyber secret key length")
   polyvecFromBytesInto(sk, p, packed)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `unpackSk`; pitfall: reject malformed or non-canonical input before indexed access.
 proc unpackSk*(p: KyberParams, packed: openArray[byte]): PolyVec =
   ## Deserialize the CPA secret key polynomial vector.
   unpackSkInto(p, result, packed)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `packCiphertextInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packCiphertextInto*(dst: var openArray[byte], p: KyberParams, b: PolyVec, v: Poly) =
   ## Serialize the CPA ciphertext as `compress(b) || compress(v)` into a caller-provided buffer.
   if dst.len != p.indcpaBytes:
@@ -83,11 +92,13 @@ proc packCiphertextInto*(dst: var openArray[byte], p: KyberParams, b: PolyVec, v
   polyvecCompressInto(dst.toOpenArray(0, p.polyVecCompressedBytes - 1), p, b)
   polyCompressInto(dst.toOpenArray(p.polyVecCompressedBytes, p.indcpaBytes - 1), p, v)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `packCiphertext`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc packCiphertext*(p: KyberParams, b: PolyVec, v: Poly): seq[byte] =
   ## Serialize the CPA ciphertext as `compress(b) || compress(v)`.
   result = newSeq[byte](p.indcpaBytes)
   packCiphertextInto(result, p, b, v)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `unpackCiphertextInto`; pitfall: reject malformed or non-canonical input before indexed access.
 proc unpackCiphertextInto*(p: KyberParams, b: var PolyVec, v: var Poly, packed: openArray[byte]) =
   ## Deserialize the CPA ciphertext into caller-provided buffers.
   if packed.len != p.indcpaBytes:
@@ -95,10 +106,12 @@ proc unpackCiphertextInto*(p: KyberParams, b: var PolyVec, v: var Poly, packed: 
   polyvecDecompressInto(b, p, packed.toOpenArray(0, p.polyVecCompressedBytes - 1))
   polyDecompressInto(v, p, packed.toOpenArray(p.polyVecCompressedBytes, packed.len - 1))
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `unpackCiphertext`; pitfall: reject malformed or non-canonical input before indexed access.
 proc unpackCiphertext*(p: KyberParams, packed: openArray[byte]): tuple[b: PolyVec, v: Poly] =
   ## Deserialize the CPA ciphertext.
   unpackCiphertextInto(p, result.b, result.v, packed)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `rejUniformFill`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc rejUniformFill(coeffs: var array[kyberN, int16], start, len: int, buf: openArray[byte]): int =
   var
     ctr: int = 0
@@ -119,6 +132,7 @@ proc rejUniformFill(coeffs: var array[kyberN, int16], start, len: int, buf: open
       ctr = ctr + 1
   result = ctr
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `sampleUniformPoly`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc sampleUniformPoly(p: KyberParams, r: var Poly, seed: openArray[byte], x, y: byte) =
   var
     S: Sha3State
@@ -151,6 +165,7 @@ proc sampleUniformPoly(p: KyberParams, r: var Poly, seed: openArray[byte], x, y:
     filled = filled + rejUniformFill(r.coeffs, filled, kyberN - filled,
       buf.toOpenArray(0, buflen - 1))
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `genMatrix`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc genMatrix*(p: KyberParams, M: var PolyMatrix, seed: openArray[byte], transposed: bool) =
   ## Deterministically generate the Kyber public matrix A or A^T.
   otterSpan("kyber.genMatrix"):
@@ -175,10 +190,12 @@ proc genMatrix*(p: KyberParams, M: var PolyMatrix, seed: openArray[byte], transp
         j = j + 1
       i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `genMatrix`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc genMatrix*(p: KyberParams, seed: openArray[byte], transposed: bool): PolyMatrix =
   ## Deterministically generate the Kyber public matrix A or A^T.
   genMatrix(p, result, seed, transposed)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `indcpaKeypairInto`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc indcpaKeypairInto*(p: KyberParams, pk, sk: var openArray[byte], seed: openArray[byte]) =
   ## Generate the underlying CPA-secure Kyber keypair into caller-provided buffers.
   var
@@ -249,6 +266,7 @@ proc indcpaKeypairInto*(p: KyberParams, pk, sk: var openArray[byte], seed: openA
   secureClearPod(e)
   secureClearBytes(buf)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `indcpaKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc indcpaKeypair*(p: KyberParams, seed: seq[byte] = @[]): tuple[pk, sk: seq[byte]] =
   ## Generate the underlying CPA-secure Kyber keypair.
   otterSpan("kyber.indcpaKeypair"):
@@ -265,6 +283,7 @@ proc indcpaKeypair*(p: KyberParams, seed: seq[byte] = @[]): tuple[pk, sk: seq[by
     else:
       indcpaKeypairInto(p, result.pk, result.sk, seed)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `indcpaEncInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc indcpaEncInto*(p: KyberParams, ct: var openArray[byte], m, pk, coins: openArray[byte]) =
   ## Encrypt one Kyber message with the underlying CPA-secure primitive into a caller buffer.
   var
@@ -338,12 +357,14 @@ proc indcpaEncInto*(p: KyberParams, ct: var openArray[byte], m, pk, coins: openA
   secureClearPod(spCache)
   secureClearPod(k)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `indcpaEnc`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc indcpaEnc*(p: KyberParams, m, pk, coins: openArray[byte]): seq[byte] =
   ## Encrypt one Kyber message with the underlying CPA-secure primitive.
   otterSpan("kyber.indcpaEnc"):
     result = newSeq[byte](p.indcpaBytes)
     indcpaEncInto(p, result, m, pk, coins)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `indcpaDecInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc indcpaDecInto*(p: KyberParams, m: var openArray[byte], ct, sk: openArray[byte]) =
   ## Decrypt one Kyber CPA ciphertext into a caller-provided 32-byte message buffer.
   var
@@ -370,6 +391,7 @@ proc indcpaDecInto*(p: KyberParams, m: var openArray[byte], ct, sk: openArray[by
   polyToMsgInto(m, mp)
   secureClearPod(mp)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `indcpaDec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc indcpaDec*(p: KyberParams, ct, sk: openArray[byte]): seq[byte] =
   ## Decrypt one Kyber CPA ciphertext into its 32-byte message.
   otterSpan("kyber.indcpaDec"):

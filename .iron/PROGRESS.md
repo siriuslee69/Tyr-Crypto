@@ -1,4 +1,4 @@
-Commit Message: route benchmark evaluation through Otter
+Commit Message: audit asymmetric crypto and harden certificate parsing
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -7,6 +7,68 @@ Features to implement:
 - Test vectors and regression tests for all supported primitives.
 - Build and test nimble tasks for daily use and CI.
 - Chunked file encryption + hashing wrapper for large files.
+
+## Pure-Nim TLS 1.3 Primitive Backlog
+
+Tyr owns reusable cryptography, key/certificate codecs, and certificate
+validation. The TLS wire protocol and connection state machine belong in
+Bifrost. Torii owns deployment policy and operating-system integration.
+
+Required for the first interoperable TLS 1.3 profile:
+- [ ] Implement incremental SHA-256 with cloneable transcript state and official
+  SHA-256 vectors.
+- [ ] Implement HMAC-SHA-256, HKDF-Extract, HKDF-Expand, and the TLS 1.3
+  `HKDF-Expand-Label` helper with RFC 5869 and RFC 8446 vectors.
+- [ ] Keep ChaCha20 and Poly1305 independently exposed through `basic_api`.
+  Protocol owners such as Bifrost must compose RFC 8439 privately by deriving a
+  one-time Poly1305 key from ChaCha20 block zero, encrypting from counter one,
+  authenticating AAD/ciphertext lengths, and withholding unauthenticated text.
+- [ ] Add bounded PEM and ASN.1 DER readers for the exact certificate and key
+  structures used by TLS; reject indefinite lengths, non-canonical DER, integer
+  overflow, excessive nesting, and oversized values before allocation.
+- [ ] Parse X.509 leaf, intermediate, and root certificates while preserving the
+  exact `TBSCertificate` bytes covered by the signature.
+- [ ] Parse SubjectPublicKeyInfo and unencrypted PKCS#8 private keys for the
+  first Ed25519 server profile.
+- [ ] Validate X.509 chains for server authentication: signatures, validity,
+  Basic Constraints, path length, Key Usage, Extended Key Usage, Subject
+  Alternative Name, unknown critical extensions, chain depth, and loops.
+- [ ] Implement DNS and IP Subject Alternative Name matching, including bounded
+  wildcard rules; do not use Common Name as the modern primary identity.
+- [ ] Expose caller-supplied trust anchors and a validation result that separates
+  parse, path, time, identity, usage, and signature failures.
+- [ ] Add explicit secret containers/wiping for traffic keys, private keys,
+  shared secrets, and superseded key-schedule material where Nim permits a
+  reliable volatile clear.
+
+Required before using Tyr as a general public-Web TLS client:
+- [ ] Implement incremental SHA-384 and its HMAC/HKDF forms.
+- [ ] Implement pure-Nim ECDSA P-256 signature verification with strict DER
+  signature parsing, public-key validation, and invalid-curve rejection.
+- [ ] Implement pure-Nim RSA PKCS#1 v1.5 and RSA-PSS verification for SHA-256 and
+  SHA-384, with strict modulus, exponent, padding, salt-length, and key-size
+  policy checks.
+- [ ] Expand X.509 algorithm and extension coverage only from real public-chain
+  fixtures; fail closed on unsupported critical behavior.
+- [ ] Add Linux/NixOS CA-bundle and Windows root-store adapters without making
+  trust-store lookup part of the cryptographic validation core.
+
+Optional interoperability work after the minimum profile:
+- [ ] Implement AES-128-GCM and `TLS_AES_128_GCM_SHA256` vectors.
+- [ ] Add ECDSA P-256 and RSA-PSS private-key signing only when Torii needs those
+  server certificate types.
+- [ ] Add encrypted PKCS#8 import only when deployment requires it; prefer a
+  secret provider or service-readable unencrypted key file for the first pass.
+
+Validation and release gates:
+- [ ] Run primitive and certificate tests against RFC, NIST, and Wycheproof
+  vectors, including malformed ASN.1 and invalid-chain corpora.
+- [ ] Differential-test supported operations against OpenSSL and at least one
+  independent implementation such as rustls or BoringSSL.
+- [ ] Fuzz every untrusted DER, PEM, key, certificate, and AEAD boundary with
+  allocation and recursion limits enabled.
+- [ ] Complete an independent cryptographic and side-channel review before the
+  pure-Nim path is described as production ready.
 
 Implemented:
 - Removed the direct Sigma submodule and routed benchmark evaluation through the pinned Otter submodule.
@@ -1130,3 +1192,78 @@ Verification:
 - AVX2 release `tests/test_frodo_tyr.nim`: pass for all six variants and typed API.
 - ARM64/NEON `nim check tests/test_frodo_tyr.nim`: pass.
 - `git diff --check`: pass.
+
+## 2026-07-12 Asymmetric Specification Audit
+
+Summary:
+- Audited the pure-Nim asymmetric tree against exact RFC, NIST, and pinned
+  candidate-version baselines. Added a hash-aware source lock and an immediate
+  `Reference:` citation above all 1,374 function-like declarations in 79
+  declaration-bearing modules. The gate checks 84 asymmetric Nim modules in
+  total, including modules that contain types or constants but no functions.
+- This is a source review and test record, not a formal proof, side-channel
+  certification, or blanket production-readiness claim.
+
+Implemented:
+- Added redistributable NIST FIPS 180-4, 202, 203, 204, and 205 documents,
+  SP 800-90A Rev. 1, and unmodified RFC 7748/8032 texts under
+  `docs/research/asymmetric_verification/references` with byte counts,
+  SHA-256 values, source URLs, and license policy in `references.lock.json`.
+- Kept candidate specifications without a clear redistribution grant as
+  URL/hash pins or existing ignored local caches rather than tracking copies.
+- Added `tools/check_asymmetric_references.nim` and
+  `nimble check_asymmetric_references`. The gate rejects missing immediate
+  citations, unknown source IDs, missing locked files, byte-size drift, and
+  SHA-256 drift.
+- Hardened Ed25519 verification to reject identity and non-prime-subgroup
+  encodings for both the public key and `R`. Added a regression for the former
+  identity-key universal forgery (`R = B`, `S = 1`).
+- Confirmed ML-DSA hint decoding retains FIPS 204 algorithm 27 strict ordering
+  and added a repeated-index regression for the `<=` versus `<` defect class.
+- Corrected algorithm identity: `kyber*` is CRYSTALS-Kyber round 3, not FIPS
+  203 ML-KEM; `sphincs*` is the SPHINCS+ v3.1 raw-message API, not FIPS 205
+  SLH-DSA.
+- Documented BIKE and Classic McEliece exported diagnostic decapsulation flags
+  as validity-oracle hazards. Normal wrappers preserve implicit rejection.
+  Removing or test-gating the exported diagnostics remains a release-boundary
+  API change because focused tests currently consume them.
+
+Verification:
+- `nimble check_asymmetric_references`: pass for 84 modules, 1,374 declarations,
+  and all locked tracked references.
+- Citation write mode is idempotent: a second pass inserted zero comments.
+- Default public library compile: pass.
+- ARM64/NEON compile checks for ML-DSA, FrodoKEM, and Classic McEliece: pass.
+- Focused X25519, hardened Ed25519, ML-DSA, legacy Kyber, SPHINCS+, Falcon,
+  FrodoKEM, BIKE, Classic McEliece, NTRU, and SABER runtime tests: pass.
+- NTRU and SABER official response-file KAT replay: pass.
+- liboqs-dependent Kyber, ML-DSA, SPHINCS+, BIKE, and FrodoKEM corpus programs
+  compiled but explicitly skipped byte-for-byte comparison because this build
+  lacked the liboqs runtime. These skips are recorded as an evidence gap, not
+  counted as KAT passes.
+- `git diff --check`: pass after the citation writer was corrected to preserve
+  exactly one terminal newline.
+- Added durable negative regressions for the exact audit findings: identity and
+  mixed-order Ed25519 forgeries, repeated/descending/nonzero-padded ML-DSA hint
+  encodings, round-3 Kyber transcript identity, and deterministic implicit
+  rejection for Kyber, BIKE, Classic McEliece, NTRU, and SABER.
+- Added strict DER/PEM/OID/PKCS#8/X.509 regressions for indefinite/non-minimal
+  lengths, integer canonicality, invalid base64 padding, OID normalization and
+  uint64 overflow, required SEQUENCE forms, zero serials, unsupported optional
+  fields, malformed extension containers, explicit DEFAULT FALSE, DNS wildcard
+  limits, and DNS/IP SAN namespace separation.
+- Added SHA-256 padding-boundary vectors, long-key RFC 4231 HMAC coverage, RFC
+  5869 HKDF bounds, and exact TLS 1.3 HkdfLabel framing checks.
+- Added function-role pragmas to every new certificate and SHA-256/HMAC/HKDF
+  function.
+- The full release Android harness now includes X25519, Ed25519, Kyber, FrodoKEM,
+  BIKE, ML-DSA, Falcon, SPHINCS+, Classic McEliece, NTRU, SABER, and certificate
+  codecs. File-backed NTRU/SABER KAT loading remains host-only; Android runs
+  their deterministic roundtrip and implicit-rejection regressions.
+- `nimble build_android_harness_asymmetric_full` passed for ARM64/NEON and
+  x86_64. The exact resulting APK was installed on connected
+  `motorola_edge_50_fusion` (`ZY22K9DZG9`) and completed with `exit=0`; every
+  packaged suite and edge-case test passed.
+- Host `tests/test_certificate_codecs.nim`, `tests/test_tls_primitives.nim`,
+  focused asymmetric family suites, NTRU KAT hashes, and SABER official vectors
+  passed after the final regression additions.

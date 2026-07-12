@@ -17,12 +17,15 @@ const
     0'u8, 10'u8, 11'u8, 11'u8, 12'u8, 12'u8, 12'u8, 12'u8, 12'u8, 12'u8, 12'u8
   ]
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `modQEncodeLen`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc modQEncodeLen*(logn: int): int {.inline.} =
   ((mkn(logn) * 14) + 7) shr 3
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `trimEncodeLen`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc trimEncodeLen*(logn, bits: int): int {.inline.} =
   ((mkn(logn) * bits) + 7) shr 3
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `modQEncode`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc modQEncode*(dst: var openArray[byte], x: openArray[uint16], logn: int): int =
   var
     n = mkn(logn)
@@ -50,6 +53,7 @@ proc modQEncode*(dst: var openArray[byte], x: openArray[uint16], logn: int): int
     dst[v] = byte(acc shl (8 - accLen))
   outLen
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `modQDecode`; pitfall: reject malformed or non-canonical input before indexed access.
 proc modQDecode*(dst: var openArray[uint16], src: openArray[byte], logn: int): int =
   var
     n = mkn(logn)
@@ -75,6 +79,7 @@ proc modQDecode*(dst: var openArray[uint16], src: openArray[byte], logn: int): i
     return 0
   inLen
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `trimI16Encode`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc trimI16Encode*(dst: var openArray[byte], x: openArray[int16], logn, bits: int): int =
   var
     n = mkn(logn)
@@ -105,6 +110,7 @@ proc trimI16Encode*(dst: var openArray[byte], x: openArray[int16], logn, bits: i
     dst[v] = byte(acc shl (8 - accLen))
   outLen
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `trimI16Decode`; pitfall: reject malformed or non-canonical input before indexed access.
 proc trimI16Decode*(dst: var openArray[int16], src: openArray[byte], logn, bits: int): int =
   var
     n = mkn(logn)
@@ -133,6 +139,7 @@ proc trimI16Decode*(dst: var openArray[int16], src: openArray[byte], logn, bits:
     return 0
   inLen
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `trimI8Encode`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc trimI8Encode*(dst: var openArray[byte], x: openArray[int8], logn, bits: int): int =
   var
     n = mkn(logn)
@@ -163,6 +170,7 @@ proc trimI8Encode*(dst: var openArray[byte], x: openArray[int8], logn, bits: int
     dst[v] = byte(acc shl (8 - accLen))
   outLen
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `trimI8Decode`; pitfall: reject malformed or non-canonical input before indexed access.
 proc trimI8Decode*(dst: var openArray[int8], src: openArray[byte], logn, bits: int): int =
   var
     n = mkn(logn)
@@ -191,6 +199,7 @@ proc trimI8Decode*(dst: var openArray[int8], src: openArray[byte], logn, bits: i
     return 0
   inLen
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `compEncode`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc compEncode*(dst: var openArray[byte], x: openArray[int16], logn: int): int =
   var
     n = mkn(logn)
@@ -235,6 +244,7 @@ proc compEncode*(dst: var openArray[byte], x: openArray[int16], logn: int): int 
     v = v + 1
   v
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `compDecode`; pitfall: reject malformed or non-canonical input before indexed access.
 proc compDecode*(dst: var openArray[int16], src: openArray[byte], logn: int): int =
   var
     n = mkn(logn)

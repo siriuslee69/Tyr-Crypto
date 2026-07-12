@@ -43,6 +43,7 @@ const
   dilithiumD* = 13
   dilithiumRootOfUnity* = 1753'i32
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; parameter-set tables for `buildDilithium44`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildDilithium44(): DilithiumParams =
   result = DilithiumParams(
     name: "ML-DSA-44",
@@ -65,6 +66,7 @@ proc buildDilithium44(): DilithiumParams =
     signatureBytes: 2420
   )
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; parameter-set tables for `buildDilithium65`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildDilithium65(): DilithiumParams =
   result = DilithiumParams(
     name: "ML-DSA-65",
@@ -87,6 +89,7 @@ proc buildDilithium65(): DilithiumParams =
     signatureBytes: 3309
   )
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; parameter-set tables for `buildDilithium87`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildDilithium87(): DilithiumParams =
   result = DilithiumParams(
     name: "ML-DSA-87",
@@ -115,6 +118,7 @@ const dilithiumParamsTable*: array[DilithiumVariant, DilithiumParams] = [
   dilithium87: buildDilithium87()
 ]
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; parameter-set tables for `params`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc params*(v: DilithiumVariant): DilithiumParams {.inline.} =
   ## Return the fixed parameter set for one ML-DSA variant.
   result = dilithiumParamsTable[v]

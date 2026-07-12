@@ -8,6 +8,7 @@ import ./util
 
 {.push boundChecks: off.}
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; noise, error, and secret sampling rules for `cbd2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbd2(R: var Poly, buf: openArray[byte]) =
   var
     i: int = 0
@@ -29,6 +30,7 @@ proc cbd2(R: var Poly, buf: openArray[byte]) =
       j = j + 1
     i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; noise, error, and secret sampling rules for `cbd3`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbd3(R: var Poly, buf: openArray[byte]) =
   var
     i: int = 0
@@ -51,6 +53,7 @@ proc cbd3(R: var Poly, buf: openArray[byte]) =
       j = j + 1
     i = i + 1
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; noise, error, and secret sampling rules for `polyCbdEta1Into`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyCbdEta1Into*(p: KyberParams, r: var Poly, buf: openArray[byte]) =
   ## Sample a polynomial from the eta1 centered binomial distribution into a caller-owned polynomial.
   case p.eta1
@@ -61,10 +64,12 @@ proc polyCbdEta1Into*(p: KyberParams, r: var Poly, buf: openArray[byte]) =
   else:
     raise newException(ValueError, "unsupported Kyber eta1")
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; noise, error, and secret sampling rules for `polyCbdEta1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyCbdEta1*(p: KyberParams, buf: openArray[byte]): Poly =
   ## Sample a polynomial from the eta1 centered binomial distribution.
   polyCbdEta1Into(p, result, buf)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; noise, error, and secret sampling rules for `polyCbdEta2Into`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyCbdEta2Into*(p: KyberParams, r: var Poly, buf: openArray[byte]) =
   ## Sample a polynomial from the eta2 centered binomial distribution into a caller-owned polynomial.
   case p.eta2
@@ -73,6 +78,7 @@ proc polyCbdEta2Into*(p: KyberParams, r: var Poly, buf: openArray[byte]) =
   else:
     raise newException(ValueError, "unsupported Kyber eta2")
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; noise, error, and secret sampling rules for `polyCbdEta2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyCbdEta2*(p: KyberParams, buf: openArray[byte]): Poly =
   ## Sample a polynomial from the eta2 centered binomial distribution.
   polyCbdEta2Into(p, result, buf)

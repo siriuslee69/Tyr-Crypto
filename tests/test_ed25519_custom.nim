@@ -39,6 +39,34 @@ suite "custom ed25519":
     message[0] = message[0] xor 1'u8
     check not customEd25519.ed25519TyrVerify(message, sig, kp.publicKey)
 
+  test "strict verification rejects identity-key universal forgery":
+    ## RFC 8032's uncofactored equation alone accepts R=B, S=1 for the
+    ## identity public key, independently of the message. Strict verification
+    ## must reject the torsion key before evaluating that equation.
+    var
+      identityKey = newSeq[byte](32)
+      forgedSignature = newSeq[byte](64)
+      message = toBytes("identity keys must not verify")
+    identityKey[0] = 1'u8
+    forgedSignature[0] = 0x58'u8
+    for i in 1 ..< 32:
+      forgedSignature[i] = 0x66'u8
+    forgedSignature[32] = 1'u8
+    check not customEd25519.ed25519TyrVerify(message, forgedSignature, identityKey)
+
+  test "strict verification rejects a valid-equation mixed-order public key":
+    ## A = B + T includes the nonzero order-2 point T. For the selected message
+    ## h is even, so R=B and S=1+h satisfy the unchecked group equation because
+    ## [h]T=0. Only an actual [L]A subgroup check rejects this forgery.
+    var
+      publicKey = hexToBytes(
+        "9599999999999999999999999999999999999999999999999999999999999999")
+      message = toBytes("mixed-order-regression-0")
+      forgedSignature = hexToBytes(
+        "5866666666666666666666666666666666666666666666666666666666666666" &
+        "9f72fa17c273fbe3fced2d0c4c94e0cbbf8d87af72ed1bc67ffe5d83db561603")
+    check not customEd25519.ed25519TyrVerify(message, forgedSignature, publicKey)
+
   when defined(amd64) or defined(i386):
     test "SSE2x batch api matches scalar":
       var messages: array[2, seq[byte]]

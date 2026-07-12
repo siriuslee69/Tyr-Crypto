@@ -120,6 +120,16 @@ task check_core, "Run nim check on core modules without Nimble's built-in packag
   exec withRepoCaches("nim check .iron/meta/registry.nim")
   exec withRepoCaches("nim check --nimcache:" & repoNimcacheDir("nimcache_check_public").replace('\\', '/') & " src/tyr_crypto.nim")
 
+task check_asymmetric_references, "Check asymmetric function citations and locked references":
+  exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_check_asymmetric_references").replace('\\', '/') & " tools/check_asymmetric_references.nim")
+
+task test_asymmetric_audit, "Run focused asymmetric conformance and malformed-input tests":
+  exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_audit_x25519").replace('\\', '/') & " tests/test_x25519_custom.nim")
+  exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_audit_ed25519").replace('\\', '/') & " tests/test_ed25519_custom.nim")
+  exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_audit_dilithium").replace('\\', '/') & " tests/test_dilithium_tyr.nim")
+  exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_audit_kyber").replace('\\', '/') & " tests/test_kyber_tyr.nim")
+  exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_audit_sphincs").replace('\\', '/') & " tests/test_sphincs_tyr.nim")
+
 task test, "Run the crypto bindings test suite":
   exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_run_desktop_tests_parallel").replace('\\', '/') & " tools/run_desktop_tests_parallel.nim")
 

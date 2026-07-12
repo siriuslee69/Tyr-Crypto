@@ -135,12 +135,12 @@ proc sha256Hex(data: string): string =
       j = j + 1
     i = i + 1
 
-proc sha256HexForFile(path: string): string =
+proc sha256HexForFile*(path: string): string =
   var
     data: string = readFile(path)
   result = sha256Hex(data)
 
-proc fileMatchesSha256(path, expected: string): bool =
+proc fileMatchesSha256*(path, expected: string): bool =
   if not fileExists(path):
     return false
   result = sha256HexForFile(path) == expected.toLowerAscii()

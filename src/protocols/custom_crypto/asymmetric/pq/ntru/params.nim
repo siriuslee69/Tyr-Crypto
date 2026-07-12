@@ -146,10 +146,12 @@ const
     )
   ]
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; parameter-set tables for `params`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc params*(v: NtruVariant): NtruParams {.inline.} =
   ## Return the fixed layout for one NTRU parameter set.
   result = ntruParamsTable[v]
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; parameter-set tables for `ntruBackendAvailable`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ntruBackendAvailable*(backend: NtruBackend): bool {.inline.} =
   ## Report whether the requested backend exists in this build.
   case backend
@@ -161,6 +163,7 @@ proc ntruBackendAvailable*(backend: NtruBackend): bool {.inline.} =
     else:
       result = false
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; parameter-set tables for `ntruDefaultBackend`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ntruDefaultBackend*(): NtruBackend {.inline.} =
   ## Prefer the upstream AVX2 backend when this build enables it.
   when ntruAvx2Build:
@@ -168,6 +171,7 @@ proc ntruDefaultBackend*(): NtruBackend {.inline.} =
   else:
     result = ntruClean
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; parameter-set tables for `ntruResolveBackend`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ntruResolveBackend*(backend: NtruBackend): NtruBackend =
   ## Resolve `auto` and reject unavailable explicit backends.
   result = backend

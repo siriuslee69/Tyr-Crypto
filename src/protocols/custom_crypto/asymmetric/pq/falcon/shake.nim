@@ -12,6 +12,7 @@ type
     pos*: int
     initialized*: bool
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; hash, XOF, and domain-separation rules for `initFalconShake256`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc initFalconShake256*(ctx: var FalconShake256, A: openArray[byte]) =
   clearPlainData(ctx)
   shake256AbsorbOnce(ctx.state, A)
@@ -19,6 +20,7 @@ proc initFalconShake256*(ctx: var FalconShake256, A: openArray[byte]) =
   ctx.pos = 0
   ctx.initialized = true
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; hash, XOF, and domain-separation rules for `initFalconShake256`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc initFalconShake256*(ctx: var FalconShake256, A0, A1: openArray[byte]) =
   var msg: seq[byte] = @[]
   appendBytes(msg, A0)
@@ -26,6 +28,7 @@ proc initFalconShake256*(ctx: var FalconShake256, A0, A1: openArray[byte]) =
   initFalconShake256(ctx, msg)
   secureClearBytes(msg)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; hash, XOF, and domain-separation rules for `initFalconShake256`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc initFalconShake256*(ctx: var FalconShake256, A0, A1, A2: openArray[byte]) =
   var msg: seq[byte] = @[]
   appendBytes(msg, A0)
@@ -34,6 +37,7 @@ proc initFalconShake256*(ctx: var FalconShake256, A0, A1, A2: openArray[byte]) =
   initFalconShake256(ctx, msg)
   secureClearBytes(msg)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; hash, XOF, and domain-separation rules for `extractFalconShake256`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc extractFalconShake256*(ctx: var FalconShake256, dst: var openArray[byte]) =
   var
     produced: int = 0

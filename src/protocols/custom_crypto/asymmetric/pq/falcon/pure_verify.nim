@@ -7,6 +7,7 @@ import ./params
 import ./vrfy
 import ../../../../helpers/otter_support
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; decoding, malformed-input rejection, and verification rules for `falconVerifyPure`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc falconVerifyPure*(v: FalconVariant, msg, sig, pk: openArray[byte]): bool {.otterBench.} =
   var
     decodedPk: FalconDecodedPublic

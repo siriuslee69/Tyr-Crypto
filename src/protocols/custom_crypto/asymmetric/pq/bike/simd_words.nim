@@ -8,6 +8,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
   import nimsimd/neon
 
 when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
+  ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; implementation support for the family algorithms for `xorWords128`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc xorWords128*(dst: var openArray[uint64], A, B: openArray[uint64],
       n: int): int {.inline.} =
     ## XOR qwords in 128-bit lanes and return the first scalar tail index.
@@ -36,6 +37,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
         i = i + 2
     result = i
 
+  ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; implementation support for the family algorithms for `addBitSliceWords128`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc addBitSliceWords128*(U: var openArray[uint64],
       rotated: var openArray[uint64], n: int): int {.inline.} =
     ## Apply one BIKE bit-sliced adder step in 128-bit qword lanes.
@@ -70,6 +72,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
         i = i + 2
     result = i
 
+  ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; implementation support for the family algorithms for `fullSubtractWords128`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc fullSubtractWords128*(U: var openArray[uint64],
       br: var openArray[uint64], lsbMask: uint64, n: int): int {.inline.} =
     ## Apply one BIKE full-subtractor bit-slice in 128-bit qword lanes.

@@ -29,9 +29,11 @@ type
     nonce*: array[falconNonceLen, byte]
     s2*: seq[int16]
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `expectHeader`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc expectHeader(data: openArray[byte], tag, logn: int): bool {.inline.} =
   data.len > 0 and data[0] == byte(tag + logn)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `decodeSecretKey`; pitfall: reject malformed or non-canonical input before indexed access.
 proc decodeSecretKey*(decoded: var FalconDecodedSecret, sk: openArray[byte], v: FalconVariant): bool =
   let
     p = params(v)
@@ -61,6 +63,7 @@ proc decodeSecretKey*(decoded: var FalconDecodedSecret, sk: openArray[byte], v: 
     return false
   completePrivate(decoded.G, decoded.f, decoded.g, decoded.F, logn)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `decodePublicKey`; pitfall: reject malformed or non-canonical input before indexed access.
 proc decodePublicKey*(decoded: var FalconDecodedPublic, pk: openArray[byte], v: FalconVariant): bool =
   let
     p = params(v)
@@ -74,12 +77,14 @@ proc decodePublicKey*(decoded: var FalconDecodedPublic, pk: openArray[byte], v: 
     return false
   true
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `decodePublicKeyToNtt`; pitfall: reject malformed or non-canonical input before indexed access.
 proc decodePublicKeyToNtt*(decoded: var FalconDecodedPublic, pk: openArray[byte], v: FalconVariant): bool =
   if not decodePublicKey(decoded, pk, v):
     return false
   toNttMonty(decoded.h, decoded.logn)
   true
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `decodeSignature`; pitfall: reject malformed or non-canonical input before indexed access.
 proc decodeSignature*(decoded: var FalconDecodedSignature, sig: openArray[byte], v: FalconVariant): bool =
   let
     p = params(v)
@@ -102,6 +107,7 @@ proc decodeSignature*(decoded: var FalconDecodedSignature, sig: openArray[byte],
     return false
   true
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `hashNonceMessageToPoint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc hashNonceMessageToPoint*(dst: var openArray[uint16], nonce: openArray[byte], msg: openArray[byte], logn: int) =
   var ctx: FalconShake256
   initFalconShake256(ctx, nonce, msg)

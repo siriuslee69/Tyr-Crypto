@@ -15,12 +15,14 @@ type
     buffer*: seq[byte]
     offset*: int
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; noise, error, and secret sampling rules for `initPrfState`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc initPrfState*(seed: BikeSeed): BikePrfState =
   ## Initialize the BIKE SHAKE256 PRF stream for one seed.
   result.seed = seed
   result.buffer = shake256(seed, 4096)
   result.offset = 0
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; noise, error, and secret sampling rules for `ensurePrfBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ensurePrfBytes(S: var BikePrfState, n: int) =
   var
     want: int = 0
@@ -29,6 +31,7 @@ proc ensurePrfBytes(S: var BikePrfState, n: int) =
     return
   S.buffer = shake256(S.seed, want + 4096)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; noise, error, and secret sampling rules for `getPrfOutput`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc getPrfOutput*(S: var BikePrfState, n: int): seq[byte] =
   ## Read the next `n` bytes from the BIKE SHAKE256 PRF stream.
   ensurePrfBytes(S, n)
@@ -36,6 +39,7 @@ proc getPrfOutput*(S: var BikePrfState, n: int): seq[byte] =
   copyMem(addr result[0], addr S.buffer[S.offset], n)
   S.offset = S.offset + n
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; noise, error, and secret sampling rules for `secureSetBitsPort`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc secureSetBitsPort*(P: var BikePadPoly, firstPos: int, W: openArray[uint32]) =
   ## Set the requested bit positions into one padded BIKE polynomial.
   var
@@ -65,6 +69,7 @@ proc secureSetBitsPort*(P: var BikePadPoly, firstPos: int, W: openArray[uint32])
     P[i] = val
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; noise, error, and secret sampling rules for `sampleIndicesFisherYates`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc sampleIndicesFisherYates*(numIndices, maxIdx: int, S: var BikePrfState): seq[uint32] =
   ## Sample `numIndices` unique positions via the BIKE Fisher-Yates stream.
   var
@@ -92,6 +97,7 @@ proc sampleIndicesFisherYates*(numIndices, maxIdx: int, S: var BikePrfState): se
       break
     i = i - 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; noise, error, and secret sampling rules for `toIndexList`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc toIndexList(W: seq[uint32]): BikeIndexList =
   var
     i: int = 0
@@ -102,6 +108,7 @@ proc toIndexList(W: seq[uint32]): BikeIndexList =
     result[i] = W[i]
     i = i + 1
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; noise, error, and secret sampling rules for `generateSecretKey`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc generateSecretKey*(seed0: BikeSeed): tuple[h0, h1: BikePadPoly, w0, w1: BikeIndexList] =
   ## Generate the BIKE-L1 secret polynomials from the first keypair seed.
   var
@@ -119,6 +126,7 @@ proc generateSecretKey*(seed0: BikeSeed): tuple[h0, h1: BikePadPoly, w0, w1: Bik
   secureSetBitsPort(result.h1, 0, result.w1)
   zeroBytes(prf.buffer)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; noise, error, and secret sampling rules for `generateErrorVector`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc generateErrorVector*(seed: BikeSeed): BikeRawError =
   ## Generate the BIKE-L1 raw error vector from one message-sized seed.
   var
@@ -138,10 +146,12 @@ proc generateErrorVector*(seed: BikeSeed): BikeRawError =
   maskRawLastByte(result[1])
   zeroBytes(prf.buffer)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; noise, error, and secret sampling rules for `randomKeypairMaterial`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc randomKeypairMaterial*(): seq[byte] =
   ## Draw the 64-byte BIKE keypair randomness stream.
   result = cryptoRandomBytes(bikeKeypairRandomBytes)
 
+## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; noise, error, and secret sampling rules for `randomEncapsMaterial`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc randomEncapsMaterial*(): seq[byte] =
   ## Draw the 64-byte BIKE encapsulation randomness stream.
   result = cryptoRandomBytes(bikeEncapsRandomBytes)

@@ -5,18 +5,21 @@ import std/[typetraits, volatile]
 type
   GF* = uint16
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `storeGF`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc storeGF*(dest: var openArray[byte], a: GF) =
   ## Store a GF element to two bytes (little-endian).
   assert dest.len >= 2
   dest[0] = byte(a and 0xFF)
   dest[1] = byte((a shr 8) and 0xFF)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `loadGF`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc loadGF*(src: openArray[byte]): GF =
   ## Load a GF element from two bytes (little-endian) and mask to the field size.
   assert src.len >= 2
   var a: uint16 = (uint16(src[1]) shl 8) or uint16(src[0])
   a and 0x1FFF'u16
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `load4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc load4*(src: openArray[byte]): uint32 =
   ## Load 4 bytes little-endian.
   assert src.len >= 4
@@ -25,6 +28,7 @@ proc load4*(src: openArray[byte]): uint32 =
     ret = (ret shl 8) or uint32(src[i])
   ret
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `store8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc store8*(dest: var openArray[byte], v: uint64) =
   ## Store 8 bytes little-endian.
   assert dest.len >= 8
@@ -37,6 +41,7 @@ proc store8*(dest: var openArray[byte], v: uint64) =
   dest[6] = byte((v shr 48) and 0xFF)
   dest[7] = byte((v shr 56) and 0xFF)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `load8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc load8*(src: openArray[byte]): uint64 =
   ## Load 8 bytes little-endian.
   assert src.len >= 8
@@ -45,6 +50,7 @@ proc load8*(src: openArray[byte]): uint64 =
     ret = (ret shl 8) or uint64(src[i])
   ret
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `bitrev`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bitrev*(a: GF): GF =
   ## Bit-reverse the 13-bit field element and drop the top 3 padding bits.
   var x = a
@@ -54,6 +60,7 @@ proc bitrev*(a: GF): GF =
   x = ((x and 0x5555'u16) shl 1) or ((x and 0xAAAA'u16) shr 1)
   (x shr 3) and 0x1FFF'u16
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `ctMaskNonZero`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ctMaskNonZero*(x: GF): uint16 {.inline.} =
   ## Return 0xFFFF when x != 0, else 0x0000 (branch-free).
   var m = uint16(x)
@@ -62,10 +69,12 @@ proc ctMaskNonZero*(x: GF): uint16 {.inline.} =
   m = m - 1'u16
   m
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `ctMaskZero`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ctMaskZero*(x: GF): uint16 {.inline.} =
   ## Return 0xFFFF when x == 0, else 0x0000 (branch-free).
   not ctMaskNonZero(x)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `clearSensitiveWords`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clearSensitiveWords*[T](A: var openArray[T]) {.raises: [].} =
   ## Volatile wipe for POD buffers that hold transient secret data.
   when supportsCopyMem(T):

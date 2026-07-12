@@ -22,6 +22,7 @@ type
     ciphertext*: seq[byte]
     sharedSecret*: seq[byte]
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `saberKeypairWithContext`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc saberKeypairWithContext(v: SaberVariant, R: var PqRandomContext,
     backend: SaberBackend = saberAuto): SaberTyrKeypair {.otterBench, otterTrace.} =
   ## Generate a SABER keypair using a caller-owned random context.
@@ -34,6 +35,7 @@ proc saberKeypairWithContext(v: SaberVariant, R: var PqRandomContext,
   result.secretKey = newSeq[byte](p.secretKeyBytes)
   saberKemKeypairInto(result.publicKey, result.secretKey, p, R)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `saberEncapsWithContext`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc saberEncapsWithContext(v: SaberVariant, pk: openArray[byte],
     R: var PqRandomContext, backend: SaberBackend = saberAuto): SaberTyrCipher {.otterBench, otterTrace.} =
   ## Encapsulate with a caller-owned random context.
@@ -48,6 +50,7 @@ proc saberEncapsWithContext(v: SaberVariant, pk: openArray[byte],
   result.sharedSecret = newSeq[byte](p.sharedSecretBytes)
   saberKemEncInto(result.ciphertext, result.sharedSecret, pk, p, R)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `saberKeypairWithActiveFeed`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc saberKeypairWithActiveFeed*(v: SaberVariant,
     backend: SaberBackend = saberAuto): SaberTyrKeypair {.otterBench, otterTrace.} =
   ## Compatibility helper; pure Nim code uses a system-random context here.
@@ -59,6 +62,7 @@ proc saberKeypairWithActiveFeed*(v: SaberVariant,
   finally:
     clearPqRandomContext(R)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `saberEncapsWithActiveFeed`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc saberEncapsWithActiveFeed*(v: SaberVariant, pk: openArray[byte],
     backend: SaberBackend = saberAuto): SaberTyrCipher {.otterBench, otterTrace.} =
   ## Compatibility helper; pure Nim code uses a system-random context here.
@@ -70,6 +74,7 @@ proc saberEncapsWithActiveFeed*(v: SaberVariant, pk: openArray[byte],
   finally:
     clearPqRandomContext(R)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `saberTyrKeypairDerand`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc saberTyrKeypairDerand*(v: SaberVariant, seed: openArray[byte],
     backend: SaberBackend = saberAuto): SaberTyrKeypair {.otterBench, otterTrace.} =
   ## Generate a SABER keypair from a 48-byte NIST KAT seed.
@@ -81,6 +86,7 @@ proc saberTyrKeypairDerand*(v: SaberVariant, seed: openArray[byte],
   finally:
     clearPqRandomContext(R)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `saberTyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc saberTyrKeypair*(v: SaberVariant, seed: seq[byte] = @[],
     backend: SaberBackend = saberAuto): SaberTyrKeypair {.otterBench, otterTrace.} =
   ## Generate a pure-Nim SABER keypair, optionally from a 48-byte KAT seed.
@@ -95,6 +101,7 @@ proc saberTyrKeypair*(v: SaberVariant, seed: seq[byte] = @[],
   finally:
     clearPqRandomContext(R)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `saberTyrEncapsDerand`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc saberTyrEncapsDerand*(v: SaberVariant, pk: openArray[byte], seed: openArray[byte],
     backend: SaberBackend = saberAuto): SaberTyrCipher {.otterBench, otterTrace.} =
   ## Encapsulate from a 48-byte NIST KAT seed.
@@ -106,6 +113,7 @@ proc saberTyrEncapsDerand*(v: SaberVariant, pk: openArray[byte], seed: openArray
   finally:
     clearPqRandomContext(R)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `saberTyrEncaps`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc saberTyrEncaps*(v: SaberVariant, pk: openArray[byte], seed: seq[byte] = @[],
     backend: SaberBackend = saberAuto): SaberTyrCipher {.otterBench, otterTrace.} =
   ## Encapsulate against a SABER public key.
@@ -120,6 +128,7 @@ proc saberTyrEncaps*(v: SaberVariant, pk: openArray[byte], seed: seq[byte] = @[]
   finally:
     clearPqRandomContext(R)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `saberTyrDecaps`; pitfall: preserve implicit rejection and never expose a secret-dependent validity oracle.
 proc saberTyrDecaps*(v: SaberVariant, sk, ct: openArray[byte],
     backend: SaberBackend = saberAuto): seq[byte] {.otterBench, otterTrace.} =
   ## Decapsulate a SABER ciphertext and return the shared secret.
@@ -133,6 +142,7 @@ proc saberTyrDecaps*(v: SaberVariant, sk, ct: openArray[byte],
   result = newSeq[byte](p.sharedSecretBytes)
   saberKemDecInto(result, sk, ct, p)
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `saberTyrKatKemFromSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc saberTyrKatKemFromSeed*(v: SaberVariant, seed: openArray[byte],
     backend: SaberBackend = saberAuto): tuple[keypair: SaberTyrKeypair,
     cipher: SaberTyrCipher] {.otterBench, otterTrace.} =

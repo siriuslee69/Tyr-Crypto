@@ -187,7 +187,36 @@ suite "ntru tyr":
     runNtruRoundtripCase(custom_ntru.ntruHps4096821, 17, 67)
     runNtruRoundtripCase(custom_ntru.ntruHrss701, 19, 69)
 
-  when defined(ntruIsoSample):
+  test "invalid NTRU ciphertext uses deterministic implicit rejection":
+    var
+      v = custom_ntru.ntruHps2048509
+      p: custom_ntru.NtruParams = custom_ntru.ntruParamsTable[v]
+      keySeed: seq[byte] = newSeq[byte](pqc.pqKatSeedBytes)
+      encSeed: seq[byte] = newSeq[byte](pqc.pqKatSeedBytes)
+    fillNtruSeed(keySeed, 101)
+    fillNtruSeed(encSeed, 151)
+    var kp = custom_ntru.ntruTyrKeypairDerand(v, keySeed,
+      custom_ntru.ntruClean)
+    var env = custom_ntru.ntruTyrEncapsDerand(v, kp.publicKey, encSeed,
+      custom_ntru.ntruClean)
+    var tampered = env.ciphertext
+    tampered[0] = tampered[0] xor 1'u8
+    var bad0 = custom_ntru.ntruTyrDecaps(v, kp.secretKey, tampered,
+      custom_ntru.ntruClean)
+    var bad1 = custom_ntru.ntruTyrDecaps(v, kp.secretKey, tampered,
+      custom_ntru.ntruClean)
+    check bad0.len == p.sharedSecretBytes
+    check bad0 == bad1
+    check bad0 != env.sharedSecret
+    pqc.secureClearBytes(keySeed)
+    pqc.secureClearBytes(encSeed)
+    pqc.secureClearBytes(bad0)
+    pqc.secureClearBytes(bad1)
+
+  when defined(tyrAndroidHarness):
+    test "file-backed NTRU KAT hashes remain host-only":
+      checkpoint("Android harness runs NTRU roundtrip and rejection regressions")
+  elif defined(ntruIsoSample):
     test "NTRU KAT hashes are skipped for the experimental shuffling sampler":
       checkpoint("ntruIsoSample changes HPS deterministic KAT transcripts")
   else:

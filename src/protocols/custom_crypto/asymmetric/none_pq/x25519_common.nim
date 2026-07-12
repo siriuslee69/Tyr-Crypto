@@ -62,17 +62,20 @@ const
     ]
   ]
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `load3`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc load3*(input: openArray[byte], offset: int): int64 {.inline.} =
   result = int64(input[offset])
   result = result or (int64(input[offset + 1]) shl 8)
   result = result or (int64(input[offset + 2]) shl 16)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `load4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc load4*(input: openArray[byte], offset: int): int64 {.inline.} =
   result = int64(input[offset])
   result = result or (int64(input[offset + 1]) shl 8)
   result = result or (int64(input[offset + 2]) shl 16)
   result = result or (int64(input[offset + 3]) shl 24)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `secureZeroMem`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc secureZeroMem*(p: pointer, len: int) =
   var
     bytes: ptr UncheckedArray[byte]
@@ -84,16 +87,19 @@ proc secureZeroMem*(p: pointer, len: int) =
     volatileStore(addr bytes[i], 0'u8)
     inc i
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `secureClearPod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc secureClearPod*[T](value: var T) =
   static:
     doAssert supportsCopyMem(T), "secureClearPod requires a POD-style type"
   when sizeof(T) > 0:
     secureZeroMem(addr value, sizeof(T))
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `secureClearBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc secureClearBytes*(value: var seq[byte]) =
   if value.len > 0:
     secureZeroMem(addr value[0], value.len)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `toFixed32`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc toFixed32*(input: openArray[byte]): X25519Bytes32 =
   var i: int = 0
   if input.len != x25519KeyBytes:
@@ -102,6 +108,7 @@ proc toFixed32*(input: openArray[byte]): X25519Bytes32 =
     result[i] = input[i]
     inc i
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `toSeqBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc toSeqBytes*(input: X25519Bytes32): seq[byte] =
   var i: int = 0
   result = newSeq[byte](x25519KeyBytes)
@@ -109,6 +116,7 @@ proc toSeqBytes*(input: X25519Bytes32): seq[byte] =
     result[i] = input[i]
     inc i
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `clampScalar`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clampScalar*(dst: var X25519Bytes32, src: X25519Bytes32) {.inline.} =
   var i: int = 0
   while i < x25519KeyBytes:
@@ -117,12 +125,14 @@ proc clampScalar*(dst: var X25519Bytes32, src: X25519Bytes32) {.inline.} =
   dst[0] = dst[0] and 248'u8
   dst[31] = (dst[31] and 127'u8) or 64'u8
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `isAllZero`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc isAllZero*(input: openArray[byte]): bool =
   var folded: byte = 0
   for b in input:
     folded = folded or b
   result = folded == 0
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `hasSmallOrder`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc hasSmallOrder*(input: X25519Bytes32): bool {.inline.} =
   var
     compare: array[7, byte]
@@ -142,18 +152,21 @@ proc hasSmallOrder*(input: X25519Bytes32): bool {.inline.} =
     inc i
   result = ((folded shr 8) and 1'u32) == 1'u32
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `fillFromSeq`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fillFromSeq(dst: var X25519Bytes32, src: openArray[byte]) =
   var i: int = 0
   while i < x25519KeyBytes:
     dst[i] = src[i]
     inc i
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `randomSecret32`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc randomSecret32*(): X25519Bytes32 =
   var buf = cryptoRandomBytes(x25519KeyBytes)
   defer:
     secureClearBytes(buf)
   fillFromSeq(result, buf)
 
+## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `deriveSeedSecretCompat`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc deriveSeedSecretCompat*(seed: openArray[byte]): X25519Bytes32 =
   if seed.len != x25519KeyBytes:
     raise newException(ValueError, "invalid X25519 seed length")

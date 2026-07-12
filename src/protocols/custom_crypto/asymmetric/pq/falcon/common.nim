@@ -34,6 +34,7 @@ const
     287'u16
   ]
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; portable representation and constant-schedule support for `hashToPointVarTime`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc hashToPointVarTime*(ctx: var FalconShake256, x: var openArray[uint16], logn: int) =
   var
     n = mkn(logn)
@@ -50,6 +51,7 @@ proc hashToPointVarTime*(ctx: var FalconShake256, x: var openArray[uint16], logn
       x[n - remaining] = uint16(w)
       remaining = remaining - 1
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; portable representation and constant-schedule support for `hashToPointCt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc hashToPointCt*(ctx: var FalconShake256, x: var openArray[uint16], logn: int) =
   var
     n = mkn(logn)
@@ -111,6 +113,7 @@ proc hashToPointCt*(ctx: var FalconShake256, x: var openArray[uint16], logn: int
       u2 = u2 + 1
     p = p shl 1
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; portable representation and constant-schedule support for `isShort`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc isShort*(s1, s2: openArray[int16], logn: int): bool =
   var
     n = mkn(logn)
@@ -130,6 +133,7 @@ proc isShort*(s1, s2: openArray[int16], logn: int): bool =
   s = s or (0'u32 - (ng shr 31))
   s <= falconL2Bound[logn]
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; portable representation and constant-schedule support for `isShortHalf`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc isShortHalf*(sqn: uint32, s2: openArray[int16], logn: int): bool =
   var
     n = mkn(logn)

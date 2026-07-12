@@ -22,6 +22,7 @@ type
     ciphertext*: seq[byte]
     sharedSecret*: seq[byte]
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `ntruKeypairWithContext`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc ntruKeypairWithContext(v: NtruVariant, R: var PqRandomContext,
     backend: NtruBackend = ntruAuto): NtruTyrKeypair {.otterBench, otterTrace.} =
   ## Generate an NTRU keypair using a caller-owned random context.
@@ -34,6 +35,7 @@ proc ntruKeypairWithContext(v: NtruVariant, R: var PqRandomContext,
   result.secretKey = newSeq[byte](p.secretKeyBytes)
   ntruKemKeypairInto(result.publicKey, result.secretKey, p, R)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `ntruEncapsWithContext`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc ntruEncapsWithContext(v: NtruVariant, pk: openArray[byte],
     R: var PqRandomContext, backend: NtruBackend = ntruAuto): NtruTyrCipher {.otterBench, otterTrace.} =
   ## Encapsulate using a caller-owned random context.
@@ -48,6 +50,7 @@ proc ntruEncapsWithContext(v: NtruVariant, pk: openArray[byte],
   result.sharedSecret = newSeq[byte](p.sharedSecretBytes)
   ntruKemEncInto(result.ciphertext, result.sharedSecret, pk, p, R)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `ntruKeypairWithActiveFeed`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc ntruKeypairWithActiveFeed*(v: NtruVariant,
     backend: NtruBackend = ntruAuto): NtruTyrKeypair {.otterBench, otterTrace.} =
   ## Compatibility helper; pure Nim code uses a system-random context here.
@@ -59,6 +62,7 @@ proc ntruKeypairWithActiveFeed*(v: NtruVariant,
   finally:
     clearPqRandomContext(R)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `ntruEncapsWithActiveFeed`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc ntruEncapsWithActiveFeed*(v: NtruVariant, pk: openArray[byte],
     backend: NtruBackend = ntruAuto): NtruTyrCipher {.otterBench, otterTrace.} =
   ## Compatibility helper; pure Nim code uses a system-random context here.
@@ -70,6 +74,7 @@ proc ntruEncapsWithActiveFeed*(v: NtruVariant, pk: openArray[byte],
   finally:
     clearPqRandomContext(R)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `ntruTyrKeypairDerand`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc ntruTyrKeypairDerand*(v: NtruVariant, seed: openArray[byte],
     backend: NtruBackend = ntruAuto): NtruTyrKeypair {.otterBench, otterTrace.} =
   ## Generate an NTRU keypair from a 48-byte NIST KAT seed.
@@ -81,6 +86,7 @@ proc ntruTyrKeypairDerand*(v: NtruVariant, seed: openArray[byte],
   finally:
     clearPqRandomContext(R)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `ntruTyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc ntruTyrKeypair*(v: NtruVariant, seed: seq[byte] = @[],
     backend: NtruBackend = ntruAuto): NtruTyrKeypair {.otterBench, otterTrace.} =
   ## Generate a pure-Nim NTRU keypair, optionally from a 48-byte KAT seed.
@@ -95,6 +101,7 @@ proc ntruTyrKeypair*(v: NtruVariant, seed: seq[byte] = @[],
   finally:
     clearPqRandomContext(R)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `ntruTyrEncapsDerand`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc ntruTyrEncapsDerand*(v: NtruVariant, pk: openArray[byte], seed: openArray[byte],
     backend: NtruBackend = ntruAuto): NtruTyrCipher {.otterBench, otterTrace.} =
   ## Encapsulate from a 48-byte NIST KAT seed.
@@ -106,6 +113,7 @@ proc ntruTyrEncapsDerand*(v: NtruVariant, pk: openArray[byte], seed: openArray[b
   finally:
     clearPqRandomContext(R)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `ntruTyrEncaps`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc ntruTyrEncaps*(v: NtruVariant, pk: openArray[byte], seed: seq[byte] = @[],
     backend: NtruBackend = ntruAuto): NtruTyrCipher {.otterBench, otterTrace.} =
   ## Encapsulate against an NTRU public key.
@@ -120,6 +128,7 @@ proc ntruTyrEncaps*(v: NtruVariant, pk: openArray[byte], seed: seq[byte] = @[],
   finally:
     clearPqRandomContext(R)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `ntruTyrDecaps`; pitfall: preserve implicit rejection and never expose a secret-dependent validity oracle.
 proc ntruTyrDecaps*(v: NtruVariant, sk, ct: openArray[byte],
     backend: NtruBackend = ntruAuto): seq[byte] {.otterBench, otterTrace.} =
   ## Decapsulate an NTRU ciphertext and return the shared secret.
@@ -133,6 +142,7 @@ proc ntruTyrDecaps*(v: NtruVariant, sk, ct: openArray[byte],
   result = newSeq[byte](p.sharedSecretBytes)
   ntruKemDecInto(result, sk, ct, p)
 
+## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `ntruTyrKatKemFromSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ntruTyrKatKemFromSeed*(v: NtruVariant, seed: openArray[byte],
     backend: NtruBackend = ntruAuto): tuple[keypair: NtruTyrKeypair,
     cipher: NtruTyrCipher] {.otterBench, otterTrace.} =

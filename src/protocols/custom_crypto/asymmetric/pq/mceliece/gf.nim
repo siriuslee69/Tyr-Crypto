@@ -25,13 +25,16 @@ const
                                           0x0000000001FE0000'u64,
                                           0x000000000001E000'u64]
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; finite-field, ring, and transform arithmetic for `gfIsZero`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gfIsZero*(a: GF): GF {.inline.} =
   ## Returns 0x1FFF when a == 0, else 0x0000 (matches PQClean gf_iszero behavior).
   GF((uint32(a) - 1'u32) shr ShiftForIsZero)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; finite-field, ring, and transform arithmetic for `gfAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gfAdd*(a, b: GF): GF {.inline.} =
   a xor b
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; finite-field, ring, and transform arithmetic for `gfMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gfMul*(a, b: GF): GF {.inline.} =
   var tmp = uint64(a) * (uint64(b) and 1)
   for i in 1 ..< GFBits:
@@ -45,6 +48,7 @@ proc gfMul*(a, b: GF): GF {.inline.} =
 
   GF(tmp and uint64(GFMaskConst))
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; finite-field, ring, and transform arithmetic for `gfSq2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gfSq2(inVal: GF): GF {.inline.} =
   ## (in^2)^2
   var
@@ -65,6 +69,7 @@ proc gfSq2(inVal: GF): GF {.inline.} =
 
   GF(x and uint64(GFMaskConst))
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; finite-field, ring, and transform arithmetic for `gfSqMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gfSqMul(inVal, m: GF): GF {.inline.} =
   ## (in^2) * m
   var
@@ -91,6 +96,7 @@ proc gfSqMul(inVal, m: GF): GF {.inline.} =
 
   GF(x and uint64(GFMaskConst))
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; finite-field, ring, and transform arithmetic for `gfSq2Mul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gfSq2Mul(inVal, m: GF): GF {.inline.} =
   ## ((in^2)^2) * m
   var
@@ -117,6 +123,7 @@ proc gfSq2Mul(inVal, m: GF): GF {.inline.} =
 
   GF(x and uint64(GFMaskConst))
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; finite-field, ring, and transform arithmetic for `gfFrac`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gfFrac*(den, num: GF): GF {.inline.} =
   ## Compute num / den in GF(2^13).
   var
@@ -128,9 +135,11 @@ proc gfFrac*(den, num: GF): GF {.inline.} =
   outVal = gfSq2Mul(outVal, tmp1111)
   gfSqMul(outVal, num)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; finite-field, ring, and transform arithmetic for `gfInv`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc gfInv*(den: GF): GF {.inline.} =
   gfFrac(den, 1'u16)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; finite-field, ring, and transform arithmetic for `GFmul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc GFmul*(p: McElieceParams; outp: var openArray[GF]; in0, in1: openArray[GF]) =
   ## Polynomial multiplication in GF(2^13)[x] / (x^t + x^7 + x^2 + x + 1).
   ## outp.len >= p.sysT, in0.len == in1.len == p.sysT.

@@ -101,10 +101,12 @@ const
     )
   ]
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; parameter-set tables for `params`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc params*(v: SaberVariant): SaberParams {.inline.} =
   ## Return the fixed layout for one SABER parameter set.
   result = saberParamsTable[v]
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; parameter-set tables for `saberBackendAvailable`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc saberBackendAvailable*(backend: SaberBackend): bool {.inline.} =
   ## Report whether the requested backend exists in this build.
   case backend
@@ -116,6 +118,7 @@ proc saberBackendAvailable*(backend: SaberBackend): bool {.inline.} =
     else:
       result = false
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; parameter-set tables for `saberDefaultBackend`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc saberDefaultBackend*(): SaberBackend {.inline.} =
   ## Report the pure-Nim AVX2 mode when this build enables it.
   when defined(avx2):
@@ -123,6 +126,7 @@ proc saberDefaultBackend*(): SaberBackend {.inline.} =
   else:
     result = saberClean
 
+## Reference: [SABER-R3] sections 4-6, algorithms 1-9; parameter-set tables for `saberResolveBackend`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc saberResolveBackend*(backend: SaberBackend): SaberBackend =
   ## Resolve `auto` and reject modes unavailable in this build.
   result = backend

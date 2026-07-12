@@ -58,6 +58,10 @@ suite "sphincs tyr":
       let msg = @[1'u8, 2'u8, 3'u8, 4'u8, 5'u8]
       let sig = custom_sphincs.sphincsTyrSignDerand(custom_sphincs.sphincsShake128fSimple, msg, kp.secretKey, optrand)
       check custom_sphincs.sphincsTyrVerify(custom_sphincs.sphincsShake128fSimple, msg, sig, kp.publicKey)
+      var framed = @[0'u8, 0'u8]
+      framed.add(msg)
+      check not custom_sphincs.sphincsTyrVerify(
+        custom_sphincs.sphincsShake128fSimple, framed, sig, kp.publicKey)
       check kp.publicKey.len == 32
       check kp.secretKey.len == 64
       check sig.len == 17088

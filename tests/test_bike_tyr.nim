@@ -88,6 +88,31 @@ suite "bike tyr":
     let env = initAsymCipher(env0.ciphertext, @[], env0.sharedSecret)
     check open(env, openM) == env.sharedSecret
 
+  test "invalid BIKE ciphertext keeps diagnostic and fallback secret aligned":
+    var
+      keypairRandom = newSeq[byte](64)
+      encapsRandom = newSeq[byte](64)
+    fillBikeSeed(keypairRandom, 61)
+    fillBikeSeed(encapsRandom, 173)
+    var kp = custom_bike.bikeTyrKeypairDerand(custom_bike.bikeL1,
+      keypairRandom)
+    var env = custom_bike.bikeTyrEncapsDerand(custom_bike.bikeL1,
+      kp.publicKey, encapsRandom)
+    var good = custom_bike.bikeTyrTryDecaps(custom_bike.bikeL1,
+      kp.secretKey, env.ciphertext)
+    var tampered = env.ciphertext
+    tampered[0] = tampered[0] xor 1'u8
+    var bad = custom_bike.bikeTyrTryDecaps(custom_bike.bikeL1,
+      kp.secretKey, tampered)
+    var fallback = custom_bike.bikeTyrDecaps(custom_bike.bikeL1,
+      kp.secretKey, tampered)
+    check good.ok
+    check good.sharedSecret == env.sharedSecret
+    check not bad.ok
+    check bad.sharedSecret.len == env.sharedSecret.len
+    check bad.sharedSecret != env.sharedSecret
+    check fallback == bad.sharedSecret
+
   when defined(hasLibOqs):
     test "pure-nim BIKE keypair and encaps match liboqs with deterministic RNG":
       var

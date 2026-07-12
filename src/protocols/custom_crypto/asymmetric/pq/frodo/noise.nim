@@ -5,6 +5,7 @@
 import ./params
 import ../../../../helpers/otter_support
 
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; noise, error, and secret sampling rules for `frodoSampleN`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc frodoSampleN*(p: FrodoParams, S: var openArray[uint16]) =
   ## Map raw 16-bit pseudo-random words to the Frodo noise distribution.
   otterSpan("frodo.frodoSampleN"):

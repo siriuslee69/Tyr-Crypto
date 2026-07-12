@@ -18,6 +18,7 @@ type
     wotsSig: ptr array[spxWotsBytes, byte]
     wotsSteps: ptr array[spxWotsLen, uint32]
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hypertree and authentication-path algorithms for `wotsGenLeafX1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc wotsGenLeafX1(leaf: var openArray[byte], ctx: SphincsCtx, leafIdx: uint32,
     info: var WotsGenLeafInfo) =
   var
@@ -174,6 +175,7 @@ proc wotsGenLeafX1(leaf: var openArray[byte], ctx: SphincsCtx, leafIdx: uint32,
     nodeOffset = nodeOffset + spxN
   thash(leaf, pkBuffer, spxWotsLen, ctx, info.pkAddr)
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hypertree and authentication-path algorithms for `merkleSign`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc merkleSign*(sig: var openArray[byte], sigOff: var int, root: var array[spxN, byte], ctx: SphincsCtx,
     wotsAddrBase, treeAddrBase: SphincsAddress, idxLeaf: uint32) =
   var
@@ -199,6 +201,7 @@ proc merkleSign*(sig: var openArray[byte], sigOff: var int, root: var array[spxN
   copyMem(addr sig[sigOff], addr authPath[0], authPath.len)
   sigOff = sigOff + authPath.len
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; hypertree and authentication-path algorithms for `merkleGenRoot`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc merkleGenRoot*(root: var array[spxN, byte], ctx: SphincsCtx) =
   var
     topTree: SphincsAddress

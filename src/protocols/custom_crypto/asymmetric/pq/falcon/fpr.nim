@@ -67,20 +67,24 @@ const
     FalconFpr(4566650022153682944'u64)
   ]
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprUrsh`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprUrsh*(x: uint64, n: int): uint64 {.inline.} =
   var v = x xor ((x xor (x shr 32)) and (0'u64 - uint64(n shr 5)))
   v shr (n and 31)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprIrsh`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprIrsh*(x: int64, n: int): int64 {.inline.} =
   var
     v: int64 = x
   v = v xor ((v xor ashr(v, 32)) and (0'i64 - int64(n shr 5)))
   result = ashr(v, n and 31)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprUlsh`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprUlsh*(x: uint64, n: int): uint64 {.inline.} =
   var v = x xor ((x xor (x shl 32)) and (0'u64 - uint64(n shr 5)))
   v shl (n and 31)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `makeFpr`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc makeFpr*(s, e: int, m: uint64): FalconFpr {.inline.} =
   var
     exp = e + 1076
@@ -97,6 +101,7 @@ proc makeFpr*(s, e: int, m: uint64): FalconFpr {.inline.} =
   x = x + uint64((0xC8'u32 shr f) and 1'u32)
   FalconFpr(x)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `norm64`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template norm64(m, e: untyped) =
   block:
     var nt: uint32
@@ -125,6 +130,7 @@ template norm64(m, e: untyped) =
     m = m xor ((m xor (m shl 1)) and (uint64(nt) - 1'u64))
     e = e + int(nt)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprScaled`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprScaled*(i: int64, sc: int): FalconFpr =
   var
     sign: int = int(cast[uint64](i) shr 63)
@@ -143,21 +149,26 @@ proc fprScaled*(i: int64, sc: int): FalconFpr =
   exp = exp and -int(t)
   makeFpr(sign, exp, mant)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprOf`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprOf*(i: int64): FalconFpr {.inline.} =
   fprScaled(i, 0)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprToFloat`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprToFloat*(x: FalconFpr): float64 {.inline.} =
   ## Debug/unsafe-native-backend conversion only. Secret arithmetic uses the
   ## integer helpers below so floating-point latency cannot reveal operands.
   cast[float64](x)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprIsFinite`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprIsFinite*(x: FalconFpr): bool {.inline.} =
   ((uint64(x) shr 52) and 0x7ff'u64) != 0x7ff'u64
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `floatToFpr`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc floatToFpr*(x: float64): FalconFpr {.inline.} =
   ## Debug/unsafe-native-backend conversion only.
   cast[FalconFpr](x)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprRint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprRint*(x: FalconFpr): int64 =
   var
     m: uint64 = 0
@@ -177,6 +188,7 @@ proc fprRint*(x: FalconFpr): int64 =
   s = uint32(x shr 63)
   result = (cast[int64](m) xor (0'i64 - int64(s))) + int64(s)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprFloor`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprFloor*(x: FalconFpr): int64 =
   var
     t: uint64 = 0
@@ -194,6 +206,7 @@ proc fprFloor*(x: FalconFpr): int64 =
     (0'i64 - int64(uint32(63 - cc) shr 31)))
   result = xi
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprTrunc`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprTrunc*(x: FalconFpr): int64 =
   var
     t: uint64 = 0
@@ -209,6 +222,7 @@ proc fprTrunc*(x: FalconFpr): int64 =
   xu = (xu xor (0'u64 - t)) + t
   result = cast[int64](xu)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprAdd*(x, y: FalconFpr): FalconFpr =
   var
     xx: uint64 = x
@@ -256,12 +270,15 @@ proc fprAdd*(x, y: FalconFpr): FalconFpr =
   ex = ex + 9
   result = makeFpr(sx, ex, xu)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprSub`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprSub*(x, y: FalconFpr): FalconFpr {.inline.} =
   fprAdd(x, y xor (1'u64 shl 63))
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprNeg`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprNeg*(x: FalconFpr): FalconFpr {.inline.} =
   x xor (1'u64 shl 63)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprHalf`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprHalf*(x: FalconFpr): FalconFpr {.inline.} =
   var
     t: uint32 = 0
@@ -270,10 +287,12 @@ proc fprHalf*(x: FalconFpr): FalconFpr {.inline.} =
   t = (((uint32(y shr 52) and 0x7ff'u32) + 1'u32) shr 11)
   result = y and (uint64(t) - 1'u64)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprDouble`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprDouble*(x: FalconFpr): FalconFpr {.inline.} =
   result = x + (uint64(((uint32(x shr 52) and 0x7ff'u32) +
     0x7ff'u32) shr 11) shl 52)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprMul*(x, y: FalconFpr): FalconFpr =
   var
     xu: uint64 = 0
@@ -324,9 +343,11 @@ proc fprMul*(x, y: FalconFpr): FalconFpr =
   zu = zu and (0'u64 - uint64(d))
   result = makeFpr(s, e, zu)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprSqr`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprSqr*(x: FalconFpr): FalconFpr {.inline.} =
   fprMul(x, x)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprDiv`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprDiv*(x, y: FalconFpr): FalconFpr =
   var
     xu: uint64 = 0
@@ -364,9 +385,11 @@ proc fprDiv*(x, y: FalconFpr): FalconFpr =
   q = q and (0'u64 - uint64(d))
   result = makeFpr(s, e, q)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprInv`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprInv*(x: FalconFpr): FalconFpr {.inline.} =
   fprDiv(fprOne, x)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprSqrt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprSqrt*(x: FalconFpr): FalconFpr =
   var
     xu: uint64 = 0
@@ -400,6 +423,7 @@ proc fprSqrt*(x: FalconFpr): FalconFpr =
   q = q and (0'u64 - uint64((ex + 0x7ff) shr 11))
   result = makeFpr(0, e, q)
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprLt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprLt*(x, y: FalconFpr): bool {.inline.} =
   var
     cc0: int = 0
@@ -411,6 +435,7 @@ proc fprLt*(x, y: FalconFpr): bool {.inline.} =
   cc1 = int(ashr(sy - sx, 63)) and 1
   result = (cc0 xor ((cc0 xor cc1) and int((x and y) shr 63))) != 0
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fprExpmP63`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fprExpmP63*(x, ccs: FalconFpr): uint64 =
   const C: array[13, uint64] = [
     0x00000004741183A3'u64,

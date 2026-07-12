@@ -1,0 +1,181 @@
+{
+  "schema": 1,
+  "generated": "2026-07-12",
+  "policy": "Tracked files have explicit redistribution terms. Candidate specifications without clear terms are URL/hash pins only or existing ignored local caches.",
+  "documents": [
+    {
+      "id": "FIPS-180-4",
+      "title": "Secure Hash Standard (SHS)",
+      "localPath": "docs/research/asymmetric_verification/references/NIST.FIPS.180-4.pdf",
+      "sourceUrl": "https://doi.org/10.6028/NIST.FIPS.180-4",
+      "downloadUrl": "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf",
+      "sha256": "0455b406d89648d20cbde375561e19c245b9815e894164c2670772e3d54deb82",
+      "bytes": 833315,
+      "licenseExpression": "NIST-Technical-Series-Notice",
+      "gitPolicy": "tracked"
+    },
+    {
+      "id": "FIPS-202",
+      "title": "SHA-3 Standard: Permutation-Based Hash and Extendable-Output Functions",
+      "localPath": "docs/research/asymmetric_verification/references/NIST.FIPS.202.pdf",
+      "sourceUrl": "https://doi.org/10.6028/NIST.FIPS.202",
+      "downloadUrl": "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.202.pdf",
+      "sha256": "1592607831ff0908cc590632ce371c6c95e94025bb1a0c8ae90a4d0ec1ed025e",
+      "bytes": 1459683,
+      "licenseExpression": "NIST-Technical-Series-Notice",
+      "gitPolicy": "tracked"
+    },
+    {
+      "id": "FIPS-203",
+      "title": "Module-Lattice-Based Key-Encapsulation Mechanism Standard",
+      "localPath": "docs/research/asymmetric_verification/references/NIST.FIPS.203.pdf",
+      "sourceUrl": "https://doi.org/10.6028/NIST.FIPS.203",
+      "downloadUrl": "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.203.pdf",
+      "sha256": "fe1f12f32a7e44ec9fdebbf400cda843a40b506dee676725234dc6f7923b6cac",
+      "bytes": 1252341,
+      "licenseExpression": "NIST-Technical-Series-Notice",
+      "gitPolicy": "tracked",
+      "note": "Comparison source only: Tyr's kyber API implements round-3 Kyber, not ML-KEM. NIST lists pending errata as of the audit date."
+    },
+    {
+      "id": "FIPS-204",
+      "title": "Module-Lattice-Based Digital Signature Standard",
+      "localPath": "docs/research/asymmetric_verification/references/NIST.FIPS.204.pdf",
+      "sourceUrl": "https://doi.org/10.6028/NIST.FIPS.204",
+      "downloadUrl": "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.204.pdf",
+      "sha256": "57239b9f84c03227eda3ca0991204dc7764c79af9ce2e6824eda774918d46b6b",
+      "bytes": 3291746,
+      "licenseExpression": "NIST-Technical-Series-Notice",
+      "gitPolicy": "tracked",
+      "note": "NIST lists pending errata as of the audit date."
+    },
+    {
+      "id": "FIPS-205",
+      "title": "Stateless Hash-Based Digital Signature Standard",
+      "localPath": "docs/research/asymmetric_verification/references/NIST.FIPS.205.pdf",
+      "sourceUrl": "https://doi.org/10.6028/NIST.FIPS.205",
+      "downloadUrl": "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.205.pdf",
+      "sha256": "8ef34228276f3386d23cb0da8c14592b8cfb0db3358016bba64df7a004f8d13d",
+      "bytes": 1055752,
+      "licenseExpression": "NIST-Technical-Series-Notice",
+      "gitPolicy": "tracked",
+      "note": "Comparison source only: Tyr's sphincs API implements the SPHINCS+ v3.1 raw-message interface, not SLH-DSA."
+    },
+    {
+      "id": "SP800-90A-R1",
+      "title": "Recommendation for Random Number Generation Using Deterministic Random Bit Generators",
+      "localPath": "docs/research/asymmetric_verification/references/NIST.SP.800-90Ar1.pdf",
+      "sourceUrl": "https://doi.org/10.6028/NIST.SP.800-90Ar1",
+      "downloadUrl": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-90Ar1.pdf",
+      "sha256": "d58e3dac4aaa5971c9a6a20a9bd5c13e2f1930cd1a199c0c00f768e7327355e2",
+      "bytes": 2417007,
+      "licenseExpression": "NIST-Technical-Series-Notice",
+      "gitPolicy": "tracked"
+    },
+    {
+      "id": "RFC-7748",
+      "title": "Elliptic Curves for Security",
+      "localPath": "docs/research/asymmetric_verification/references/rfc7748.txt",
+      "sourceUrl": "https://www.rfc-editor.org/rfc/rfc7748.html",
+      "downloadUrl": "https://www.rfc-editor.org/rfc/rfc7748.txt",
+      "sha256": "279ca0ecc5e92e2962e27b846986aeb74729d9dd34bd4a04a362f80dcb596ad3",
+      "bytes": 39298,
+      "licenseExpression": "IETF-Trust-TLP-5-unmodified",
+      "gitPolicy": "tracked"
+    },
+    {
+      "id": "RFC-8032",
+      "title": "Edwards-Curve Digital Signature Algorithm (EdDSA)",
+      "localPath": "docs/research/asymmetric_verification/references/rfc8032.txt",
+      "sourceUrl": "https://www.rfc-editor.org/rfc/rfc8032.html",
+      "downloadUrl": "https://www.rfc-editor.org/rfc/rfc8032.txt",
+      "sha256": "ed63657ff389301282b169b0abde9b5dd2c7e4d524fdfa5da6ff3094fc93c4c3",
+      "bytes": 103210,
+      "licenseExpression": "IETF-Trust-TLP-5-unmodified",
+      "gitPolicy": "tracked"
+    },
+    {
+      "id": "EDDSA-2020-1244",
+      "title": "Taming the many EdDSAs",
+      "sourceUrl": "https://eprint.iacr.org/2020/1244",
+      "downloadUrl": "https://eprint.iacr.org/2020/1244.pdf",
+      "licenseExpression": "CC-BY-4.0",
+      "gitPolicy": "upstream-only",
+      "note": "The publisher rejected automated PDF retrieval during this pass; no partial file is tracked."
+    },
+    {
+      "id": "KYBER-R3-20210804",
+      "title": "CRYSTALS-Kyber Algorithm Specifications and Supporting Documentation, version 3.02",
+      "sourceUrl": "https://pq-crystals.org/kyber/resources.shtml",
+      "downloadUrl": "https://pq-crystals.org/kyber/data/kyber-specification-round3-20210804.pdf",
+      "sha256": "1c54ad57022e00b77ff7acd40e9b38a962e7fbbd02bea73b183349c53a8f8aee",
+      "bytes": 855898,
+      "licenseExpression": "NOASSERTION",
+      "gitPolicy": "hash-pin-only"
+    },
+    {
+      "id": "SPHINCS-R3.1",
+      "title": "SPHINCS+ Submission to the NIST Post-Quantum Project, version 3.1",
+      "sourceUrl": "https://sphincs.org/",
+      "downloadUrl": "https://sphincs.org/data/sphincs+-r3.1-specification.pdf",
+      "sha256": "1169896fff4160e7a294162b8a3e061ffdf1888f3925f5614532c28bd3473c4a",
+      "bytes": 1017014,
+      "licenseExpression": "NOASSERTION",
+      "gitPolicy": "hash-pin-only"
+    },
+    {
+      "id": "FALCON-SPEC",
+      "title": "Falcon specification",
+      "sourceManifest": "docs/research/pq_non_ntru_saber/papers.lock.json",
+      "sha256": "f887f3f9f367c664fb36639a830bf24390f19b3505abeac2e2c076fd1ad6c6f3",
+      "licenseExpression": "NOASSERTION",
+      "gitPolicy": "ignored-local-cache"
+    },
+    {
+      "id": "FRODOKEM-20250929",
+      "title": "FrodoKEM standard proposal",
+      "sourceManifest": "docs/research/pq_non_ntru_saber/papers.lock.json",
+      "sha256": "8c15a94921be3e955ac89bf8ffa54df3f07ebf1b5230b370beff7e7268a5bf48",
+      "licenseExpression": "NOASSERTION",
+      "gitPolicy": "ignored-local-cache"
+    },
+    {
+      "id": "BIKE-5.2",
+      "title": "BIKE specification v5.2",
+      "sourceManifest": "docs/research/pq_non_ntru_saber/papers.lock.json",
+      "sha256": "780e36ee06152a274c6e7b583528a68ccecae02e77befa140c0e9c84a91bd4bc",
+      "licenseExpression": "NOASSERTION",
+      "gitPolicy": "ignored-local-cache"
+    },
+    {
+      "id": "MCELIECE-20221023",
+      "title": "Classic McEliece specification and implementation guide",
+      "sourceManifest": "docs/research/pq_non_ntru_saber/papers.lock.json",
+      "sha256": "dcc6878852ef8a00a7bedd859da661770cf85d2c3d9239e06d25e4a0d365fd12",
+      "licenseExpression": "NOASSERTION",
+      "gitPolicy": "ignored-local-cache"
+    },
+    {
+      "id": "NTRU-20190330",
+      "title": "NTRU Algorithm Specifications and Supporting Documentation",
+      "sourceManifest": "docs/research/ntru_saber/papers.lock.json",
+      "sha256": "d54c51d02a87080095cbf73f52dad5bddcac75a03e545df95eb3c585f473f372",
+      "licenseExpression": "NOASSERTION",
+      "gitPolicy": "ignored-local-cache"
+    },
+    {
+      "id": "SABER-R3",
+      "title": "SABER Round-3 Specification",
+      "sourceManifest": "docs/research/ntru_saber/papers.lock.json",
+      "sha256": "b69566b6a46496f93d58876abbaa8dfca3c34ccf33e40c2ecb3e361ad3f468e8",
+      "licenseExpression": "NOASSERTION",
+      "gitPolicy": "ignored-local-cache"
+    },
+    {
+      "id": "PQ-SUPPORT",
+      "title": "Cross-family constant-time and random-source support",
+      "sourceIds": ["FIPS-202", "SP800-90A-R1"],
+      "gitPolicy": "composite-citation"
+    }
+  ]
+}

@@ -125,16 +125,31 @@ const
     0x66'u8, 0x66'u8, 0x66'u8, 0x66'u8, 0x66'u8, 0x66'u8, 0x66'u8, 0x66'u8,
     0x66'u8, 0x66'u8, 0x66'u8, 0x66'u8, 0x66'u8, 0x66'u8, 0x66'u8, 0x66'u8
   ]
+  scalarOrderBytes: Ed25519Bytes32 = [
+    0xed'u8, 0xd3'u8, 0xf5'u8, 0x5c'u8, 0x1a'u8, 0x63'u8, 0x12'u8, 0x58'u8,
+    0xd6'u8, 0x9c'u8, 0xf7'u8, 0xa2'u8, 0xde'u8, 0xf9'u8, 0xde'u8, 0x14'u8,
+    0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8,
+    0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x10'u8
+  ]
+  identityCompressed: Ed25519Bytes32 = [
+    0x01'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8,
+    0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8,
+    0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8,
+    0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8, 0x00'u8
+  ]
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `rotr64`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc rotr64(x: uint64, n: int): uint64 {.inline.} =
   result = (x shr n) or (x shl (64 - n))
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `load64Be`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc load64Be(A: openArray[byte], o: int): uint64 {.inline.} =
   result = (uint64(A[o]) shl 56) or (uint64(A[o + 1]) shl 48) or
     (uint64(A[o + 2]) shl 40) or (uint64(A[o + 3]) shl 32) or
     (uint64(A[o + 4]) shl 24) or (uint64(A[o + 5]) shl 16) or
     (uint64(A[o + 6]) shl 8) or uint64(A[o + 7])
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `store64Be`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc store64Be(A: var openArray[byte], o: int, v: uint64) {.inline.} =
   A[o] = byte((v shr 56) and 0xff'u64)
   A[o + 1] = byte((v shr 48) and 0xff'u64)
@@ -145,6 +160,7 @@ proc store64Be(A: var openArray[byte], o: int, v: uint64) {.inline.} =
   A[o + 6] = byte((v shr 8) and 0xff'u64)
   A[o + 7] = byte(v and 0xff'u64)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `sha512Hash`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc sha512Hash*(A: openArray[byte]): Ed25519Bytes64 =
   ## The input may be secret (seeds, nonce prefixes), so every internal
   ## copy of it - padded message, message schedule, working registers -
@@ -244,12 +260,14 @@ proc sha512Hash*(A: openArray[byte]): Ed25519Bytes64 =
     store64Be(result, i * 8, h[i])
     inc i
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `load64Le`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc load64Le(A: openArray[byte], offset: int): uint64 {.inline.} =
   result = uint64(A[offset]) or (uint64(A[offset + 1]) shl 8) or
     (uint64(A[offset + 2]) shl 16) or (uint64(A[offset + 3]) shl 24) or
     (uint64(A[offset + 4]) shl 32) or (uint64(A[offset + 5]) shl 40) or
     (uint64(A[offset + 6]) shl 48) or (uint64(A[offset + 7]) shl 56)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `store64Le`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc store64Le(A: var Ed25519Bytes32, offset: int, v: uint64) {.inline.} =
   A[offset] = byte(v and 0xff'u64)
   A[offset + 1] = byte((v shr 8) and 0xff'u64)
@@ -260,6 +278,7 @@ proc store64Le(A: var Ed25519Bytes32, offset: int, v: uint64) {.inline.} =
   A[offset + 6] = byte((v shr 48) and 0xff'u64)
   A[offset + 7] = byte((v shr 56) and 0xff'u64)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `mulWide`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc mulWide(a, b: uint64, lo, hi: var uint64) {.inline.} =
   when defined(sizeof_Int128):
     type
@@ -281,11 +300,13 @@ proc mulWide(a, b: uint64, lo, hi: var uint64) {.inline.} =
     lo = (p00 and 0xffff_ffff'u64) or (middle shl 32)
     hi = p11 + (p01 shr 32) + (p10 shr 32) + (middle shr 32)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `add64To128`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc add64To128(lo, hi: var uint64, v: uint64) {.inline.} =
   var prev = lo
   lo = lo + v
   hi = hi + uint64(lo < prev)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `addMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc addMul(lo, hi: var uint64, a, b: uint64) {.inline.} =
   var
     prodLo: uint64 = 0
@@ -294,15 +315,19 @@ proc addMul(lo, hi: var uint64, a, b: uint64) {.inline.} =
   add64To128(lo, hi, prodLo)
   hi = hi + prodHi
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `shift51`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc shift51(lo, hi: uint64): uint64 {.inline.} =
   result = (lo shr 51) or (hi shl 13)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `fe0`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fe0(h: var Ed25519Field) {.inline.} =
   h = [0'u64, 0, 0, 0, 0]
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `fe1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fe1(h: var Ed25519Field) {.inline.} =
   h = [1'u64, 0, 0, 0, 0]
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `feAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feAdd(h: var Ed25519Field, f, g: Ed25519Field) {.inline.} =
   h[0] = f[0] + g[0]
   h[1] = f[1] + g[1]
@@ -310,6 +335,7 @@ proc feAdd(h: var Ed25519Field, f, g: Ed25519Field) {.inline.} =
   h[3] = f[3] + g[3]
   h[4] = f[4] + g[4]
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `feSub`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feSub(h: var Ed25519Field, f, g: Ed25519Field) {.inline.} =
   var
     h0 = g[0]
@@ -333,11 +359,13 @@ proc feSub(h: var Ed25519Field, f, g: Ed25519Field) {.inline.} =
   h[3] = (f[3] + 0x00ff_ffff_ffff_ffe'u64) - h3
   h[4] = (f[4] + 0x00ff_ffff_ffff_ffe'u64) - h4
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `feNeg`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feNeg(h: var Ed25519Field, f: Ed25519Field) {.inline.} =
   var z: Ed25519Field
   fe0(z)
   feSub(h, z, f)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `reduceMulAcc`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi,
     r4lo, r4hi: uint64, h: var Ed25519Field) {.inline.} =
   var
@@ -371,6 +399,7 @@ proc reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi,
   h[0] = h[0] and feMask
   h[1] = h[1] + carry
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `feMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feMul(h: var Ed25519Field, f, g: Ed25519Field) {.inline.} =
   var
     f1_19 = 19'u64 * f[1]
@@ -405,9 +434,11 @@ proc feMul(h: var Ed25519Field, f, g: Ed25519Field) {.inline.} =
   addMul(r4lo, r4hi, f[4], g[0])
   reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi, h)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `feSq`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feSq(h: var Ed25519Field, f: Ed25519Field) {.inline.} =
   feMul(h, f, f)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `feFromBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feFromBytes(h: var Ed25519Field, s: Ed25519Bytes32) {.inline.} =
   var t = s
   t[31] = t[31] and 0x7f'u8
@@ -417,6 +448,7 @@ proc feFromBytes(h: var Ed25519Field, s: Ed25519Bytes32) {.inline.} =
   h[3] = (load64Le(t, 19) shr 1) and feMask
   h[4] = (load64Le(t, 24) shr 12) and feMask
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `feReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feReduce(h: var Ed25519Field, f: Ed25519Field) {.inline.} =
   var
     t0 = f[0]
@@ -474,6 +506,7 @@ proc feReduce(h: var Ed25519Field, f: Ed25519Field) {.inline.} =
   h[3] = t3
   h[4] = t4 and feMask
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `feToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feToBytes(h: Ed25519Field): Ed25519Bytes32 {.inline.} =
   var t: Ed25519Field
   feReduce(t, h)
@@ -482,12 +515,15 @@ proc feToBytes(h: Ed25519Field): Ed25519Bytes32 {.inline.} =
   store64Le(result, 16, (t[2] shr 26) or (t[3] shl 25))
   store64Le(result, 24, (t[3] shr 39) or (t[4] shl 12))
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `feIsZero`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feIsZero(f: Ed25519Field): bool {.inline.} =
   result = isAllZero(feToBytes(f))
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `feIsNegative`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feIsNegative(f: Ed25519Field): bool {.inline.} =
   result = (feToBytes(f)[0] and 1'u8) == 1'u8
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `fePow`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fePow(h: var Ed25519Field, z: Ed25519Field, e: Ed25519Bytes32) =
   var
     r: Ed25519Field
@@ -500,9 +536,11 @@ proc fePow(h: var Ed25519Field, z: Ed25519Field, e: Ed25519Bytes32) =
     dec i
   h = r
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `feInvert`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feInvert(h: var Ed25519Field, z: Ed25519Field) {.inline.} =
   fePow(h, z, invExp)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `bytesLessThanP`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bytesLessThanP(s: Ed25519Bytes32): bool =
   var
     p: Ed25519Bytes32 = [
@@ -519,12 +557,14 @@ proc bytesLessThanP(s: Ed25519Bytes32): bool =
     dec i
   result = false
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `pointIdentity`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc pointIdentity(p: var Ed25519Point) {.inline.} =
   fe0(p.x)
   fe1(p.y)
   fe1(p.z)
   fe0(p.t)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `feCmov`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feCmov(f: var Ed25519Field, g: Ed25519Field, mask: uint64) {.inline.} =
   ## Constant-time select: f = g where mask is all-ones, f unchanged
   ## where mask is zero.  No branches, no secret-dependent memory access.
@@ -534,12 +574,14 @@ proc feCmov(f: var Ed25519Field, g: Ed25519Field, mask: uint64) {.inline.} =
   f[3] = f[3] xor (mask and (f[3] xor g[3]))
   f[4] = f[4] xor (mask and (f[4] xor g[4]))
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `pointCmov`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc pointCmov(p: var Ed25519Point, q: Ed25519Point, mask: uint64) {.inline.} =
   feCmov(p.x, q.x, mask)
   feCmov(p.y, q.y, mask)
   feCmov(p.z, q.z, mask)
   feCmov(p.t, q.t, mask)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `pointAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc pointAdd(r: var Ed25519Point, p, q: Ed25519Point) =
   var a, b, c, d, e, f, g, h, t0, t1: Ed25519Field
   defer:
@@ -572,6 +614,7 @@ proc pointAdd(r: var Ed25519Point, p, q: Ed25519Point) =
   feMul(r.t, e, h)
   feMul(r.z, f, g)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `pointDouble`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc pointDouble(r: var Ed25519Point, p: Ed25519Point) =
   var a, b, c, e, f, g, h, t0: Ed25519Field
   defer:
@@ -598,6 +641,7 @@ proc pointDouble(r: var Ed25519Point, p: Ed25519Point) =
   feMul(r.t, e, h)
   feMul(r.z, f, g)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `pointEncode`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc pointEncode(p: Ed25519Point): Ed25519Bytes32 =
   var
     zi, x, y: Ed25519Field
@@ -608,6 +652,7 @@ proc pointEncode(p: Ed25519Point): Ed25519Bytes32 =
   if feIsNegative(x):
     result[31] = result[31] or 0x80'u8
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `pointDecode`; pitfall: reject malformed or non-canonical input before indexed access.
 proc pointDecode(p: var Ed25519Point, s: Ed25519Bytes32): bool =
   var
     yBytes = s
@@ -644,10 +689,12 @@ proc pointDecode(p: var Ed25519Point, s: Ed25519Bytes32): bool =
   feMul(p.t, x, y)
   result = true
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `basePoint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc basePoint(): Ed25519Point =
   if not pointDecode(result, basePointCompressed):
     raise newException(ValueError, "invalid Ed25519 base point")
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `pointScalarMultVartime`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc pointScalarMultVartime(p: Ed25519Point, scalar: Ed25519Bytes32): Ed25519Point =
   ## Variable-time double-and-add.  ONLY for public scalars
   ## (verification); the branch per bit leaks the scalar via timing.
@@ -666,6 +713,21 @@ proc pointScalarMultVartime(p: Ed25519Point, scalar: Ed25519Bytes32): Ed25519Poi
     inc i
   result = q
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `pointIsInPrimeSubgroup`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc pointIsInPrimeSubgroup(p: Ed25519Point): bool =
+  ## Reference: RFC 8032 sections 3.4 and 5.1.7; strict subgroup policy
+  ## follows `Taming the many EdDSAs`, section 3. Checking [L]P = identity
+  ## rejects every mixed-order point, not only pure torsion points killed
+  ## by the cofactor. The identity itself is rejected separately.
+  var
+    encoded: Ed25519Bytes32 = pointEncode(p)
+    multiplied: Ed25519Point
+  if encoded == identityCompressed:
+    return false
+  multiplied = pointScalarMultVartime(p, scalarOrderBytes)
+  result = pointEncode(multiplied) == identityCompressed
+
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `pointScalarMultCt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc pointScalarMultCt(p: Ed25519Point, scalar: Ed25519Bytes32): Ed25519Point =
   ## Constant-time ladder for secret scalars (signing, key derivation).
   ## Every bit runs the exact same add + select + double sequence, so
@@ -692,17 +754,20 @@ proc pointScalarMultCt(p: Ed25519Point, scalar: Ed25519Bytes32): Ed25519Point =
     inc i
   result = q
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `geBase`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc geBase(scalar: Ed25519Bytes32): Ed25519Point =
   ## [scalar]B - the scalar is secret in every caller (signing nonce,
   ## clamped secret scalar), so this always uses the constant-time ladder.
   result = pointScalarMultCt(basePoint(), scalar)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `scalarBytesToLimbs`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc scalarBytesToLimbs(s: Ed25519Bytes32): array[4, uint64] {.inline.} =
   result[0] = load64Le(s, 0)
   result[1] = load64Le(s, 8)
   result[2] = load64Le(s, 16)
   result[3] = load64Le(s, 24)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `scalarCmpL`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc scalarCmpL(a: array[4, uint64]): int {.inline.} =
   var L: array[4, uint64] = [l0, l1, l2, l3]
   var i: int = 3
@@ -712,6 +777,7 @@ proc scalarCmpL(a: array[4, uint64]): int {.inline.} =
     dec i
   result = 0
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `scalarGeLMask`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc scalarGeLMask(a: array[4, uint64]): uint64 {.inline.} =
   ## Constant-time: all-ones when a >= L, zero otherwise.  Runs the
   ## full borrow chain of a - L instead of comparing limbs with
@@ -731,6 +797,7 @@ proc scalarGeLMask(a: array[4, uint64]): uint64 {.inline.} =
     inc i
   result = borrow - 1'u64
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `scalarCondSubL`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc scalarCondSubL(a: var array[4, uint64], mask: uint64) {.inline.} =
   ## Constant-time: subtract L where mask is all-ones, no-op where zero.
   var
@@ -750,6 +817,7 @@ proc scalarCondSubL(a: var array[4, uint64], mask: uint64) {.inline.} =
     borrow = b0 or b1
     inc i
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `scalarAddMod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc scalarAddMod(a: var array[4, uint64], b: array[4, uint64]) {.inline.} =
   ## Constant-time a = (a + b) mod L: the final reduction is a masked
   ## subtraction instead of a branch on the (secret) sum.
@@ -768,19 +836,23 @@ proc scalarAddMod(a: var array[4, uint64], b: array[4, uint64]) {.inline.} =
     inc i
   scalarCondSubL(a, (0'u64 - carry) or scalarGeLMask(a))
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `scalarDoubleMod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc scalarDoubleMod(a: var array[4, uint64]) {.inline.} =
   var b = a
   scalarAddMod(a, b)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `scalarToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc scalarToBytes(a: array[4, uint64]): Ed25519Bytes32 {.inline.} =
   store64Le(result, 0, a[0])
   store64Le(result, 8, a[1])
   store64Le(result, 16, a[2])
   store64Le(result, 24, a[3])
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `getBitWide`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc getBitWide(A: array[8, uint64], pos: int): uint64 {.inline.} =
   result = (A[pos div 64] shr (pos and 63)) and 1'u64
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `reduceWide`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc reduceWide(A: array[8, uint64]): Ed25519Bytes32 =
   ## Constant-time bit-serial reduction mod L.  Every bit adds a masked
   ## 0/1 value instead of branching, because A is secret in the nonce
@@ -800,6 +872,7 @@ proc reduceWide(A: array[8, uint64]): Ed25519Bytes32 =
     dec i
   result = scalarToBytes(rem)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `reduce64`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc reduce64(A: Ed25519Bytes64): Ed25519Bytes32 =
   var wide: array[8, uint64]
   var i: int = 0
@@ -810,6 +883,7 @@ proc reduce64(A: Ed25519Bytes64): Ed25519Bytes32 =
     inc i
   result = reduceWide(wide)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `reduce32`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc reduce32(A: Ed25519Bytes32): Ed25519Bytes32 =
   var wide: array[8, uint64]
   var i: int = 0
@@ -820,9 +894,11 @@ proc reduce32(A: Ed25519Bytes32): Ed25519Bytes32 =
     inc i
   result = reduceWide(wide)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `scalarIsCanonical`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc scalarIsCanonical(s: Ed25519Bytes32): bool =
   result = scalarCmpL(scalarBytesToLimbs(s)) < 0
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `scalarMulAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc scalarMulAdd(k, s, r: Ed25519Bytes32): Ed25519Bytes32 =
   ## Constant-time r + k*s (mod L).  s (clamped secret scalar) and
   ## r (nonce) are secret, so every bit adds a masked copy of the
@@ -851,6 +927,7 @@ proc scalarMulAdd(k, s, r: Ed25519Bytes32): Ed25519Bytes32 =
     inc i
   result = scalarToBytes(acc)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `toFixed32Ed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc toFixed32Ed(input: openArray[byte], label: string): Ed25519Bytes32 =
   var i: int = 0
   if input.len != 32:
@@ -859,6 +936,7 @@ proc toFixed32Ed(input: openArray[byte], label: string): Ed25519Bytes32 =
     result[i] = input[i]
     inc i
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `toSeq32`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc toSeq32(input: Ed25519Bytes32): seq[byte] =
   var i: int = 0
   result = newSeq[byte](32)
@@ -866,6 +944,7 @@ proc toSeq32(input: Ed25519Bytes32): seq[byte] =
     result[i] = input[i]
     inc i
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `toSeq64`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc toSeq64(input: Ed25519Bytes64): seq[byte] =
   var i: int = 0
   result = newSeq[byte](64)
@@ -873,6 +952,7 @@ proc toSeq64(input: Ed25519Bytes64): seq[byte] =
     result[i] = input[i]
     inc i
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `clampDigestScalar`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clampDigestScalar(h: Ed25519Bytes64): Ed25519Bytes32 =
   var i: int = 0
   while i < 32:
@@ -881,6 +961,7 @@ proc clampDigestScalar(h: Ed25519Bytes64): Ed25519Bytes32 =
   result[0] = result[0] and 248'u8
   result[31] = (result[31] and 63'u8) or 64'u8
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `publicKeyFromSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc publicKeyFromSeed(seed: Ed25519Bytes32): Ed25519Bytes32 =
   var
     h = sha512Hash(seed)
@@ -890,12 +971,14 @@ proc publicKeyFromSeed(seed: Ed25519Bytes32): Ed25519Bytes32 =
     secureClearPod(a)
   result = pointEncode(geBase(a))
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `ed25519TyrPublicKey`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ed25519TyrPublicKey*(seed: openArray[byte]): seq[byte] =
   var s = toFixed32Ed(seed, "seed")
   defer:
     secureClearPod(s)
   result = toSeq32(publicKeyFromSeed(s))
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `ed25519TyrKeypairFromSeed`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc ed25519TyrKeypairFromSeed*(seed: openArray[byte]): Ed25519Keypair =
   var
     s = toFixed32Ed(seed, "seed")
@@ -910,12 +993,14 @@ proc ed25519TyrKeypairFromSeed*(seed: openArray[byte]): Ed25519Keypair =
     result.secretKey[i + 32] = pk[i]
     inc i
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `ed25519TyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc ed25519TyrKeypair*(): Ed25519Keypair =
   var seed = cryptoRandomBytes(32)
   defer:
     secureClearBytes(seed)
   result = ed25519TyrKeypairFromSeed(seed)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `ed25519TyrSign`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc ed25519TyrSign*(message, secretKey: openArray[byte]): seq[byte] =
   var
     seed: Ed25519Bytes32
@@ -980,7 +1065,13 @@ proc ed25519TyrSign*(message, secretKey: openArray[byte]): seq[byte] =
     inc i
   result = toSeq64(sig)
 
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `ed25519TyrVerify`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc ed25519TyrVerify*(message, signature, publicKey: openArray[byte]): bool =
+  ## Reference: RFC 8032 section 5.1.7, with the strict subgroup policy
+  ## analyzed in `Taming the many EdDSAs`, section 3. Canonical encodings,
+  ## S < L, and non-identity prime-subgroup A/R are all required before the
+  ## group equation. This is intentionally stricter than RFC 8032's permitted
+  ## cofactored equation and rejects mixed-order encodings.
   var
     sigR: Ed25519Bytes32
     sigS: Ed25519Bytes32
@@ -1003,6 +1094,8 @@ proc ed25519TyrVerify*(message, signature, publicKey: openArray[byte]): bool =
     return false
   if not pointDecode(rPoint, sigR):
     return false
+  if not pointIsInPrimeSubgroup(aPoint) or not pointIsInPrimeSubgroup(rPoint):
+    return false
   hramInput = newSeqOfCap[byte](64 + message.len)
   i = 0
   while i < 32:
@@ -1022,6 +1115,7 @@ proc ed25519TyrVerify*(message, signature, publicKey: openArray[byte]): bool =
   result = pointEncode(sB) == pointEncode(rhs)
 
 when defined(amd64) or defined(i386):
+  ## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `ed25519TyrSignSse2x`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
   proc ed25519TyrSignSse2x*(messages: array[2, seq[byte]],
       secretKeys: array[2, seq[byte]]): array[2, seq[byte]] =
     var lane: int = 0
@@ -1029,6 +1123,7 @@ when defined(amd64) or defined(i386):
       result[lane] = ed25519TyrSign(messages[lane], secretKeys[lane])
       inc lane
 
+  ## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `ed25519TyrVerifySse2x`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
   proc ed25519TyrVerifySse2x*(messages, signatures, publicKeys: array[2, seq[byte]]): array[2, bool] =
     var lane: int = 0
     while lane < 2:
@@ -1036,6 +1131,7 @@ when defined(amd64) or defined(i386):
       inc lane
 
 when defined(avx2):
+  ## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `ed25519TyrSignAvx4x`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
   proc ed25519TyrSignAvx4x*(messages: array[4, seq[byte]],
       secretKeys: array[4, seq[byte]]): array[4, seq[byte]] =
     var lane: int = 0
@@ -1043,6 +1139,7 @@ when defined(avx2):
       result[lane] = ed25519TyrSign(messages[lane], secretKeys[lane])
       inc lane
 
+  ## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `ed25519TyrVerifyAvx4x`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
   proc ed25519TyrVerifyAvx4x*(messages, signatures, publicKeys: array[4, seq[byte]]): array[4, bool] =
     var lane: int = 0
     while lane < 4:

@@ -44,6 +44,7 @@ const zetas*: array[dilithiumN, int32] = [
   -554416'i32,  3919660'i32,   -48306'i32, -1362209'i32,  3937738'i32,  1400424'i32,  -846154'i32,  1976782'i32
 ]
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `concatNonce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc concatNonce(seed: openArray[byte], nonce: uint16): seq[byte] =
   result = newSeq[byte](seed.len + 2)
   if seed.len > 0:
@@ -51,15 +52,18 @@ proc concatNonce(seed: openArray[byte], nonce: uint16): seq[byte] =
   result[seed.len] = byte(nonce and 0xff'u16)
   result[seed.len + 1] = byte((nonce shr 8) and 0xff'u16)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `shake128Stream`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc shake128Stream*(seed: openArray[byte], nonce: uint16, outLen: int): seq[byte] =
   ## SHAKE128(seed || nonce_le) stream used by ML-DSA.
   result = shake128(concatNonce(seed, nonce), outLen)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `shake256Stream`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc shake256Stream*(seed: openArray[byte], nonce: uint16, outLen: int): seq[byte] =
   ## SHAKE256(seed || nonce_le) stream used by ML-DSA.
   result = shake256(concatNonce(seed, nonce), outLen)
 
 {.push boundChecks: off, overflowChecks: off.}
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `montgomeryReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc montgomeryReduce*(a: int64): int32 {.inline, raises: [].} =
   ## Compute `a * 2^-32 mod q` with the reference Dilithium bounds.
   var
@@ -70,6 +74,7 @@ proc montgomeryReduce*(a: int64): int32 {.inline, raises: [].} =
   ## The reference Dilithium bounds guarantee the post-shift value fits in int32.
   result = cast[int32]((a - int64(t) * int64(dilithiumQ)) shr 32)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `reduce32`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc reduce32*(a: int32): int32 {.inline, raises: [].} =
   ## Reduce to the centered Dilithium interval.
   var
@@ -77,19 +82,23 @@ proc reduce32*(a: int32): int32 {.inline, raises: [].} =
   t = (a + (1 shl 22)) shr 23
   result = a - t * dilithiumQ
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `caddq`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc caddq*(a: int32): int32 {.inline, raises: [].} =
   ## Add `q` when the value is negative.
   result = a + ((a shr 31) and dilithiumQ)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `freeze`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc freeze*(a: int32): int32 {.inline, raises: [].} =
   ## Canonical representative mod `q`.
   result = caddq(reduce32(a))
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `power2round`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc power2round*(a: int32): tuple[a1, a0: int32] {.inline, raises: [].} =
   ## Split into high and low bits around `2^D`.
   result.a1 = (a + (1 shl (dilithiumD - 1)) - 1) shr dilithiumD
   result.a0 = a - (result.a1 shl dilithiumD)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `decomposeGamma32`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc decomposeGamma32*(a: int32): tuple[a1, a0: int32] {.inline, raises: [].} =
   var
     a1: int32 = 0
@@ -101,6 +110,7 @@ proc decomposeGamma32*(a: int32): tuple[a1, a0: int32] {.inline, raises: [].} =
   a0 = a0 - (((((dilithiumQ - 1) div 2) - a0) shr 31) and dilithiumQ)
   result = (a1: a1, a0: a0)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `decomposeGamma88`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc decomposeGamma88*(a: int32): tuple[a1, a0: int32] {.inline, raises: [].} =
   var
     a1: int32 = 0
@@ -112,6 +122,7 @@ proc decomposeGamma88*(a: int32): tuple[a1, a0: int32] {.inline, raises: [].} =
   a0 = a0 - (((((dilithiumQ - 1) div 2) - a0) shr 31) and dilithiumQ)
   result = (a1: a1, a0: a0)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `decompose`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc decompose*(p: DilithiumParams, a: int32): tuple[a1, a0: int32] {.inline, raises: [].} =
   ## Split into high and low bits around `alpha = 2*gamma2`.
   if p.gamma2 == (dilithiumQ - 1) div 32:
@@ -119,6 +130,7 @@ proc decompose*(p: DilithiumParams, a: int32): tuple[a1, a0: int32] {.inline, ra
     return
   result = decomposeGamma88(a)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `useHintGamma32`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc useHintGamma32*(a: int32, hint: uint32): int32 {.inline, raises: [].} =
   var
     d: tuple[a1, a0: int32]
@@ -129,6 +141,7 @@ proc useHintGamma32*(a: int32, hint: uint32): int32 {.inline, raises: [].} =
     return (d.a1 + 1) and 15
   result = (d.a1 - 1) and 15
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `useHintGamma88`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc useHintGamma88*(a: int32, hint: uint32): int32 {.inline, raises: [].} =
   var
     d: tuple[a1, a0: int32]
@@ -143,6 +156,7 @@ proc useHintGamma88*(a: int32, hint: uint32): int32 {.inline, raises: [].} =
     return 43
   result = d.a1 - 1
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `useHint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc useHint*(p: DilithiumParams, a: int32, hint: uint32): int32 {.inline, raises: [].} =
   ## Correct high bits using the hint bit.
   if p.gamma2 == (dilithiumQ - 1) div 32:
@@ -150,6 +164,7 @@ proc useHint*(p: DilithiumParams, a: int32, hint: uint32): int32 {.inline, raise
     return
   result = useHintGamma88(a, hint)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `makeHint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc makeHint*(p: DilithiumParams, a0, a1: int32): uint32 {.inline, raises: [].} =
   ## Hint whether low bits overflow into high bits.
   ## Branch-free: a0/a1 derive from secret data during signing (including
@@ -163,6 +178,7 @@ proc makeHint*(p: DilithiumParams, a0, a1: int32): uint32 {.inline, raises: [].}
   result = uint32((gt or lt or (eqNeg and nzA1)) and 1)
 
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `nttLayer`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template nttLayer(A, l, k: untyped) =
   block:
     var
@@ -182,6 +198,7 @@ template nttLayer(A, l, k: untyped) =
         j = j + 1
       start = j + l
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `invnttLayer`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template invnttLayer(A, l, k: untyped) =
   block:
     var
@@ -202,6 +219,7 @@ template invnttLayer(A, l, k: untyped) =
         j = j + 1
       start = j + l
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `ntt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ntt*(A: var array[dilithiumN, int32]) {.raises: [].} =
   ## Forward in-place NTT.
   var
@@ -216,6 +234,7 @@ proc ntt*(A: var array[dilithiumN, int32]) {.raises: [].} =
   nttLayer(A, 2, k)
   nttLayer(A, 1, k)
 
+## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; finite-field, ring, and transform arithmetic for `invnttTomont`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc invnttTomont*(A: var array[dilithiumN, int32]) {.raises: [].} =
   ## Inverse in-place NTT with final Montgomery factor.
   var

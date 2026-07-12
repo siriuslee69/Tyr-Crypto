@@ -24,17 +24,22 @@ type
     ciphertext*: seq[byte]
     sharedSecret*: seq[byte]
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `publicKeyBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc publicKeyBytes*(p: McElieceParams): int {.inline.} =
   p.pkNRows * p.pkRowBytes
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `secretKeyBytes`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc secretKeyBytes*(p: McElieceParams): int {.inline.} =
   32 + 8 + p.irrBytes + p.condBytes + p.sysN div 8
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `ciphertextBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ciphertextBytes*(p: McElieceParams): int {.inline.} =
   p.syndBytes
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sharedKeyBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc sharedKeyBytes*: int {.inline.} = 32
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `buildSeedMaterial`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildSeedMaterial(seed: openArray[byte]): seq[byte] =
   ## Prepend domain byte 64 to the 32-byte seed, as in PQClean operations.c.
   result = newSeq[byte](33)
@@ -42,10 +47,12 @@ proc buildSeedMaterial(seed: openArray[byte]): seq[byte] =
   for i in 0 ..< 32:
     result[1 + i] = seed[i]
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `buildKeypairStreamLength`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc buildKeypairStreamLength(p: McElieceParams): int =
   ## Length of the SHAKE-derived stream used during keypair generation.
   (p.sysN div 8) + ((1 shl p.gfBits) * 4) + (p.sysT * 2) + 32
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `parseGoppaPolynomial`; pitfall: reject malformed or non-canonical input before indexed access.
 proc parseGoppaPolynomial(p: McElieceParams; buf: openArray[byte];
     outPoly: var seq[GF]) =
   if outPoly.len < p.sysT:
@@ -53,11 +60,13 @@ proc parseGoppaPolynomial(p: McElieceParams; buf: openArray[byte];
   for i in 0 ..< p.sysT:
     outPoly[i] = loadGF(buf.toOpenArray(i * 2, i * 2 + 1))
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `encodeGoppaPolynomial`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc encodeGoppaPolynomial(f: openArray[GF]): seq[byte] =
   result = newSeq[byte](f.len * 2)
   for i in 0 ..< f.len:
     storeGF(result.toOpenArray(i * 2, i * 2 + 1), f[i])
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mcelieceTyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc mcelieceTyrKeypair*(v: McElieceVariant; seed: seq[byte] = @[]): McElieceTyrKeypair {.otterTrace.} =
   ## Generate a McEliece keypair (optionally seeded for reproducibility).
   var
@@ -157,6 +166,7 @@ proc mcelieceTyrKeypair*(v: McElieceVariant; seed: seq[byte] = @[]): McElieceTyr
       result.secretKey[40 + irrBytes.len + controlBits.len + i] = stream[seedOffset + i]
     break
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `buildEncapPreimage`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc buildEncapPreimage(p: McElieceParams; e, syndrome: openArray[byte]): seq[byte] =
   result = newSeq[byte](1 + p.sysN div 8 + p.syndBytes)
   result[0] = 1
@@ -165,6 +175,7 @@ proc buildEncapPreimage(p: McElieceParams; e, syndrome: openArray[byte]): seq[by
   for i in 0 ..< p.syndBytes:
     result[1 + p.sysN div 8 + i] = syndrome[i]
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `buildDecapPreimage`; pitfall: preserve implicit rejection and never expose a secret-dependent validity oracle.
 proc buildDecapPreimage(p: McElieceParams; okMask: uint16; e, c, sk: openArray[byte]): seq[byte] =
   var
     condOffset: int = 32 + 8 + p.irrBytes
@@ -185,6 +196,7 @@ proc buildDecapPreimage(p: McElieceParams; okMask: uint16; e, c, sk: openArray[b
     result[1 + p.sysN div 8 + i] = c[i]
     i = i + 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mcelieceTyrEncaps`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc mcelieceTyrEncaps*(v: McElieceVariant, pk: openArray[byte]): McElieceTyrCipher {.otterTrace.} =
   ## Encapsulate against a McEliece public key and derive the shared secret.
   var
@@ -205,6 +217,7 @@ proc mcelieceTyrEncaps*(v: McElieceVariant, pk: openArray[byte]): McElieceTyrCip
   otterSpan("mceliece.encaps.shake256"):
     result.sharedSecret = shake256(preimage, sharedKeyBytes())
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mcelieceTyrEncapsDerand`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc mcelieceTyrEncapsDerand*(v: McElieceVariant, pk, randomness: openArray[byte]): McElieceTyrCipher {.otterTrace.} =
   ## Encapsulate against a McEliece public key from explicit PQClean `gen_e`
   ## random block material.
@@ -226,6 +239,7 @@ proc mcelieceTyrEncapsDerand*(v: McElieceVariant, pk, randomness: openArray[byte
   otterSpan("mceliece.encaps.shake256"):
     result.sharedSecret = shake256(preimage, sharedKeyBytes())
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mcelieceTyrTryDecaps`; pitfall: preserve implicit rejection and never expose a secret-dependent validity oracle.
 proc mcelieceTyrTryDecaps*(v: McElieceVariant, sk, ct: openArray[byte]): tuple[sharedSecret: seq[byte], ok: bool] =
   ## Decapsulate with implicit rejection: `sharedSecret` is always derived and
   ## invalid ciphertexts yield pseudorandom keys. The `ok` flag is diagnostic
@@ -249,6 +263,7 @@ proc mcelieceTyrTryDecaps*(v: McElieceVariant, sk, ct: openArray[byte]): tuple[s
     result.sharedSecret = shake256(preimage, sharedKeyBytes())
   result.ok = dec.ok
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mcelieceTyrDecaps`; pitfall: preserve implicit rejection and never expose a secret-dependent validity oracle.
 proc mcelieceTyrDecaps*(v: McElieceVariant, sk, ct: openArray[byte]): seq[byte] {.otterTrace.} =
   ## Decapsulate and return the derived shared secret bytes (implicit rejection).
   ## Do not branch on `mcelieceTyrTryDecaps().ok` before using the secret.

@@ -2,6 +2,7 @@
 ## CT Compare <- shared constant-time byte and mask comparisons
 ## ----------------------------------------------------------------
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; constant-time comparison and conditional-selection requirements for `verifyBytes`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc verifyBytes*(A, B: openArray[byte]): int =
   ## Return 0 when `A == B`, else 1, using a branch-free byte walk.
   var
@@ -15,10 +16,12 @@ proc verifyBytes*(A, B: openArray[byte]): int =
     i = i + 1
   result = int((0'u64 - uint64(r)) shr 63)
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; constant-time comparison and conditional-selection requirements for `bytesEqualCt`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc bytesEqualCt*(A, B: openArray[byte]): bool =
   ## Constant-time equality test for equal-length byte strings.
   verifyBytes(A, B) == 0
 
+## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; constant-time comparison and conditional-selection requirements for `uint16MaskAllOnesCt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc uint16MaskAllOnesCt*(m: uint16): bool =
   ## Return true when `m == 0xFFFF`, else false, without early exit.
   var

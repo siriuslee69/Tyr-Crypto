@@ -5,4 +5,9 @@
 import ./zigcc_driver
 
 when isMainModule:
-  runZigCc(target = "aarch64-linux-musl", staticLink = true, cacheSuffix = "-aarch64")
+  when defined(windows):
+    runZigCc(target = "aarch64-linux-musl", staticLink = true,
+      cacheSuffix = "-aarch64")
+  else:
+    runZigCc(target = "aarch64-linux-musl", staticLink = true,
+      cacheSuffix = "-aarch64", mode = zigPathCompiler)

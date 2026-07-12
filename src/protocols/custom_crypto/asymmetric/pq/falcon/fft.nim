@@ -8,6 +8,7 @@ import ./util
 when falconCompileHasSimd:
   import ./fpr_simd
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fpcAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template fpcAdd(dRe, dIm, aRe, aIm, bRe, bIm: untyped) =
   block:
     let fpctRe = fprAdd(aRe, bRe)
@@ -15,6 +16,7 @@ template fpcAdd(dRe, dIm, aRe, aIm, bRe, bIm: untyped) =
     dRe = fpctRe
     dIm = fpctIm
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fpcSub`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template fpcSub(dRe, dIm, aRe, aIm, bRe, bIm: untyped) =
   block:
     let fpctRe = fprSub(aRe, bRe)
@@ -22,6 +24,7 @@ template fpcSub(dRe, dIm, aRe, aIm, bRe, bIm: untyped) =
     dRe = fpctRe
     dIm = fpctIm
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fpcMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template fpcMul(dRe, dIm, aRe, aIm, bRe, bIm: untyped) =
   block:
     let
@@ -34,6 +37,7 @@ template fpcMul(dRe, dIm, aRe, aIm, bRe, bIm: untyped) =
     dRe = fpctDRe
     dIm = fpctDIm
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `fpcDiv`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 template fpcDiv(dRe, dIm, aRe, aIm, bRe, bIm: untyped) =
   block:
     let
@@ -49,6 +53,7 @@ template fpcDiv(dRe, dIm, aRe, aIm, bRe, bIm: untyped) =
     dRe = fpctDRe
     dIm = fpctDIm
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `falconFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc falconFft*(f: var openArray[FalconFpr], logn: int) =
   let
     n = mkn(logn)
@@ -86,6 +91,7 @@ proc falconFft*(f: var openArray[FalconFpr], logn: int) =
     inc u
     m = m shl 1
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `falconIfft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc falconIfft*(f: var openArray[FalconFpr], logn: int) =
   let
     n = mkn(logn)
@@ -129,6 +135,7 @@ proc falconIfft*(f: var openArray[FalconFpr], logn: int) =
       f[i] = fprMul(f[i], ni)
       inc i
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyAdd*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int) =
   ## Paper note: the SIMD branch below is the first FFT helper using Tyr's
   ## two-lane `FalconFpr` abstraction; the Falcon algorithm remains spec-compatible.
@@ -145,6 +152,7 @@ proc polyAdd*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int) =
     a[u] = fprAdd(a[u], b[u])
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polySub`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polySub*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int) =
   let n = mkn(logn)
   var u = 0
@@ -159,6 +167,7 @@ proc polySub*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int) =
     a[u] = fprSub(a[u], b[u])
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyNeg`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyNeg*(a: var openArray[FalconFpr], logn: int) =
   let n = mkn(logn)
   var u = 0
@@ -166,6 +175,7 @@ proc polyNeg*(a: var openArray[FalconFpr], logn: int) =
     a[u] = fprNeg(a[u])
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyAdjFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyAdjFft*(a: var openArray[FalconFpr], logn: int) =
   let
     n = mkn(logn)
@@ -175,6 +185,7 @@ proc polyAdjFft*(a: var openArray[FalconFpr], logn: int) =
     a[u] = fprNeg(a[u])
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyMulFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int) =
   ## Paper note: complex FFT-domain multiplication is unchanged from Falcon, but
   ## packed two coefficient lanes follow the performance direction of optimized Falcon FFT code.
@@ -204,6 +215,7 @@ proc polyMulFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int
     fpcMul(a[u], a[u + hn], aRe, aIm, bRe, bIm)
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyMuladjFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMuladjFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int) =
   let
     n = mkn(logn)
@@ -231,6 +243,7 @@ proc polyMuladjFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: 
     fpcMul(a[u], a[u + hn], aRe, aIm, bRe, bIm)
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyMulselfadjFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulselfadjFft*(a: var openArray[FalconFpr], logn: int) =
   let
     n = mkn(logn)
@@ -255,6 +268,7 @@ proc polyMulselfadjFft*(a: var openArray[FalconFpr], logn: int) =
     a[u + hn] = fprZero
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyMulconst`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulconst*(a: var openArray[FalconFpr], x: FalconFpr, logn: int) =
   let n = mkn(logn)
   var u = 0
@@ -269,6 +283,7 @@ proc polyMulconst*(a: var openArray[FalconFpr], x: FalconFpr, logn: int) =
     a[u] = fprMul(a[u], x)
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyDivFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyDivFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int) =
   ## Paper note: this vectorizes Falcon's complex division formula over two
   ## independent FFT slots; it is a local performance optimization, not a sampler change.
@@ -300,6 +315,7 @@ proc polyDivFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int
     fpcDiv(a[u], a[u + hn], aRe, aIm, bRe, bIm)
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyInvnorm2Fft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyInvnorm2Fft*(d: var openArray[FalconFpr], a, b: openArray[FalconFpr], logn: int) =
   ## Paper note: keygen uses this inverse norm in Falcon's NTRU-solving flow;
   ## the SIMD branch batches the same squared-norm denominator over two FFT slots.
@@ -336,6 +352,7 @@ proc polyInvnorm2Fft*(d: var openArray[FalconFpr], a, b: openArray[FalconFpr], l
     )
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyAddMuladjFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyAddMuladjFft*(d: var openArray[FalconFpr], F, G, f, g: openArray[FalconFpr], logn: int) =
   ## Paper note: this is Falcon's FFT-domain `F*adj(f)+G*adj(g)` helper with
   ## two-lane packing for the repeated complex products.
@@ -380,6 +397,7 @@ proc polyAddMuladjFft*(d: var openArray[FalconFpr], F, G, f, g: openArray[Falcon
     d[u + hn] = fprAdd(aIm, bIm)
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyMulAutoadjFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulAutoadjFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int) =
   let
     n = mkn(logn)
@@ -400,6 +418,7 @@ proc polyMulAutoadjFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], lo
     a[u + hn] = fprMul(a[u + hn], b[u])
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyDivAutoadjFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyDivAutoadjFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], logn: int) =
   let
     n = mkn(logn)
@@ -421,6 +440,7 @@ proc polyDivAutoadjFft*(a: var openArray[FalconFpr], b: openArray[FalconFpr], lo
     a[u + hn] = fprMul(a[u + hn], ib)
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyLDLFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyLDLFft*(g00: openArray[FalconFpr], g01, g11: var openArray[FalconFpr], logn: int) =
   ## Paper note: Falcon's LDL tree construction is preserved; the SIMD block
   ## just batches the complex division and update that dominate this helper.
@@ -468,6 +488,7 @@ proc polyLDLFft*(g00: openArray[FalconFpr], g01, g11: var openArray[FalconFpr], 
     g01[u + hn] = fprNeg(muIm)
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyLDLmvFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyLDLmvFft*(d11, l10: var openArray[FalconFpr], g00, g01, g11: openArray[FalconFpr], logn: int) =
   ## Paper note: this mirrors `polyLDLFft` for move-output use sites and keeps
   ## the same Falcon LDL arithmetic in two-lane form.
@@ -515,6 +536,7 @@ proc polyLDLmvFft*(d11, l10: var openArray[FalconFpr], g00, g01, g11: openArray[
     l10[u + hn] = fprNeg(muIm)
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polySplitFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polySplitFft*(f0, f1: var openArray[FalconFpr], f: openArray[FalconFpr], logn: int) =
   let
     n = mkn(logn)
@@ -544,6 +566,7 @@ proc polySplitFft*(f0, f1: var openArray[FalconFpr], f: openArray[FalconFpr], lo
     f1[u + qn] = fprHalf(tIm)
     inc u
 
+## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; finite-field, ring, and transform arithmetic for `polyMergeFft`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMergeFft*(f: var openArray[FalconFpr], f0, f1: openArray[FalconFpr], logn: int) =
   let
     n = mkn(logn)

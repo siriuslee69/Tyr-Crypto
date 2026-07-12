@@ -13,6 +13,7 @@ type
   ForsGenLeafInfo = object
     leafAddr: SphincsAddress
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; FORS algorithms for `forsGenLeafX1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc forsGenLeafX1(leaf: var openArray[byte], ctx: SphincsCtx, addrIdx: uint32,
     info: var ForsGenLeafInfo) =
   setTreeIndex(info.leafAddr, addrIdx)
@@ -21,6 +22,7 @@ proc forsGenLeafX1(leaf: var openArray[byte], ctx: SphincsCtx, addrIdx: uint32,
   setType(info.leafAddr, spxAddrTypeForsTree)
   thash(leaf, leaf, 1, ctx, info.leafAddr)
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; FORS algorithms for `messageToIndices`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc messageToIndices*(indices: var openArray[uint32], msg: openArray[byte]) =
   var
     offset: int = 0
@@ -30,6 +32,7 @@ proc messageToIndices*(indices: var openArray[uint32], msg: openArray[byte]) =
       indices[i] = indices[i] xor (uint32((msg[offset shr 3] shr (offset and 7)) and 1'u8) shl j)
       offset = offset + 1
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; FORS algorithms for `forsSign`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc forsSign*(sig: var seq[byte], sigOff: var int, pk: var array[spxN, byte], msg: openArray[byte],
     ctx: SphincsCtx, forsAddr: SphincsAddress) =
   var
@@ -71,6 +74,7 @@ proc forsSign*(sig: var seq[byte], sigOff: var int, pk: var array[spxN, byte], m
     clearPlainData(rootNode)
   thash(pk, roots, spxForsTrees, ctx, pkAddr)
 
+## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; FORS algorithms for `forsPkFromSig`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc forsPkFromSig*(pk: var array[spxN, byte], sig: openArray[byte], sigOff: var int, msg: openArray[byte],
     ctx: SphincsCtx, forsAddr: SphincsAddress) =
   var

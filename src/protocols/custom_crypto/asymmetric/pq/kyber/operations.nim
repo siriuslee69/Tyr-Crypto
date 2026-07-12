@@ -25,8 +25,10 @@ type
 
 ## Testing/reproducibility surface. Keep public during KAT and optimization
 ## work; tighten or remove this from the public API once Kyber stabilizes.
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `kyberTyrKeypairFromParts`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc kyberTyrKeypairFromParts*(v: KyberVariant, indcpaSeed, zSeed: openArray[byte]): KyberTyrKeypair
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `kyberTyrKeypairDerand`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc kyberTyrKeypairDerand*(v: KyberVariant, seedMaterial: openArray[byte]): KyberTyrKeypair =
   ## Generate a pure-Nim Kyber keypair from explicit 64-byte keypair material.
   ## Testing/reproducibility surface to narrow later.
@@ -34,6 +36,7 @@ proc kyberTyrKeypairDerand*(v: KyberVariant, seedMaterial: openArray[byte]): Kyb
     seedMaterial.toOpenArray(0, 31),
     seedMaterial.toOpenArray(32, 63))
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `kyberTyrKeypairFromParts`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc kyberTyrKeypairFromParts*(v: KyberVariant, indcpaSeed, zSeed: openArray[byte]): KyberTyrKeypair =
   ## Generate a pure-Nim Kyber keypair from the two exact randomness draws used by the KEM.
   var
@@ -56,6 +59,7 @@ proc kyberTyrKeypairFromParts*(v: KyberVariant, indcpaSeed, zSeed: openArray[byt
   copyBytes(result.secretKey, p.secretKeyBytes - kyberSymBytes, zSeed)
   clearBytes(pkHash)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `kyberTyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc kyberTyrKeypair*(v: KyberVariant, seed: seq[byte] = @[]): KyberTyrKeypair {.otterTrace.} =
   ## Generate a pure-Nim Kyber keypair.
   var
@@ -72,8 +76,12 @@ proc kyberTyrKeypair*(v: KyberVariant, seed: seq[byte] = @[]): KyberTyrKeypair {
   result = kyberTyrKeypairDerand(v, seedMaterialBuf)
   secureClearBytes(seedMaterialBuf)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `kyberTyrEncaps`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc kyberTyrEncaps*(v: KyberVariant, pk: openArray[byte], seed: seq[byte] = @[]): KyberTyrCipher {.otterTrace.} =
   ## Encapsulate against a pure-Nim Kyber public key.
+  ## Reference: CRYSTALS-Kyber round-3 specification, algorithm 8. The
+  ## `H(entropy)` step below is intentionally legacy Kyber behavior and is
+  ## incompatible with FIPS 203 ML-KEM. Do not label this API as ML-KEM.
   var
     p: KyberParams = params(v)
     entropy: seq[byte] = @[]
@@ -110,9 +118,13 @@ proc kyberTyrEncaps*(v: KyberVariant, pk: openArray[byte], seed: seq[byte] = @[]
   clearBytes(pkHash)
   clearBytes(ctHash)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `kyberTyrTryDecaps`; pitfall: preserve implicit rejection and never expose a secret-dependent validity oracle.
 proc kyberTyrTryDecaps(v: KyberVariant, sk, ct: openArray[byte]): tuple[sharedSecret: seq[byte], ok: bool] =
   ## Internal decapsulation helper that keeps the re-encryption check private
   ## so callers cannot accidentally expose a validity oracle.
+  ## Reference: CRYSTALS-Kyber round-3 specification, algorithm 9. Keep the
+  ## re-encryption comparison and fallback-key selection constant-time; never
+  ## expose `ok` through the public API because it becomes a validity oracle.
   var
     p: KyberParams = params(v)
     buf: array[2 * kyberSymBytes, byte]
@@ -145,6 +157,7 @@ proc kyberTyrTryDecaps(v: KyberVariant, sk, ct: openArray[byte]): tuple[sharedSe
   secureClearBytes(cmp)
   clearBytes(hct)
 
+## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `kyberTyrDecaps`; pitfall: preserve implicit rejection and never expose a secret-dependent validity oracle.
 proc kyberTyrDecaps*(v: KyberVariant, sk, ct: openArray[byte]): seq[byte] {.otterTrace.} =
   ## Decapsulate a Kyber ciphertext and return the derived shared secret
   ## without exposing the internal re-encryption check result.

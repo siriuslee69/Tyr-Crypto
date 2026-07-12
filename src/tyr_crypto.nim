@@ -14,6 +14,7 @@ import ./protocols/custom_crypto/sha3
 import ./protocols/custom_crypto/poly1305
 import ./protocols/custom_crypto/chacha20
 import ./protocols/custom_crypto/xchacha20
+import ./protocols/custom_crypto/sha256
 import ./protocols/custom_crypto/x25519
 import ./protocols/custom_crypto/ed25519
 import ./protocols/custom_crypto/dilithium
@@ -31,6 +32,7 @@ import ./protocols/custom_crypto/hmac
 import ./protocols/custom_crypto/kdf
 import ./protocols/custom_crypto/argon2
 import ./protocols/wrapper/helpers/signature_support
+import ./protocols/certificates
 
 export algorithms
 export random
@@ -44,6 +46,7 @@ export sha3
 export poly1305
 export chacha20
 export xchacha20
+export sha256
 export x25519
 export ed25519
 export dilithium
@@ -61,3 +64,4 @@ export hmac
 export kdf
 export argon2
 export signature_support
+export certificates

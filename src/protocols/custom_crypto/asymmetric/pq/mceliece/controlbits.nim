@@ -6,9 +6,11 @@ import ./support
 import ./sort
 
 {.push checks: off.}
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `wrapU32ToI32`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc wrapU32ToI32(x: uint32): int32 {.inline.} =
   cast[int32](x)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `layer`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc layer(p: var openArray[int16], cb: openArray[byte], s, n: int) {.inline.} =
   var
     stride: int = 1 shl (s and 0x1F)
@@ -29,6 +31,7 @@ proc layer(p: var openArray[int16], cb: openArray[byte], s, n: int) {.inline.} =
       inc j
     i += stride * 2
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `cbInitAPairs`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbInitAPairs(pi: ptr UncheckedArray[int16], temp: ptr UncheckedArray[int32], n: int) {.inline, otterBench.} =
   var x: int = 0
   while x < n:
@@ -36,9 +39,12 @@ proc cbInitAPairs(pi: ptr UncheckedArray[int16], temp: ptr UncheckedArray[int32]
     x = x + 1
   int32SortRaw(temp, n)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `cbInitB`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbInitB(temp: ptr UncheckedArray[int32], n: int) {.inline, otterBench.} =
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `A`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template A(i: int): untyped =
     temp[i]
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `B`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template B(i: int): untyped =
     temp[n + i]
   var
@@ -53,6 +59,7 @@ proc cbInitB(temp: ptr UncheckedArray[int32], n: int) {.inline, otterBench.} =
     B[x] = (pX shl 16) or cX
     x = x + 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `cbInitAIndex`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbInitAIndex(temp: ptr UncheckedArray[int32], n: int) {.inline, otterBench.} =
   var x: int = 0
   while x < n:
@@ -60,9 +67,12 @@ proc cbInitAIndex(temp: ptr UncheckedArray[int32], n: int) {.inline, otterBench.
     x = x + 1
   int32SortRaw(temp, n)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `cbMergeAWithB`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbMergeAWithB(temp: ptr UncheckedArray[int32], n: int) {.inline, otterBench.} =
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `A`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template A(i: int): untyped =
     temp[i]
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `B`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template B(i: int): untyped =
     temp[n + i]
   var x: int = 0
@@ -71,9 +81,12 @@ proc cbMergeAWithB(temp: ptr UncheckedArray[int32], n: int) {.inline, otterBench
     x = x + 1
   int32SortRaw(temp, n)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `cbCompactSmall`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbCompactSmall(temp: ptr UncheckedArray[int32], w, n: int) {.inline, otterBench.} =
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `A`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template A(i: int): untyped =
     temp[i]
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `B`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template B(i: int): untyped =
     temp[n + i]
   var
@@ -109,9 +122,12 @@ proc cbCompactSmall(temp: ptr UncheckedArray[int32], w, n: int) {.inline, otterB
     B[x] = B[x] and 0x3FF
     x = x + 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `cbCompactLarge`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbCompactLarge(temp: ptr UncheckedArray[int32], tempB: ptr UncheckedArray[int32], w, n: int) {.inline, otterBench.} =
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `A`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template A(i: int): untyped =
     temp[i]
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `B`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template B(i: int): untyped =
     temp[n + i]
   var
@@ -156,6 +172,7 @@ proc cbCompactLarge(temp: ptr UncheckedArray[int32], tempB: ptr UncheckedArray[i
     B[x] = B[x] and 0xFFFF
     x = x + 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `cbLoadAFromPi`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbLoadAFromPi(pi: ptr UncheckedArray[int16], temp: ptr UncheckedArray[int32], n: int) {.inline, otterBench.} =
   var x: int = 0
   while x < n:
@@ -163,10 +180,13 @@ proc cbLoadAFromPi(pi: ptr UncheckedArray[int16], temp: ptr UncheckedArray[int32
     x = x + 1
   int32SortRaw(temp, n)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `cbEmitFirstLayer`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbEmitFirstLayer(outBits: var openArray[byte], pos, step: int,
     temp: ptr UncheckedArray[int32], tempB: ptr UncheckedArray[int32], n: int): int {.inline, otterBench.} =
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `A`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template A(i: int): untyped =
     temp[i]
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `B`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template B(i: int): untyped =
     temp[n + i]
   var
@@ -189,10 +209,13 @@ proc cbEmitFirstLayer(outBits: var openArray[byte], pos, step: int,
   int32SortRaw(tempB, n)
   result = localPos
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `cbEmitSecondLayer`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbEmitSecondLayer(outBits: var openArray[byte], pos, step: int,
     temp: ptr UncheckedArray[int32], n: int): int {.inline, otterBench.} =
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `A`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template A(i: int): untyped =
     temp[i]
+  ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `B`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template B(i: int): untyped =
     temp[n + i]
   var
@@ -215,6 +238,7 @@ proc cbEmitSecondLayer(outBits: var openArray[byte], pos, step: int,
   int32SortRaw(temp, n)
   result = localPos
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `cbBuildQ`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbBuildQ(temp: ptr UncheckedArray[int32], qPtr: ptr UncheckedArray[int16], n: int) {.inline, otterBench.} =
   var
     j: int = 0
@@ -224,6 +248,7 @@ proc cbBuildQ(temp: ptr UncheckedArray[int32], qPtr: ptr UncheckedArray[int16], 
     qPtr[j + half] = int16((temp[2 * j + 1] and 0xFFFF) shr 1)
     j = j + 1
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `cbRecursion`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cbRecursion(outBits: var openArray[byte], pos, step: int,
     pi: ptr UncheckedArray[int16], w, n: int, temp: ptr UncheckedArray[int32]) {.otterBench.} =
   var
@@ -259,6 +284,7 @@ proc cbRecursion(outBits: var openArray[byte], pos, step: int,
   cbRecursion(outBits, localPos + step, step * 2,
     cast[ptr UncheckedArray[int16]](unsafeAddr qPtr[half]), w - 1, half, temp)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `controlBitsFromPermutationUncheckedNim`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc controlBitsFromPermutationUncheckedNim*(pi: openArray[int16]; gfbits: int): seq[byte] {.otterBench.} =
   ## Generate control bits without the post-generation self-check using the pure-Nim port.
   var
@@ -271,14 +297,17 @@ proc controlBitsFromPermutationUncheckedNim*(pi: openArray[int16]; gfbits: int):
   cbRecursion(result, 0, 1, cast[ptr UncheckedArray[int16]](unsafeAddr pi[0]),
     gfbits, n, cast[ptr UncheckedArray[int32]](addr temp[0]))
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `controlBitsFromPermutationUncheckedC`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc controlBitsFromPermutationUncheckedC*(pi: openArray[int16]; gfbits: int): seq[byte] =
   ## Compatibility alias retained for old benchmark flags; now pure Nim.
   result = controlBitsFromPermutationUncheckedNim(pi, gfbits)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `controlBitsFromPermutationUnchecked`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc controlBitsFromPermutationUnchecked*(pi: openArray[int16]; gfbits: int): seq[byte] =
   ## Generate control bits without the post-generation self-check.
   result = controlBitsFromPermutationUncheckedNim(pi, gfbits)
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `controlBitsFromPermutation`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc controlBitsFromPermutation*(pi: openArray[int16]; gfbits: int): seq[byte] =
   ## Generate control bits for a Benes network for a permutation of size 2^gfbits.
   var
@@ -317,6 +346,7 @@ proc controlBitsFromPermutation*(pi: openArray[int16]; gfbits: int): seq[byte] =
     i = i + 1
   assert ctNonZero16(diff) == 0, "control bits verification failed"
 
+## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `controlBitsFromPermutation`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc controlBitsFromPermutation*(pi: openArray[uint16]; gfbits: int): seq[byte] =
   var
     piSigned: seq[int16]

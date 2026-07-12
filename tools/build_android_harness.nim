@@ -144,6 +144,7 @@ proc runNimHarnessBuild(repoRoot, cpu, compilerPath, nimcachePath,
     args.add("--passL:-static")
   if release:
     args.add("-d:release")
+  args.add("-d:tyrAndroidHarness")
   args.add(info.entryPoint)
   runChecked("nim " & quoteArgs(args))
 
@@ -159,6 +160,19 @@ proc defaultAndroidSdk(): string =
     result = joinPath(getHomeDir(), "AppData", "Local", "Android", "Sdk")
   else:
     result = joinPath(getHomeDir(), "Android", "Sdk")
+
+proc androidSdkReady(path: string): bool =
+  ## Require the platform and build tools used by the committed harness.
+  result = dirExists(joinPath(path, "platforms", "android-36")) and
+    dirExists(joinPath(path, "build-tools", "35.0.0"))
+
+proc siblingAndroidSdk(repoRoot: string): string =
+  ## Reuse a complete workspace SDK before attempting network installation.
+  var
+    candidate: string = joinPath(parentDir(repoRoot),
+      "Bifrost-ExchangeProtocols", ".android-sdk")
+  if androidSdkReady(candidate):
+    result = candidate
 
 proc defaultJavaHome(): string =
   when defined(windows):
@@ -200,6 +214,11 @@ when isMainModule:
     x64Out: string = ""
   if androidSdk.len == 0:
     androidSdk = defaultAndroidSdk()
+  if not androidSdkReady(androidSdk):
+    androidSdk = siblingAndroidSdk(repoRoot)
+  if not androidSdkReady(androidSdk):
+    raise newException(IOError,
+      "Android SDK needs platforms/android-36 and build-tools/35.0.0")
   if javaHome.len == 0:
     javaHome = defaultJavaHome()
   if nimsimdPath.len == 0:
@@ -207,7 +226,8 @@ when isMainModule:
   if config.release:
     buildMode = "release"
 
-  ensureZig(repoRoot)
+  when defined(windows):
+    ensureZig(repoRoot)
   armWrapper = compileTool(repoRoot, "zigcc_linux_aarch64")
   x64Wrapper = compileTool(repoRoot, "zigcc_linux_x86_64")
 
