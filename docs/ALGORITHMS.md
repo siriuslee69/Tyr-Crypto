@@ -67,6 +67,8 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 - **SIMD:** SSE2/AVX2 for 16-bit multiply-low helpers
 - **Native AES:** `-d:aesni` plus the compiler AES target flag selects Tyr's intrinsic core; this stays separate from AVX2 because they are distinct CPU capabilities
 - **External AES:** OpenSSL probing is disabled unless `-d:hasOpenSSL3`; normal builds remain Tyr/Nim native
+- **Optimization reference:** Bos et al., *Frodo: Take off the ring! Practical, Quantum-Secure Key Exchange from LWE* ([local CC BY 4.0 PDF](research/pq_non_ntru_saber/papers/2016-0659_frodo_take_off_the_ring.pdf), [IACR ePrint 2016/659](https://eprint.iacr.org/2016/659))
+- **Research manifest:** Checksums, source URLs, and redistribution notes are recorded in [the non-NTRU/SABER research index](research/pq_non_ntru_saber/README.md) and [license notes](research/pq_non_ntru_saber/LICENSES.md)
 
 ### BIKE
 

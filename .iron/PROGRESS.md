@@ -83,6 +83,7 @@ Implemented:
 - Frodo's optional dynamic OpenSSL AES path now requires `-d:hasOpenSSL3`; normal builds no longer probe `libcrypto` and use Tyr's AES-NI or pure-Nim AES code.
 - Frodo SHAKE matrix products now generate public rows on demand and accumulate them directly with AVX2, SSE2, or NEON lanes instead of allocating the full matrix and copying columns. Same-source AVX2 controls improved from about `6.13/13.70/25.31 ms` to `5.01/10.95/19.50 ms` for 640/976/1344, or about 18-23%.
 - The existing Tyr-native AES-NI path was remeasured at about `0.98/1.81/3.16 ms` for Frodo-640/976/1344 AES roundtrips. `test_frodo_native_fast` supplies the explicit AES-NI and AVX2 build contract; AVX2 does not silently imply AES-NI.
+- The main Frodo algorithm documentation now links both the tracked CC BY 4.0 copy and IACR source for *Frodo: Take off the ring!*; its checksum, source URL, and license attribution remain recorded in the research manifest.
 - Added OpenSSL-backed RSA/ECDSA public-key signature verification helpers and
   X.509 certificate-chain SubjectPublicKeyInfo verification helpers.
 - Fixed the OpenSSL 3 `EVP_DigestSignInit_ex` /

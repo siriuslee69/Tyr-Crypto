@@ -67,10 +67,12 @@ lanes for add/sub/shift/pointwise accumulation and batched SHAKE sampling paths.
 The eta sampler also includes a fixed-work prefix and explicit wipes; comments
 mark both the applied batching and the side-channel papers that constrain it.
 
-Frodo follows the FrodoKEM matrix equations, but the hot AES variants stream
-four public rows or eight public columns at a time instead of materializing the
-full public matrix. Comments mark the direct transposed decode, SIMD dot kernels,
-OpenSSL/AES-NI bulk paths, and streamed `A*s+e` / `s*A+e` calls.
+Frodo follows the FrodoKEM matrix equations. The hot AES path streams four
+public rows or eight public columns at a time. The SHAKE path also generates
+rows on demand and consumes them directly in `A*s+e` and `s*A+e`, instead of
+materializing the full public matrix. Comments mark the direct transposed
+decode, SIMD matrix kernels, native AES-NI path, opt-in OpenSSL path, and both
+streamed matrix-product calls.
 
 BIKE uses the BIKE decoder structure, Karatsuba GF(2) multiplication, and 128-bit
 word helpers for XOR and bit-sliced decoder updates. The code comments mark
