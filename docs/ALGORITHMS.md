@@ -21,8 +21,8 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 | **SHA3-224/256/384/512** | 1600-bit sponge | 224/256/384/512 | yes | yes | yes | FIPS 202 |
 | **SHAKE128/256** | 1600-bit sponge | arbitrary | yes | yes | yes | XOF |
 | **Gimli** | 384-bit sponge | arbitrary | yes | yes | yes | Lightweight sponge |
-| **ChaCha20** | 512-bit block | stream | no | no | no | IETF RFC 8439 scalar primitive |
-| **XChaCha20** | 512-bit block | stream | yes | yes | yes | Extended (192-bit) nonce via HChaCha20 |
+| **ChaCha20** | 512-bit block | stream | yes | yes | yes | Four-block SSE2/NEON and eight-block AVX2 canonical APIs; scalar tails |
+| **XChaCha20** | 512-bit block | stream | yes | yes | yes | Same SIMD core after HChaCha20 derives the 192-bit-nonce subkey |
 | **Poly1305** | 16-byte blocks | 128-bit tag | yes | yes | yes | RFC 8439 MAC |
 | **AES-CTR** | 128-bit block | stream | yes | yes | yes | Constant-time core plus SIMD XOR path |
 | **HMAC** | — | variable | no | no | no | Generic over BLAKE3/SHA3/Gimli |
@@ -65,6 +65,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 - **Largest bandwidth** of all KEMs here, but **most conservative** hardness assumption
 - **Matrix generation:** Streamed AES-128 (or SHAKE-128) — full matrix is never materialized
 - **SIMD:** SSE2/AVX2 for 16-bit multiply-low helpers
+- **External AES:** OpenSSL probing is disabled unless `-d:hasOpenSSL3`; normal builds use Tyr's AES-NI or pure-Nim core
 
 ### BIKE
 
@@ -90,7 +91,8 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 | NTRU-HRSS-701 | 3 | 1,138 | 1,450 | 1,138 | 32 |
 
 - **Security foundation:** NTRU (ring LWE variant)
-- **Polynomial mul:** Default: Toom-4 + 2-level Karatsuba (K2). Alternative: coefficient, row, Toom-4 flags
+- **Polynomial mul:** AVX2 uses 16-lane cyclic rows and SSE2/NEON use 8-lane rows automatically; scalar builds use Toom-4 + 2-level Karatsuba (K2)
+- **Measured selection:** Local AVX2 roundtrip A/B improved about 8-13% over K2 across all four variants
 - **Sampling:** The variable-work ISO rejection sampler is not selected; the
   fixed-work sort sampler is the default
 - **KAT validated:** NIST DRBG replay + liboqs/PQClean hash
@@ -124,7 +126,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 - **Security foundation:** Goppa code-based cryptography
 - **Largest public keys** (~0.5–1.3 MB) but **smallest ciphertexts** of any PQ KEM
 - **Key generation** is the bottleneck (Goppa code selection)
-- **SIMD:** AVX2 matrix fill plus AVX2/SSE2/NEON masked row XOR during public-key generation; decoding remains scalar
+- **SIMD:** AVX2 matrix fill plus AVX2/SSE2/NEON masked row XOR during key generation; root evaluation in decoding uses 8 AVX2 or 4 SSE2/NEON lanes
 - **Optimized:** 64×64 bit-matrix transpose, masked row XOR, public syndrome bit limit
 
 ---

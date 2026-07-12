@@ -64,7 +64,7 @@ The shared PQ byte wipe helper now uses volatile stores. This does not make heap
 
 NTRU fixed-weight sampling is the most important next security/performance item. The current HPS sampler follows a fixed sorting schedule, but the 2022 sampling paper shows that fixed-weight assignment can still leak on power traces, and the 2024 isochronous sampler gives a linear-time, timing-resistant replacement with large ARM speedups. This is a good next implementation target because it improves security posture and speed without adding a new cryptographic assumption.
 
-NTRU/SABER polynomial multiplication is the main performance target. NTRU's default Toom-4 + K2 kernel remains scalar. SABER now has fixed-schedule AVX2 16-lane and NEON 8-lane negacyclic schoolbook multiplication; its SSE2 path only vectorizes the reduction pass. The NTT-unfriendly-rings paper, Neon NTT paper, and verified-NTT paper still point to a possible next step: fixed-size scalar NTT kernels followed by measured AVX2/NEON backends, with public fixed transform tables, KATs, differential tests, OtterBench runs, and range/overflow tests.
+NTRU/SABER polynomial multiplication remains the main performance target. NTRU now selects fixed-schedule cyclic row multiplication automatically on AVX2 (16 lanes), SSE2 (8 lanes), and NEON (8 lanes); scalar builds retain Toom-4 + K2. A same-machine AVX2 roundtrip A/B improved about 8-13% across all four NTRU variants. SABER has fixed-schedule AVX2 16-lane and NEON 8-lane negacyclic schoolbook multiplication; its SSE2 path only vectorizes the reduction pass. The NTT-unfriendly-rings paper, Neon NTT paper, and verified-NTT paper still point to a possible next step: fixed-size scalar NTT kernels followed by measured AVX2/NEON backends, with public fixed transform tables, KATs, differential tests, OtterBench runs, and range/overflow tests.
 
 SABER's unmasked branch-level behavior is acceptable for regular remote timing: decapsulation re-encrypts, verifies, and uses constant-time conditional move. That does not make it side-channel hardened on a device an attacker can physically measure. The SABER papers show attacks against message encoding, masked logical shifts, masked FO comparison, and even higher-order masked variants. Masking should not be added casually; it needs to follow patched designs and be validated with leakage tests.
 
@@ -125,7 +125,7 @@ Recommended next changes:
 
 1. Replace NTRU HPS fixed-weight sampling with the 2024 isochronous sampler, keeping deterministic KAT replay intact.
 2. Do not promote SABER NTT from the current scalar experiment; only revisit it with a SIMD design that removes the two-prime transform overhead and wins against the current small-secret schoolbook path.
-3. Keep NTRU K2 as the rollback default while any future NTT work is validated on both desktop and phones.
+3. Keep NTRU K2 as the scalar fallback and explicit rollback control while the automatic SIMD rows are validated on more ARM64 devices.
 4. Add a small leakage-audit checklist for PQ KEM changes: no secret-dependent branches, no secret-indexed tables, fixed loop bounds, volatile wipe for transient secret buffers, and FO failure handling only via constant-time selection.
 
 Items to avoid:

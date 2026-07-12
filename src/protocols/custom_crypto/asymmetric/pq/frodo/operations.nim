@@ -1304,7 +1304,8 @@ proc mulAddAsPlusE(p: FrodoParams, A, s, e: openArray[uint16]): seq[uint16] =
 proc mulAddAsPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray[uint16]): seq[uint16] =
   ## Compute `A * s + e` while generating each matrix row on demand.
   ## Paper note: this is the main Frodo difference from a clean reference path:
-  ## it streams public AES rows from seed_A, with OpenSSL/AES-NI backends when available.
+  ## it streams public AES rows from seed_A. OpenSSL requires -d:hasOpenSSL3;
+  ## otherwise AES-NI or the pure-Nim AES core is used.
   otterSpan("frodo.mulAddAsPlusEStream"):
     if seedA.len != p.bytesSeedA:
       raise newException(ValueError, "invalid Frodo seed_A length")

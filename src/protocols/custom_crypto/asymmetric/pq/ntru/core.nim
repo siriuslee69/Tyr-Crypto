@@ -342,6 +342,48 @@ when defined(avx2):
       r.coeffs[i] = u16Add(C[i], C[p.n + i])
       i = i + 1
 
+when defined(sse2) and not defined(avx2):
+  proc polyRqMulSse2(r: var NtruPoly, p: NtruParams,
+      a, b: NtruPoly) {.inline.} =
+    ## Multiply eight cyclic-ring coefficients per fixed public step.
+    var
+      i: int = 0
+      j: int = 0
+      k: int = 0
+      av: i16x8
+      bv: i16x8
+      rv: i16x8
+    clearNtruPolyActive(r, p)
+    i = 0
+    while i < p.n:
+      av = i16x8(mm_set1_epi16(a.coeffs[i]))
+      j = 0
+      k = i
+      while k + 8 <= p.n:
+        bv = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr b.coeffs[j])))
+        rv = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr r.coeffs[k])))
+        rv = rv + i16x8(mm_mullo_epi16(av.M128i, bv.M128i))
+        mm_storeu_si128(cast[pointer](unsafeAddr r.coeffs[k]), rv.M128i)
+        j = j + 8
+        k = k + 8
+      while k < p.n:
+        r.coeffs[k] = u16Add(r.coeffs[k], u16Mul(a.coeffs[i], b.coeffs[j]))
+        j = j + 1
+        k = k + 1
+      k = 0
+      while j + 8 <= p.n:
+        bv = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr b.coeffs[j])))
+        rv = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr r.coeffs[k])))
+        rv = rv + i16x8(mm_mullo_epi16(av.M128i, bv.M128i))
+        mm_storeu_si128(cast[pointer](unsafeAddr r.coeffs[k]), rv.M128i)
+        j = j + 8
+        k = k + 8
+      while j < p.n:
+        r.coeffs[k] = u16Add(r.coeffs[k], u16Mul(a.coeffs[i], b.coeffs[j]))
+        j = j + 1
+        k = k + 1
+      i = i + 1
+
 when defined(neon) or defined(arm64) or defined(aarch64):
   proc reduceCyclicNeon(r: var NtruPoly, p: NtruParams,
       C: array[2 * ntruMaxN, uint16]) =
@@ -475,6 +517,88 @@ proc polyRqMulRowsUnroll4(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inli
       j = j + 1
       k = k + 1
     i = i + 1
+
+when defined(avx2):
+  proc polyRqMulAvx2(r: var NtruPoly, p: NtruParams,
+      a, b: NtruPoly) {.inline.} =
+    ## Multiply 16 cyclic-ring coefficients per fixed public step.
+    var
+      i: int = 0
+      j: int = 0
+      k: int = 0
+      av: i16x16
+      bv: i16x16
+      rv: i16x16
+    clearNtruPolyActive(r, p)
+    i = 0
+    while i < p.n:
+      av = i16x16(mm256_set1_epi16(a.coeffs[i]))
+      j = 0
+      k = i
+      while k + 16 <= p.n:
+        bv = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr b.coeffs[j])))
+        rv = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr r.coeffs[k])))
+        rv = rv + i16x16(mm256_mullo_epi16(av.M256i, bv.M256i))
+        mm256_storeu_si256(cast[pointer](unsafeAddr r.coeffs[k]), rv.M256i)
+        j = j + 16
+        k = k + 16
+      while k < p.n:
+        r.coeffs[k] = u16Add(r.coeffs[k], u16Mul(a.coeffs[i], b.coeffs[j]))
+        j = j + 1
+        k = k + 1
+      k = 0
+      while j + 16 <= p.n:
+        bv = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr b.coeffs[j])))
+        rv = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr r.coeffs[k])))
+        rv = rv + i16x16(mm256_mullo_epi16(av.M256i, bv.M256i))
+        mm256_storeu_si256(cast[pointer](unsafeAddr r.coeffs[k]), rv.M256i)
+        j = j + 16
+        k = k + 16
+      while j < p.n:
+        r.coeffs[k] = u16Add(r.coeffs[k], u16Mul(a.coeffs[i], b.coeffs[j]))
+        j = j + 1
+        k = k + 1
+      i = i + 1
+
+when defined(neon) or defined(arm64) or defined(aarch64):
+  proc polyRqMulNeon(r: var NtruPoly, p: NtruParams,
+      a, b: NtruPoly) {.inline.} =
+    ## Multiply eight cyclic-ring coefficients per fixed public step.
+    var
+      i: int = 0
+      j: int = 0
+      k: int = 0
+      av: uint16x8
+      bv: uint16x8
+      rv: uint16x8
+    clearNtruPolyActive(r, p)
+    i = 0
+    while i < p.n:
+      av = vmovq_n_u16(a.coeffs[i])
+      j = 0
+      k = i
+      while k + 8 <= p.n:
+        bv = loadI16x8At[uint16x8](b.coeffs, j)
+        rv = loadI16x8At[uint16x8](r.coeffs, k)
+        storeI16x8At[uint16x8](rv + mulLoI16[uint16x8](av, bv), r.coeffs, k)
+        j = j + 8
+        k = k + 8
+      while k < p.n:
+        r.coeffs[k] = u16Add(r.coeffs[k], u16Mul(a.coeffs[i], b.coeffs[j]))
+        j = j + 1
+        k = k + 1
+      k = 0
+      while j + 8 <= p.n:
+        bv = loadI16x8At[uint16x8](b.coeffs, j)
+        rv = loadI16x8At[uint16x8](r.coeffs, k)
+        storeI16x8At[uint16x8](rv + mulLoI16[uint16x8](av, bv), r.coeffs, k)
+        j = j + 8
+        k = k + 8
+      while j < p.n:
+        r.coeffs[k] = u16Add(r.coeffs[k], u16Mul(a.coeffs[i], b.coeffs[j]))
+        j = j + 1
+        k = k + 1
+      i = i + 1
 
 const
   ntruToomPadMax = ((ntruMaxN + 3) div 4) * 4
@@ -903,6 +1027,12 @@ proc polyRqMul*(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.otterBench.} =
     polyRqMulToom4(r, p, a, b)
   elif defined(ntruMulCoeff):
     polyRqMulCoeff(r, p, a, b)
+  elif defined(avx2):
+    polyRqMulAvx2(r, p, a, b)
+  elif defined(sse2):
+    polyRqMulSse2(r, p, a, b)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    polyRqMulNeon(r, p, a, b)
   else:
     polyRqMulToom4K2(r, p, a, b)
 

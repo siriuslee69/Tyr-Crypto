@@ -65,8 +65,8 @@ memory-mixing loop. Performance wording is based on the curated snapshots in
 | BLAKE3 | SSE2, AVX2, NEON compression paths | Hash, keyed hash, derive-key KDF, XOF |
 | SHA3-224/256/384/512, SHAKE128/256 | SSE2/NEON two-lane and AVX2 four-lane batching | FIPS 202 hash/XOF |
 | Gimli | SSE2, AVX2, NEON state operations | Lightweight sponge (hash, tag, stream) |
-| ChaCha20 | scalar | IETF RFC 8439 stream cipher |
-| XChaCha20 | SSE2/NEON four-block and AVX2 eight-block stream API | Stream cipher with a 192-bit nonce |
+| ChaCha20 | SSE2/NEON four-block and AVX2 eight-block canonical stream/XOR APIs; scalar single-block and tails | IETF RFC 8439 stream cipher |
+| XChaCha20 | Uses the same SSE2/NEON four-block and AVX2 eight-block canonical core after HChaCha20 | Stream cipher with a 192-bit nonce |
 | Poly1305 | SSE2/NEON two-message and AVX2 four-message batch APIs | One-time MAC |
 | AES-CTR | SSE2, AVX2, NEON counter/XOR paths; AES-NI is separately selected | AES in CTR mode |
 | Argon2id/i | SSE2, AVX2, NEON block operations | Memory-hard password hashing |
@@ -81,9 +81,9 @@ Curated benchmark snapshots currently focus on the asymmetric and key-agreement 
 | **KEM** | Kyber (ML-KEM-512/768/1024) | SSE2/NEON four-pair and AVX2 eight-pair polynomial accumulation; coefficient helpers | Fastest PQ KEM family in the current curated snapshots; sub-ms on desktop and the measured phones |
 | **KEM** | FrodoKEM (640/976/1344, AES + SHAKE) | SSE2/NEON 128-bit and AVX2 256-bit matrix dot products; AES paths also depend on the AES backend | Conservative, high-bandwidth path; much slower than Kyber/SABER/NTRU, with AES variants faster than SHAKE on the measured desktop |
 | **KEM** | BIKE-L1 | SSE2/NEON 128-bit decoder word helpers; multiplication remains scalar/Karatsuba | Tens-of-ms KEM in the current snapshots |
-| **KEM** | NTRU (HPS-509/677/821, HRSS-701) | Default Toom-4 + K2 multiplication is scalar; optional temp/reduce kernels have SSE2/AVX2/NEON reduction | Mid-latency KEM; slower than Kyber/SABER, but far below BIKE/McEliece and the slower Frodo variants |
+| **KEM** | NTRU (HPS-509/677/821, HRSS-701) | AVX2 16-lane and SSE2/NEON 8-lane cyclic multiplication selected automatically; scalar builds retain Toom-4 + K2 | Mid-latency KEM; current local AVX2 A/B is about 8-13% faster than K2 and needs refreshed cross-device snapshots |
 | **KEM** | SABER (LightSaber/Saber/FireSaber) | AVX2 16-lane and NEON 8-lane schoolbook multiplication; SSE2 reduction-only path | Same low-latency class as Kyber in the curated snapshots; current SIMD core needs refreshed cross-device snapshots |
-| **KEM** | Classic McEliece (6688128f/6960119f/8192128f) | AVX2 matrix fill plus AVX2/SSE2/NEON masked row XOR in key generation; decoder remains scalar | Slowest measured KEM here; key generation dominates, but ciphertexts stay very small |
+| **KEM** | Classic McEliece (6688128f/6960119f/8192128f) | AVX2 matrix fill, AVX2/SSE2/NEON masked keygen row XOR, and 8-lane AVX2 or 4-lane SSE2/NEON decoder root evaluation | Slowest measured KEM here; key generation dominates, but ciphertexts stay very small |
 | **Sign** | Dilithium (ML-DSA-44/65/87) | AVX2 polynomial products and SSE2/NEON coefficient/hash batching | Fastest measured PQ signature family in the current curated snapshots |
 | **Sign** | Falcon (512/1024) | SSE2/NEON two-lane FFT and norm helpers; most key generation remains scalar | Smallest PQ signatures here, but current pure-Nim snapshots are strongly keygen-dominated |
 | **Sign** | SPHINCS+-SHAKE-128f-simple | AVX2 four-way and SSE2/NEON two-way SHAKE/WOTS batching | Slower than Dilithium, but far below current Falcon key-generation-dominated totals |
@@ -110,7 +110,7 @@ These numbers are not protocol guarantees. They are README-level guidance taken 
 |--------|------------------|----------------------|-------|
 | Kyber | about `0.06-0.13 ms` | about `0.33-0.91 ms` | Lowest-latency PQ KEM family in the current curated set |
 | SABER | historical snapshot: about `0.14-0.27 ms` | historical snapshot: about `0.29-0.75 ms` | Predates the new AVX2/NEON multiplication core; use a fresh local benchmark for current numbers |
-| NTRU | about `2.34-4.57 ms` | about `6.54-20.85 ms` | Current default uses the promoted Toom-4 + K2 path |
+| NTRU | historical snapshot: about `2.34-4.57 ms` | historical snapshot: about `6.54-20.85 ms` | Predates automatic AVX2/SSE2/NEON cyclic multiplication; local AVX2 A/B improved 8-13% over K2 |
 | FrodoKEM | about `1.24-45.27 ms` | about `21-133 ms` | AES variants are much faster than SHAKE on desktop; the gap narrows on phones |
 | BIKE-L1 | about `65 ms` | about `50-74 ms` | Decoder-heavy, sits in the tens-of-ms range in current snapshots |
 | Classic McEliece | about `186-214 ms` | about `495-892 ms` | Key generation dominates total runtime |
@@ -194,10 +194,15 @@ would break direct imports without improving the canonical API.
 |---------|-----------|--------|
 | **libsodium** | X25519, Ed25519, AEAD helpers | `-d:hasLibsodium` |
 | **liboqs** | Kyber, Frodo, NTRU, BIKE, Dilithium, Falcon, SPHINCS+, McEliece | `-d:hasLibOqs` |
-| **OpenSSL** | Ed448, RSA/ECDSA verify, X.509 checks | `-d:hasOpenSSL3` |
+| **OpenSSL** | Ed448, RSA/ECDSA verify, X.509 checks, optional Frodo public AES matrix generation | `-d:hasOpenSSL3` |
 | **nimcrypto** | AES-GCM | (import-time) |
 
 Missing optional libraries raise `LibraryUnavailableError`.
+
+`nimsimd` and SIMD-Nexus are intrinsic wrappers: they generate CPU instructions
+inside Tyr's Nim implementation and do not call an external crypto library.
+External C-library paths are opt-in through the defines above. In particular,
+Frodo does not probe or load `libcrypto` unless `-d:hasOpenSSL3` is present.
 
 ---
 

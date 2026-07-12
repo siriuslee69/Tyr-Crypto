@@ -131,31 +131,35 @@ proc loadOpenSslAesSymbol[T](symName: string, target: var T): bool =
   true
 
 proc ensureOpenSslAesLoaded*(): bool =
-  if opensslAesChecked:
-    return opensslAesReady
-  opensslAesChecked = true
-  for candidate in collectOpenSslAesCandidates():
-    opensslAesHandle = loadLib(candidate)
-    if opensslAesHandle != nil:
-      break
-  if opensslAesHandle == nil:
-    return false
-  if not loadOpenSslAesSymbol("EVP_aes_128_ecb", osslAes128Ecb):
-    return false
-  if not loadOpenSslAesSymbol("EVP_CIPHER_CTX_new", osslCipherCtxNew):
-    return false
-  if not loadOpenSslAesSymbol("EVP_CIPHER_CTX_free", osslCipherCtxFree):
-    return false
-  if not loadOpenSslAesSymbol("EVP_EncryptInit_ex", osslEncryptInitEx):
-    return false
-  if not loadOpenSslAesSymbol("EVP_EncryptUpdate", osslEncryptUpdate):
-    return false
-  if not loadOpenSslAesSymbol("EVP_EncryptFinal_ex", osslEncryptFinalEx):
-    return false
-  if not loadOpenSslAesSymbol("EVP_CIPHER_CTX_set_padding", osslCipherCtxSetPadding):
-    return false
-  opensslAesReady = true
-  true
+  ## Dynamic libcrypto use is opt-in; normal builds remain Tyr/Nim native.
+  when not defined(hasOpenSSL3):
+    result = false
+  else:
+    if opensslAesChecked:
+      return opensslAesReady
+    opensslAesChecked = true
+    for candidate in collectOpenSslAesCandidates():
+      opensslAesHandle = loadLib(candidate)
+      if opensslAesHandle != nil:
+        break
+    if opensslAesHandle == nil:
+      return false
+    if not loadOpenSslAesSymbol("EVP_aes_128_ecb", osslAes128Ecb):
+      return false
+    if not loadOpenSslAesSymbol("EVP_CIPHER_CTX_new", osslCipherCtxNew):
+      return false
+    if not loadOpenSslAesSymbol("EVP_CIPHER_CTX_free", osslCipherCtxFree):
+      return false
+    if not loadOpenSslAesSymbol("EVP_EncryptInit_ex", osslEncryptInitEx):
+      return false
+    if not loadOpenSslAesSymbol("EVP_EncryptUpdate", osslEncryptUpdate):
+      return false
+    if not loadOpenSslAesSymbol("EVP_EncryptFinal_ex", osslEncryptFinalEx):
+      return false
+    if not loadOpenSslAesSymbol("EVP_CIPHER_CTX_set_padding", osslCipherCtxSetPadding):
+      return false
+    opensslAesReady = true
+    result = true
 
 proc clear*(ctx: var Aes128OpenSslCtx) =
   if ctx.ctx != nil:

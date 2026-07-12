@@ -1,4 +1,4 @@
-Commit Message: constant-time and secret-wiping hardening for ed25519 signing
+Commit Message: add native simd defaults for chacha ntru and mceliece
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -22,6 +22,7 @@ Implemented:
 - XChaCha20+AES+Gimli wrapper with configurable tag length.
 - AES-CTR helper using nimcrypto core with optional SSE/AVX XOR.
 - XChaCha20 SIMD keystream implementation with SSE/AVX lanes.
+- Canonical ChaCha20 and XChaCha20 stream/XOR APIs now select Tyr-native SSE2/NEON four-block or AVX2 eight-block processing at compile time, with scalar single-block and tail handling.
 - Gimli reference vector test (c-ref).
 - AES-CTR vs nimcrypto CTR + AES-GCM vs libsodium comparison tests.
 - AES-CTR streaming state with in-place transforms.
@@ -45,6 +46,7 @@ Implemented:
 - NTRU/SABER research PDFs now have a checksum lock, downloader, ignore policy, and license notes so ambiguous documents stay local-cache only.
 - NTRU mod-3 reduction now uses the lower-leakage branchless form from the NTRU side-channel literature, and the shared PQ wipe helper uses volatile stores for transient secret byte buffers.
 - NTRU's KAT-compatible Toom-4 plus two-level Karatsuba pure-Nim multiplier is now the default, with exact Toom, coefficient, temp/reduce, and row-style trial variants kept behind benchmark flags.
+- NTRU SIMD builds now select measured fixed-schedule cyclic row multiplication automatically: 16 lanes on AVX2 and 8 lanes on SSE2/NEON; scalar builds retain Toom-4 + K2.
 - SABER's tested split-loop and Toom multiplier variants are retained only as opt-in benchmark flags because they were KAT-correct but slower than the existing temp/reduce path.
 - NTRU/SABER desktop and three-phone OtterBench JSON/HTML reports have been refreshed under `docs/benchmarks`, with experimental optimization trial JSONs archived under `docs/research/ntru_saber/benchmarks`.
 - Non-NTRU/SABER PQ research papers are stored and indexed under `docs/research/pq_non_ntru_saber`, with source comments tying paper-backed optimization and hardening notes to exact code hotspots.
@@ -77,6 +79,8 @@ Implemented:
 - Declared the actual Nimble package dependencies (`nimcrypto`, `nimsimd`) and removed unused UI package requirements from the package descriptor.
 - Added `nimble check_core` so core checks are runnable without flags.
 - Added missing `scaChaCha20` backend metadata to `.iron/meta/registry.nim`.
+- Classic McEliece decoder root evaluation now batches 8 field points with AVX2 or 4 with SSE2/NEON; a controlled AVX2 roundtrip A/B improved every supported variant in repeated runs.
+- Frodo's optional dynamic OpenSSL AES path now requires `-d:hasOpenSSL3`; normal builds no longer probe `libcrypto` and use Tyr's AES-NI or pure-Nim AES code.
 - Added OpenSSL-backed RSA/ECDSA public-key signature verification helpers and
   X.509 certificate-chain SubjectPublicKeyInfo verification helpers.
 - Fixed the OpenSSL 3 `EVP_DigestSignInit_ex` /
@@ -91,19 +95,22 @@ Implemented:
   every built-in KDF generator with explicit memory/round/hash/block settings.
 
 Working on:
-- Focused security review and benchmarking for the updated custom KDF.
+- Refreshing cross-device benchmark snapshots for the new NTRU, SABER, McEliece, and ChaCha SIMD defaults.
 - Argon2 pure Nim implementation or dedicated binding wrapper.
 - Optional Poly1305 AEAD path for the wrapper-level XChaCha20 flow.
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- Tyr carried a runtime/user config parser and README guidance even though this
-  repo should only be consumed as an imported crypto library.
+- SIMD existed behind inconsistent side APIs or partial kernels: canonical
+  ChaCha stayed scalar, NTRU kept scalar K2 on SIMD builds, and McEliece SIMD
+  stopped at key generation. Frodo could also load OpenSSL without an explicit
+  third-party define.
 
 Fix attempt and result:
-- Removed the config module, tracked config files/templates, config tests,
-  nimble task, top-level export, and docs references. The public API now
-  exposes typed crypto operations only.
+- Canonical ChaCha now dispatches to Tyr-native SIMD, NTRU promotes only the
+  measured faster SIMD rows, and McEliece vectorizes decoder root evaluation.
+  A Benes-layer SIMD trial was removed after regressing two variants by about
+  5% and 20%. External OpenSSL AES probing is now opt-in.
 
 Verification:
 - `nimble tasks` passed and no longer lists `test_config`.

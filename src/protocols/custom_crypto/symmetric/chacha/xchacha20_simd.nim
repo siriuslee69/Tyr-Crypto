@@ -1,9 +1,10 @@
 import std/bitops
-import ./xchacha20
-import ./chacha20
+import ./chacha20_scalar as scalar
+import ../secure_memory
 
 const
   hchacha20InputSize = 16
+  xchacha20NonceSize = 24
   sigma = [0x61707865'u32, 0x3320646e'u32, 0x79622d32'u32, 0x6b206574'u32]
 
 type
@@ -61,9 +62,13 @@ proc hchacha20(key, nonce: openArray[byte]): array[32, byte] =
     raise newException(ValueError, "HChaCha20 requires a 32-byte key")
   if nonce.len != hchacha20InputSize:
     raise newException(ValueError, "HChaCha20 requires a 16-byte nonce")
-  var state: array[16, uint32]
-  var working: array[16, uint32]
-  var i: int = 0
+  var
+    state: array[16, uint32]
+    working: array[16, uint32]
+    i: int = 0
+  defer:
+    secureClearPod(state)
+    secureClearPod(working)
   i = 0
   while i < 4:
     state[i] = sigma[i]
@@ -435,15 +440,102 @@ when defined(avx2):
         lane = lane + 1
       word = word + 1
 
+proc chacha20StreamSimd*(key, nonce: openArray[byte], length: int,
+    initialCounter: uint32 = 0'u32, b: XChaChaBackend = xcbAuto): ByteSeq =
+  ## Generate IETF ChaCha20 blocks with Tyr-native SIMD and a scalar tail.
+  var
+    keyArray: array[32, byte]
+    nonceArray: array[12, byte]
+    offset: int = 0
+    counter: uint32 = initialCounter
+    take: int = 0
+    tail: ByteSeq = @[]
+    backend: XChaChaBackend = xcbScalar
+    i: int = 0
+  defer:
+    secureClearBytes(keyArray)
+    secureClearBytes(tail)
+  if length < 0:
+    raise newException(ValueError, "length must be non-negative")
+  if key.len != keyArray.len:
+    raise newException(ValueError, "ChaCha20 requires a 32-byte key")
+  if nonce.len != nonceArray.len:
+    raise newException(ValueError, "ChaCha20 requires a 12-byte nonce")
+  scalar.requireChaCha20BlockRange(initialCounter, length)
+  i = 0
+  while i < keyArray.len:
+    keyArray[i] = key[i]
+    i = i + 1
+  i = 0
+  while i < nonceArray.len:
+    nonceArray[i] = nonce[i]
+    i = i + 1
+  result = newSeq[byte](length)
+  backend = resolveBackend(b)
+  case backend
+  of xcbAvx2:
+    when defined(avx2):
+      while offset + (chachaBlockLen * 8) <= length:
+        chacha20Blocks8(keyArray, nonceArray, counter, result, offset)
+        counter = counter + 8'u32
+        offset = offset + chachaBlockLen * 8
+  of xcbSse2:
+    when defined(sse2):
+      while offset + (chachaBlockLen * 4) <= length:
+        chacha20Blocks4(keyArray, nonceArray, counter, result, offset)
+        counter = counter + 4'u32
+        offset = offset + chachaBlockLen * 4
+  of xcbNeon:
+    when defined(neon) or defined(arm64) or defined(aarch64):
+      while offset + (chachaBlockLen * 4) <= length:
+        chacha20Blocks4(keyArray, nonceArray, counter, result, offset)
+        counter = counter + 4'u32
+        offset = offset + chachaBlockLen * 4
+  else:
+    discard
+  if offset < length:
+    take = length - offset
+    tail = scalar.chacha20Stream(keyArray, nonceArray, take, counter)
+    copyMem(addr result[offset], unsafeAddr tail[0], take)
+
+proc chacha20XorSimd*(key, nonce: openArray[byte], initialCounter: uint32,
+    input: openArray[byte], b: XChaChaBackend = xcbAuto): ByteSeq =
+  ## XOR input with the compile-time-selected Tyr-native SIMD stream.
+  var
+    stream: ByteSeq = @[]
+    i: int = 0
+  defer:
+    secureClearBytes(stream)
+  stream = chacha20StreamSimd(key, nonce, input.len, initialCounter, b)
+  result = newSeq[byte](input.len)
+  i = 0
+  while i < input.len:
+    result[i] = input[i] xor stream[i]
+    i = i + 1
+
+proc chacha20XorInPlaceSimd*(key, nonce: openArray[byte], initialCounter: uint32,
+    buffer: var openArray[byte], b: XChaChaBackend = xcbAuto) =
+  ## XOR a caller-owned buffer with the Tyr-native SIMD stream.
+  var
+    stream: ByteSeq = @[]
+    i: int = 0
+  defer:
+    secureClearBytes(stream)
+  stream = chacha20StreamSimd(key, nonce, buffer.len, initialCounter, b)
+  i = 0
+  while i < buffer.len:
+    buffer[i] = buffer[i] xor stream[i]
+    i = i + 1
+
 proc xchacha20StreamSimd*(key, nonce: openArray[byte], length: int,
     initialCounter: uint32 = 0'u32, b: XChaChaBackend = xcbAuto): ByteSeq =
   if length < 0:
     raise newException(ValueError, "length must be non-negative")
   if key.len != 32:
     raise newException(ValueError, "XChaCha20 requires a 32-byte key")
-  if nonce.len != xchacha20.xchacha20NonceSize:
+  if nonce.len != xchacha20NonceSize:
     raise newException(ValueError, "XChaCha20 requires a 24-byte nonce")
-  requireChaCha20BlockRange(initialCounter, length)
+  scalar.requireChaCha20BlockRange(initialCounter, length)
   var
     rs: ByteSeq = @[]
     subkey: array[32, byte]
@@ -453,6 +545,9 @@ proc xchacha20StreamSimd*(key, nonce: openArray[byte], length: int,
     take: int = 0
     blockBytes: ByteSeq = @[]
     backend: XChaChaBackend
+  defer:
+    secureClearBytes(subkey)
+    secureClearBytes(blockBytes)
   subkey = deriveXChaCha20Key(key, nonce)
   chachaNonce = buildChaChaNonce(nonce)
   rs.setLen(length)
@@ -487,6 +582,6 @@ proc xchacha20StreamSimd*(key, nonce: openArray[byte], length: int,
     discard
   if offset < length:
     take = length - offset
-    blockBytes = xchacha20Stream(key, nonce, take, counter)
+    blockBytes = scalar.chacha20Stream(subkey, chachaNonce, take, counter)
     copyMem(addr rs[offset], unsafeAddr blockBytes[0], take)
   result = rs
