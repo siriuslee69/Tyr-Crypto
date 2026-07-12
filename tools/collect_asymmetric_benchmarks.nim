@@ -98,6 +98,8 @@ proc featureList(): seq[string] =
     result.add("frodoAvx2SaStripeSse")
   when defined(frodoMaterializeShakeMatrix):
     result.add("frodoMaterializeShakeMatrix")
+  when defined(frodoShakeSaSingleRow):
+    result.add("frodoShakeSaSingleRow")
   when defined(ntruMulTmp):
     result.add("ntruMulTmp")
   when defined(ntruMulRows):

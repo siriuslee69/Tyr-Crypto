@@ -35,6 +35,7 @@ benchmarks use liboqs rather than compiling this Falcon reference submodule.
 | Area | Paper / spec | Local copy | Upstream |
 | --- | --- | --- | --- |
 | Frodo | Frodo: Take off the ring! Practical, quantum-secure key exchange from LWE | [2016-0659_frodo_take_off_the_ring.pdf](papers/2016-0659_frodo_take_off_the_ring.pdf) | https://eprint.iacr.org/2016/659 |
+| Frodo | The Matrix Reloaded: Multiplication Strategies in FrodoKEM | upstream | https://eprint.iacr.org/2021/711 |
 | Dilithium | CRYSTALS-Dilithium original design paper | [2017-0633_crystals_dilithium.pdf](papers/2017-0633_crystals_dilithium.pdf) | https://eprint.iacr.org/2017/633 |
 | Kyber | CRYSTALS-Kyber original design paper | [2017-0634_crystals_kyber.pdf](papers/2017-0634_crystals_kyber.pdf) | https://eprint.iacr.org/2017/634 |
 | Kyber/Dilithium | Faster AVX2 optimized NTT implementations | [2018-0039_vectorized_ntt_implementations.pdf](papers/2018-0039_vectorized_ntt_implementations.pdf) | https://eprint.iacr.org/2018/039 |
@@ -51,6 +52,7 @@ benchmarks use liboqs rather than compiling this Falcon reference submodule.
 | Dilithium | Recent rejection-sampling side-channel work | [2025-0214_dilithium_rejection_sampling_side_channel.pdf](papers/2025-0214_dilithium_rejection_sampling_side_channel.pdf) | https://eprint.iacr.org/2025/214 |
 | BIKE | BIKE specification v5.2 | cache only, ignored | https://bikesuite.org/files/v5.2/BIKE_Spec.2024.10.10.1.pdf |
 | Frodo | FrodoKEM standard proposal | cache only, ignored | https://frodokem.org/files/FrodoKEM_standard_proposal_20250929.pdf |
+| Frodo | Taming the Stack: Proof-Preserving Blockwise FrodoKEM | upstream | https://eprint.iacr.org/2025/2157 |
 | Falcon | Falcon specification | cache only, ignored | https://falcon-sign.info/falcon.pdf |
 | Classic McEliece | Classic McEliece specification | cache only, ignored | https://classic.mceliece.org/mceliece-spec-20221023.pdf |
 | Classic McEliece | Classic McEliece implementation guide | cache only, ignored | https://classic.mceliece.org/mceliece-impl-20221023.pdf |
@@ -73,6 +75,21 @@ rows on demand and consumes them directly in `A*s+e` and `s*A+e`, instead of
 materializing the full public matrix. Comments mark the direct transposed
 decode, SIMD matrix kernels, native AES-NI path, opt-in OpenSSL path, and both
 streamed matrix-product calls.
+
+The SHAKE `s*A+e` AVX2 path applies the row-wise blocking direction from The
+Matrix Reloaded to four generated public rows. Their products are fused so each
+secret/output vector is loaded once per public tile. This keeps one KEM
+operation in flight, uses fixed public loop bounds, and does not extend the
+enclosing ephemeral-secret lifetime. `-d:frodoShakeSaSingleRow` restores the
+previous one-row accumulation for benchmarks. Longer same-host AVX2 roundtrip
+runs improved Frodo-640/976/1344-SHAKE by about 3.7/2.9/1.3% on average.
+
+The 2025 blockwise paper was reviewed but its random-access secret generation
+was not adopted: Tyr already keeps one operation's secret matrix in one
+short-lived, explicitly wiped buffer, while regenerating secret tiles would
+change deterministic transcripts and complicate secret lifetime. The 2024 AMX
+and 2025 multicore work was also not adopted because it requires special matrix
+hardware or concurrent work that keeps more secret material active.
 
 BIKE uses the BIKE decoder structure, Karatsuba GF(2) multiplication, and 128-bit
 word helpers for XOR and bit-sliced decoder updates. The code comments mark

@@ -1,4 +1,4 @@
-Commit Message: add native simd defaults for chacha ntru and mceliece
+Commit Message: fuse frodo shake avx2 row tiles
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -1093,3 +1093,39 @@ Current conclusion:
 - SABER now has a real pure-Nim vectorized multiplication core on AVX2 and ARM64/NEON rather than SIMD only in reduction.
 - McEliece remains only partially vectorized, but the retained elimination cleanup is constant-schedule and measured as a small win.
 - Curated cross-device SABER snapshots predate the new core and should be refreshed before changing README guidance numbers.
+
+## 2026-07-12 Frodo SHAKE Row-Tile Pass
+
+Summary: reviewed the repository's prior asymmetric experiments and paper set,
+searched current scholarly indexes, and applied a missing FrodoKEM row-blocking
+idea without batching keys or extending secret lifetime.
+
+Research:
+- Added the missing `The Matrix Reloaded: Multiplication Strategies in FrodoKEM`
+  (ePrint 2021/711) and the newer `Taming the Stack` blockwise work
+  (ePrint 2025/2157) to the research notes.
+- Rejected AMX/hardware and multicore approaches because this backend must stay
+  portable and must not keep several operations' secrets live concurrently.
+- Rejected blockwise secret regeneration because Tyr already holds one
+  operation's secret matrix in one short-lived wiped buffer, while changing its
+  generation would affect deterministic compatibility and enlarge the audit.
+
+Implemented:
+- Frodo SHAKE `s*A+e` now generates four public rows per tile and, on AVX2,
+  fuses all four products into one traversal of each secret/output vector.
+- Loop counts and addresses depend only on public parameters. No secret branch,
+  secret lookup table, independent-operation batching, or longer enclosing
+  secret lifetime was introduced.
+- `-d:frodoShakeSaSingleRow` retains a benchmark rollback to the previous
+  one-row accumulation schedule.
+
+Measured on the same Linux AVX2 host with two interleaved scale-4 runs:
+- Frodo-640-SHAKE: `4.858 ms -> 4.676 ms` average, about 3.7% faster.
+- Frodo-976-SHAKE: `10.452 ms -> 10.152 ms` average, about 2.9% faster.
+- Frodo-1344-SHAKE: `18.698 ms -> 18.448 ms` average, about 1.3% faster.
+- AES variants were unchanged controls and varied with normal run-order noise.
+
+Verification:
+- AVX2 release `tests/test_frodo_tyr.nim`: pass for all six variants and typed API.
+- ARM64/NEON `nim check tests/test_frodo_tyr.nim`: pass.
+- `git diff --check`: pass.
