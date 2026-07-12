@@ -7,7 +7,7 @@ import std/[os, strutils, unittest]
 
 import ../src/protocols/custom_crypto/falcon as custom_falcon
 import ../src/protocols/custom_crypto/asymmetric/pq/falcon/[format, sign as pure_falcon_sign, pure_verify as pure_falcon_verify]
-import sigma_bench_and_eval
+import otter_repo_evaluation
 
 when defined(hasLibOqs):
   import ../src/protocols/bindings/liboqs

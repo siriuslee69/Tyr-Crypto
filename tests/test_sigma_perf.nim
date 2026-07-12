@@ -7,7 +7,7 @@ import std/[monotimes, unittest]
 
 import ../src/protocols/custom_crypto/[blake3, gimli, gimli_sponge, xchacha20,
   xchacha20_simd, aes_ctr]
-import sigma_bench_and_eval
+import otter_repo_evaluation
 
 const
   benchBytes = 2048

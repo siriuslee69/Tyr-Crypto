@@ -37,6 +37,7 @@ iron/iron_config.md
 .iron/.local*
 !.iron/.local*.template
 .fuse_hidden*
+tests/test_sigma_perf
 
 !tests/android_harness/gradle/wrapper/gradle-wrapper.jar
 

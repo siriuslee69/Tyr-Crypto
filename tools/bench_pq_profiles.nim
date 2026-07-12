@@ -1,5 +1,5 @@
 ## =====================================================================
-## PQ Profile Bench <- build matched liboqs profiles and run Sigma benches
+## PQ Profile Bench <- build matched liboqs profiles and run Otter benches
 ## =====================================================================
 
 import std/[os, osproc, parseopt, strutils]
@@ -306,7 +306,7 @@ proc setDefaultSuites(S: var seq[BenchSuite]) =
 
 proc printHelp() =
   echo "bench_pq_profiles.nim"
-  echo "  Build matched liboqs scalar/avx2 profiles and run Sigma comparisons."
+  echo "  Build matched liboqs scalar/avx2 profiles and run Otter comparisons."
   echo ""
   echo "Options:"
   echo "  --mode=scalar|avx2|all"
@@ -462,9 +462,21 @@ proc runLogged(a, b: string, dryRun: bool): int =
   writeLog(b, a, body, res.exitCode)
   result = res.exitCode
 
-proc sigmaFlags(): string =
-  result = "--path:src --path:submodules/sigma_bench_and_eval/src " &
-    "--path:submodules/sigma_bench_and_eval/submodules/fylgia/src"
+proc otterSrcDir(): string =
+  ## Returns the vendored or sibling Otter source directory.
+  var
+    vendored: string = joinPath(repoDir(), "submodules", "otter_repo_evaluation", "src")
+    sibling: string = joinPath(workspaceDir(), "Otter-RepoEvaluation", "src")
+  if dirExists(vendored):
+    result = vendored
+    return
+  if dirExists(sibling):
+    result = sibling
+    return
+  raise newException(OSError, "Missing required Otter-RepoEvaluation source directory")
+
+proc otterFlags(): string =
+  result = "--path:src --path:" & quoteShell(replaceSlash(otterSrcDir()))
 
 proc modeFlags(a: BenchMode): string =
   ## a: benchmark mode.
@@ -493,7 +505,7 @@ proc benchCommand(a: BenchMode, b: BenchSuite): string =
   passC = suitePassCFlags(a, b)
   result = "nim c --threads:on --nimcache:" &
     quoteShell(replaceSlash(repoNimcacheDir(nimcacheName))) & " " &
-    sigmaFlags() & " " &
+    otterFlags() & " " &
     modeFlags(a)
   if passC.len > 0:
     result = result & " " & passC

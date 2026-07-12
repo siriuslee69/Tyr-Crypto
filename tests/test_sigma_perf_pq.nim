@@ -12,7 +12,7 @@ import ../src/protocols/custom_crypto/[kyber as custom_kyber,
   dilithium as custom_dilithium,
   falcon as custom_falcon,
   sphincs as custom_sphincs]
-import sigma_bench_and_eval
+import otter_repo_evaluation
 
 when defined(hasLibOqs):
   import ../src/protocols/bindings/liboqs

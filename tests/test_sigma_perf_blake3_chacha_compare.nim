@@ -7,7 +7,7 @@ import std/[dynlib, os, unittest]
 
 import ../src/protocols/custom_crypto/[blake3, chacha20, xchacha20, xchacha20_simd]
 import ../src/protocols/bindings/libsodium
-import sigma_bench_and_eval
+import otter_repo_evaluation
 
 const
   benchBytes = 8 * 1024

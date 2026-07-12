@@ -254,8 +254,7 @@ Frodo does not probe or load `libcrypto` unless `-d:hasOpenSSL3` is present.
 | PQClean Falcon refs | `submodules/pqclean_falcon_ref_sources` |
 | NTRU sampling refs | `submodules/ntru_sampling_ref_sources` |
 | SIMD-Nexus | `submodules/simd_nexus` or `../SIMD-Nexus` |
-| Sigma-BenchAndEval | `submodules/sigma_bench_and_eval` |
-| Otter-RepoEvaluation | `submodules/otter_repo_evaluation` |
+| Otter-RepoEvaluation | `submodules/otter_repo_evaluation` (timing, benchmarks, and statistical evaluation) |
 
 Local path overrides go in `.iron/.local.gitmodules.toml` (gitignored).
 

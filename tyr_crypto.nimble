@@ -215,37 +215,37 @@ task build_android_harness_asymmetric_full, "Build the Android harness APK with 
 task test_pin, "Run interactive pin + key unwrap test.":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_pin").replace('\\', '/') & " -d:hasLibsodium -r tests/test_pin_key_interactive.nim")
 
-task perf_sigma, "Benchmark custom crypto with Sigma helpers":
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf.nim")
+task perf_sigma, "Benchmark custom crypto with Otter helpers":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf.nim")
 
-task perf_sigma_pq, "Benchmark Tyr PQ backends against liboqs with Sigma helpers":
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_pq").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_pq.nim")
+task perf_sigma_pq, "Benchmark Tyr PQ backends against liboqs with Otter helpers":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_pq").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_pq.nim")
 
 task perf_sigma_dilithium, "Benchmark split Tyr Dilithium phases against the current liboqs profile":
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_dilithium").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_dilithium.nim")
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_dilithium").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_dilithium.nim")
 
 task perf_sigma_falcon, "Benchmark split Tyr Falcon phases against the current liboqs profile":
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_falcon").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_falcon.nim")
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_falcon").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_falcon.nim")
 
 task perf_sigma_dilithium_scalar, "Benchmark scalar Tyr Dilithium against the scalar liboqs Dilithium profile":
   putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_dilithium_scalar_zig_mingw"))
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_dilithium_scalar").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -r tests/test_sigma_perf_dilithium.nim")
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_dilithium_scalar").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -r tests/test_sigma_perf_dilithium.nim")
 
-task perf_sigma_kyber, "Benchmark Tyr Kyber against liboqs with Sigma helpers":
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_kyber").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_kyber_only.nim")
+task perf_sigma_kyber, "Benchmark Tyr Kyber against liboqs with Otter helpers":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_kyber").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_kyber_only.nim")
 
-task perf_sigma_pq_aesni, "Benchmark Tyr PQ backends against liboqs with Sigma helpers and AES-NI enabled":
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_pq_aesni").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_pq.nim")
+task perf_sigma_pq_aesni, "Benchmark Tyr PQ backends against liboqs with Otter helpers and AES-NI enabled":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_pq_aesni").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_pq.nim")
 
 task perf_sigma_frodo_portable, "Benchmark Tyr Frodo against the portable Frodo-focused liboqs build":
   putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_frodo_portable"))
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_frodo_portable").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_frodo_profile.nim")
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_frodo_portable").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_frodo_profile.nim")
 
 task perf_sigma_frodo_ossl, "Benchmark Tyr Frodo against the OpenSSL-backed Frodo-focused liboqs build":
   putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_frodo_ossl"))
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_frodo_ossl").replace('\\', '/') & " --path:src --path:submodules/sigma_bench_and_eval/src --path:submodules/sigma_bench_and_eval/submodules/fylgia/src -d:release -d:hasLibOqs -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_frodo_profile.nim")
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_frodo_ossl").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_frodo_profile.nim")
 
-task bench_pq_profiles, "Build matched scalar/AVX2 liboqs profiles and run Sigma PQ comparison benches":
+task bench_pq_profiles, "Build matched scalar/AVX2 liboqs profiles and run Otter PQ comparison benches":
   exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_bench_pq_profiles").replace('\\', '/') & " tools/bench_pq_profiles.nim")
 
 task bench_custom_crypto, "Run the unified Tyr-only custom-crypto benchmark report":

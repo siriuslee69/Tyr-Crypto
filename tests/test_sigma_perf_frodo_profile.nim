@@ -6,7 +6,7 @@
 import std/[os, strutils, unittest]
 
 import ../src/protocols/custom_crypto/frodo as custom_frodo
-import sigma_bench_and_eval
+import otter_repo_evaluation
 
 when defined(hasLibOqs):
   import ../src/protocols/bindings/liboqs

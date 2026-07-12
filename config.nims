@@ -17,7 +17,6 @@ addPathIfExists(joinPath(repoRoot, "..", "SIMD-Nexus", "src"))
 addPathIfExists(joinPath(repoRoot, "..", "Fylgia-Utils", "src"))
 addPathIfExists(joinPath(repoRoot, "submodules", "otter_repo_evaluation", "src"))
 addPathIfExists(joinPath(repoRoot, "..", "Otter-RepoEvaluation", "src"))
-addPathIfExists(joinPath(repoRoot, "..", "Sigma-BenchAndEval", "src"))
 
 let nimblePkgs = joinPath(getHomeDir(), ".nimble", "pkgs2")
 if dirExists(nimblePkgs):

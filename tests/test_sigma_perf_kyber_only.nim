@@ -7,7 +7,7 @@
 import std/unittest
 
 import ../src/protocols/custom_crypto/kyber as custom_kyber
-import sigma_bench_and_eval
+import otter_repo_evaluation
 
 when defined(hasLibOqs):
   import ../src/protocols/bindings/liboqs

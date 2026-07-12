@@ -1,4 +1,4 @@
-Commit Message: fuse frodo shake avx2 row tiles
+Commit Message: route benchmark evaluation through Otter
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -9,6 +9,7 @@ Features to implement:
 - Chunked file encryption + hashing wrapper for large files.
 
 Implemented:
+- Removed the direct Sigma submodule and routed benchmark evaluation through the pinned Otter submodule.
 - libsodium bindings for AEAD, XChaCha20 stream, and Argon2 APIs.
 - nimcrypto binding for AES-256-GCM.
 - Pure Nim BLAKE3 and XChaCha20 (with HChaCha20) implementations.
@@ -55,7 +56,7 @@ Implemented:
 - Kyber polynomial add/sub now use optional SSE2/AVX2 SIMD coefficient lanes with scalar tails.
 - Dilithium polynomial add/sub/shift-left now use optional SSE2/AVX2 SIMD coefficient lanes with scalar tails.
 - SIMD-Nexus now exports missing generic `int32` helpers plus 16-bit multiply-low helpers for reusable PQ arithmetic paths.
-- Sigma benchmark support now works again in this workspace, and Tyr has a dedicated `perf_sigma_pq` benchmark comparing the pure-Nim PQ backends against liboqs for the currently available algorithms.
+- Otter provides the benchmark helpers formerly supplied by Sigma, and Tyr's existing `perf_sigma_pq` compatibility task compares the pure-Nim PQ backends against liboqs through Otter.
 - Otter wrapper-based PQ profiling now works through `perf_otter_pq` and prints the hottest timed Tyr PQ wrapper functions per algorithm family.
 - Otter now captures real inner-function spans for Kyber (`genMatrix`, `indcpaKeypair`, `indcpaEnc`, `indcpaDec`), Frodo (`generateMatrixA`, `mulAddAsPlusE`, `mulAddSaPlusE`, `mulAddSbPlusE`, `mulBs`), and BIKE (`gf2xModMul`, `gf2xModInv`, `decodeBike`).
 - Frodo no longer materializes the full AES matrix for keypair/encaps/decaps; the hot `A*s+e` and `s*A+e` paths now stream matrix stripes directly from AES.
