@@ -149,6 +149,9 @@ task test_ntru_saber_avx2, "Run NTRU/SABER tests with AVX2 enabled where support
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_ntru_tyr_avx2").replace('\\', '/') & " -d:avx2 --passC:\"-mavx2 -mbmi2\" --passL:\"-mavx2\" -r tests/test_ntru_tyr.nim")
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_saber_tyr_avx2").replace('\\', '/') & " -d:avx2 --passC:\"-mavx2\" --passL:\"-mavx2\" -r tests/test_saber_tyr.nim")
 
+task test_frodo_native_fast, "Run Frodo with AVX2 matrix math and native AES-NI":
+  exec withRepoCaches("nim c -d:release -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-mavx2\" --nimcache:" & repoNimcacheDir("nimcache_test_frodo_native_fast").replace('\\', '/') & " -r tests/test_frodo_tyr.nim")
+
 task test_neon_checks, "Compile-check the ARM64/NEON SIMD coverage matrix":
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_xchacha20").replace('\\', '/') & " tests/test_xchacha20_simd.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_blake3").replace('\\', '/') & " tests/test_blake3_simd.nim")

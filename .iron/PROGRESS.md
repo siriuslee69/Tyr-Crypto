@@ -81,6 +81,8 @@ Implemented:
 - Added missing `scaChaCha20` backend metadata to `.iron/meta/registry.nim`.
 - Classic McEliece decoder root evaluation now batches 8 field points with AVX2 or 4 with SSE2/NEON; a controlled AVX2 roundtrip A/B improved every supported variant in repeated runs.
 - Frodo's optional dynamic OpenSSL AES path now requires `-d:hasOpenSSL3`; normal builds no longer probe `libcrypto` and use Tyr's AES-NI or pure-Nim AES code.
+- Frodo SHAKE matrix products now generate public rows on demand and accumulate them directly with AVX2, SSE2, or NEON lanes instead of allocating the full matrix and copying columns. Same-source AVX2 controls improved from about `6.13/13.70/25.31 ms` to `5.01/10.95/19.50 ms` for 640/976/1344, or about 18-23%.
+- The existing Tyr-native AES-NI path was remeasured at about `0.98/1.81/3.16 ms` for Frodo-640/976/1344 AES roundtrips. `test_frodo_native_fast` supplies the explicit AES-NI and AVX2 build contract; AVX2 does not silently imply AES-NI.
 - Added OpenSSL-backed RSA/ECDSA public-key signature verification helpers and
   X.509 certificate-chain SubjectPublicKeyInfo verification helpers.
 - Fixed the OpenSSL 3 `EVP_DigestSignInit_ex` /
@@ -95,22 +97,22 @@ Implemented:
   every built-in KDF generator with explicit memory/round/hash/block settings.
 
 Working on:
-- Refreshing cross-device benchmark snapshots for the new NTRU, SABER, McEliece, and ChaCha SIMD defaults.
+- Refreshing cross-device benchmark snapshots for the new Frodo, NTRU, SABER, McEliece, and ChaCha SIMD defaults.
 - Argon2 pure Nim implementation or dedicated binding wrapper.
 - Optional Poly1305 AEAD path for the wrapper-level XChaCha20 flow.
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
-- SIMD existed behind inconsistent side APIs or partial kernels: canonical
-  ChaCha stayed scalar, NTRU kept scalar K2 on SIMD builds, and McEliece SIMD
-  stopped at key generation. Frodo could also load OpenSSL without an explicit
-  third-party define.
+- Frodo SHAKE allocated the complete public matrix and copied columns before
+  multiplication, while normal AVX2 benchmark builds omitted the separate
+  Tyr-native AES-NI capability and exposed the slow portable AES path.
 
 Fix attempt and result:
-- Canonical ChaCha now dispatches to Tyr-native SIMD, NTRU promotes only the
-  measured faster SIMD rows, and McEliece vectorizes decoder root evaluation.
-  A Benes-layer SIMD trial was removed after regressing two variants by about
-  5% and 20%. External OpenSSL AES probing is now opt-in.
+- SHAKE rows are regenerated and consumed directly with fixed public loop
+  schedules, reducing temporary matrix memory from `2*n*n` bytes to four rows
+  and improving local AVX2 roundtrips by 18-23%. AES-NI improves native AES
+  roundtrips by roughly 7-12x, but remains explicit because AES-NI and AVX2 are
+  separate CPU features. No secret-dependent branch was added.
 
 Verification:
 - `nimble tasks` passed and no longer lists `test_config`.

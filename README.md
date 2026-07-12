@@ -79,7 +79,7 @@ Curated benchmark snapshots currently focus on the asymmetric and key-agreement 
 | Category | Algorithms | SIMD coverage | Benchmark-guided profile |
 |----------|------------|---------------|--------------------------|
 | **KEM** | Kyber (ML-KEM-512/768/1024) | SSE2/NEON four-pair and AVX2 eight-pair polynomial accumulation; coefficient helpers | Fastest PQ KEM family in the current curated snapshots; sub-ms on desktop and the measured phones |
-| **KEM** | FrodoKEM (640/976/1344, AES + SHAKE) | SSE2/NEON 128-bit and AVX2 256-bit matrix dot products; AES paths also depend on the AES backend | Conservative, high-bandwidth path; much slower than Kyber/SABER/NTRU, with AES variants faster than SHAKE on the measured desktop |
+| **KEM** | FrodoKEM (640/976/1344, AES + SHAKE) | Streamed matrix generation; SSE2/NEON 128-bit and AVX2 256-bit matrix products; optional Tyr-native AES-NI | Conservative, high-bandwidth path; AES-NI makes AES variants substantially faster, while streamed SHAKE avoids the full matrix allocation |
 | **KEM** | BIKE-L1 | SSE2/NEON 128-bit decoder word helpers; multiplication remains scalar/Karatsuba | Tens-of-ms KEM in the current snapshots |
 | **KEM** | NTRU (HPS-509/677/821, HRSS-701) | AVX2 16-lane and SSE2/NEON 8-lane cyclic multiplication selected automatically; scalar builds retain Toom-4 + K2 | Mid-latency KEM; current local AVX2 A/B is about 8-13% faster than K2 and needs refreshed cross-device snapshots |
 | **KEM** | SABER (LightSaber/Saber/FireSaber) | AVX2 16-lane and NEON 8-lane schoolbook multiplication; SSE2 reduction-only path | Same low-latency class as Kyber in the curated snapshots; current SIMD core needs refreshed cross-device snapshots |
@@ -111,7 +111,7 @@ These numbers are not protocol guarantees. They are README-level guidance taken 
 | Kyber | about `0.06-0.13 ms` | about `0.33-0.91 ms` | Lowest-latency PQ KEM family in the current curated set |
 | SABER | historical snapshot: about `0.14-0.27 ms` | historical snapshot: about `0.29-0.75 ms` | Predates the new AVX2/NEON multiplication core; use a fresh local benchmark for current numbers |
 | NTRU | historical snapshot: about `2.34-4.57 ms` | historical snapshot: about `6.54-20.85 ms` | Predates automatic AVX2/SSE2/NEON cyclic multiplication; local AVX2 A/B improved 8-13% over K2 |
-| FrodoKEM | about `1.24-45.27 ms` | about `21-133 ms` | AES variants are much faster than SHAKE on desktop; the gap narrows on phones |
+| FrodoKEM | current local native-fast: about `0.98-3.16 ms` AES and `5.01-19.50 ms` SHAKE | historical snapshots: about `21-133 ms` | AES requires explicit `-d:aesni -maes`; same-source A/B shows SHAKE row streaming about 18-23% faster; cross-device snapshots need refresh |
 | BIKE-L1 | about `65 ms` | about `50-74 ms` | Decoder-heavy, sits in the tens-of-ms range in current snapshots |
 | Classic McEliece | about `186-214 ms` | about `495-892 ms` | Key generation dominates total runtime |
 

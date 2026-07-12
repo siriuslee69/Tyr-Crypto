@@ -86,6 +86,8 @@ proc featureList(): seq[string] =
     result.add("sse2")
   when defined(avx2):
     result.add("avx2")
+  when defined(aesni):
+    result.add("aesni")
   when defined(neon):
     result.add("neon")
   when defined(release):
@@ -94,6 +96,8 @@ proc featureList(): seq[string] =
     result.add("otterTiming")
   when defined(frodoAvx2SaStripeSse):
     result.add("frodoAvx2SaStripeSse")
+  when defined(frodoMaterializeShakeMatrix):
+    result.add("frodoMaterializeShakeMatrix")
   when defined(ntruMulTmp):
     result.add("ntruMulTmp")
   when defined(ntruMulRows):

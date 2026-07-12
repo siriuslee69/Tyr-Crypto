@@ -1224,6 +1224,160 @@ proc accumulateSaStripe8Host(aColsT: openArray[uint16],
   else:
     accumulateSaStripe8Scalar(aColsT, s, result, colStart, strideN)
 
+proc accumulateSaRowScalar(aRow: openArray[uint16], s: openArray[uint16],
+    result: var openArray[uint16], matrixRow, strideN: int) =
+  ## Add one generated public A row to all eight rows of `s*A`.
+  var
+    secretRow: int = 0
+    col: int = 0
+    factor: uint16 = 0
+    outOff: int = 0
+  secretRow = 0
+  while secretRow < 8:
+    factor = s[secretRow * strideN + matrixRow]
+    outOff = secretRow * strideN
+    col = 0
+    while col < strideN:
+      result[outOff + col] = result[outOff + col] + mulLo16(factor, aRow[col])
+      col = col + 1
+    secretRow = secretRow + 1
+
+when defined(avx2):
+  proc accumulateSaRowAvx2(aRow: openArray[uint16], s: openArray[uint16],
+      result: var openArray[uint16], matrixRow, strideN: int) =
+    var
+      secretRow: int = 0
+      col: int = 0
+      outOff: int = 0
+      factor: navx.M256i
+      aVec: navx.M256i
+      outVec: navx.M256i
+    secretRow = 0
+    while secretRow < 8:
+      outOff = secretRow * strideN
+      factor = navx2.mm256_set1_epi16(cast[cshort](s[secretRow * strideN + matrixRow]))
+      col = 0
+      while col < strideN:
+        aVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRow[col]))
+        outVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr result[outOff + col]))
+        outVec = navx2.mm256_add_epi16(outVec, navx2.mm256_mullo_epi16(aVec, factor))
+        navx.mm256_storeu_si256(cast[pointer](addr result[outOff + col]), outVec)
+        col = col + 16
+      secretRow = secretRow + 1
+
+when defined(sse2):
+  proc accumulateSaRowSse(aRow: openArray[uint16], s: openArray[uint16],
+      result: var openArray[uint16], matrixRow, strideN: int) =
+    var
+      secretRow: int = 0
+      col: int = 0
+      outOff: int = 0
+      factor: nsse2.M128i
+      aVec: nsse2.M128i
+      outVec: nsse2.M128i
+    secretRow = 0
+    while secretRow < 8:
+      outOff = secretRow * strideN
+      factor = nsse2.mm_set1_epi16(cast[cshort](s[secretRow * strideN + matrixRow]))
+      col = 0
+      while col < strideN:
+        aVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aRow[col]))
+        outVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr result[outOff + col]))
+        outVec = nsse2.mm_add_epi16(outVec, nsse2.mm_mullo_epi16(aVec, factor))
+        nsse2.mm_storeu_si128(cast[pointer](addr result[outOff + col]), outVec)
+        col = col + 8
+      secretRow = secretRow + 1
+
+when defined(neon) or defined(arm64) or defined(aarch64):
+  proc accumulateSaRowNeon(aRow: openArray[uint16], s: openArray[uint16],
+      result: var openArray[uint16], matrixRow, strideN: int) =
+    var
+      secretRow: int = 0
+      col: int = 0
+      outOff: int = 0
+      factor: uint16x8
+      aVec: uint16x8
+      outVec: uint16x8
+    secretRow = 0
+    while secretRow < 8:
+      outOff = secretRow * strideN
+      factor = vmovq_n_u16(s[secretRow * strideN + matrixRow])
+      col = 0
+      while col < strideN:
+        aVec = loadI16x8At[uint16x8](aRow, col)
+        outVec = loadI16x8At[uint16x8](result, outOff + col)
+        outVec = outVec + mulLoI16(aVec, factor)
+        storeI16x8At(outVec, result, outOff + col)
+        col = col + 8
+      secretRow = secretRow + 1
+
+proc accumulateSaRowHost(aRow: openArray[uint16], s: openArray[uint16],
+    result: var openArray[uint16], matrixRow, strideN: int) {.inline.} =
+  when defined(avx2):
+    accumulateSaRowAvx2(aRow, s, result, matrixRow, strideN)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    accumulateSaRowNeon(aRow, s, result, matrixRow, strideN)
+  elif defined(sse2):
+    accumulateSaRowSse(aRow, s, result, matrixRow, strideN)
+  else:
+    accumulateSaRowScalar(aRow, s, result, matrixRow, strideN)
+
+proc generateShakeRows(p: FrodoParams, rowStart, rowCount: int,
+    rowInput, rowBytes: var seq[byte], rows: var seq[uint16]) =
+  ## Regenerate a fixed public range of A without materializing the full matrix.
+  var
+    row: int = 0
+    rowOff: int = 0
+  row = 0
+  while row < rowCount:
+    rowInput[0] = byte((rowStart + row) and 0xff)
+    rowInput[1] = byte(((rowStart + row) shr 8) and 0xff)
+    shake128Into(rowBytes, rowInput)
+    rowOff = row * p.n
+    bytesToWordsLeInto(rows.toOpenArray(rowOff, rowOff + p.n - 1), rowBytes)
+    reduceWordsModQ(p, rows.toOpenArray(rowOff, rowOff + p.n - 1))
+    row = row + 1
+
+proc mulAddAsPlusEShakeStream(p: FrodoParams, seedA: openArray[byte],
+    s, e: openArray[uint16]): seq[uint16] =
+  var
+    rowInput: seq[byte] = newSeq[byte](2 + p.bytesSeedA)
+    rowBytes: seq[byte] = newSeq[byte](2 * p.n)
+    rows: seq[uint16] = newSeq[uint16](frodoRowsPerBlock * p.n)
+    rowStart: int = 0
+  copyMem(addr rowInput[2], unsafeAddr seedA[0], p.bytesSeedA)
+  result = newSeq[uint16](p.n * p.nbar)
+  copyMem(addr result[0], unsafeAddr e[0], result.len * sizeof(uint16))
+  rowStart = 0
+  while rowStart < p.n:
+    generateShakeRows(p, rowStart, frodoRowsPerBlock, rowInput, rowBytes, rows)
+    accumulateAsBlock4x8Host(rows, s, result, rowStart * p.nbar, p.n)
+    rowStart = rowStart + frodoRowsPerBlock
+  reduceWordsModQ(p, result)
+  clearBytes(rowInput)
+  clearBytes(rowBytes)
+  clearWords(rows)
+
+proc mulAddSaPlusEShakeStream(p: FrodoParams, seedA: openArray[byte],
+    s, e: openArray[uint16]): seq[uint16] =
+  var
+    rowInput: seq[byte] = newSeq[byte](2 + p.bytesSeedA)
+    rowBytes: seq[byte] = newSeq[byte](2 * p.n)
+    rowWords: seq[uint16] = newSeq[uint16](p.n)
+    matrixRow: int = 0
+  copyMem(addr rowInput[2], unsafeAddr seedA[0], p.bytesSeedA)
+  result = newSeq[uint16](p.nbar * p.n)
+  copyMem(addr result[0], unsafeAddr e[0], result.len * sizeof(uint16))
+  matrixRow = 0
+  while matrixRow < p.n:
+    generateShakeRows(p, matrixRow, 1, rowInput, rowBytes, rowWords)
+    accumulateSaRowHost(rowWords, s, result, matrixRow, p.n)
+    matrixRow = matrixRow + 1
+  reduceWordsModQ(p, result)
+  clearBytes(rowInput)
+  clearBytes(rowBytes)
+  clearWords(rowWords)
+
 proc generateMatrixA(p: FrodoParams, seedA: openArray[byte]): seq[uint16] =
   ## Generate the Frodo matrix `A` row-wise for the selected parameter set.
   otterSpan("frodo.generateMatrixA"):
@@ -1309,6 +1463,9 @@ proc mulAddAsPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
   otterSpan("frodo.mulAddAsPlusEStream"):
     if seedA.len != p.bytesSeedA:
       raise newException(ValueError, "invalid Frodo seed_A length")
+    when not defined(frodoMaterializeShakeMatrix):
+      if p.matrixGenerator == fmgShake128:
+        return mulAddAsPlusEShakeStream(p, seedA, s, e)
     if not useOptimizedAesStreamPath(p):
       var
         A: seq[uint16] = generateMatrixA(p, seedA)
@@ -1407,6 +1564,9 @@ proc mulAddSaPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
   otterSpan("frodo.mulAddSaPlusEStream"):
     if seedA.len != p.bytesSeedA:
       raise newException(ValueError, "invalid Frodo seed_A length")
+    when not defined(frodoMaterializeShakeMatrix):
+      if p.matrixGenerator == fmgShake128:
+        return mulAddSaPlusEShakeStream(p, seedA, s, e)
     if not useOptimizedAesStreamPath(p):
       var
         A: seq[uint16] = generateMatrixA(p, seedA)

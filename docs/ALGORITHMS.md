@@ -63,9 +63,10 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 
 - **Security foundation:** Standard LWE (no structured lattice)
 - **Largest bandwidth** of all KEMs here, but **most conservative** hardness assumption
-- **Matrix generation:** Streamed AES-128 (or SHAKE-128) — full matrix is never materialized
+- **Matrix generation:** AES-128 and SHAKE-128 rows are generated on demand; the default path never materializes the full `n x n` matrix
 - **SIMD:** SSE2/AVX2 for 16-bit multiply-low helpers
-- **External AES:** OpenSSL probing is disabled unless `-d:hasOpenSSL3`; normal builds use Tyr's AES-NI or pure-Nim core
+- **Native AES:** `-d:aesni` plus the compiler AES target flag selects Tyr's intrinsic core; this stays separate from AVX2 because they are distinct CPU capabilities
+- **External AES:** OpenSSL probing is disabled unless `-d:hasOpenSSL3`; normal builds remain Tyr/Nim native
 
 ### BIKE
 
