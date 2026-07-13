@@ -783,22 +783,6 @@ proc shiftLeftAbs31(A: openArray[uint32], scale: int): seq[uint32] =
     result[sch + A.len] = carry
   trimAbs31(result)
 
-## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `mulAbsSmall31`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc mulAbsSmall31(A: openArray[uint32], s: uint32): seq[uint32] =
-  if A.len == 0 or s == 0'u32:
-    return @[]
-  result = newSeq[uint32](A.len + 1)
-  var
-    carry = 0'u32
-    i = 0
-  while i < A.len:
-    let z = uint64(A[i]) * uint64(s) + uint64(carry)
-    result[i] = uint32(z) and falconWordMask
-    carry = uint32(z shr 31)
-    inc i
-  result[A.len] = carry
-  trimAbs31(result)
-
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `decodeCoeff31`; pitfall: reject malformed or non-canonical input before indexed access.
 proc decodeCoeff31(poly: RnsPoly, coeff, wordLen: int): FalconSigned31 =
   if wordLen <= 0:
@@ -852,10 +836,6 @@ proc cloneWords31(A: openArray[uint32]): seq[uint32] =
   result = newSeq[uint32](A.len)
   if A.len > 0:
     copyMem(addr result[0], unsafeAddr A[0], A.len * sizeof(uint32))
-
-## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `signed31One`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
-proc signed31One(): FalconSigned31 {.inline.} =
-  FalconSigned31(neg: false, words: @[1'u32])
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `bitLen31`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bitLen31(w: uint32): int {.inline.} =
@@ -952,23 +932,8 @@ proc divRemAbs31(num, den: openArray[uint32]): tuple[q, r: seq[uint32]] =
   trimAbs31(result.q)
   trimAbs31(result.r)
 
-## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `divExactSigned31`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
-proc divExactSigned31(num, den: FalconSigned31): FalconSigned31 =
-  if den.words.len == 0:
-    raise newException(ValueError, "division by zero")
-  if num.words.len == 0:
-    return
-  let qr = divRemAbs31(num.words, den.words)
-  if qr.r.len != 0:
-    raise newException(ValueError, "Falcon exact division failed")
-  result.neg = num.neg xor den.neg
-  result.words = qr.q
-  if result.words.len == 0:
-    result.neg = false
-
 type
   FalconSigned31Mat4 = array[4, array[4, FalconSigned31]]
-  FalconSigned31Matrix = seq[seq[FalconSigned31]]
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `polyAdjSmall31`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyAdjSmall31(a: openArray[FalconSigned31]): seq[FalconSigned31] =
@@ -1066,87 +1031,6 @@ proc det4Small31(M: FalconSigned31Mat4): FalconSigned31 =
       M[2][0], M[2][1], M[2][2],
       M[3][0], M[3][1], M[3][2]))
   addSigned31(subSigned31(addSigned31(t0, t2), t1), negSigned31(t3))
-
-## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `mulMatrixFromPoly`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc mulMatrixFromPoly(poly: openArray[FalconSigned31]): FalconSigned31Matrix =
-  let n = poly.len
-  result = newSeq[seq[FalconSigned31]](n)
-  var row = 0
-  while row < n:
-    result[row] = newSeq[FalconSigned31](n)
-    inc row
-  var col = 0
-  while col < n:
-    row = 0
-    while row < n:
-      let idx = row - col
-      if idx >= 0:
-        result[row][col] = poly[idx]
-      else:
-        result[row][col] = negSigned31(poly[idx + n])
-      inc row
-    inc col
-
-## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `replaceMatrixColumn`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc replaceMatrixColumn(M: FalconSigned31Matrix, col: int,
-    v: openArray[FalconSigned31]): FalconSigned31Matrix =
-  result = newSeq[seq[FalconSigned31]](M.len)
-  var row = 0
-  while row < M.len:
-    result[row] = newSeq[FalconSigned31](M[row].len)
-    var j = 0
-    while j < M[row].len:
-      result[row][j] = M[row][j]
-      inc j
-    result[row][col] = v[row]
-    inc row
-
-## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `detMatrixSigned31`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
-proc detMatrixSigned31(M: FalconSigned31Matrix): FalconSigned31 =
-  let n = M.len
-  if n == 0:
-    return
-  if n == 1:
-    return M[0][0]
-  var
-    A = newSeq[seq[FalconSigned31]](n)
-    row = 0
-    detNeg = false
-    prev = signed31One()
-  while row < n:
-    A[row] = newSeq[FalconSigned31](n)
-    var col = 0
-    while col < n:
-      A[row][col] = M[row][col]
-      inc col
-    inc row
-  var k = 0
-  while k + 1 < n:
-    var pivot = k
-    while pivot < n and A[pivot][k].words.len == 0:
-      inc pivot
-    if pivot >= n:
-      return
-    if pivot != k:
-      swap(A[k], A[pivot])
-      detNeg = not detNeg
-    let pivotVal = A[k][k]
-    row = k + 1
-    while row < n:
-      var col = k + 1
-      while col < n:
-        let num = subSigned31(
-          mulSigned31(A[row][col], pivotVal),
-          mulSigned31(A[row][k], A[k][col]))
-        A[row][col] = divExactSigned31(num, prev)
-        inc col
-      A[row][k] = FalconSigned31()
-      inc row
-    prev = pivotVal
-    inc k
-  result = A[n - 1][n - 1]
-  if detNeg:
-    result = negSigned31(result)
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `polyBigToFp`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyBigToFp(dst: var seq[FalconFpr], poly: RnsPoly, wordOff, wordLen: int) =
@@ -1735,110 +1619,6 @@ proc reduceIntermediateLogn2(ft, gt: RnsPoly, slen: int, Ft, Gt: var RnsPoly,
     copyMem(addr result.G.coeffs[coeff * slen], addr Gt.coeffs[coeff * llen], slen * sizeof(uint32))
     inc coeff
 
-## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `reduceIntermediateExact`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc reduceIntermediateExact(ft, gt: RnsPoly, slen: int, Ft, Gt: var RnsPoly,
-    llen, depth, n: int): tuple[ok: bool, F, G: RnsPoly] =
-  var
-    fPoly = newSeq[FalconSigned31](n)
-    gPoly = newSeq[FalconSigned31](n)
-    logn = 0
-    nCheck = 1
-    i = 0
-  while nCheck < n:
-    nCheck = nCheck shl 1
-    inc logn
-  while i < n:
-    fPoly[i] = decodeCoeff31(ft, i, slen)
-    gPoly[i] = decodeCoeff31(gt, i, slen)
-    inc i
-  let
-    adjF = polyAdjSmall31(fPoly)
-    adjG = polyAdjSmall31(gPoly)
-    denPoly = polyAddSmall31(polyMulModXn1Small31(fPoly, adjF), polyMulModXn1Small31(gPoly, adjG))
-    denMat = mulMatrixFromPoly(denPoly)
-  var
-    det = detMatrixSigned31(denMat)
-    detAbs = det.words
-    detNeg = det.neg
-    k = newSeq[int32](n)
-    FGlen = llen
-    maxBitsCurrent = 31 * llen
-    minBitsFg = falconBitlength[depth].avg - 6 * falconBitlength[depth].std
-    maxBitsFg = falconBitlength[depth].avg + 6 * falconBitlength[depth].std
-    scaleK = maxBitsCurrent - minBitsFg
-  if det.words.len == 0:
-    return
-  while true:
-    var
-      FPoly = newSeq[FalconSigned31](n)
-      GPoly = newSeq[FalconSigned31](n)
-      idx = 0
-    while idx < n:
-      FPoly[idx] = decodeCoeff31(Ft, idx, FGlen)
-      GPoly[idx] = decodeCoeff31(Gt, idx, FGlen)
-      inc idx
-    let
-      numPoly = polyAddSmall31(polyMulModXn1Small31(FPoly, adjF), polyMulModXn1Small31(GPoly, adjG))
-      denScaled = shiftLeftAbs31(detAbs, scaleK)
-    idx = 0
-    while idx < n:
-      var num = detMatrixSigned31(replaceMatrixColumn(denMat, idx, numPoly))
-      if detNeg:
-        num = negSigned31(num)
-      try:
-        k[idx] = roundDivSigned31(num, denScaled)
-      except ValueError:
-        when defined(falconKeygenDebugEcho):
-          echo "falcon exact reducer overflow depth=", depth, " n=", n,
-            " iterScale=", scaleK, " idx=", idx
-        return
-      inc idx
-    let
-      sch = uint32(scaleK div 31)
-      scl = uint32(scaleK mod 31)
-    polySubScaled(Ft, FGlen, ft, slen, k, sch, scl, logn)
-    polySubScaled(Gt, FGlen, gt, slen, k, sch, scl, logn)
-    let newMaxBitsCurrent = scaleK + maxBitsFg + 10
-    if newMaxBitsCurrent < maxBitsCurrent:
-      maxBitsCurrent = newMaxBitsCurrent
-      if FGlen * 31 >= maxBitsCurrent + 31:
-        dec FGlen
-    if scaleK <= 0:
-      break
-    scaleK = max(scaleK - 25, 0)
-  if FGlen < slen:
-    var coeff = 0
-    while coeff < n:
-      let
-        fOff = coeffOffset(Ft, coeff)
-        gOff = coeffOffset(Gt, coeff)
-        fSw = (0'u32 - (Ft.coeffs[fOff + FGlen - 1] shr 30)) shr 1
-        gSw = (0'u32 - (Gt.coeffs[gOff + FGlen - 1] shr 30)) shr 1
-      var v = FGlen
-      while v < slen:
-        Ft.coeffs[fOff + v] = fSw
-        Gt.coeffs[gOff + v] = gSw
-        inc v
-      inc coeff
-  result.ok = true
-  result.F = initRnsPoly(n, slen)
-  result.G = initRnsPoly(n, slen)
-  var coeff = 0
-  while coeff < n:
-    copyMem(addr result.F.coeffs[coeff * slen], addr Ft.coeffs[coeff * llen], slen * sizeof(uint32))
-    copyMem(addr result.G.coeffs[coeff * slen], addr Gt.coeffs[coeff * llen], slen * sizeof(uint32))
-    inc coeff
-
-## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `reduceIntermediateLogn3`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc reduceIntermediateLogn3(ft, gt: RnsPoly, slen: int, Ft, Gt: var RnsPoly,
-    llen, depth: int): tuple[ok: bool, F, G: RnsPoly] =
-  reduceIntermediateExact(ft, gt, slen, Ft, Gt, llen, depth, 8)
-
-## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `reduceIntermediateLogn4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc reduceIntermediateLogn4(ft, gt: RnsPoly, slen: int, Ft, Gt: var RnsPoly,
-    llen, depth: int): tuple[ok: bool, F, G: RnsPoly] =
-  reduceIntermediateExact(ft, gt, slen, Ft, Gt, llen, depth, 16)
-
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `solveNtruIntermediate`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc solveNtruIntermediate(lognTop: int,
     fgValue: FalconFgViews, depth: int,
@@ -1917,10 +1697,6 @@ proc solveNtruIntermediate(lognTop: int,
     return reduceIntermediateLogn1(ft, gt, slen, Ft, Gt, llen, depth)
   if logn == 2:
     return reduceIntermediateLogn2(ft, gt, slen, Ft, Gt, llen, depth)
-  if logn == 3:
-    return reduceIntermediateLogn3(ft, gt, slen, Ft, Gt, llen, depth)
-  if logn == 4:
-    return reduceIntermediateLogn4(ft, gt, slen, Ft, Gt, llen, depth)
   var
     rt1 = newSeq[FalconFpr](n)
     rt2 = newSeq[FalconFpr](n)

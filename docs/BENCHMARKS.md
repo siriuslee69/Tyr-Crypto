@@ -13,6 +13,20 @@
 | `nimble perf_otter_pq` | Otter timing spans for PQ wrapper hot paths |
 | `nimble perf_otter_kyber` | Focused Otter timing for Kyber |
 
+The unified report accepts section arguments. A focused post-fix Falcon run can
+be built and executed without the unrelated byte/KEM tables:
+
+```bash
+TYR_FALCON_BENCH_VARIANT=512 nim c --threads:on -d:release -r tools/bench_custom_crypto_table.nim signature falcon
+TYR_FALCON_BENCH_VARIANT=1024 tools/bench_custom_crypto_table signature falcon
+```
+
+The first command compiles with Tyr's automatic safe host capabilities. The
+second reuses that executable and selects Falcon-1024. Current local results are
+about `51 ms` and `322 ms` per keygen respectively; older curated Falcon phone
+snapshots predate the NTRU reducer fix and must not be used as current keygen
+guidance.
+
 ## Artifact Layout
 
 ```

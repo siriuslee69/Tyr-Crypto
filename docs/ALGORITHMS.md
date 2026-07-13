@@ -164,9 +164,10 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 - **Security foundation:** NTRU lattice (GPV framework)
 - **Smallest signature + key sizes** of all PQ signatures
 - **Gaussian sampling** is inherently variable-time
-- **SIMD:** Two-lane FalconFpr helper (SSE2/NEON) for FFT, keygen norm accumulation
-- **Dual backends:** `falconScalar` / `falconSimd` (compile-time + runtime selectable)
-- **Current benchmark profile:** sign/verify are low-ms to sub-ms, but the current pure-Nim keygen path is still seconds-scale and dominates Falcon totals in the curated snapshots
+- **SIMD:** The optional two-lane native-float FalconFpr helper covers FFT and keygen norm loops, but requires the explicit `-d:falconUnsafeNativeFloatSimd` timing tradeoff
+- **Backends:** The portable integer-emulated scalar backend is the default; `falconSimd` is available only in an explicit unsafe native-float build
+- **Current benchmark profile:** Local post-fix release measurements are about `51 ms` keygen / `2.37 ms` sign / `0.020 ms` verify for Falcon-512 and `322 ms` / `5.19 ms` / `0.041 ms` for Falcon-1024
+- **Keygen fix:** Degree-8 and degree-16 NTRU reduction now uses the reference-shaped FFT/NTT path instead of repeated exact big-integer matrix solves
 
 ### SPHINCS+
 
@@ -218,12 +219,13 @@ Frodo-640     ~8.0  ms  │  PK: 9.4 KB  CT: 9.5 KB   Level 1
 McEliece      ~40   ms  │  PK: ~0.5 MB CT: 224 B    Level 3 (keygen dominates)
 ```
 
-### Signatures (current curated profile)
+### Signatures (current local profile)
 
 ```
-Dilithium-44  keygen ~0.08 ms   sign ~0.19 ms   verify ~0.09 ms   │  fast balanced profile
-Falcon-512    keygen ~12.09 s   sign ~1.37 ms   verify ~0.03 ms   │  current pure-Nim total dominated by keygen
-SPHINCS+      combined sign+verify ~20.9 ms                         │  current curated snapshot is not phase-split
+Dilithium-44  keygen ~0.08 ms   sign ~0.19 ms   verify ~0.09 ms    │  curated fast balanced profile
+Falcon-512    keygen ~51 ms     sign ~2.37 ms   verify ~0.020 ms   │  post-fix local release run
+Falcon-1024   keygen ~322 ms    sign ~5.19 ms   verify ~0.041 ms   │  post-fix local release run
+SPHINCS+      combined sign+verify ~20.9 ms                         │  curated snapshot is not phase-split
 ```
 
 ---

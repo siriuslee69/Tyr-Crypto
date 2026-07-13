@@ -1,5 +1,5 @@
 ## -------------------------------------------------------------------
-## WebUI Interop Test <- browser WASM and native basic_api test runner
+## Interop Contracts <- browser WASM and native basic_api test runner
 ## -------------------------------------------------------------------
 
 import std/[json, locks, os, osproc, strutils, unittest]
@@ -19,9 +19,6 @@ var
   GResponseReady: bool = false
   GSmokeComplete: bool = false
   GSmokeReport: string = ""
-
-const
-  normalUiExitFile = "ui-normal-exit"
 
 proc commandMode(args: openArray[string]): string {.role: {parser}.} =
   ## args: launcher arguments containing an optional process mode.
@@ -156,30 +153,6 @@ proc runBackendContract() {.role: {orchestrator}.} =
   check decrypted["ok"].getBool()
   check decrypted["bytes"].getStr() == encodeTestBytes(message)
 
-proc runDashboard() {.role: {metaOrchestrator}.} =
-  ## Hosts the dashboard and connects its WebUI RPC transport to native crypto.
-  var
-    root: string = webDirectory()
-    window: Window = webui.newWindow()
-  window.eventBlocking = true
-  if not fileExists(root / "index.html"):
-    raise newException(IOError, "WebUI interop entrypoint is missing: " & root)
-  webui.setConfig(webuiBindings.WebuiConfig.wcMonitor, false)
-  webui.setTimeout(0)
-  window.setSize(1440, 940)
-  if not (window.rootFolder = root):
-    raise newException(IOError, "WebUI could not register the interop asset folder")
-  bindWindow(window, "interop", bindInterop)
-  bindWindow(window, "interopComplete", bindInteropComplete)
-  if not window.show("index.html"):
-    raise newException(IOError, "WebUI could not open the interop dashboard")
-  while window.shown():
-    pumpInteropEvent()
-    sleep(2)
-  webui.clean()
-  if getEnv("TYR_TEST_UI_RUNTIME").len > 0:
-    writeFile(getEnv("TYR_TEST_UI_RUNTIME") / normalUiExitFile, "closed\n")
-
 proc terminateChild(p: Process) {.role: {actor}.} =
   ## p: supervisor-owned process to stop with its immediate child tree.
   if p == nil or not p.running():
@@ -189,45 +162,6 @@ proc terminateChild(p: Process) {.role: {actor}.} =
   else:
     discard execCmd("pkill -TERM -P " & $processID(p))
     p.terminate()
-
-proc runSupervisor() {.role: {metaOrchestrator}.} =
-  ## Owns the resilient UI host and the independent test-spawner process.
-  var
-    dir: string = getTempDir() / ("tyr-test-ui-" & $getCurrentProcessId())
-    normalExitPath: string = dir / normalUiExitFile
-    spawner: Process
-    ui: Process
-    exitCode: int = 0
-    response: JsonNode
-  ensureRuntimeDirectories(dir)
-  putEnv("TYR_TEST_UI_RUNTIME", dir)
-  spawner = startProcess(getAppFilename(), workingDir = getCurrentDir(),
-    args = @["--tyr-mode:spawner", "--runtime-path:" & dir],
-    options = {poParentStreams})
-  try:
-    while spawner.running():
-      if fileExists(normalExitPath):
-        removeFile(normalExitPath)
-      ui = startProcess(getAppFilename(), workingDir = getCurrentDir(),
-        args = @["--tyr-mode:ui", "--runtime-path:" & dir],
-        options = {poParentStreams})
-      exitCode = ui.waitForExit()
-      ui.close()
-      if fileExists(normalExitPath):
-        break
-      echo "Tyr test UI host exited unexpectedly (", exitCode, "); relaunching."
-      sleep(500)
-  finally:
-    try:
-      response = spawnerRequest(%*{"action": "shutdown"})
-      discard response
-    except CatchableError:
-      discard
-    sleep(150)
-    terminateChild(spawner)
-    if spawner != nil:
-      discard spawner.waitForExit(3000)
-      spawner.close()
 
 proc runBrowserSmoke() {.role: {metaOrchestrator}.} =
   ## Waits for the real browser page to complete its WASM/native exchange matrix.
@@ -424,9 +358,6 @@ when isMainModule:
         defined(tyrTestWasmCatalogContract):
       discard
     else:
-      if mode == "ui":
-        runDashboard()
-      else:
-        runSupervisor()
+      discard
     deinitCond(GEventHandled)
     deinitLock(GEventLock)

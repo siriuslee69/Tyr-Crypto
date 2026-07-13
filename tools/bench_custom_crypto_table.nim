@@ -811,7 +811,7 @@ proc appendFalconKeypairSpecs(S: var seq[BenchSpec], notes: var seq[string]) =
         buildFalconKeypairSpec(falconBenchVariants[i].variant, custom_falcon.falconSimd, rowName).run)
       i = i + 1
   else:
-    notes.add("falcon_simd128 rows omitted (requires SSE2 or ARM64/NEON support)")
+    notes.add("falcon_simd128 rows omitted (requires -d:falconUnsafeNativeFloatSimd and native SIMD support)")
 
 proc appendFalconSignSpecs(S: var seq[BenchSpec], notes: var seq[string]) =
   var
@@ -837,7 +837,7 @@ proc appendFalconSignSpecs(S: var seq[BenchSpec], notes: var seq[string]) =
         buildFalconSignSpec(falconBenchVariants[i].variant, custom_falcon.falconSimd, rowName).run)
       i = i + 1
   else:
-    notes.add("falcon_simd128 rows omitted (requires SSE2 or ARM64/NEON support)")
+    notes.add("falcon_simd128 rows omitted (requires -d:falconUnsafeNativeFloatSimd and native SIMD support)")
 
 proc appendFalconVerifySpecs(S: var seq[BenchSpec], notes: var seq[string]) =
   var
@@ -863,7 +863,7 @@ proc appendFalconVerifySpecs(S: var seq[BenchSpec], notes: var seq[string]) =
         buildFalconVerifySpec(falconBenchVariants[i].variant, custom_falcon.falconSimd, rowName).run)
       i = i + 1
   else:
-    notes.add("falcon_simd128 rows omitted (requires SSE2 or ARM64/NEON support)")
+    notes.add("falcon_simd128 rows omitted (requires -d:falconUnsafeNativeFloatSimd and native SIMD support)")
 
 proc appendFalconPrepareSpecs(S: var seq[BenchSpec], notes: var seq[string]) =
   var
@@ -889,7 +889,7 @@ proc appendFalconPrepareSpecs(S: var seq[BenchSpec], notes: var seq[string]) =
         buildFalconPrepareSpec(falconBenchVariants[i].variant, custom_falcon.falconSimd, rowName).run)
       i = i + 1
   else:
-    notes.add("falcon_simd128 rows omitted (requires SSE2 or ARM64/NEON support)")
+    notes.add("falcon_simd128 rows omitted (requires -d:falconUnsafeNativeFloatSimd and native SIMD support)")
 
 proc appendFalconPreparedSignSpecs(S: var seq[BenchSpec], notes: var seq[string]) =
   var
@@ -915,7 +915,7 @@ proc appendFalconPreparedSignSpecs(S: var seq[BenchSpec], notes: var seq[string]
         buildFalconSignPreparedSpec(falconBenchVariants[i].variant, custom_falcon.falconSimd, rowName).run)
       i = i + 1
   else:
-    notes.add("falcon_simd128 rows omitted (requires SSE2 or ARM64/NEON support)")
+    notes.add("falcon_simd128 rows omitted (requires -d:falconUnsafeNativeFloatSimd and native SIMD support)")
 
 proc buildKemKeypairSpecs(notes: var seq[string]): seq[BenchSpec] =
   discard notes

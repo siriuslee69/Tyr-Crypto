@@ -66,9 +66,35 @@ nim r tools/run_desktop_tests_parallel.nim -- --only:core,x25519 --maxParallel:2
 | -d:hasLibOqs   | liboqs-backed PQ algorithms and comparisons|
 | -d:hasOpenSSL3 | OpenSSL Ed448 and OpenSSL-dependent checks |
 | -d:sse2/-d:avx2| x86 SIMD compile/runtime paths             |
+| -d:aesni       | x86 AES instruction path                   |
 | -d:neon        | ARM64 NEON compile paths                   |
 +----------------+--------------------------------------------+
 ```
+
+## Default Optimization Policy
+
+`config.nims` applies `--opt:speed` to ordinary builds and tests. This optimizes
+generated C without enabling `-d:release`, so assertions, bounds checks, overflow
+checks, and the configured ARC/ORC memory manager remain unchanged.
+
+Native x86 builds probe the selected C compiler's `-march=native` macros and
+enable supported `sse2`, `avx2`, and `aesni` symbols with matching C flags.
+AMD64 always receives its baseline SSE2 path. ARM64 receives NEON, which is a
+required part of that architecture. WASM/JS targets receive no host SIMD symbol.
+
+Use this explicit override for a portable scalar control build:
+
+```bash
+nim c -d:tyrExplicitCapabilities -u:sse2 -u:avx2 -u:aesni -u:neon tests/test_falcon_tyr.nim
+```
+
+Otter uses the same override before adding the capabilities selected in its
+flag menu. Tyr's `tests/.otter/config.toml` selects all safe capabilities that
+Otter detects by default, so general Test UI runs use the optimized paths too.
+
+External backends such as `hasLibOqs` and unsafe experiments such as
+`unsafeFastAes` or `falconUnsafeNativeFloatSimd` are never enabled by this
+policy. Measured trial switches such as `frodoAvx2SaStripeSse` also remain off.
 
 ## Android Harness
 

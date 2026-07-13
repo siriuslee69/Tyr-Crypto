@@ -1,4 +1,4 @@
-Commit Message: unify crypto suites and expand the test UI
+Commit Message: pair Tyr native and WASM Otter tests
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -71,6 +71,9 @@ Validation and release gates:
   pure-Nim path is described as production ready.
 
 Implemented:
+- Normal Tyr builds now use `--opt:speed` and automatically enable target-safe SSE2, AVX2, AES-NI, or NEON paths when the configured native compiler reports them; explicit scalar controls, cross-target builds, and Otter selections remain deterministic.
+- Falcon degree-8/16 NTRU reduction now follows the existing reference-shaped FFT/NTT path instead of repeated exact big-integer matrix solves, reducing local release keygen from about `12.09 s` to `51 ms` for Falcon-512 and from about `86.85 s` to `322 ms` for Falcon-1024.
+- Tyr's Otter config now defaults to every host-supported safe compiler capability without enabling external-library flags; ARC/ORC remain at Nim's configured default unless selected.
 - Removed the direct Sigma submodule and routed benchmark evaluation through the pinned Otter submodule.
 - libsodium bindings for AEAD, XChaCha20 stream, and Argon2 APIs.
 - nimcrypto binding for AES-256-GCM.

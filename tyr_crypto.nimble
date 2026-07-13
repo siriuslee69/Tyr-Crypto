@@ -106,11 +106,24 @@ proc requireRepoPath(candidates: openArray[string], label: string): string =
 proc otterSrcDir(): string =
   result = requireRepoPath(
     @[
-      joinPath(getCurrentDir(), "submodules", "otter_repo_evaluation", "src"),
-      joinPath(getCurrentDir(), "..", "Otter-RepoEvaluation", "src")
+      joinPath(getCurrentDir(), "..", "Otter-RepoEvaluation", "src"),
+      joinPath(getCurrentDir(), "submodules", "otter_repo_evaluation", "src")
     ],
     "Otter-RepoEvaluation"
   )
+
+proc otterRootDir(): string =
+  result = parentDir(otterSrcDir())
+
+proc otterTestUiPath(): string =
+  result = joinPath(getCurrentDir(), "build", hostExeName("otter-test-ui"))
+
+proc buildOtterTestUi() =
+  if not dirExists(joinPath(getCurrentDir(), "build")):
+    mkDir(joinPath(getCurrentDir(), "build"))
+  runCommand("nim", @["c", "--path:" & otterSrcDir(),
+    "--out:" & otterTestUiPath(),
+    joinPath(otterRootDir(), "src", "clients", "test_ui", "app.nim")])
 
 task check, "Run nim check on core modules":
   exec withRepoCaches("nim check .iron/meta/registry.nim")
@@ -239,7 +252,7 @@ task perf_sigma_falcon, "Benchmark split Tyr Falcon phases against the current l
 
 task perf_sigma_dilithium_scalar, "Benchmark scalar Tyr Dilithium against the scalar liboqs Dilithium profile":
   putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_dilithium_scalar_zig_mingw"))
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_dilithium_scalar").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -r tests/test_sigma_perf_dilithium.nim")
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_dilithium_scalar").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -d:tyrExplicitCapabilities -u:sse2 -u:avx2 -u:aesni -u:neon -r tests/test_sigma_perf_dilithium.nim")
 
 task perf_sigma_kyber, "Benchmark Tyr Kyber against liboqs with Otter helpers":
   exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_kyber").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_sigma_perf_kyber_only.nim")
@@ -349,19 +362,28 @@ task build_wasm_custom_crypto, "Build the custom_crypto WASM bridge and WebUI da
   exec "nimble build_wasm"
   exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_stage_wasm_webui").replace('\\', '/') & " tools/stage_wasm_webui.nim")
 
-task webui_interop, "Build and open the browser/backend custom_crypto interoperability dashboard":
-  exec "nimble build_wasm_custom_crypto"
-  exec "nimble c -r --out:build/" & hostExeName("test_webui_interop") & " --nimcache:" & repoNimcacheDir("nimcache_webui_interop").replace('\\', '/') & " tests/test_webui_interop.nim"
+task buildTestUi, "Build the pragma-driven Otter test UI":
+  buildOtterTestUi()
 
-task testUi, "Build and open the interactive crypto test dashboard":
-  exec "nimble webui_interop"
+task testUi, "Discover Tyr Otter tests and open the isolated test UI":
+  buildOtterTestUi()
+  runCommand(otterTestUiPath(), @["--repo-root:" & getCurrentDir()])
 
 task test_webui_interop, "Build WASM and run the automated WebUI browser/backend interoperability smoke test":
   exec "nimble build_wasm_custom_crypto"
-  exec "nimble c -r -d:tyrWebUiInteropSmoke --out:build/" & hostExeName("test_webui_interop_smoke") & " --nimcache:" & repoNimcacheDir("nimcache_test_webui_interop").replace('\\', '/') & " tests/test_webui_interop.nim"
+  exec "nimble c -r -d:tyrWebUiInteropSmoke --out:build/" & hostExeName("test_webui_interop_smoke") & " --nimcache:" & repoNimcacheDir("nimcache_test_webui_interop").replace('\\', '/') & " tests/test_interop_contracts.nim"
+
+task test_interop_backend, "Run the retained native browser transport contracts":
+  exec "nimble c -r --out:build/" & hostExeName("test_interop_backend") & " --nimcache:" & repoNimcacheDir("nimcache_test_interop_backend").replace('\\', '/') & " tests/test_interop_contracts.nim"
+
+task test_interop_catalog, "Run retained functional catalog entries":
+  exec "nimble c -r -d:tyrTestCatalogContract --out:build/" & hostExeName("test_interop_catalog") & " --nimcache:" & repoNimcacheDir("nimcache_test_interop_catalog").replace('\\', '/') & " tests/test_interop_contracts.nim"
+
+task test_interop_processes, "Run retained native and WASM process isolation contracts":
+  exec "nimble c -r -d:tyrTestProcessContract --out:build/" & hostExeName("test_interop_processes") & " --nimcache:" & repoNimcacheDir("nimcache_test_interop_processes").replace('\\', '/') & " tests/test_interop_contracts.nim"
 
 task test_testui_wasm_catalog, "Compile-check every Test UI card for executable WASM":
-  exec "nimble c -r -d:tyrTestWasmCatalogContract --out:build/" & hostExeName("test_testui_wasm_catalog") & " --nimcache:" & repoNimcacheDir("nimcache_test_testui_wasm_catalog").replace('\\', '/') & " tests/test_webui_interop.nim"
+  exec "nimble c -r -d:tyrTestWasmCatalogContract --out:build/" & hostExeName("test_testui_wasm_catalog") & " --nimcache:" & repoNimcacheDir("nimcache_test_testui_wasm_catalog").replace('\\', '/') & " tests/test_interop_contracts.nim"
 
 task autopush, "Add, commit, and push the current branch with message from .iron/PROGRESS.md":
   var

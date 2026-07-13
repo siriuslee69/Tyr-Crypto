@@ -51,8 +51,10 @@ More examples: [examples/](examples/readme.md)
 ## Algorithm Overview
 
 The SIMD column names the code that actually uses vector lanes. It does not imply
-that the complete algorithm is vectorized. Some paths require a batched API or a
-compile define such as `-d:avx2`; there is no general runtime CPU-feature dispatcher.
+that the complete algorithm is vectorized. Some paths require a batched API.
+Normal native builds use `--opt:speed`, define safe capabilities supported by the
+target host, and pass the matching C target flags through `config.nims`; there is
+no general runtime CPU-feature dispatcher.
 For the custom KDF, SIMD belongs to the selected generator, not to the KDF's
 memory-mixing loop. Performance wording is based on the curated snapshots in
 [docs/benchmarks/](docs/benchmarks/) and the benchmark notes in
@@ -85,8 +87,8 @@ Curated benchmark snapshots currently focus on the asymmetric and key-agreement 
 | **KEM** | SABER (LightSaber/Saber/FireSaber) | AVX2 16-lane and NEON 8-lane schoolbook multiplication; SSE2 reduction-only path | Same low-latency class as Kyber in the curated snapshots; current SIMD core needs refreshed cross-device snapshots |
 | **KEM** | Classic McEliece (6688128f/6960119f/8192128f) | AVX2 matrix fill, AVX2/SSE2/NEON masked keygen row XOR, and 8-lane AVX2 or 4-lane SSE2/NEON decoder root evaluation | Slowest measured KEM here; key generation dominates, but ciphertexts stay very small |
 | **Sign** | Dilithium (ML-DSA-44/65/87) | AVX2 polynomial products and SSE2/NEON coefficient/hash batching | Fastest measured PQ signature family in the current curated snapshots |
-| **Sign** | Falcon (512/1024) | SSE2/NEON two-lane FFT and norm helpers; most key generation remains scalar | Smallest PQ signatures here, but current pure-Nim snapshots are strongly keygen-dominated |
-| **Sign** | SPHINCS+-SHAKE-128f-simple | AVX2 four-way and SSE2/NEON two-way SHAKE/WOTS batching | Slower than Dilithium, but far below current Falcon key-generation-dominated totals |
+| **Sign** | Falcon (512/1024) | Optional two-lane native-float FFT and norm helpers; the default integer-emulated backend remains scalar for portable timing | Smallest PQ signatures here; key generation remains its largest phase, but no longer takes seconds on the current desktop path |
+| **Sign** | SPHINCS+-SHAKE-128f-simple | AVX2 four-way and SSE2/NEON two-way SHAKE/WOTS batching | Slower than Dilithium; compare its combined work against Falcon's separately measured keygen/sign/verify phases |
 | **KA** | X25519 | SSE2/NEON two-way and AVX2 four-way batch APIs | Best current results come from SIMD batch paths; still sub-ms on desktop and phones |
 
 `native_avx2`, `native_sse2`, and `native_neon` in benchmark JSON describe how
@@ -111,7 +113,7 @@ These numbers are not protocol guarantees. They are README-level guidance taken 
 | Kyber | about `0.06-0.13 ms` | about `0.33-0.91 ms` | Lowest-latency PQ KEM family in the current curated set |
 | SABER | historical snapshot: about `0.14-0.27 ms` | historical snapshot: about `0.29-0.75 ms` | Predates the new AVX2/NEON multiplication core; use a fresh local benchmark for current numbers |
 | NTRU | historical snapshot: about `2.34-4.57 ms` | historical snapshot: about `6.54-20.85 ms` | Predates automatic AVX2/SSE2/NEON cyclic multiplication; local AVX2 A/B improved 8-13% over K2 |
-| FrodoKEM | current local native-fast: about `0.98-3.16 ms` AES and `5.01-19.50 ms` SHAKE | historical snapshots: about `21-133 ms` | AES requires explicit `-d:aesni -maes`; same-source A/B shows SHAKE row streaming about 18-23% faster; cross-device snapshots need refresh |
+| FrodoKEM | current local native-fast: about `0.98-3.16 ms` AES and `5.01-19.50 ms` SHAKE | historical snapshots: about `21-133 ms` | AES requires AES-NI plus the C AES target flag; normal capable native builds now select both automatically; same-source A/B shows SHAKE row streaming about 18-23% faster |
 | BIKE-L1 | about `65 ms` | about `50-74 ms` | Decoder-heavy, sits in the tens-of-ms range in current snapshots |
 | Classic McEliece | about `186-214 ms` | about `495-892 ms` | Key generation dominates total runtime |
 
@@ -120,8 +122,8 @@ These numbers are not protocol guarantees. They are README-level guidance taken 
 | Family | Desktop keygen | Desktop sign | Desktop verify | ARM64 phone keygen | ARM64 phone sign | ARM64 phone verify | Notes |
 |--------|----------------|--------------|----------------|--------------------|------------------|--------------------|-------|
 | Dilithium | about `0.08-0.20 ms` | about `0.19-0.29 ms` | about `0.09-0.20 ms` | about `0.11-0.31 ms` | about `0.23-0.60 ms` | about `0.09-0.34 ms` | Fastest measured PQ signature family in the current curated snapshots |
-| Falcon-512 | about `12.09 s` | about `1.37 ms` | about `0.03 ms` | about `10.15-14.39 s` | about `0.85-1.20 ms` | about `0.04-0.06 ms` | Current pure-Nim Falcon cost is overwhelmingly keygen; sign and verify are already in the ms/us range |
-| Falcon-1024 | about `86.85 s` | about `2.87 ms` | about `0.07 ms` | about `69.77-98.73 s` | about `1.77-2.51 ms` | about `0.08-0.12 ms` | Falcon-1024 is even more strongly keygen-dominated in the curated snapshots |
+| Falcon-512 | about `51 ms` | about `2.37 ms` | about `0.020 ms` | not remeasured after fix | not remeasured after fix | not remeasured after fix | Current local release run after replacing the nonstandard exact degree-8/16 reducer; curated phone snapshots predate the fix |
+| Falcon-1024 | about `322 ms` | about `5.19 ms` | about `0.041 ms` | not remeasured after fix | not remeasured after fix | not remeasured after fix | Current local release run after the same reducer fix; keygen remains the largest phase without being seconds-scale |
 | SPHINCS+ | n/a in current curated split table | n/a in current curated split table | n/a in current curated split table | n/a in current curated split table | n/a in current curated split table | n/a in current curated split table | Current curated README snapshot only records combined `sign_verify`: about `20.9 ms` desktop and about `89-128 ms` on the measured phones |
 
 ### Key Agreement
@@ -238,7 +240,7 @@ Frodo does not probe or load `libcrypto` unless `-d:hasOpenSSL3` is present.
 | x86_64 Android emulator exit 139 | Validate Android on physical ARM64 devices |
 | `emcc` missing for wasm build | Install and activate Emscripten before running `nimble build_wasm` |
 | Nimble user-cache permission errors | Use the repo-local cache tasks or an explicit `--nimcache:build/*` path |
-| Falcon tests dominate runtime | Use `--only:falcon512` or `--only:falcon1024` in the Nim desktop test runner |
+| Falcon unexpectedly takes seconds per keygen | Rebuild the current source instead of reusing an old executable; the post-fix local release measurements are about `51 ms` for Falcon-512 and `322 ms` for Falcon-1024 |
 | Ambiguous research PDF redistribution | Keep as ignored local cache and regenerate with `docs/research/*/download_papers.nim` |
 
 ---
@@ -295,48 +297,53 @@ CRYSTALS-Kyber round-3 implementation, not FIPS 203 ML-KEM.
 3. Build the release bridge with `nimble build_wasm`.
 4. Build a debug bridge with `nimble build_wasm_debug`.
 5. Re-run the JSON bridge regression tests with `nimble test_wasm`.
-6. Build the bridge and open the interactive browser/native dashboard with `nimble testUi`.
+6. Open the pragma-driven Otter test UI with `nimble testUi`.
 7. Run the complete headless WebUI browser matrix with `nimble test_webui_interop`.
 
-The dashboard's top test rail can run the full suite, the WebUI transport probe,
-functional tests, vectors/KATs, edge cases, benchmarks/profilers, or the live
-browser-WASM matrix. Family buttons narrow the visible catalog to symmetric,
-hash, MAC, password, entropy, classical, PQ KEM, PQ signature, composite, API,
-interop, or benchmark entries. Every card can also be run by itself.
-`nimble webui_interop` remains an alias-style launcher for the same interactive
-dashboard.
+At startup, Otter scans Tyr's compile-time `defined(...)` branches and asks
+which optional flags should be enabled. The dropdown excludes target facts and
+passes selected choices as validated `-d:name` arguments into both direct Otter
+workers and Tyr's nested native/WASM compilers.
+
+Tyr's `tests/.otter/config.toml` uses `default_flags = ["*"]`. Otter activates
+all safe compiler capabilities supported by the current CPU, including SIMD
+support, and omits host SIMD flags from Emscripten builds.
+Third-party switches such as
+`hasLibsodium`, `hasLibOqs`, `hasOpenSSL3`, and `hasNimcrypto` remain opt-in.
+ARC/ORC remain at Nim's configured default unless explicitly selected.
+
+Menu and filter controls narrow the visible catalog to functional,
+interoperability, and benchmark entries. Every card can also be run by itself.
 
 The catalog contains more than 50 allowlisted groups, including the unified
 benchmark tables and every specialized Sigma/Otter benchmark entrypoint that
 imports `custom_crypto`.
 
-Every catalog card is a paired test:
+Algorithm and API cards are paired target tests:
 
 ```text
-card worker
-  native compile -> native run
-  WASM compile   -> Node/WASM run
+card
+  |-- native tab -> native compile -> native run
+  `-- wasm tab   -> Emscripten compile -> Node/WASM run
 ```
 
-The card has separate `Native` and `WASM` tabs with independent state, timing,
-and log files. Both phases run in sequence even if one fails. Different cards
-run concurrently in separate worker processes. The card play button becomes a
-stop button while that card runs, and `Stop all` cancels every active worker.
-Filters, family tabs, output controls, and other cards remain usable while
-tests are running.
+The card has separate `native` and `wasm` version tabs with independent state,
+timing, and logs. Running the whole card executes the versions in order.
+Different cards run concurrently in separate worker processes and every
+selected pragma runs on a dedicated thread inside its worker.
 
 The launcher isolates failures using four process roles:
 
 ```text
 testUi supervisor
-  |-- WebUI host       <- relaunched after an abnormal exit
-  `-- test spawner    <- owns the job registry
-        `-- workers   <- one isolated process per active card
+  |-> WebUI host -> relay orchestrator -> test backend -> worker process
+  |                                                     `-> test thread
+  `-------------------------------------------------------- monitor/restart
 ```
 
-The WebUI host never compiles or executes catalog tests. A compiler crash,
-native test crash, WASM runtime failure, or stopped worker is recorded in its
-atomic job state without taking down the UI or test spawner.
+The WebUI host and relay never compile or execute catalog tests. A compiler
+crash, native test crash, WASM runtime failure, or stopped worker is recorded in
+atomic job state without taking down the UI or persistent test backend.
 
 The editable output field at the top defaults to `testResults/`. Pressing its
 folder button opens the built-in directory picker; direct paths and `~/...`

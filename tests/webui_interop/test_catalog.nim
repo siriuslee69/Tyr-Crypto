@@ -392,6 +392,53 @@ proc binaryPath(e: TestCatalogEntry, source: string): string {.role: {helper}.} 
     name.add(".exe")
   result = joinPath(repoRoot(), "build", "test_ui_bins", name)
 
+proc selectedOtterFlags(): seq[string] {.role: {parser}.} =
+  ## Returns validated Otter UI symbols inherited by this nested compiler.
+  var
+    flag: string = ""
+  for candidate in getEnv("OTTER_UI_FLAGS").split(','):
+    flag = candidate.strip()
+    if flag.len > 0 and flag notin result:
+      result.add(flag)
+
+proc appendOtterFlags(A: var seq[string], wasmTarget: bool = false)
+    {.role: {truthBuilder}.} =
+  ## A/wasmTarget: compiler arguments receiving target-compatible Otter flags.
+  var
+    flags: seq[string] = selectedOtterFlags()
+    i: int = 0
+  if not existsEnv("OTTER_UI_FLAGS"):
+    return
+  A.add("-d:tyrExplicitCapabilities")
+  A.add("-u:sse2")
+  A.add("-u:avx2")
+  A.add("-u:aesni")
+  A.add("-u:neon")
+  while i < flags.len:
+    if wasmTarget and flags[i] in ["sse2", "avx2", "aesni", "neon"]:
+      i = i + 1
+      continue
+    case flags[i]
+    of "gcArc":
+      A.add("--mm:arc")
+    of "gcOrc":
+      A.add("--mm:orc")
+    of "sse2":
+      A.add("-d:sse2")
+      A.add("--passC:-msse2")
+    of "avx2":
+      A.add("-d:avx2")
+      A.add("--passC:-mavx2")
+      A.add("--passL:-mavx2")
+    of "aesni":
+      A.add("-d:aesni")
+      A.add("--passC:-maes")
+    of "neon":
+      A.add("-d:neon")
+    else:
+      A.add("-d:" & flags[i])
+    i = i + 1
+
 proc commonNimArgs(e: TestCatalogEntry, source: string): seq[string]
     {.role: {truthBuilder}.} =
   ## e/source: fixed catalog definition and Nim entrypoint.
@@ -405,6 +452,35 @@ proc commonNimArgs(e: TestCatalogEntry, source: string): seq[string]
     result.add("--path:" & joinPath(repoRoot(), "submodules", "otter_repo_evaluation", "src"))
   if e.id.startsWith("bench-otter"):
     result.add("-d:otterTiming")
+  appendOtterFlags(result)
+  result.add(source)
+
+proc wasmCachePath(e: TestCatalogEntry, source: string): string {.role: {helper}.} =
+  ## e/source: test identity used for an isolated WASM Nim cache path.
+  result = joinPath(repoRoot(), "build", "nimcache_otter_wasm_" & e.id & "_" &
+    splitFile(source).name)
+
+proc wasmModulePath(e: TestCatalogEntry, source: string): string {.role: {helper}.} =
+  ## e/source: catalog test and generated executable Node-WASM module.
+  result = joinPath(repoRoot(), "build", "test_ui_bins",
+    e.id & "-" & splitFile(source).name & "-otter-wasm.js")
+
+proc wasmNimArgs(e: TestCatalogEntry, source: string): seq[string]
+    {.role: {truthBuilder}.} =
+  ## e/source: allowlisted catalog definition compiled for Node-WASM.
+  createDir(joinPath(repoRoot(), "build", "test_ui_bins"))
+  result = @["c", "--cpu:wasm32", "--cc:clang", "--clang.exe:emcc",
+    "--clang.linkerexe:emcc", (if e.wasmThreads: "--threads:on" else:
+      "--threads:off"), "-d:tyrWasm", "-u:hasLibsodium", "-u:hasLibOqs",
+    "-u:hasOpenSSL3", "--nimcache:" & wasmCachePath(e, source),
+    "--out:" & wasmModulePath(e, source), "--passL:-sWASM=1",
+    "--passL:-sENVIRONMENT=node", "--passL:-sNODERAWFS=1"]
+  if e.wasmThreads:
+    result.add("--passL:-pthread")
+    result.add("--passL:-sPTHREAD_POOL_SIZE=8")
+  if e.commandKind != tckTests or e.id.startsWith("bench-"):
+    result.add("-d:release")
+  appendOtterFlags(result, true)
   result.add(source)
 
 proc commandArgs(e: TestCatalogEntry, source: string): seq[string]
@@ -513,3 +589,66 @@ proc runCatalogEntry*(id: string): string {.role: {orchestrator}.} =
   metadata["ok"] = %true
   metadata["outputTail"] = %outputTail
   result = $metadata
+
+proc runCatalogWasmEntry*(id: string): string {.role: {orchestrator}.} =
+  ## id: allowlisted test compiled for WASM and executed under Node.
+  var
+    e: TestCatalogEntry = catalogEntry(id)
+    startTime: DateTime = now()
+    log: string = ""
+    outputTail: string = ""
+    args: seq[string] = @[]
+    runArgs: seq[string] = @[]
+    probe: tuple[output: string, exitCode: int]
+    exitCode: int = 0
+    i: int = 0
+    oldValues: seq[string] = @[]
+  while i < e.environment.len:
+    oldValues.add(getEnv(e.environment[i].key))
+    putEnv(e.environment[i].key, e.environment[i].value)
+    i = i + 1
+  try:
+    i = 0
+    while i < e.sources.len:
+      args = wasmNimArgs(e, e.sources[i])
+      log.add("$ nim " & quoteArgs(args) & "\n\n")
+      probe = execCmdEx("nim " & quoteArgs(args),
+        options = {poUsePath, poStdErrToStdOut}, workingDir = repoRoot())
+      log.add(probe.output)
+      exitCode = probe.exitCode
+      if exitCode != 0:
+        break
+      runArgs = @[wasmModulePath(e, e.sources[i])]
+      case e.commandKind
+      of tckCustomBench:
+        runArgs.add(e.argument)
+      of tckKdfBench:
+        runArgs.add(@["64", "3", "2", "64", "1", "1"])
+      of tckAsymmetricBench:
+        runArgs.add(@["--phase:summary", "--scale:0.02"])
+      of tckTests:
+        discard
+      log.add("$ node " & quoteArgs(runArgs) & "\n\n")
+      probe = execCmdEx("node " & quoteArgs(runArgs),
+        options = {poUsePath, poStdErrToStdOut}, workingDir = repoRoot())
+      log.add(probe.output)
+      exitCode = probe.exitCode
+      if exitCode != 0:
+        break
+      i = i + 1
+  finally:
+    i = 0
+    while i < e.environment.len:
+      putEnv(e.environment[i].key, oldValues[i])
+      i = i + 1
+  if log.len > 6000:
+    outputTail = log[log.len - 6000 .. ^1]
+  else:
+    outputTail = log
+  result = $(%*{
+    "id": e.id,
+    "passed": exitCode == 0,
+    "exitCode": exitCode,
+    "durationMs": (now() - startTime).inMilliseconds,
+    "outputTail": outputTail
+  })
