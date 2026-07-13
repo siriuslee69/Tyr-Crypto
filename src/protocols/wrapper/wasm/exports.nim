@@ -41,6 +41,18 @@ proc tyrWasmBasicDecryptJson*(reqJson: cstring): cstring {.exportc: "tyr_wasm_ba
   ensureRuntime()
   result = setResponse(basicDecryptJson(requestString(reqJson)))
 
+proc tyrWasmKemKeypairJson*(reqJson: cstring): cstring {.exportc: "tyr_wasm_kem_keypair_json", cdecl.} =
+  ensureRuntime()
+  result = setResponse(kemKeypairJson(requestString(reqJson)))
+
+proc tyrWasmKemEncapsJson*(reqJson: cstring): cstring {.exportc: "tyr_wasm_kem_encaps_json", cdecl.} =
+  ensureRuntime()
+  result = setResponse(kemEncapsJson(requestString(reqJson)))
+
+proc tyrWasmKemDecapsJson*(reqJson: cstring): cstring {.exportc: "tyr_wasm_kem_decaps_json", cdecl.} =
+  ensureRuntime()
+  result = setResponse(kemDecapsJson(requestString(reqJson)))
+
 proc tyrWasmBlake3HashJson*(reqJson: cstring): cstring {.exportc: "tyr_wasm_blake3_hash_json", cdecl.} =
   ensureRuntime()
   result = setResponse(blake3HashJson(requestString(reqJson)))

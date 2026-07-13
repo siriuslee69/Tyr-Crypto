@@ -69,6 +69,29 @@ function encodeKeyedHashRequest(request) {
   });
 }
 
+function encodeKemKeypairRequest(request) {
+  return JSON.stringify({
+    algo: request.algo,
+    ...(request.seed === undefined ? {} : { seed: bytesToBase64(request.seed) }),
+  });
+}
+
+function encodeKemEncapsRequest(request) {
+  return JSON.stringify({
+    algo: request.algo,
+    receiverPublicKey: bytesToBase64(request.receiverPublicKey),
+    ...(request.seed === undefined ? {} : { seed: bytesToBase64(request.seed) }),
+  });
+}
+
+function encodeKemDecapsRequest(request) {
+  return JSON.stringify({
+    algo: request.algo,
+    receiverSecretKey: bytesToBase64(request.receiverSecretKey),
+    ciphertext: bytesToBase64(request.ciphertext),
+  });
+}
+
 function resolveLocateFile(moduleOptions) {
   if (typeof moduleOptions.locateFile === "function") {
     return moduleOptions.locateFile;
@@ -139,6 +162,32 @@ class TyrBasicBinding {
       encodeHashRequest(request),
     );
     return base64ToBytes(response.bytes);
+  }
+
+  kemKeypair(request) {
+    const response = callJson(this.module, "tyr_wasm_kem_keypair_json", encodeKemKeypairRequest(request));
+    return {
+      algo: response.algo,
+      publicKey: base64ToBytes(response.publicKey),
+      secretKey: base64ToBytes(response.secretKey),
+    };
+  }
+
+  kemEncaps(request) {
+    const response = callJson(this.module, "tyr_wasm_kem_encaps_json", encodeKemEncapsRequest(request));
+    return {
+      algo: response.algo,
+      ciphertext: base64ToBytes(response.ciphertext),
+      sharedSecret: base64ToBytes(response.sharedSecret),
+    };
+  }
+
+  kemDecaps(request) {
+    const response = callJson(this.module, "tyr_wasm_kem_decaps_json", encodeKemDecapsRequest(request));
+    return {
+      algo: response.algo,
+      sharedSecret: base64ToBytes(response.sharedSecret),
+    };
   }
 }
 

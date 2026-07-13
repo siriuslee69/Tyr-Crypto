@@ -2,12 +2,12 @@
 ## Wasm Builder <- Nim C generation + Emscripten link stage
 ## ---------------------------------------------------------
 
-import std/[algorithm, os, osproc, sequtils, strutils]
+import std/[algorithm, json, os, osproc, sequtils, strutils]
 
 const
-  wasmSource = "src/tyr_crypto/wasm/exports.nim"
+  wasmSource = "src/protocols/wrapper/wasm/exports.nim"
   wasmBuildDir = "build/wasm"
-  wasmNimcacheDir = "build/wasm/nimcache"
+  wasmNimcacheDir = "build/wasm/nimcache_wasm32"
   wasmOutputDir = "bindings/js/dist"
   wasmOutputFile = "bindings/js/dist/tyr_crypto_wasm.mjs"
 
@@ -66,6 +66,8 @@ proc nimLibDir(): string =
     nimExe = ""
     nimBinDir = ""
     nimRootDir = ""
+    dumpResult: tuple[output: string, exitCode: int]
+    dumpJson: JsonNode
   if envLibDir.len > 0 and dirExists(envLibDir):
     return envLibDir
   nimExe = findExe("nim")
@@ -74,6 +76,16 @@ proc nimLibDir(): string =
   nimBinDir = parentDir(nimExe)
   nimRootDir = parentDir(nimBinDir)
   result = joinPath(nimRootDir, "lib")
+  if dirExists(result):
+    return
+  dumpResult = execCmdEx("nim dump --hints:off --dump.format:json " & quoteShell(wasmSource),
+    options = {poStdErrToStdOut, poUsePath}, workingDir = getCurrentDir())
+  if dumpResult.exitCode == 0:
+    try:
+      dumpJson = parseJson(dumpResult.output)
+      result = dumpJson["libpath"].getStr()
+    except CatchableError:
+      result = ""
   if not dirExists(result):
     quit("could not locate Nim lib directory; set NIM_LIB_DIR")
 
@@ -88,10 +100,15 @@ proc exportedFunctionsArg(): string =
   let funcs = @[
     "_tyr_wasm_abi_version",
     "_tyr_wasm_capabilities_json",
-    "_tyr_wasm_encrypt_json",
-    "_tyr_wasm_decrypt_json",
+    "_tyr_wasm_basic_encrypt_json",
+    "_tyr_wasm_basic_decrypt_json",
+    "_tyr_wasm_kem_keypair_json",
+    "_tyr_wasm_kem_encaps_json",
+    "_tyr_wasm_kem_decaps_json",
     "_tyr_wasm_blake3_hash_json",
-    "_tyr_wasm_blake3_keyed_hash_json"
+    "_tyr_wasm_blake3_keyed_hash_json",
+    "_tyr_wasm_gimli_hash_json",
+    "_tyr_wasm_sha3_hash_json"
   ]
   result = "['" & funcs.join("','") & "']"
 
@@ -115,8 +132,13 @@ proc main() =
       "--compileOnly",
       "--noMain",
       "--app:lib",
+      "--cpu:wasm32",
       "--gc:orc",
       "--threads:off",
+      "-d:tyrWasm",
+      "-u:hasLibsodium",
+      "-u:hasLibOqs",
+      "-u:hasOpenSSL3",
       "--nimcache:" & wasmNimcacheDir
     ]
   if options.release:

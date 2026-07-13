@@ -1267,3 +1267,55 @@ Verification:
 - Host `tests/test_certificate_codecs.nim`, `tests/test_tls_primitives.nim`,
   focused asymmetric family suites, NTRU KAT hashes, and SABER official vectors
   passed after the final regression additions.
+
+## 2026-07-12 WASM WebUI Interoperability Lab
+
+Summary:
+- Repaired the stale WASM builder source path and export list, then added a
+  nim-webui dashboard which runs browser-WASM to native `basic_api` exchanges.
+
+Implemented:
+- `nimble build_wasm_custom_crypto` builds the Emscripten bridge and stages it
+  into the dashboard asset root.
+- `nimble webui_interop` opens the glass dashboard. Its process bubbles run
+  XChaCha20, ChaCha20, AES-256-CTR, Gimli Stream, X25519, Kyber-768, and
+  Kyber-1024 concurrently and display the running state, last deciphered
+  message, secret/key preview, direction result, and duration.
+- `nimble testUi` opens the same interactive dashboard with a top test rail for
+  the full matrix, the 4 KiB transport probe, cipher and KEM groups, and each
+  individual algorithm. Unselected process bubbles remain visible but muted.
+- The JS/TS bridge now exports typed `kemKeypair`, `kemEncaps`, and `kemDecaps`
+  calls for pure-Nim X25519 and legacy CRYSTALS-Kyber round-3 variants.
+- `nimble test_webui_interop` builds the bundle, opens a hidden WebUI browser,
+  and requires the dashboard's completed 30-exchange browser/native matrix.
+- WebUI-hosted browser modules are staged with `.js` aliases because the
+  installed WebUI server does not execute the original `.mjs` assets reliably.
+- Native WebUI callbacks use a strict main-thread request/response rendezvous.
+  This prevents C callback threads from running Nim crypto allocations and
+  prevents concurrent process bubbles from receiving each other's responses.
+- A 4 KiB browser/native echo probe verifies the WebUI binary/base64 transport
+  before the crypto matrix starts.
+- The README now includes the exact JS basic cipher and KEM calling pattern.
+
+Verification:
+- `nim check src/protocols/wrapper/wasm/exports.nim`: pass.
+- `nim c -r tests/test_wasm_bridge.nim`: pass, including X25519 and Kyber-768
+  bridge KEM round trips.
+- `nimble test_wasm`: pass.
+- Native WebUI transport contract: pass.
+- `nim check tests/test_webui_interop.nim` with the installed WebUI package:
+  pass.
+- `nimble build_wasm_custom_crypto`: pass with Emscripten 5.0.7.
+- `nimble test_webui_interop`: pass. The isolated real-browser run completed
+  all 30 bidirectional exchanges across four stream ciphers and three KEMs.
+- The updated interactive selector preserves the automated all-tests default;
+  the real-browser 30-exchange smoke still passes after the UI split.
+- `nim check tools/build_wasm.nim` and
+  `nim check tools/stage_wasm_webui.nim`: pass.
+- `nimble tasks`: pass and lists the new build/dashboard/test tasks.
+- `git diff --check`: pass.
+
+Resolved blocker:
+- Emscripten and supported browsers are now available. The browser-WASM/native
+  sweep is no longer an unexecuted path; it passes through the registered
+  `nimble test_webui_interop` task.

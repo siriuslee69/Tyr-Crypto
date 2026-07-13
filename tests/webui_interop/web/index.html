@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tyr Crypto Interop Lab</title>
+  <link rel="stylesheet" href="css/reset.css" />
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <script src="/webui.js" onerror="void 0"></script>
+</head>
+<body>
+  <main class="lab-shell">
+    <header class="topbar glass">
+      <div class="brand"><span class="brand-mark">TYR</span><span class="brand-sub">CRYPTO / INTEROP LAB</span></div>
+      <div class="status-line"><span class="pulse"></span><span data-state>WASM awaiting load</span></div>
+    </header>
+
+    <nav class="test-rail glass" aria-label="Interoperability tests">
+      <span class="rail-label">TEST</span>
+      <div class="test-buttons" data-test-buttons>
+        <button class="test-button is-active" data-test="all" title="Run every browser and native interoperability test"><span>&#10022;</span> All</button>
+        <button class="test-button" data-test="transport" title="Verify the 4 KiB browser to native WebUI byte transport"><span>&#8644;</span> Transport</button>
+        <button class="test-button" data-test="sym" title="Run all symmetric cipher interoperability tests"><span>&#8799;</span> Ciphers</button>
+        <button class="test-button" data-test="kem" title="Run all key encapsulation interoperability tests"><span>&#9671;</span> KEMs</button>
+        <i aria-hidden="true"></i>
+        <button class="test-button compact" data-test="xchacha20" title="Run XChaCha20 in both directions">XCH</button>
+        <button class="test-button compact" data-test="chacha20" title="Run ChaCha20 in both directions">CHA</button>
+        <button class="test-button compact" data-test="aesCtr" title="Run AES-256-CTR in both directions">AES</button>
+        <button class="test-button compact" data-test="gimliStream" title="Run Gimli Stream in both directions">GIM</button>
+        <button class="test-button compact" data-test="x25519" title="Run X25519 encapsulation in both directions">X25</button>
+        <button class="test-button compact" data-test="kyber768" title="Run Kyber-768 encapsulation in both directions">K78</button>
+        <button class="test-button compact" data-test="kyber1024" title="Run Kyber-1024 encapsulation in both directions">K10</button>
+      </div>
+      <button class="run-button" data-run title="Repeat the selected interoperability test"><span class="rune">&#9655;</span> Run <b data-run-label>all</b></button>
+    </nav>
+
+    <section class="hero glass">
+      <div>
+        <p class="eyebrow">BROWSER &lt;-&gt; NATIVE / <span data-selected-label>ALL TESTS</span></p>
+        <h1>Cross-boundary crypto,<br /><i>observed in flight.</i></h1>
+      </div>
+      <div class="hero-stat"><b data-pass-count>0</b><span>verified exchanges</span></div>
+      <div class="hero-stat"><b data-algo-count>0</b><span>selected algorithms</span></div>
+      <div class="hero-circuit" aria-hidden="true"><span></span><span></span><span></span></div>
+    </section>
+
+    <section class="matrix-head">
+      <div><span class="rune small">&#9671;</span> Process bubbles</div>
+      <div data-timing>no sweep recorded</div>
+    </section>
+    <section class="bubble-grid" data-bubbles aria-live="polite"></section>
+  </main>
+  <template data-bubble-template>
+    <article class="bubble glass is-idle">
+      <div class="bubble-top"><span class="glyph"></span><span class="family"></span><span class="badge">IDLE</span></div>
+      <h2></h2>
+      <div class="track"><i></i></div>
+      <div class="flow"><span class="browser">BROWSER</span><b>&#8596;</b><span class="native">NATIVE</span></div>
+      <dl>
+        <div><dt>message</dt><dd class="message">waiting</dd></div>
+        <div><dt>decipher</dt><dd class="decipher">waiting</dd></div>
+        <div><dt>key / secret</dt><dd class="key">waiting</dd></div>
+      </dl>
+      <footer><span class="result">not run</span><span class="duration">-- ms</span></footer>
+    </article>
+  </template>
+  <script>
+    function reportStartupError(message) {
+      const state = document.querySelector("[data-state]");
+      if (state) state.textContent = `startup failed: ${message}`;
+      window.tyrInteropStatus = { complete: true, failed: 1, exchanges: 0, error: message };
+      const complete = window.interopComplete || window.webui?.interopComplete;
+      if (typeof complete === "function") complete(`1|0|${message}`);
+    }
+    window.addEventListener("error", event => reportStartupError(
+      event.error?.stack || `${event.message || "module load failed"} at ${event.filename}:${event.lineno}`
+    ));
+    window.addEventListener("unhandledrejection", event => reportStartupError(
+      event.reason?.stack || event.reason?.message || String(event.reason)
+    ));
+  </script>
+  <script type="module" src="js/dashboard.js"></script>
+</body>
+</html>

@@ -284,7 +284,9 @@ Generated TOML files are for downstream consumers. Tyr itself does not read them
 
 ## Wasm / JS Bridge
 
-Basic encryption/hash operations are exported for wasm/JS targets.
+Basic cipher, hash, and pure-Nim X25519/Kyber KEM operations are exported for
+wasm/JS targets. The KEM names `kyber768` and `kyber1024` identify the pinned
+CRYSTALS-Kyber round-3 implementation, not FIPS 203 ML-KEM.
 
 ### Build It Yourself
 
@@ -293,6 +295,12 @@ Basic encryption/hash operations are exported for wasm/JS targets.
 3. Build the release bridge with `nimble build_wasm`.
 4. Build a debug bridge with `nimble build_wasm_debug`.
 5. Re-run the JSON bridge regression tests with `nimble test_wasm`.
+6. Build the bridge and open the interactive browser/native dashboard with `nimble testUi`.
+7. Run the complete headless WebUI browser matrix with `nimble test_webui_interop`.
+
+The dashboard's top test rail can run the full suite, the WebUI transport probe,
+all symmetric ciphers, all KEMs, or one selected algorithm. `nimble webui_interop`
+remains an alias-style launcher for the same interactive dashboard.
 
 If Nim's library path is not auto-detected on your machine, set `NIM_LIB_DIR` before running the wasm build task.
 
@@ -314,6 +322,8 @@ If Nim's library path is not auto-detected on your machine, set `NIM_LIB_DIR` be
 | `abiVersion` | Return wasm ABI version |
 | `capabilities` | Return supported wasm bridge features |
 | `basic.encrypt` / `basic.decrypt` | JSON bridge for basic cipher operations |
+| `basic.kemKeypair` | Create deterministic or random X25519/Kyber keypairs |
+| `basic.kemEncaps` / `basic.kemDecaps` | Create and open X25519/Kyber KEM exchanges |
 | `basic.blake3Hash` / `basic.blake3KeyedHash` | BLAKE3 hashing helpers |
 | `basic.gimliHash` | Gimli hashing helper |
 | `basic.sha3Hash` | SHA3 hashing helper |
@@ -324,8 +334,19 @@ If Nim's library path is not auto-detected on your machine, set `NIM_LIB_DIR` be
 import { loadTyrCrypto } from "./bindings/js/tyr_crypto.mjs";
 
 const tyr = await loadTyrCrypto();
-console.log(tyr.abiVersion());
-console.log(tyr.capabilities());
+const key = crypto.getRandomValues(new Uint8Array(32));
+const nonce = crypto.getRandomValues(new Uint8Array(24));
+const message = new TextEncoder().encode("browser message");
+
+const cipher = tyr.basic.encrypt({ algo: "xchacha20", key, nonce, message });
+const plain = tyr.basic.decrypt({ algo: "xchacha20", key, nonce, payload: cipher.payload });
+
+// `cipher.ciphertext` is sent to the remote X25519/Kyber key owner.
+const receiver = tyr.basic.kemKeypair({ algo: "kyber768" });
+const kem = tyr.basic.kemEncaps({ algo: "kyber768", receiverPublicKey: receiver.publicKey });
+const shared = tyr.basic.kemDecaps({
+  algo: "kyber768", receiverSecretKey: receiver.secretKey, ciphertext: kem.ciphertext,
+});
 ```
 
 ---

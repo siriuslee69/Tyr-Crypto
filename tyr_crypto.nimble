@@ -8,7 +8,7 @@ description   = "Bindings for classical and post-quantum cryptographic primitive
 license       = "Unlicense"
 srcDir        = "src"
 bin           = @[]
-requires "nim >= 1.6.0", "nimcrypto >= 0.6.0", "nimsimd >= 1.3.2"
+requires "nim >= 1.6.0", "nimcrypto >= 0.6.0", "nimsimd >= 1.3.2", "webui >= 2.5.0"
 
 proc repoNimbleDir(): string =
   result = joinPath(getCurrentDir(), ".nimble_cache")
@@ -344,6 +344,21 @@ task build_wasm, "Build JS/TS wasm bindings with Emscripten":
 
 task build_wasm_debug, "Build debug JS/TS wasm bindings with Emscripten":
   exec "nim r --nimcache:build/nimcache_build_wasm tools/build_wasm.nim -- --debug"
+
+task build_wasm_custom_crypto, "Build the custom_crypto WASM bridge and WebUI dashboard assets":
+  exec "nimble build_wasm"
+  exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_stage_wasm_webui").replace('\\', '/') & " tools/stage_wasm_webui.nim")
+
+task webui_interop, "Build and open the browser/backend custom_crypto interoperability dashboard":
+  exec "nimble build_wasm_custom_crypto"
+  exec "nimble c -r --nimcache:" & repoNimcacheDir("nimcache_webui_interop").replace('\\', '/') & " tests/test_webui_interop.nim"
+
+task testUi, "Build and open the interactive crypto test dashboard":
+  exec "nimble webui_interop"
+
+task test_webui_interop, "Build WASM and run the automated WebUI browser/backend interoperability smoke test":
+  exec "nimble build_wasm_custom_crypto"
+  exec "nimble c -r -d:tyrWebUiInteropSmoke --nimcache:" & repoNimcacheDir("nimcache_test_webui_interop").replace('\\', '/') & " tests/test_webui_interop.nim"
 
 task autopush, "Add, commit, and push the current branch with message from .iron/PROGRESS.md":
   var

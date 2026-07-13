@@ -77,6 +77,28 @@ proc decodeKeyedHashRequest*(reqJson: string): WasmKeyedHashRequest =
   result.input = decodeBase64Field(n, "input")
   result.outLen = decodeOutLen(n)
 
+proc decodeOptionalBase64Field(n: JsonNode, fieldName: string): seq[uint8] =
+  if not n.hasKey(fieldName):
+    return @[]
+  result = decodeBase64Field(n, fieldName)
+
+proc decodeKemKeypairRequest*(reqJson: string): WasmKemKeypairRequest =
+  var n = requireObject(reqJson)
+  result.algo = parseKemAlgo(requireStringField(n, "algo"))
+  result.seed = decodeOptionalBase64Field(n, "seed")
+
+proc decodeKemEncapsRequest*(reqJson: string): WasmKemEncapsRequest =
+  var n = requireObject(reqJson)
+  result.algo = parseKemAlgo(requireStringField(n, "algo"))
+  result.receiverPublicKey = decodeBase64Field(n, "receiverPublicKey")
+  result.seed = decodeOptionalBase64Field(n, "seed")
+
+proc decodeKemDecapsRequest*(reqJson: string): WasmKemDecapsRequest =
+  var n = requireObject(reqJson)
+  result.algo = parseKemAlgo(requireStringField(n, "algo"))
+  result.receiverSecretKey = decodeBase64Field(n, "receiverSecretKey")
+  result.ciphertext = decodeBase64Field(n, "ciphertext")
+
 proc buildErrorJson*(msg: string): string =
   result = $(%*{"ok": false, "error": msg})
 
@@ -92,6 +114,29 @@ proc buildBasicCipherJson*(algo: StreamCipherAlgorithm, payload: openArray[uint8
     "ok": true,
     "algo": algoName(algo),
     "payload": encodeBase64Bytes(payload)
+  })
+
+proc buildKemKeypairJson*(algo: string, publicKey, secretKey: openArray[uint8]): string =
+  result = $(%*{
+    "ok": true,
+    "algo": algo,
+    "publicKey": encodeBase64Bytes(publicKey),
+    "secretKey": encodeBase64Bytes(secretKey)
+  })
+
+proc buildKemCipherJson*(algo: string, ciphertext, sharedSecret: openArray[uint8]): string =
+  result = $(%*{
+    "ok": true,
+    "algo": algo,
+    "ciphertext": encodeBase64Bytes(ciphertext),
+    "sharedSecret": encodeBase64Bytes(sharedSecret)
+  })
+
+proc buildKemSecretJson*(algo: string, sharedSecret: openArray[uint8]): string =
+  result = $(%*{
+    "ok": true,
+    "algo": algo,
+    "sharedSecret": encodeBase64Bytes(sharedSecret)
   })
 
 proc buildCapabilitiesJson*(abiVersion: int, caps: seq[WasmCapability]): string =

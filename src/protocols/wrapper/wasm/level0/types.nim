@@ -5,7 +5,7 @@
 import ../../helpers/algorithms
 
 const
-  wasmAbiVersion* = 2
+  wasmAbiVersion* = 3
   symmetricKeyBytes* = 32
 
 type
@@ -29,6 +29,20 @@ type
     key*: seq[uint8]
     input*: seq[uint8]
     outLen*: uint16
+
+  WasmKemKeypairRequest* = object
+    algo*: string
+    seed*: seq[uint8]
+
+  WasmKemEncapsRequest* = object
+    algo*: string
+    receiverPublicKey*: seq[uint8]
+    seed*: seq[uint8]
+
+  WasmKemDecapsRequest* = object
+    algo*: string
+    receiverSecretKey*: seq[uint8]
+    ciphertext*: seq[uint8]
 
   WasmCapability* = object
     name*: string
@@ -67,6 +81,13 @@ proc cipherNonceBytes*(a: StreamCipherAlgorithm): int =
     result = 16
   of scaChaCha20:
     result = 12
+
+proc parseKemAlgo*(s: string): string =
+  case s
+  of "x25519", "kyber768", "kyber1024":
+    result = s
+  else:
+    raise newException(ValueError, "unsupported wasm KEM algorithm: " & s)
 
 proc buildCapabilities*(): seq[WasmCapability] =
   for a in [scaXChaCha20, scaChaCha20, scaAesCtr, scaGimliStream]:

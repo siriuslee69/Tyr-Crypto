@@ -92,3 +92,65 @@ suite "wasm JSON bridge":
     check response["ok"].getBool()
     check response["kind"].getStr() == "blake3Hash"
     check wasmDecodeBytes(response["bytes"].getStr()).len == 32
+
+  test "X25519 KEM crosses the JSON bridge":
+    var
+      keypairResponse: JsonNode
+      cipherResponse: JsonNode
+      sharedResponse: JsonNode
+      keypairRequest: JsonNode
+      encapsRequest: JsonNode
+      decapsRequest: JsonNode
+      keySeed = newSeq[uint8](32)
+      encSeed = newSeq[uint8](32)
+    keySeed[0] = 4
+    encSeed[0] = 9
+    keypairRequest = %*{"algo": "x25519", "seed": wasmEncodeBytes(keySeed)}
+    keypairResponse = parseJson(kemKeypairJson($keypairRequest))
+    check keypairResponse["ok"].getBool()
+    encapsRequest = %*{
+      "algo": "x25519",
+      "receiverPublicKey": keypairResponse["publicKey"].getStr(),
+      "seed": wasmEncodeBytes(encSeed)
+    }
+    cipherResponse = parseJson(kemEncapsJson($encapsRequest))
+    check cipherResponse["ok"].getBool()
+    decapsRequest = %*{
+      "algo": "x25519",
+      "receiverSecretKey": keypairResponse["secretKey"].getStr(),
+      "ciphertext": cipherResponse["ciphertext"].getStr()
+    }
+    sharedResponse = parseJson(kemDecapsJson($decapsRequest))
+    check sharedResponse["ok"].getBool()
+    check sharedResponse["sharedSecret"].getStr() == cipherResponse["sharedSecret"].getStr()
+
+  test "Kyber-768 KEM crosses the JSON bridge":
+    var
+      keypairResponse: JsonNode
+      cipherResponse: JsonNode
+      sharedResponse: JsonNode
+      keypairRequest: JsonNode
+      encapsRequest: JsonNode
+      decapsRequest: JsonNode
+      keySeed = newSeq[uint8](32)
+      encSeed = newSeq[uint8](32)
+    keySeed[0] = 11
+    encSeed[0] = 27
+    keypairRequest = %*{"algo": "kyber768", "seed": wasmEncodeBytes(keySeed)}
+    keypairResponse = parseJson(kemKeypairJson($keypairRequest))
+    check keypairResponse["ok"].getBool()
+    encapsRequest = %*{
+      "algo": "kyber768",
+      "receiverPublicKey": keypairResponse["publicKey"].getStr(),
+      "seed": wasmEncodeBytes(encSeed)
+    }
+    cipherResponse = parseJson(kemEncapsJson($encapsRequest))
+    check cipherResponse["ok"].getBool()
+    decapsRequest = %*{
+      "algo": "kyber768",
+      "receiverSecretKey": keypairResponse["secretKey"].getStr(),
+      "ciphertext": cipherResponse["ciphertext"].getStr()
+    }
+    sharedResponse = parseJson(kemDecapsJson($decapsRequest))
+    check sharedResponse["ok"].getBool()
+    check sharedResponse["sharedSecret"].getStr() == cipherResponse["sharedSecret"].getStr()

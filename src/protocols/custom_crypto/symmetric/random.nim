@@ -2,8 +2,19 @@
 ## Random <- mixed system entropy helper in the symmetric layer
 ## -----------------------------------------------------------
 
-import std/sysrand
+when not defined(tyrWasm):
+  import std/sysrand
 import ../xchacha20
+
+when defined(tyrWasm):
+  {.emit: """
+  #include <emscripten.h>
+  EM_JS(void, tyr_emscripten_random, (unsigned char *buffer, size_t size), {
+    crypto.getRandomValues(HEAPU8.subarray(buffer, buffer + size));
+  });
+  """.}
+  proc browserRandom(buffer: pointer, size: csize_t)
+      {.importc: "tyr_emscripten_random", nodecl.}
 
 const
   rngContext = "tyr-crypto-random-v1"
@@ -101,6 +112,15 @@ proc buildMixMaterial(length: int, extraEntropy: openArray[uint8]): seq[uint8] =
   appendUint64Le(result, uint64(extraEntropy.len))
   appendBytes(result, extraEntropy)
 
+proc platformRandomBytes(length: int): seq[uint8] =
+  ## Uses the target platform CSPRNG without pulling Unix syscalls into WASM.
+  result = newSeq[uint8](length)
+  when defined(tyrWasm):
+    if length > 0:
+      browserRandom(addr result[0], csize_t(length))
+  else:
+    result = urandom(length)
+
 proc cryptoRandomBytesInternal(length: int, extraEntropy: openArray[uint8]): seq[uint8] =
   var
     osSeed: seq[uint8]
@@ -118,8 +138,8 @@ proc cryptoRandomBytesInternal(length: int, extraEntropy: openArray[uint8]): seq
   if length == 0:
     return @[]
 
-  osSeed = urandom(seedLen)
-  osOutput = urandom(length)
+  osSeed = platformRandomBytes(seedLen)
+  osOutput = platformRandomBytes(length)
 
   keyState = toArray32(osSeed, 0)
   nonceBase = toArray16(osSeed, 32)
