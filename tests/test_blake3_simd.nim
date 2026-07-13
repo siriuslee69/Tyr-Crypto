@@ -13,28 +13,45 @@ proc buildBlock(seed: uint32): array[16, uint32] =
   result = b
 
 suite "blake3 simd":
-  test "SSE4x compression matches reference":
-    var
-      cvs: array[4, Blake3Cv]
-      blocks: array[4, Blake3Block]
-      outs: array[4, Blake3Out]
-      refs: array[4, Blake3Out]
-      i: int = 0
-      j: int = 0
-    i = 0
-    while i < cvs.len:
-      j = 0
-      while j < 8:
-        cvs[i][j] = 0x01020304'u32 + uint32(i) * 0x11111111'u32 + uint32(j)
-        j = j + 1
-      blocks[i] = buildBlock(uint32(0x05060708'u32 + uint32(i) * 0x01010101'u32))
-      i = i + 1
-    i = 0
-    while i < refs.len:
-      refs[i] = blake3Compress(cvs[i], blocks[i], 0'u64, 64'u32, 0'u32)
-      i = i + 1
-    outs = blake3CompressSse4(cvs, blocks, 0'u64, 64'u32, 0'u32)
-    check outs == refs
+  when defined(emscripten) or defined(tyrWasm):
+    test "wasm scalar four-way compression matches reference":
+      var
+        cvs: seq[Blake3Cv] = @[]
+        blocks: seq[Blake3Block] = @[]
+        outs: seq[Blake3Out]
+        i: int = 0
+      while i < 4:
+        cvs.add(default(Blake3Cv))
+        blocks.add(buildBlock(uint32(0x05060708'u32 + uint32(i))))
+        i = i + 1
+      outs = blake3CompressBatch(cvs, blocks, 0'u64, 64'u32, 0'u32, bcbScalar)
+      i = 0
+      while i < outs.len:
+        check outs[i] == blake3Compress(cvs[i], blocks[i], 0'u64, 64'u32, 0'u32)
+        i = i + 1
+  else:
+    test "SSE4x compression matches reference":
+      var
+        cvs: array[4, Blake3Cv]
+        blocks: array[4, Blake3Block]
+        outs: array[4, Blake3Out]
+        refs: array[4, Blake3Out]
+        i: int = 0
+        j: int = 0
+      i = 0
+      while i < cvs.len:
+        j = 0
+        while j < 8:
+          cvs[i][j] = 0x01020304'u32 + uint32(i) * 0x11111111'u32 + uint32(j)
+          j = j + 1
+        blocks[i] = buildBlock(uint32(0x05060708'u32 + uint32(i) * 0x01010101'u32))
+        i = i + 1
+      i = 0
+      while i < refs.len:
+        refs[i] = blake3Compress(cvs[i], blocks[i], 0'u64, 64'u32, 0'u32)
+        i = i + 1
+      outs = blake3CompressSse4(cvs, blocks, 0'u64, 64'u32, 0'u32)
+      check outs == refs
 
   test "auto batch matches scalar":
     var

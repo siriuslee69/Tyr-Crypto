@@ -2,7 +2,7 @@ import std/unittest
 import std/os
 
 import ../src/tyr_crypto
-import ../src/protocols/wrapper/algorithms
+import ../src/protocols/wrapper/helpers/algorithms
 import ../src/protocols/wrapper/suite_api
 import ../src/protocols/chunky_crypto/level1/nonce_ops
 import ./helpers

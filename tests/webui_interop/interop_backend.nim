@@ -8,6 +8,7 @@ import ../../.iron/meta/metaPragmas
 import ../../src/protocols/custom_crypto/[kyber, x25519]
 import ../../src/protocols/wrapper/basic_api
 import ../../src/protocols/wrapper/helpers/algorithms
+import ./[test_catalog, test_jobs]
 
 type
   InteropRequest* {.role: {preparedData}.} = object
@@ -20,6 +21,11 @@ type
     publicKey*: seq[uint8]
     secretKey*: seq[uint8]
     seed*: seq[uint8]
+    id*: string
+    path*: string
+    output*: string
+    passed*: bool
+    durationMs*: int64
 
 proc bytesToString(B: openArray[uint8]): string {.role: {helper}.} =
   ## Converts byte values to a base64-compatible binary string.
@@ -86,6 +92,16 @@ proc parseRequest*(raw: string): InteropRequest {.role: {helper, parser}.} =
   result.publicKey = decodeOptionalBytes(n, "publicKey")
   result.secretKey = decodeOptionalBytes(n, "secretKey")
   result.seed = decodeOptionalBytes(n, "seed")
+  if n.hasKey("id") and n["id"].kind == JString:
+    result.id = n["id"].getStr()
+  if n.hasKey("path") and n["path"].kind == JString:
+    result.path = n["path"].getStr()
+  if n.hasKey("output") and n["output"].kind == JString:
+    result.output = n["output"].getStr()
+  if n.hasKey("passed") and n["passed"].kind == JBool:
+    result.passed = n["passed"].getBool()
+  if n.hasKey("durationMs") and n["durationMs"].kind == JInt:
+    result.durationMs = n["durationMs"].getBiggestInt()
 
 proc buildBytesResponse(kind, algo: string, B: openArray[uint8]): string {.role: {dataWriter}.} =
   ## Builds a successful native response with one encoded byte payload.
@@ -164,6 +180,31 @@ proc processInteropRequest*(raw: string): string {.role: {orchestrator}.} =
   var R: InteropRequest
   try:
     R = parseRequest(raw)
+    if R.action == "catalog":
+      when defined(tyrWebUiInteropSmoke):
+        return catalogPayload(true)
+      else:
+        return catalogPayload(false)
+    if R.action == "setResultsPath":
+      return $(%*{"ok": true, "path": setResultsDirectory(R.path).replace('\\', '/')})
+    if R.action == "browseResultsPath":
+      return browseDirectoryPayload(R.path)
+    if R.action == "chooseResultsPath":
+      return $(%*{"ok": true, "path": chooseResultsDirectory().replace('\\', '/')})
+    if R.action == "startCatalogJob":
+      return $spawnerRequest(%*{
+        "action": "start",
+        "id": R.id,
+        "resultsPath": resultsDirectory()
+      })
+    if R.action == "pollCatalogJobs":
+      return $spawnerRequest(%*{"action": "poll"})
+    if R.action == "stopCatalogJob":
+      return $spawnerRequest(%*{"action": "stop", "id": R.id})
+    if R.action == "stopAllCatalogJobs":
+      return $spawnerRequest(%*{"action": "stopAll"})
+    if R.action == "recordInteropResult":
+      return recordInteropResult(R.passed, R.durationMs, R.output)
     if R.action == "echo":
       return buildBytesResponse(R.action, R.algo, R.message)
     if R.action.startsWith("sym"):

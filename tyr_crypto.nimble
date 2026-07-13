@@ -351,14 +351,17 @@ task build_wasm_custom_crypto, "Build the custom_crypto WASM bridge and WebUI da
 
 task webui_interop, "Build and open the browser/backend custom_crypto interoperability dashboard":
   exec "nimble build_wasm_custom_crypto"
-  exec "nimble c -r --nimcache:" & repoNimcacheDir("nimcache_webui_interop").replace('\\', '/') & " tests/test_webui_interop.nim"
+  exec "nimble c -r --out:build/" & hostExeName("test_webui_interop") & " --nimcache:" & repoNimcacheDir("nimcache_webui_interop").replace('\\', '/') & " tests/test_webui_interop.nim"
 
 task testUi, "Build and open the interactive crypto test dashboard":
   exec "nimble webui_interop"
 
 task test_webui_interop, "Build WASM and run the automated WebUI browser/backend interoperability smoke test":
   exec "nimble build_wasm_custom_crypto"
-  exec "nimble c -r -d:tyrWebUiInteropSmoke --nimcache:" & repoNimcacheDir("nimcache_test_webui_interop").replace('\\', '/') & " tests/test_webui_interop.nim"
+  exec "nimble c -r -d:tyrWebUiInteropSmoke --out:build/" & hostExeName("test_webui_interop_smoke") & " --nimcache:" & repoNimcacheDir("nimcache_test_webui_interop").replace('\\', '/') & " tests/test_webui_interop.nim"
+
+task test_testui_wasm_catalog, "Compile-check every Test UI card for executable WASM":
+  exec "nimble c -r -d:tyrTestWasmCatalogContract --out:build/" & hostExeName("test_testui_wasm_catalog") & " --nimcache:" & repoNimcacheDir("nimcache_test_testui_wasm_catalog").replace('\\', '/') & " tests/test_webui_interop.nim"
 
 task autopush, "Add, commit, and push the current branch with message from .iron/PROGRESS.md":
   var

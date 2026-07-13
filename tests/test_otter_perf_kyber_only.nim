@@ -7,6 +7,7 @@
 import std/[algorithm, tables, unittest]
 
 import ../src/protocols/custom_crypto/kyber
+import ../src/protocols/custom_crypto/asymmetric/pq/kyber/[params, indcpa]
 import otter_repo_evaluation
 
 const

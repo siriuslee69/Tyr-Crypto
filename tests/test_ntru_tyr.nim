@@ -2,9 +2,10 @@
 ## NTRU Tyr Tests <- roundtrip, KAT hash, and optional AVX2 parity
 ## -------------------------------------------------------------
 
-import std/[json, os, osproc, strutils, unittest]
+import std/[json, os, strutils, unittest]
 
 import ../src/protocols/custom_crypto/ntru as custom_ntru
+import ../src/protocols/custom_crypto/sha256
 import ../src/protocols/custom_crypto/asymmetric/pq/common/pq_rng as pqc
 
 const
@@ -110,24 +111,22 @@ proc writeNtruTempKatFile(name, data: string): string =
   writeFile(result, data)
 
 proc ntruSha256HexForFile(path: string): string =
-  when defined(windows):
-    var
-      escaped: string = ""
-      output: string = ""
-    escaped = path.replace("'", "''")
-    output = execProcess(
-      "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 -LiteralPath '" &
-      escaped & "').Hash.ToLowerInvariant()\"")
-    result = output.strip().toLowerAscii()
-  else:
-    var
-      output: string = ""
-    try:
-      output = execProcess("sha256sum " & quoteShell(path))
-      result = output.splitWhitespace()[0].toLowerAscii()
-    except CatchableError:
-      output = execProcess("shasum -a 256 " & quoteShell(path))
-      result = output.splitWhitespace()[0].toLowerAscii()
+  const lut = "0123456789abcdef"
+  var
+    data: string = readFile(path)
+    bytes: seq[byte] = newSeq[byte](data.len)
+    digest: Sha256Digest
+    i: int = 0
+  while i < data.len:
+    bytes[i] = byte(ord(data[i]))
+    i = i + 1
+  digest = sha256Hash(bytes)
+  result = newStringOfCap(digest.len * 2)
+  i = 0
+  while i < digest.len:
+    result.add(lut[int(digest[i] shr 4)])
+    result.add(lut[int(digest[i] and 0x0f'u8)])
+    i = i + 1
 
 template runNtruRoundtripCase(variant: untyped, keyBase, encBase: int) =
   block:

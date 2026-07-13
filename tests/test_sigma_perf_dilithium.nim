@@ -72,11 +72,20 @@ proc printGroup(g: BenchGroup, results: openArray[BenchResult]) =
 proc methodName(v: custom_dilithium.DilithiumVariant): string =
   case v
   of custom_dilithium.dilithium44:
-    result = oqsSigDilithium0
+    when defined(hasLibOqs):
+      result = oqsSigDilithium0
+    else:
+      result = "ML-DSA-44"
   of custom_dilithium.dilithium65:
-    result = oqsSigDilithium1
+    when defined(hasLibOqs):
+      result = oqsSigDilithium1
+    else:
+      result = "ML-DSA-65"
   of custom_dilithium.dilithium87:
-    result = oqsSigDilithium2
+    when defined(hasLibOqs):
+      result = oqsSigDilithium2
+    else:
+      result = "ML-DSA-87"
 
 proc buildCustomKeypair(name: string, v: custom_dilithium.DilithiumVariant,
     seedBase: int): BenchAlgo =
@@ -219,7 +228,24 @@ proc runGroup(g: BenchGroup) =
 suite "Sigma Dilithium performance":
   test "compare split pure-Nim ML-DSA phases against liboqs":
     when not defined(hasLibOqs):
-      checkpoint("Sigma Dilithium benchmark requires -d:hasLibOqs")
+      var
+        groups: seq[BenchGroup] = @[]
+        msgLong = newSeq[byte](2048)
+      fillPattern(msgLong, 0x55)
+      for v in [custom_dilithium.dilithium44, custom_dilithium.dilithium65,
+          custom_dilithium.dilithium87]:
+        appendGroup(groups, methodName(v) & " keypair", keypairLoops, warmKeypair, @[
+          buildCustomKeypair("tyr_" & methodName(v).toLowerAscii() & "_keypair",
+            v, 0x10 + ord(v) * 17)])
+        appendGroup(groups, methodName(v) & " sign", signLoops, warmSign, @[
+          buildCustomSign("tyr_" & methodName(v).toLowerAscii() & "_sign", v,
+            0x40 + ord(v) * 17, 0x70 + ord(v) * 17, msgLong)])
+        appendGroup(groups, methodName(v) & " verify", verifyLoops, warmVerify, @[
+          buildCustomVerify("tyr_" & methodName(v).toLowerAscii() & "_verify", v,
+            0x90 + ord(v) * 17, 0xC0 + ord(v) * 17, msgLong)])
+      check groups.len == 9
+      for g in groups:
+        runGroup(g)
     else:
       var
         sigHolders: seq[ptr OqsSig] = @[]

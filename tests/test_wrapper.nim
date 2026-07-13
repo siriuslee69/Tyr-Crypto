@@ -1,5 +1,5 @@
 import std/[os, unittest]
-import ../src/protocols/wrapper/algorithms
+import ../src/protocols/wrapper/helpers/algorithms
 import ../src/protocols/wrapper/suite_api
 import ../src/protocols/common
 import ../src/protocols/bindings/libsodium

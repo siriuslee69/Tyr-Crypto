@@ -33,6 +33,7 @@ import ./protocols/custom_crypto/kdf
 import ./protocols/custom_crypto/argon2
 import ./protocols/wrapper/helpers/signature_support
 import ./protocols/certificates
+import ./protocols/chunky_crypto
 
 export algorithms
 export random
@@ -65,3 +66,4 @@ export kdf
 export argon2
 export signature_support
 export certificates
+export chunky_crypto

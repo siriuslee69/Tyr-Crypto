@@ -32,6 +32,7 @@ nimcache/
 *.h
 bindings/js/dist/
 tests/webui_interop/web/wasm/
+testResults/
 src/libsodium/
 src/liboqs/
 iron/iron_config.md

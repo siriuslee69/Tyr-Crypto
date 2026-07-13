@@ -15,41 +15,80 @@
       <div class="status-line"><span class="pulse"></span><span data-state>WASM awaiting load</span></div>
     </header>
 
-    <nav class="test-rail glass" aria-label="Interoperability tests">
+    <section class="output-bar glass">
+      <span class="output-mark">OUT</span>
+      <label class="path-field" title="Directory where test logs and JSON result records are written">
+        <button type="button" data-clear-path title="Restore the default testResults directory">&#215;</button>
+        <input data-results-path spellcheck="false" placeholder="Test result folder" />
+      </label>
+      <button class="folder-button" data-pick-path title="Choose a test result directory with the native folder picker"><span>&#9635;</span> Folder</button>
+      <span class="path-state" data-path-state>initializing output</span>
+    </section>
+
+    <nav class="test-rail glass" aria-label="Test categories">
       <span class="rail-label">TEST</span>
       <div class="test-buttons" data-test-buttons>
-        <button class="test-button is-active" data-test="all" title="Run every browser and native interoperability test"><span>&#10022;</span> All</button>
-        <button class="test-button" data-test="transport" title="Verify the 4 KiB browser to native WebUI byte transport"><span>&#8644;</span> Transport</button>
-        <button class="test-button" data-test="sym" title="Run all symmetric cipher interoperability tests"><span>&#8799;</span> Ciphers</button>
-        <button class="test-button" data-test="kem" title="Run all key encapsulation interoperability tests"><span>&#9671;</span> KEMs</button>
-        <i aria-hidden="true"></i>
-        <button class="test-button compact" data-test="xchacha20" title="Run XChaCha20 in both directions">XCH</button>
-        <button class="test-button compact" data-test="chacha20" title="Run ChaCha20 in both directions">CHA</button>
-        <button class="test-button compact" data-test="aesCtr" title="Run AES-256-CTR in both directions">AES</button>
-        <button class="test-button compact" data-test="gimliStream" title="Run Gimli Stream in both directions">GIM</button>
-        <button class="test-button compact" data-test="x25519" title="Run X25519 encapsulation in both directions">X25</button>
-        <button class="test-button compact" data-test="kyber768" title="Run Kyber-768 encapsulation in both directions">K78</button>
-        <button class="test-button compact" data-test="kyber1024" title="Run Kyber-1024 encapsulation in both directions">K10</button>
+        <button class="test-button is-active" data-filter="all-tests" title="Select every functional, vector, edge-case, benchmark, and profiling group"><span>&#10022;</span> All tests</button>
+        <button class="test-button" data-filter="functional" title="Select functional and roundtrip suites"><span>&#10003;</span> Functional</button>
+        <button class="test-button" data-filter="vectors" title="Select vector and known-answer suites"><span>&#9783;</span> Vectors / KAT</button>
+        <button class="test-button" data-filter="edge" title="Select malformed-input and boundary suites"><span>&#9888;</span> Edge cases</button>
+        <button class="test-button" data-filter="benchmark" title="Select every benchmark and profiling suite"><span>&#9651;</span> Benchmarks</button>
+        <button class="test-button" data-filter="interop" title="Select the live browser-WASM interoperability matrix"><span>&#8644;</span> Browser / WASM</button>
       </div>
-      <button class="run-button" data-run title="Repeat the selected interoperability test"><span class="rune">&#9655;</span> Run <b data-run-label>all</b></button>
+      <button class="stop-all-button" data-stop-all title="Stop every running test job" disabled><span>&#9632;</span> Stop all</button>
+      <button class="run-button" data-run title="Launch every selected test concurrently"><span class="rune">&#9655;</span> Run <b data-run-label>all tests</b></button>
     </nav>
+
+    <nav class="family-rail" data-family-buttons aria-label="Algorithm families"></nav>
 
     <section class="hero glass">
       <div>
-        <p class="eyebrow">BROWSER &lt;-&gt; NATIVE / <span data-selected-label>ALL TESTS</span></p>
-        <h1>Cross-boundary crypto,<br /><i>observed in flight.</i></h1>
+        <p class="eyebrow">CUSTOM_CRYPTO / <span data-selected-label>ALL TESTS</span></p>
+        <h1>Every crypto path,<br /><i>measured and recorded.</i></h1>
       </div>
-      <div class="hero-stat"><b data-pass-count>0</b><span>verified exchanges</span></div>
-      <div class="hero-stat"><b data-algo-count>0</b><span>selected algorithms</span></div>
+      <div class="hero-stat"><b data-pass-count>0</b><span>passed runs</span></div>
+      <div class="hero-stat"><b data-algo-count>0</b><span>selected groups</span></div>
       <div class="hero-circuit" aria-hidden="true"><span></span><span></span><span></span></div>
     </section>
 
-    <section class="matrix-head">
-      <div><span class="rune small">&#9671;</span> Process bubbles</div>
+    <section class="matrix-head" data-catalog-head>
+      <div><span class="rune small">&#9671;</span> Native test catalog</div>
       <div data-timing>no sweep recorded</div>
     </section>
-    <section class="bubble-grid" data-bubbles aria-live="polite"></section>
+    <section class="catalog-grid" data-catalog aria-live="polite"></section>
+
+    <section class="interop-zone" data-interop-zone hidden>
+      <section class="matrix-head">
+        <div><span class="rune small">&#8644;</span> Browser-WASM process bubbles</div>
+        <div>live basic_api boundary</div>
+      </section>
+      <section class="bubble-grid" data-bubbles></section>
+    </section>
   </main>
+  <dialog class="folder-dialog glass" data-folder-dialog>
+    <form method="dialog">
+      <header><b>RESULT FOLDER</b><button value="cancel" title="Close folder picker">&#215;</button></header>
+      <div class="picker-path"><button type="button" data-folder-parent title="Open parent folder">&#8593;</button><input data-folder-path spellcheck="false" /></div>
+      <div class="folder-list" data-folder-list></div>
+      <footer><span data-folder-state>Select this folder or open a child.</span><button type="button" data-folder-select>Use folder</button></footer>
+    </form>
+  </dialog>
+  <template data-catalog-template>
+    <article class="test-card glass is-idle">
+      <button class="card-run" title="Start this native then WASM test pair">&#9655;</button>
+      <div class="card-top"><span class="card-family"></span><span class="badge">IDLE</span></div>
+      <h2></h2>
+      <div class="tag-row"></div>
+      <p class="card-source"></p>
+      <div class="phase-tabs">
+        <button class="phase-tab is-active" data-phase-tab="native"><span></span> Native</button>
+        <button class="phase-tab" data-phase-tab="wasm"><span></span> WASM</button>
+      </div>
+      <div class="track"><i></i></div>
+      <div class="phase-panel" data-phase-panel="native"><p class="card-result">native not run</p><footer><span class="card-duration">-- ms</span><a class="card-log" hidden>log</a></footer></div>
+      <div class="phase-panel" data-phase-panel="wasm" hidden><p class="card-result">WASM not run</p><footer><span class="card-duration">-- ms</span><a class="card-log" hidden>log</a></footer></div>
+    </article>
+  </template>
   <template data-bubble-template>
     <article class="bubble glass is-idle">
       <div class="bubble-top"><span class="glyph"></span><span class="family"></span><span class="badge">IDLE</span></div>

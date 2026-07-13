@@ -313,7 +313,7 @@ proc blake2bLong(A: openArray[byte], outLen: int): seq[byte] =
     remaining: int = 0
   if outLen <= 0:
     raise newException(ValueError, "Argon2 hash output length must be positive")
-  if outLen > int(high(uint32)):
+  if uint64(outLen) > uint64(high(uint32)):
     raise newException(ValueError, "Argon2 hash output length is too large")
   input = newSeqOfCap[byte](A.len + 4)
   appendUint32Le(input, uint32(outLen))
@@ -431,17 +431,17 @@ proc validateArgon2Params(p: Argon2Params, passwordLen, saltLen: int) =
     raise newException(ValueError, "Argon2 output length must be at least 16 bytes")
   if saltLen < argon2MinSaltBytes:
     raise newException(ValueError, "Argon2 salt length must be at least 8 bytes")
-  if p.passCount > int(high(uint32)):
+  if uint64(p.passCount) > uint64(high(uint32)):
     raise newException(ValueError, "Argon2 pass count is too large")
-  if p.memoryKiB > int(high(uint32)):
+  if uint64(p.memoryKiB) > uint64(high(uint32)):
     raise newException(ValueError, "Argon2 memory cost is too large")
-  if p.laneCount > int(high(uint32)):
+  if uint64(p.laneCount) > uint64(high(uint32)):
     raise newException(ValueError, "Argon2 lane count is too large")
-  if p.outLen > int(high(uint32)):
+  if uint64(p.outLen) > uint64(high(uint32)):
     raise newException(ValueError, "Argon2 output length is too large")
-  if passwordLen > int(high(uint32)):
+  if uint64(passwordLen) > uint64(high(uint32)):
     raise newException(ValueError, "Argon2 password length is too large")
-  if saltLen > int(high(uint32)):
+  if uint64(saltLen) > uint64(high(uint32)):
     raise newException(ValueError, "Argon2 salt length is too large")
   if p.memoryKiB < 2 * argon2SyncPoints * p.laneCount:
     raise newException(ValueError, "Argon2 memory cost must fit at least 8 blocks per lane")

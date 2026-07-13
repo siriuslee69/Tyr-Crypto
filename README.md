@@ -299,8 +299,65 @@ CRYSTALS-Kyber round-3 implementation, not FIPS 203 ML-KEM.
 7. Run the complete headless WebUI browser matrix with `nimble test_webui_interop`.
 
 The dashboard's top test rail can run the full suite, the WebUI transport probe,
-all symmetric ciphers, all KEMs, or one selected algorithm. `nimble webui_interop`
-remains an alias-style launcher for the same interactive dashboard.
+functional tests, vectors/KATs, edge cases, benchmarks/profilers, or the live
+browser-WASM matrix. Family buttons narrow the visible catalog to symmetric,
+hash, MAC, password, entropy, classical, PQ KEM, PQ signature, composite, API,
+interop, or benchmark entries. Every card can also be run by itself.
+`nimble webui_interop` remains an alias-style launcher for the same interactive
+dashboard.
+
+The catalog contains more than 50 allowlisted groups, including the unified
+benchmark tables and every specialized Sigma/Otter benchmark entrypoint that
+imports `custom_crypto`.
+
+Every catalog card is a paired test:
+
+```text
+card worker
+  native compile -> native run
+  WASM compile   -> Node/WASM run
+```
+
+The card has separate `Native` and `WASM` tabs with independent state, timing,
+and log files. Both phases run in sequence even if one fails. Different cards
+run concurrently in separate worker processes. The card play button becomes a
+stop button while that card runs, and `Stop all` cancels every active worker.
+Filters, family tabs, output controls, and other cards remain usable while
+tests are running.
+
+The launcher isolates failures using four process roles:
+
+```text
+testUi supervisor
+  |-- WebUI host       <- relaunched after an abnormal exit
+  `-- test spawner    <- owns the job registry
+        `-- workers   <- one isolated process per active card
+```
+
+The WebUI host never compiles or executes catalog tests. A compiler crash,
+native test crash, WASM runtime failure, or stopped worker is recorded in its
+atomic job state without taking down the UI or test spawner.
+
+The editable output field at the top defaults to `testResults/`. Pressing its
+folder button opens the built-in directory picker; direct paths and `~/...`
+paths are accepted as well. Every native test or benchmark writes:
+
+- `<timestamp>-<job>-<test-id>-native.log`: native compile and run output.
+- `<timestamp>-<job>-<test-id>-wasm.log`: Emscripten and Node/WASM output.
+- `<timestamp>-<job>-<test-id>.json`: both phase states, durations, exit codes,
+  stop state, and result paths.
+
+The browser-WASM matrix writes the same `.log` and `.json` pair. `testResults/`
+is ignored by Git so repeated local runs do not dirty the repository.
+
+New cards use the `pairedTest` template in
+`tests/webui_interop/test_catalog.nim`. The declaration supplies only metadata,
+sources, fixed arguments, and optional WASM threading; shared worker code owns
+compilation, native/WASM sequencing, logs, polling, crash isolation, and stop
+handling.
+
+Run `nimble test_testui_wasm_catalog` to compile-check every catalog source as
+executable WASM. This is the completeness gate for future card additions.
 
 If Nim's library path is not auto-detected on your machine, set `NIM_LIB_DIR` before running the wasm build task.
 

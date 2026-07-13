@@ -2,13 +2,13 @@
 ## WebUI Interop Test <- browser WASM and native basic_api test runner
 ## -------------------------------------------------------------------
 
-import std/[json, locks, os, strutils, unittest]
+import std/[json, locks, os, osproc, strutils, unittest]
 
 import webui
 import webui/bindings as webuiBindings
 
 import ../.iron/meta/metaPragmas
-import ./webui_interop/interop_backend
+import ./webui_interop/[interop_backend, test_catalog, test_jobs]
 
 var
   GEventLock: Lock
@@ -19,6 +19,25 @@ var
   GResponseReady: bool = false
   GSmokeComplete: bool = false
   GSmokeReport: string = ""
+
+const
+  normalUiExitFile = "ui-normal-exit"
+
+proc commandMode(args: openArray[string]): string {.role: {parser}.} =
+  ## args: launcher arguments containing an optional process mode.
+  var i: int = 0
+  while i < args.len:
+    if args[i].startsWith("--tyr-mode:"):
+      return args[i]["--tyr-mode:".len .. ^1]
+    i = i + 1
+
+proc runtimeArg(args: openArray[string]): string {.role: {parser}.} =
+  ## args: launcher arguments containing an optional runtime directory.
+  var i: int = 0
+  while i < args.len:
+    if args[i].startsWith("--runtime-path:"):
+      return args[i]["--runtime-path:".len .. ^1]
+    i = i + 1
 
 proc eventString(e: ptr webuiBindings.Event): string {.role: {helper}.} =
   ## Copies one WebUI string argument out of the foreign callback frame.
@@ -95,6 +114,23 @@ proc encodeTestBytes(B: openArray[uint8]): string {.role: {helper}.} =
   ## Encodes test data with the same binary/base64 form used by WebUI.
   result = encodeBytes(B)
 
+proc catalogHasId(E: JsonNode, id: string): bool {.role: {parser}.} =
+  ## E/id: catalog entry array and stable identifier to locate.
+  var i: int = 0
+  while i < E.len:
+    if E[i]["id"].getStr() == id:
+      return true
+    i = i + 1
+
+proc jobWithId(J: JsonNode, id: string): JsonNode {.role: {parser}.} =
+  ## J/id: polled job array and catalog identifier to locate.
+  var i: int = 0
+  while i < J.len:
+    if J[i]{"id"}.getStr("") == id:
+      return J[i]
+    i = i + 1
+  result = newJNull()
+
 proc runBackendContract() {.role: {orchestrator}.} =
   ## Runs native transport checks that are also used by the browser dashboard.
   var
@@ -128,6 +164,7 @@ proc runDashboard() {.role: {metaOrchestrator}.} =
   window.eventBlocking = true
   if not fileExists(root / "index.html"):
     raise newException(IOError, "WebUI interop entrypoint is missing: " & root)
+  webui.setConfig(webuiBindings.WebuiConfig.wcMonitor, false)
   webui.setTimeout(0)
   window.setSize(1440, 940)
   if not (window.rootFolder = root):
@@ -140,6 +177,57 @@ proc runDashboard() {.role: {metaOrchestrator}.} =
     pumpInteropEvent()
     sleep(2)
   webui.clean()
+  if getEnv("TYR_TEST_UI_RUNTIME").len > 0:
+    writeFile(getEnv("TYR_TEST_UI_RUNTIME") / normalUiExitFile, "closed\n")
+
+proc terminateChild(p: Process) {.role: {actor}.} =
+  ## p: supervisor-owned process to stop with its immediate child tree.
+  if p == nil or not p.running():
+    return
+  when defined(windows):
+    discard execCmd("taskkill /PID " & $processID(p) & " /T /F")
+  else:
+    discard execCmd("pkill -TERM -P " & $processID(p))
+    p.terminate()
+
+proc runSupervisor() {.role: {metaOrchestrator}.} =
+  ## Owns the resilient UI host and the independent test-spawner process.
+  var
+    dir: string = getTempDir() / ("tyr-test-ui-" & $getCurrentProcessId())
+    normalExitPath: string = dir / normalUiExitFile
+    spawner: Process
+    ui: Process
+    exitCode: int = 0
+    response: JsonNode
+  ensureRuntimeDirectories(dir)
+  putEnv("TYR_TEST_UI_RUNTIME", dir)
+  spawner = startProcess(getAppFilename(), workingDir = getCurrentDir(),
+    args = @["--tyr-mode:spawner", "--runtime-path:" & dir],
+    options = {poParentStreams})
+  try:
+    while spawner.running():
+      if fileExists(normalExitPath):
+        removeFile(normalExitPath)
+      ui = startProcess(getAppFilename(), workingDir = getCurrentDir(),
+        args = @["--tyr-mode:ui", "--runtime-path:" & dir],
+        options = {poParentStreams})
+      exitCode = ui.waitForExit()
+      ui.close()
+      if fileExists(normalExitPath):
+        break
+      echo "Tyr test UI host exited unexpectedly (", exitCode, "); relaunching."
+      sleep(500)
+  finally:
+    try:
+      response = spawnerRequest(%*{"action": "shutdown"})
+      discard response
+    except CatchableError:
+      discard
+    sleep(150)
+    terminateChild(spawner)
+    if spawner != nil:
+      discard spawner.waitForExit(3000)
+      spawner.close()
 
 proc runBrowserSmoke() {.role: {metaOrchestrator}.} =
   ## Waits for the real browser page to complete its WASM/native exchange matrix.
@@ -157,6 +245,7 @@ proc runBrowserSmoke() {.role: {metaOrchestrator}.} =
     shown: bool = false
   if not fileExists(root / "index.html"):
     raise newException(IOError, "WebUI interop entrypoint is missing: " & root)
+  webui.setConfig(webuiBindings.WebuiConfig.wcMonitor, false)
   webui.setTimeout(15)
   GSmokeComplete = false
   GSmokeReport = ""
@@ -202,16 +291,142 @@ proc runBrowserSmoke() {.role: {metaOrchestrator}.} =
     window.destroy()
     webui.clean()
 
-suite "WebUI interop backend":
-  test "native browser transport contract encrypts and decrypts":
-    runBackendContract()
+if commandMode(commandLineParams()).len == 0:
+  suite "WebUI interop backend":
+    test "native browser transport contract encrypts and decrypts":
+      runBackendContract()
+
+    test "catalog exposes complete custom crypto coverage":
+      var
+        payload: JsonNode = parseJson(catalogPayload(false))
+        i: int = 0
+        j: int = 0
+        source: string = ""
+      check payload["ok"].getBool()
+      check payload["entries"].len >= 50
+      check catalogHasId(payload["entries"], "sha256")
+      check catalogHasId(payload["entries"], "kyber")
+      check catalogHasId(payload["entries"], "bench-asymmetric")
+      while i < payload["entries"].len:
+        j = 0
+        while j < payload["entries"][i]["sources"].len:
+          source = payload["entries"][i]["sources"][j].getStr()
+          check fileExists(parentDir(currentSourcePath()) / ".." / source)
+          j = j + 1
+        i = i + 1
+
+    test "result path can be changed and browser results are persisted":
+      var
+        outputDir: string = getTempDir() / ("tyr-test-ui-results-" & $getCurrentProcessId())
+        response: JsonNode
+      if dirExists(outputDir):
+        removeDir(outputDir)
+      check setResultsDirectory(outputDir) == outputDir
+      response = parseJson(recordInteropResult(true, 7, "interop contract pass"))
+      check fileExists(response["logPath"].getStr())
+      check fileExists(response["resultPath"].getStr())
+      discard setResultsDirectory(defaultResultsDirectory())
+
+    when defined(tyrTestCatalogContract):
+      test "catalog executes functional vector and benchmark entries":
+        var
+          outputDir: string = getTempDir() / ("tyr-test-ui-catalog-" & $getCurrentProcessId())
+          response: JsonNode
+        discard setResultsDirectory(outputDir)
+        for id in ["otp", "sha256", "bench-kdf"]:
+          checkpoint("catalog entry " & id)
+          response = parseJson(runCatalogEntry(id))
+          check response["ok"].getBool()
+          check response["passed"].getBool()
+          check fileExists(response["logPath"].getStr())
+          check fileExists(response["resultPath"].getStr())
+        discard setResultsDirectory(defaultResultsDirectory())
+
+    when defined(tyrTestProcessContract):
+      test "spawner isolates concurrent native WASM jobs and cancellation":
+        var
+          dir: string = getTempDir() / ("tyr-test-ui-process-" &
+            $getCurrentProcessId())
+          outputDir: string = dir / "results"
+          previousRuntime: string = getEnv("TYR_TEST_UI_RUNTIME")
+          spawner: Process
+          response: JsonNode
+          otpState: JsonNode
+          shaState: JsonNode
+          i: int = 0
+        ensureRuntimeDirectories(dir)
+        putEnv("TYR_TEST_UI_RUNTIME", dir)
+        spawner = startProcess(getAppFilename(), workingDir = getCurrentDir(),
+          args = @["--tyr-mode:spawner", "--runtime-path:" & dir],
+          options = {poParentStreams})
+        try:
+          sleep(150)
+          response = spawnerRequest(%*{
+            "action": "start", "id": "otp", "resultsPath": outputDir})
+          check response["ok"].getBool()
+          response = spawnerRequest(%*{
+            "action": "start", "id": "sha256", "resultsPath": outputDir})
+          check response["ok"].getBool()
+          response = spawnerRequest(%*{"action": "stop", "id": "sha256"})
+          check response["ok"].getBool()
+          while i < 1200:
+            response = spawnerRequest(%*{"action": "poll"})
+            otpState = jobWithId(response["jobs"], "otp")
+            shaState = jobWithId(response["jobs"], "sha256")
+            if otpState.kind != JNull and shaState.kind != JNull and
+                otpState{"status"}.getStr("") notin ["queued", "running"] and
+                shaState{"status"}.getStr("") notin ["queued", "running"]:
+              break
+            sleep(100)
+            i = i + 1
+          check otpState{"status"}.getStr("") == "pass"
+          check otpState{"native"}{"status"}.getStr("") == "pass"
+          check otpState{"wasm"}{"status"}.getStr("") == "pass"
+          check shaState{"status"}.getStr("") == "stopped"
+          response = spawnerRequest(%*{"action": "shutdown"})
+          check response["ok"].getBool()
+        finally:
+          sleep(150)
+          terminateChild(spawner)
+          if spawner != nil:
+            discard spawner.waitForExit(3000)
+            spawner.close()
+          putEnv("TYR_TEST_UI_RUNTIME", previousRuntime)
+
+    when defined(tyrTestWasmCatalogContract):
+      test "every paired catalog card compiles to executable WASM":
+        var failures: seq[string] = auditWasmCatalog()
+        if failures.len > 0:
+          checkpoint(failures.join("\n\n"))
+        check failures.len == 0
 
 when isMainModule:
-  initLock(GEventLock)
-  initCond(GEventHandled)
-  when defined(tyrWebUiInteropSmoke):
-    runBrowserSmoke()
+  var
+    args: seq[string] = commandLineParams()
+    mode: string = commandMode(args)
+    workerArgs = workerModeArgs(args)
+    dir: string = runtimeArg(args)
+  if mode == "spawner":
+    runSpawner(dir)
+  elif mode == "worker":
+    runWorker(workerArgs.id, workerArgs.jobId, workerArgs.resultsPath,
+      workerArgs.runtimePath)
+  elif mode == "pair":
+    ensureRuntimeDirectories(workerArgs.runtimePath)
+    runWorker(workerArgs.id, workerArgs.jobId, workerArgs.resultsPath,
+      workerArgs.runtimePath)
   else:
-    runDashboard()
-  deinitCond(GEventHandled)
-  deinitLock(GEventLock)
+    initLock(GEventLock)
+    initCond(GEventHandled)
+    when defined(tyrWebUiInteropSmoke):
+      runBrowserSmoke()
+    elif defined(tyrTestCatalogContract) or defined(tyrTestProcessContract) or
+        defined(tyrTestWasmCatalogContract):
+      discard
+    else:
+      if mode == "ui":
+        runDashboard()
+      else:
+        runSupervisor()
+    deinitCond(GEventHandled)
+    deinitLock(GEventLock)

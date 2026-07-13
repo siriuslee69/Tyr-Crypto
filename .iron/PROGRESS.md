@@ -1,4 +1,4 @@
-Commit Message: audit asymmetric crypto and harden certificate parsing
+Commit Message: unify crypto suites and expand the test UI
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -1282,8 +1282,26 @@ Implemented:
   Kyber-1024 concurrently and display the running state, last deciphered
   message, secret/key preview, direction result, and duration.
 - `nimble testUi` opens the same interactive dashboard with a top test rail for
-  the full matrix, the 4 KiB transport probe, cipher and KEM groups, and each
-  individual algorithm. Unselected process bubbles remain visible but muted.
+  all tests, functional tests, vectors/KATs, edge cases, benchmarks/profilers,
+  and the browser-WASM matrix. Family filters and per-card run buttons cover
+  every desktop `custom_crypto` facade, composite/wrapper suite, and benchmark.
+- The native catalog contains more than 50 allowlisted groups, including all
+  specialized Sigma/Otter benchmark entrypoints. Browser requests select a
+  stable ID only; they cannot provide commands or arbitrary source paths.
+- Test output defaults to ignored `testResults/`. The editable path field and
+  built-in folder picker can select another directory. Each run writes a full
+  `.log` and a machine-readable `.json` record with status, timing, tags,
+  sources, exit code, and output paths.
+- Every card now has Native and WASM tabs. One isolated worker compiles and runs
+  the native phase, then compiles the same Nim entrypoint with Emscripten and
+  runs it under Node. Separate phase logs plus one paired JSON state are saved.
+- Catalog cards run concurrently. Per-card stop and Stop All create cancellation
+  signals that terminate compiler/test child trees without blocking navigation.
+- `pairedTest` centralizes declarations and supports the threaded Sigma core
+  benchmark with Emscripten pthreads; all other cards use single-threaded WASM.
+- `testUi` is a supervisor. It owns an independently restartable WebUI host and
+  a dedicated test-spawner, which owns isolated workers. Test crashes do not
+  execute inside or terminate the WebUI backend.
 - The JS/TS bridge now exports typed `kemKeypair`, `kemEncaps`, and `kemDecaps`
   calls for pure-Nim X25519 and legacy CRYSTALS-Kyber round-3 variants.
 - `nimble test_webui_interop` builds the bundle, opens a hidden WebUI browser,
@@ -1310,6 +1328,25 @@ Verification:
   all 30 bidirectional exchanges across four stream ciphers and three KEMs.
 - The updated interactive selector preserves the automated all-tests default;
   the real-browser 30-exchange smoke still passes after the UI split.
+- Catalog contracts execute functional/vector/edge coverage, SHA-256/TLS
+  vectors, and the custom KDF benchmark, then verify both `.log` and `.json`
+  result files. The catalog contract also checks every referenced source exists.
+- WebUI folder monitoring is disabled, animated status repainting was removed,
+  and large glass surfaces use static composited backgrounds to eliminate the
+  periodic dashboard flicker.
+- Job polling updates cards and summary text only when state changes, preventing
+  the 500 ms monitor from causing periodic full-card repaints.
+- Native/WASM pair contracts pass for OTP and file-backed SABER. Additional WASM
+  checks pass for SHA-256/TLS vectors, entropy, NTRU KATs, Falcon, wrapper,
+  chunked crypto, X25519, asymmetric collection, and threaded Sigma compilation.
+- The process contract launches OTP and SHA-256 concurrently, stops SHA-256,
+  verifies both OTP phases pass, and confirms the spawner remains responsive.
+- `nimble test_testui_wasm_catalog`: pass. Every source referenced by every
+  paired card compiles as executable Node-targeted WASM with its declared flags.
+- Architecture-specific Blake3/Gimli SIMD cards run scalar-equivalence checks
+  on wasm32, while retaining SSE/AVX/NEON checks on matching native targets.
+- The Sigma Dilithium WASM card runs all pure-Tyr keypair/sign/verify benchmark
+  groups when native liboqs is unavailable instead of reporting a skipped test.
 - `nim check tools/build_wasm.nim` and
   `nim check tools/stage_wasm_webui.nim`: pass.
 - `nimble tasks`: pass and lists the new build/dashboard/test tasks.
