@@ -133,29 +133,6 @@ suite "wrapper crypto":
     let readBack = toBytes(readFile(path))
     check readBack == msg
 
-  when defined(hasLibsodium):
-    test "XChaCha20-Poly1305 encrypt/decrypt roundtrip":
-      if ensureWrapperLibsodiumAvailable():
-        var key = newSeq[uint8](32)
-        for i in 0 ..< key.len:
-          key[i] = uint8((i * 7) mod 256)
-        var nonce = newSeq[uint8](24)
-        for i in 0 ..< nonce.len:
-          nonce[i] = uint8(150 - i)
-        let msg = toBytes("wrapper xchacha20poly1305 roundtrip")
-        let state = initSymAuthState(csXChaCha20Poly1305, @[key], nonce)
-        let cipher = symAuthEnc(msg, state)
-        check cipher.authType == atAeadTag
-        check cipher.auth.len == 16
-        let plain = symAuthDec(cipher, state)
-        check plain == msg
-  else:
-    test "XChaCha20-Poly1305 unavailable raises descriptive error":
-      let state = initSymAuthState(csXChaCha20Poly1305, @[newSeq[uint8](32)],
-        newSeq[uint8](24))
-      expect LibraryUnavailableError:
-        discard symAuthEnc(toBytes("poly1305"), state)
-
   when defined(hasNimcrypto):
     test "AES-256-GCM encrypt/decrypt roundtrip":
       var key = newSeq[uint8](32)

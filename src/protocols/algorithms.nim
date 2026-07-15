@@ -5,7 +5,6 @@
 type
   CipherSuite* = enum
     csXChaCha20Blake3,
-    csXChaCha20Poly1305,
     csXChaCha20Gimli,
     csAesGimli,
     csXChaCha20AesGimli,

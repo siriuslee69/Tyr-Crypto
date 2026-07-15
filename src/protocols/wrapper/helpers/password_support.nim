@@ -120,7 +120,6 @@ when defined(hasLibsodium):
     pinSaltLen = 16
     aeadTagLen = 16
     kdfContextChacha20 = "sym-chacha20-v1"
-    kdfContextXChaPoly1305 = "sym-xchacha20-poly1305-v1"
     kdfContextXChaGimli = "sym-xchacha20-gimli-v1"
     kdfContextAesGimli = "sym-aes-gimli-v1"
     kdfContextXChaAesGimli = "sym-xchacha20-aes-gimli-v1"
@@ -160,8 +159,6 @@ when defined(hasLibsodium):
     case a
     of csXChaCha20Blake3:
       result = kdfContextChacha20
-    of csXChaCha20Poly1305:
-      result = kdfContextXChaPoly1305
     of csXChaCha20Gimli:
       result = kdfContextXChaGimli
     of csAesGimli:

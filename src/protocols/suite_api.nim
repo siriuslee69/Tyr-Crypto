@@ -27,7 +27,7 @@ const
 proc keyCount*(a: CipherSuite): int {.role: {parser}.} =
   ## a: authenticated cipher suite.
   case a
-  of csXChaCha20Blake3, csXChaCha20Poly1305, csAes256Gcm:
+  of csXChaCha20Blake3, csAes256Gcm:
     result = 1
   of csXChaCha20Gimli, csAesGimli:
     result = 2
@@ -88,7 +88,7 @@ proc suiteCipher(A: openArray[uint8], S: SymAuthState): seq[uint8]
     {.role: {actor}.} =
   ## A/S: bytes and suite state; xor layers are identical for encrypt/decrypt.
   case S.alg
-  of csXChaCha20Blake3, csXChaCha20Poly1305:
+  of csXChaCha20Blake3:
     result = xorLayer(A, S.keys[0], S.nonce, false)
   of csXChaCha20Gimli:
     result = xorLayer(A, S.keys[0], S.nonce, false)
@@ -110,12 +110,6 @@ proc authTag(A: openArray[uint8], S: SymAuthState): tuple[kind: AuthType,
   of csXChaCha20Blake3:
     result.kind = atBlake3
     result.bytes = blake3Hash(A, int(S.tagLen))
-  of csXChaCha20Poly1305:
-    when defined(hasLibsodium):
-      result.kind = atAeadTag
-      result.bytes = poly1305Tag(S.keys[0], A)
-    else:
-      raiseUnavailable("XChaCha20-Poly1305", "hasLibsodium")
   of csXChaCha20Gimli:
     result.kind = atGimli
     result.bytes = gimliTag(S.keys[1], S.nonce, A, int(S.tagLen))
