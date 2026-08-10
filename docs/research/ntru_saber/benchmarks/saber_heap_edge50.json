@@ -1,0 +1,72 @@
+{
+  "metadata": {
+    "generated_local": "2026-05-01T13:29:19+00:00",
+    "generated_utc": "2026-05-01T13:29:19Z",
+    "device_label": "edge50_saber_heap",
+    "device_kind": "phone",
+    "device_model": "motorola",
+    "device_os": "Android",
+    "profile": "mobile",
+    "loop_scale": 8.0,
+    "phase": "summary",
+    "compiled_backend": "native_neon",
+    "features": [
+      "arm64",
+      "neon",
+      "release",
+      "otterTiming",
+      "ntruMulToom4K2Default",
+      "saberHeapBuffers"
+    ]
+  },
+  "rows": [
+    {
+      "kind": "summary",
+      "device_label": "edge50_saber_heap",
+      "device_kind": "phone",
+      "family": "saber",
+      "variant": "lightSaber",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "roundtrip",
+      "loops": 8,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 3002136,
+      "avg_ns_per_call": 375267.0,
+      "avg_ns_per_op": 375267.0
+    },
+    {
+      "kind": "summary",
+      "device_label": "edge50_saber_heap",
+      "device_kind": "phone",
+      "family": "saber",
+      "variant": "saber",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "roundtrip",
+      "loops": 8,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 4160885,
+      "avg_ns_per_call": 520110.625,
+      "avg_ns_per_op": 520110.625
+    },
+    {
+      "kind": "summary",
+      "device_label": "edge50_saber_heap",
+      "device_kind": "phone",
+      "family": "saber",
+      "variant": "fireSaber",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "roundtrip",
+      "loops": 8,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 5704375,
+      "avg_ns_per_call": 713046.875,
+      "avg_ns_per_op": 713046.875
+    }
+  ]
+}

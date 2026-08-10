@@ -1,0 +1,2145 @@
+## ----------------------------------------------------------
+## Frodo Operations <- pure-Nim FrodoKEM key encapsulation
+## ----------------------------------------------------------
+
+import ./params
+import ./util
+import ./noise
+import ../../../../helpers/otter_support
+import ../../../aes_core
+import ../../../sha3
+import ../../../random
+
+when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
+  import simd_nexus/simd/base_operations
+  import simd_nexus/simd/generic_i16
+when defined(neon) or defined(arm64) or defined(aarch64):
+  import simd_nexus/simd/generic_i32
+when defined(sse2):
+  import nimsimd/sse2 as nsse2
+when defined(avx2):
+  import nimsimd/avx as navx
+  import nimsimd/avx2 as navx2
+
+type
+  ## Public/secret keypair emitted by the pure-Nim Frodo backend.
+  FrodoTyrKeypair* = object
+    variant*: FrodoVariant
+    publicKey*: seq[byte]
+    secretKey*: seq[byte]
+
+  ## Detached ciphertext plus shared secret emitted by encapsulation.
+  FrodoTyrCipher* = object
+    variant*: FrodoVariant
+    ciphertext*: seq[byte]
+    sharedSecret*: seq[byte]
+
+const
+  frodoRowsPerBlock = 4
+  frodoRowsPerWideBlock = 4
+  frodoTransposedStripeWords = 976 * 8
+  frodoWordsPerFourRows = 4 * 976
+  frodoBlocksPerFourRows = frodoWordsPerFourRows div 8
+  frodoWordsPerColStripe = 976 * 8
+  frodoBlocksPerColStripe = frodoWordsPerColStripe div 8
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `copyByteSeq`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc copyByteSeq(A: openArray[byte]): seq[byte] =
+  var
+    i: int = 0
+  result = newSeq[byte](A.len)
+  i = 0
+  while i < A.len:
+    result[i] = A[i]
+    i = i + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `prefixedByte`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc prefixedByte(prefix: byte, A: openArray[byte]): seq[byte] =
+  result = newSeq[byte](A.len + 1)
+  result[0] = prefix
+  if A.len > 0:
+    copyMem(addr result[1], unsafeAddr A[0], A.len)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `concatByteSeq`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc concatByteSeq(A, B: openArray[byte]): seq[byte] =
+  result = newSeq[byte](A.len + B.len)
+  if A.len > 0:
+    copyMem(addr result[0], unsafeAddr A[0], A.len)
+  if B.len > 0:
+    copyMem(addr result[A.len], unsafeAddr B[0], B.len)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `shakeIntoForParams`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc shakeIntoForParams(p: FrodoParams, dst: var openArray[byte], A: openArray[byte]) =
+  case p.xofKind
+  of fxShake128:
+    shake128Into(dst, A)
+  of fxShake256:
+    shake256Into(dst, A)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `shakeWordsLeIntoForParams`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc shakeWordsLeIntoForParams(p: FrodoParams, dst: var openArray[uint16], A: openArray[byte]) =
+  case p.xofKind
+  of fxShake128:
+    var
+      t: seq[byte] = newSeq[byte](dst.len * 2)
+    shake128Into(t, A)
+    bytesToWordsLeInto(dst, t)
+    clearBytes(t)
+  of fxShake256:
+    shake256WordsLeInto(dst, A)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `useOptimizedAesStreamPath`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc useOptimizedAesStreamPath(p: FrodoParams): bool {.inline.} =
+  ## Paper note: FrodoKEM's public matrix A can be regenerated from seed_A.
+  ## This gate selects the streaming AES path instead of materializing A, per
+  ## `2016-0659_frodo_take_off_the_ring.pdf` and the FrodoKEM standard proposal.
+  result = p.matrixGenerator == fmgAes128 and p.nbar == 8 and
+    p.stripeStep == 8 and (p.n mod 8) == 0
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `qMask`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc qMask(p: FrodoParams): uint16 {.inline.} =
+  result = uint16(p.q - 1'u32)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `reduceWordQ`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc reduceWordQ(p: FrodoParams, x: uint16): uint16 {.inline.} =
+  result = x and qMask(p)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `reduceWideQ`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc reduceWideQ(p: FrodoParams, x: uint32): uint16 {.inline.} =
+  result = uint16(x and uint32(qMask(p)))
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `addModQ`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc addModQ(p: FrodoParams, a, b: uint16): uint16 {.inline.} =
+  result = reduceWideQ(p, uint32(a) + uint32(b))
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `subModQ`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc subModQ(p: FrodoParams, a, b: uint16): uint16 {.inline.} =
+  result = reduceWideQ(p, uint32(a) - uint32(b))
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `reduceWordsModQ`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc reduceWordsModQ(p: FrodoParams, dst: var openArray[uint16]) =
+  var
+    i: int = 0
+  i = 0
+  while i < dst.len:
+    dst[i] = reduceWordQ(p, dst[i])
+    i = i + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mulLo16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc mulLo16(a, b: uint16): uint16 {.inline.} =
+  result = uint16((uint32(a) * uint32(b)) and 0xffff'u32)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dotModQ16Scalar`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc dotModQ16Scalar(A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
+  var
+    i: int = 0
+    acc: uint32 = 0
+  i = 0
+  while i < n:
+    acc = acc + uint32(A[aOff + i]) * uint32(B[bOff + i])
+    i = i + 1
+  result = uint16(acc)
+
+when defined(sse2):
+  ## Paper note: this is a local SIMD dot-kernel optimization for Frodo's 16-bit
+  ## matrix products; it preserves the reference mod-q low-word arithmetic.
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dotModQ16Sse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc dotModQ16Sse(A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
+    var
+      i: int = 0
+      laneIdx: int = 0
+      acc = i16x8(mm_setzero_si128())
+      va: i16x8
+      vb: i16x8
+      lanes: array[8, uint16]
+      sum: uint16 = 0
+    i = 0
+    while i + 8 <= n:
+      va = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr A[aOff + i])))
+      vb = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr B[bOff + i])))
+      acc = acc + mulLoI16(va, vb)
+      i = i + 8
+    lanes = storeI16x8(acc)
+    laneIdx = 0
+    while laneIdx < lanes.len:
+      sum = sum + lanes[laneIdx]
+      laneIdx = laneIdx + 1
+    while i < n:
+      sum = sum + mulLo16(A[aOff + i], B[bOff + i])
+      i = i + 1
+    result = sum
+
+when defined(avx2):
+  ## Paper note: AVX2 widens the same public-length dot products to 16 packed
+  ## 16-bit lanes, reducing the streamed matrix multiply cost.
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dotModQ16Avx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc dotModQ16Avx2(A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
+    var
+      i: int = 0
+      laneIdx: int = 0
+      acc = i16x16(mm256_setzero_si256())
+      va: i16x16
+      vb: i16x16
+      lanes: array[16, uint16]
+      sum: uint16 = 0
+    i = 0
+    while i + 16 <= n:
+      va = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr A[aOff + i])))
+      vb = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr B[bOff + i])))
+      acc = acc + mulLoI16(va, vb)
+      i = i + 16
+    lanes = storeI16x16(acc)
+    laneIdx = 0
+    while laneIdx < lanes.len:
+      sum = sum + lanes[laneIdx]
+      laneIdx = laneIdx + 1
+    while i < n:
+      sum = sum + mulLo16(A[aOff + i], B[bOff + i])
+      i = i + 1
+    result = sum
+
+when defined(neon) or defined(arm64) or defined(aarch64):
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sumLanes8Neon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc sumLanes8Neon(v: uint16x8): uint16 =
+    var
+      partial: array[4, int32]
+      i: int = 0
+      acc: uint32 = 0
+    partial = storeI32x4[uint32x4](vpaddlq_u16(v))
+    i = 0
+    while i < partial.len:
+      acc = acc + uint32(partial[i])
+      i = i + 1
+    result = uint16(acc)
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dotModQ16Neon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc dotModQ16Neon(A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
+    ## Paper note: NEON uses the same low-word dot-product shape as the SSE/AVX
+    ## Frodo kernels, implemented as a portable target-specific backend.
+    var
+      i: int = 0
+      acc: uint16x8 = vmovq_n_u16(0'u16)
+      va: uint16x8
+      vb: uint16x8
+      sum: uint16 = 0
+    i = 0
+    while i + 8 <= n:
+      va = loadI16x8At[uint16x8](A, aOff + i)
+      vb = loadI16x8At[uint16x8](B, bOff + i)
+      acc = acc + mulLoI16(va, vb)
+      i = i + 8
+    sum = sumLanes8Neon(acc)
+    while i < n:
+      sum = sum + mulLo16(A[aOff + i], B[bOff + i])
+      i = i + 1
+    result = sum
+
+when defined(sse2):
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sumDwords4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc sumDwords4(v: nsse2.M128i): uint16 =
+    var
+      lanes: array[4, uint32]
+      i: int = 0
+      acc: uint32 = 0
+    nsse2.mm_storeu_si128(cast[pointer](unsafeAddr lanes[0]), v)
+    i = 0
+    while i < lanes.len:
+      acc = acc + lanes[i]
+      i = i + 1
+    result = uint16(acc)
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sumLanes8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc sumLanes8(v: i16x8): uint16 =
+    var
+      lanes: array[8, uint16]
+      i: int = 0
+    lanes = storeI16x8(v)
+    i = 0
+    while i < lanes.len:
+      result = result + lanes[i]
+      i = i + 1
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dot4RowsStripe8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc dot4RowsStripe8(rowStripes: openArray[array[8, uint16]], s: openArray[uint16],
+      sOff: int, outSums: var array[4, uint16]) =
+    var
+      sVec: i16x8
+      r0: i16x8
+      r1: i16x8
+      r2: i16x8
+      r3: i16x8
+    sVec = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr s[sOff])))
+    r0 = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr rowStripes[0][0])))
+    r1 = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr rowStripes[1][0])))
+    r2 = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr rowStripes[2][0])))
+    r3 = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr rowStripes[3][0])))
+    outSums[0] = sumLanes8(mulLoI16(r0, sVec))
+    outSums[1] = sumLanes8(mulLoI16(r1, sVec))
+    outSums[2] = sumLanes8(mulLoI16(r2, sVec))
+    outSums[3] = sumLanes8(mulLoI16(r3, sVec))
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dot4RowsStripe8Vec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc dot4RowsStripe8Vec(rowVecs: openArray[i16x8], s: openArray[uint16],
+      sOff: int, outSums: var array[4, uint16]) =
+    var
+      sVec: i16x8
+    sVec = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr s[sOff])))
+    outSums[0] = sumLanes8(mulLoI16(rowVecs[0], sVec))
+    outSums[1] = sumLanes8(mulLoI16(rowVecs[1], sVec))
+    outSums[2] = sumLanes8(mulLoI16(rowVecs[2], sVec))
+    outSums[3] = sumLanes8(mulLoI16(rowVecs[3], sVec))
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `loadSliceI16x8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc loadSliceI16x8(A: openArray[uint16], off: int): i16x8 =
+    result = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr A[off])))
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dot4ColsSse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc dot4ColsSse(s: openArray[uint16], sOff, strideN, colBase: int,
+      aColsT: openArray[uint16], outSums: var array[4, uint16]) =
+    ## Paper note: streamed Frodo column stripes are multiplied four columns at
+    ## a time with SSE2 madd lanes; this is the hot `s*A` kernel.
+    var
+      acc0 = nsse2.mm_setzero_si128()
+      acc1 = nsse2.mm_setzero_si128()
+      acc2 = nsse2.mm_setzero_si128()
+      acc3 = nsse2.mm_setzero_si128()
+      sVec: nsse2.M128i
+      a0: nsse2.M128i
+      a1: nsse2.M128i
+      a2: nsse2.M128i
+      a3: nsse2.M128i
+      j: int = 0
+    j = 0
+    while j < strideN:
+      sVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr s[sOff + j]))
+      a0 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aColsT[(colBase + 0) * strideN + j]))
+      a1 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aColsT[(colBase + 1) * strideN + j]))
+      a2 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aColsT[(colBase + 2) * strideN + j]))
+      a3 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aColsT[(colBase + 3) * strideN + j]))
+      acc0 = nsse2.mm_add_epi32(acc0, nsse2.mm_madd_epi16(a0, sVec))
+      acc1 = nsse2.mm_add_epi32(acc1, nsse2.mm_madd_epi16(a1, sVec))
+      acc2 = nsse2.mm_add_epi32(acc2, nsse2.mm_madd_epi16(a2, sVec))
+      acc3 = nsse2.mm_add_epi32(acc3, nsse2.mm_madd_epi16(a3, sVec))
+      j = j + 8
+    outSums[0] = sumDwords4(acc0)
+    outSums[1] = sumDwords4(acc1)
+    outSums[2] = sumDwords4(acc2)
+    outSums[3] = sumDwords4(acc3)
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dot8ColsSse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc dot8ColsSse(s: openArray[uint16], sOff, strideN: int,
+      aColsT: openArray[uint16], outSums: var array[8, uint16]) =
+    var
+      first4: array[4, uint16]
+      last4: array[4, uint16]
+    dot4ColsSse(s, sOff, strideN, 0, aColsT, first4)
+    dot4ColsSse(s, sOff, strideN, 4, aColsT, last4)
+    outSums[0] = first4[0]
+    outSums[1] = first4[1]
+    outSums[2] = first4[2]
+    outSums[3] = first4[3]
+    outSums[4] = last4[0]
+    outSums[5] = last4[1]
+    outSums[6] = last4[2]
+    outSums[7] = last4[3]
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dot4RowsSse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc dot4RowsSse(aRows: openArray[uint16], s: openArray[uint16], sOff, strideN: int,
+      outSums: var array[4, uint16]) =
+    var
+      acc0 = nsse2.mm_setzero_si128()
+      acc1 = nsse2.mm_setzero_si128()
+      acc2 = nsse2.mm_setzero_si128()
+      acc3 = nsse2.mm_setzero_si128()
+      sVec: nsse2.M128i
+      r0: nsse2.M128i
+      r1: nsse2.M128i
+      r2: nsse2.M128i
+      r3: nsse2.M128i
+      j: int = 0
+    j = 0
+    while j < strideN:
+      sVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr s[sOff + j]))
+      r0 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aRows[0 * strideN + j]))
+      r1 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aRows[1 * strideN + j]))
+      r2 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aRows[2 * strideN + j]))
+      r3 = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aRows[3 * strideN + j]))
+      acc0 = nsse2.mm_add_epi32(acc0, nsse2.mm_madd_epi16(r0, sVec))
+      acc1 = nsse2.mm_add_epi32(acc1, nsse2.mm_madd_epi16(r1, sVec))
+      acc2 = nsse2.mm_add_epi32(acc2, nsse2.mm_madd_epi16(r2, sVec))
+      acc3 = nsse2.mm_add_epi32(acc3, nsse2.mm_madd_epi16(r3, sVec))
+      j = j + 8
+    outSums[0] = sumDwords4(acc0)
+    outSums[1] = sumDwords4(acc1)
+    outSums[2] = sumDwords4(acc2)
+    outSums[3] = sumDwords4(acc3)
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mulStripe8Sse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc mulStripe8Sse(aCols: openArray[uint16], s: openArray[uint16], sOff, strideN: int,
+      outSums: var array[8, uint16]) =
+    var
+      acc = nsse2.mm_setzero_si128()
+      aVec: nsse2.M128i
+      sVec: nsse2.M128i
+      j: int = 0
+    j = 0
+    while j < strideN:
+      aVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aCols[j * 8]))
+      sVec = nsse2.mm_set1_epi16(s[sOff + j])
+      acc = nsse2.mm_add_epi16(acc, nsse2.mm_mullo_epi16(aVec, sVec))
+      j = j + 1
+    nsse2.mm_storeu_si128(cast[pointer](unsafeAddr outSums[0]), acc)
+
+when defined(avx2):
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sumDwords8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc sumDwords8(v: navx.M256i): uint16 =
+    var
+      lanes: array[8, uint32]
+      i: int = 0
+      acc: uint32 = 0
+    navx.mm256_storeu_si256(cast[pointer](unsafeAddr lanes[0]), v)
+    i = 0
+    while i < lanes.len:
+      acc = acc + lanes[i]
+      i = i + 1
+    result = uint16(acc)
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dot4ColsAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc dot4ColsAvx2(s: openArray[uint16], sOff, strideN, colBase: int,
+      aColsT: openArray[uint16], outSums: var array[4, uint16]) =
+    ## Paper note: AVX2 uses 16-lane madd accumulation for the streamed Frodo
+    ## column-stripe multiply, avoiding a full materialized A matrix.
+    var
+      acc0 = navx.mm256_setzero_si256()
+      acc1 = navx.mm256_setzero_si256()
+      acc2 = navx.mm256_setzero_si256()
+      acc3 = navx.mm256_setzero_si256()
+      sVec: navx.M256i
+      a0: navx.M256i
+      a1: navx.M256i
+      a2: navx.M256i
+      a3: navx.M256i
+      j: int = 0
+    j = 0
+    while j < strideN:
+      sVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr s[sOff + j]))
+      a0 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(colBase + 0) * strideN + j]))
+      a1 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(colBase + 1) * strideN + j]))
+      a2 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(colBase + 2) * strideN + j]))
+      a3 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(colBase + 3) * strideN + j]))
+      acc0 = navx2.mm256_add_epi32(acc0, navx2.mm256_madd_epi16(a0, sVec))
+      acc1 = navx2.mm256_add_epi32(acc1, navx2.mm256_madd_epi16(a1, sVec))
+      acc2 = navx2.mm256_add_epi32(acc2, navx2.mm256_madd_epi16(a2, sVec))
+      acc3 = navx2.mm256_add_epi32(acc3, navx2.mm256_madd_epi16(a3, sVec))
+      j = j + 16
+    outSums[0] = sumDwords8(acc0)
+    outSums[1] = sumDwords8(acc1)
+    outSums[2] = sumDwords8(acc2)
+    outSums[3] = sumDwords8(acc3)
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dot8ColsAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc dot8ColsAvx2(s: openArray[uint16], sOff, strideN: int,
+      aColsT: openArray[uint16], outSums: var array[8, uint16]) =
+    var
+      first4: array[4, uint16]
+      last4: array[4, uint16]
+    dot4ColsAvx2(s, sOff, strideN, 0, aColsT, first4)
+    dot4ColsAvx2(s, sOff, strideN, 4, aColsT, last4)
+    outSums[0] = first4[0]
+    outSums[1] = first4[1]
+    outSums[2] = first4[2]
+    outSums[3] = first4[3]
+    outSums[4] = last4[0]
+    outSums[5] = last4[1]
+    outSums[6] = last4[2]
+    outSums[7] = last4[3]
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dot4RowsAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc dot4RowsAvx2(aRows: openArray[uint16], s: openArray[uint16], sOff, strideN: int,
+      outSums: var array[4, uint16]) =
+    ## Paper note: this is the matching four-row AVX2 kernel for `A*s+e`.
+    var
+      acc0 = navx.mm256_setzero_si256()
+      acc1 = navx.mm256_setzero_si256()
+      acc2 = navx.mm256_setzero_si256()
+      acc3 = navx.mm256_setzero_si256()
+      sVec: navx.M256i
+      r0: navx.M256i
+      r1: navx.M256i
+      r2: navx.M256i
+      r3: navx.M256i
+      j: int = 0
+    j = 0
+    while j < strideN:
+      sVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr s[sOff + j]))
+      r0 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[0 * strideN + j]))
+      r1 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[1 * strideN + j]))
+      r2 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[2 * strideN + j]))
+      r3 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[3 * strideN + j]))
+      acc0 = navx2.mm256_add_epi32(acc0, navx2.mm256_madd_epi16(r0, sVec))
+      acc1 = navx2.mm256_add_epi32(acc1, navx2.mm256_madd_epi16(r1, sVec))
+      acc2 = navx2.mm256_add_epi32(acc2, navx2.mm256_madd_epi16(r2, sVec))
+      acc3 = navx2.mm256_add_epi32(acc3, navx2.mm256_madd_epi16(r3, sVec))
+      j = j + 16
+    outSums[0] = sumDwords8(acc0)
+    outSums[1] = sumDwords8(acc1)
+    outSums[2] = sumDwords8(acc2)
+    outSums[3] = sumDwords8(acc3)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dotModQ16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc dotModQ16(A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
+  when defined(avx2):
+    result = dotModQ16Avx2(A, B, aOff, bOff, n)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    result = dotModQ16Neon(A, B, aOff, bOff, n)
+  elif defined(sse2):
+    result = dotModQ16Sse(A, B, aOff, bOff, n)
+  else:
+    result = dotModQ16Scalar(A, B, aOff, bOff, n)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dotModQ`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc dotModQ(p: FrodoParams, A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
+  result = reduceWordQ(p, dotModQ16(A, B, aOff, bOff, n))
+
+{.push boundChecks: off, overflowChecks: off.}
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `initFourRowBlocks`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc initFourRowBlocks(blocksIn: var array[frodoBlocksPerFourRows, AesBlock]) =
+  var
+    row: int = 0
+    blockCol: int = 0
+    blockIdx: int = 0
+  row = 0
+  while row < 4:
+    blockCol = 0
+    while blockCol < 976:
+      blockIdx = row * (976 div 8) + (blockCol div 8)
+      blocksIn[blockIdx] = default(AesBlock)
+      blocksIn[blockIdx][2] = byte(blockCol and 0xff)
+      blocksIn[blockIdx][3] = byte((blockCol shr 8) and 0xff)
+      blockCol = blockCol + 8
+    row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `initColStripeBlocks`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc initColStripeBlocks(blocksIn: var array[frodoBlocksPerColStripe, AesBlock]) =
+  var
+    row: int = 0
+  row = 0
+  while row < frodoBlocksPerColStripe:
+    blocksIn[row] = default(AesBlock)
+    blocksIn[row][0] = byte(row and 0xff)
+    blocksIn[row][1] = byte((row shr 8) and 0xff)
+    row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `transposeWords8xN`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc transposeWords8xN(src: openArray[uint16],
+    dst: var array[frodoWordsPerColStripe, uint16]) =
+  var
+    j: int = 0
+    base: int = 0
+  j = 0
+  while j < 976:
+    base = j * 8
+    dst[base + 0] = src[0 * 976 + j]
+    dst[base + 1] = src[1 * 976 + j]
+    dst[base + 2] = src[2 * 976 + j]
+    dst[base + 3] = src[3 * 976 + j]
+    dst[base + 4] = src[4 * 976 + j]
+    dst[base + 5] = src[5 * 976 + j]
+    dst[base + 6] = src[6 * 976 + j]
+    dst[base + 7] = src[7 * 976 + j]
+    j = j + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `transposeColStripe8xN`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc transposeColStripe8xN(src: openArray[uint16],
+    dstT: var array[frodoWordsPerColStripe, uint16]) =
+  var
+    row: int = 0
+    rowOff: int = 0
+  row = 0
+  while row < 976:
+    rowOff = row * 8
+    dstT[0 * 976 + row] = src[rowOff + 0]
+    dstT[1 * 976 + row] = src[rowOff + 1]
+    dstT[2 * 976 + row] = src[rowOff + 2]
+    dstT[3 * 976 + row] = src[rowOff + 3]
+    dstT[4 * 976 + row] = src[rowOff + 4]
+    dstT[5 * 976 + row] = src[rowOff + 5]
+    dstT[6 * 976 + row] = src[rowOff + 6]
+    dstT[7 * 976 + row] = src[rowOff + 7]
+    row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateRowStripe`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc generateRowStripe(ctx: Aes128Ctx, row, colStart: int): array[8, uint16] =
+  var
+    blk: AesBlock
+    enc: AesBlock
+    i: int = 0
+  blk = default(AesBlock)
+  blk[0] = byte(row and 0xff)
+  blk[1] = byte((row shr 8) and 0xff)
+  blk[2] = byte(colStart and 0xff)
+  blk[3] = byte((colStart shr 8) and 0xff)
+  enc = encryptBlockPublicFast(ctx, blk)
+  i = 0
+  while i < 8:
+    result[i] = loadU16Le(enc, i * 2)
+    i = i + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `decodeAesBlocksLe`; pitfall: reject malformed or non-canonical input before indexed access.
+proc decodeAesBlocksLe(dst: var openArray[uint16], blocks: openArray[AesBlock]) =
+  var
+    blockIdx: int = 0
+    lane: int = 0
+    dstOff: int = 0
+  blockIdx = 0
+  dstOff = 0
+  while blockIdx < blocks.len:
+    lane = 0
+    while lane < 8:
+      dst[dstOff + lane] = loadU16Le(blocks[blockIdx], lane * 2)
+      lane = lane + 1
+    dstOff = dstOff + 8
+    blockIdx = blockIdx + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `decodeAesBlocksLeTransposedModQ`; pitfall: reject malformed or non-canonical input before indexed access.
+proc decodeAesBlocksLeTransposedModQ(p: FrodoParams, dstT: var openArray[uint16],
+    blocks: openArray[AesBlock], n: int) =
+  ## Paper note: the streamed `s*A` path decodes AES-generated public A blocks
+  ## directly into transposed/reduced column stripes, avoiding the full A buffer.
+  var
+    row: int = 0
+    lane: int = 0
+  row = 0
+  while row < n:
+    lane = 0
+    while lane < 8:
+      dstT[lane * n + row] = reduceWordQ(p, loadU16Le(blocks[row], lane * 2))
+      lane = lane + 1
+    row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `initFourRowBlocksDynamic`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc initFourRowBlocksDynamic(blocksIn: var openArray[AesBlock], n: int) =
+  var
+    row: int = 0
+    blockCol: int = 0
+    blockIdx: int = 0
+    blocksPerRow: int = n div 8
+  row = 0
+  while row < 4:
+    blockCol = 0
+    while blockCol < n:
+      blockIdx = row * blocksPerRow + (blockCol div 8)
+      blocksIn[blockIdx] = default(AesBlock)
+      blocksIn[blockIdx][2] = byte(blockCol and 0xff)
+      blocksIn[blockIdx][3] = byte((blockCol shr 8) and 0xff)
+      blockCol = blockCol + 8
+    row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `updateFourRowBlocks`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc updateFourRowBlocks(blocksIn: var openArray[AesBlock], rowStart, n: int) =
+  var
+    row: int = 0
+    blockCol: int = 0
+    blockIdx: int = 0
+    blocksPerRow: int = n div 8
+  row = 0
+  while row < 4:
+    blockCol = 0
+    while blockCol < n:
+      blockIdx = row * blocksPerRow + (blockCol div 8)
+      blocksIn[blockIdx][0] = byte((rowStart + row) and 0xff)
+      blocksIn[blockIdx][1] = byte(((rowStart + row) shr 8) and 0xff)
+      blockCol = blockCol + 8
+    row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `initColStripeBlocksDynamic`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc initColStripeBlocksDynamic(blocksIn: var openArray[AesBlock], n: int) =
+  var
+    row: int = 0
+  row = 0
+  while row < n:
+    blocksIn[row] = default(AesBlock)
+    blocksIn[row][0] = byte(row and 0xff)
+    blocksIn[row][1] = byte((row shr 8) and 0xff)
+    row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `updateColStripeBlocks`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc updateColStripeBlocks(blocksIn: var openArray[AesBlock], colStart, n: int) =
+  var
+    row: int = 0
+  row = 0
+  while row < n:
+    blocksIn[row][2] = byte(colStart and 0xff)
+    blocksIn[row][3] = byte((colStart shr 8) and 0xff)
+    row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateFourRowsBulkDynamic`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc generateFourRowsBulkDynamic(ctx: Aes128Ctx,
+    blocksIn: var openArray[AesBlock],
+    blocksOut: var openArray[AesBlock],
+    rowStart, n: int, dst: var openArray[uint16]) =
+  ## Paper note: four public A rows are generated in bulk from seed_A so
+  ## `A*s+e` can stream matrix rows instead of loading a materialized matrix.
+  updateFourRowBlocks(blocksIn, rowStart, n)
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  decodeAesBlocksLe(dst, blocksOut)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateFourRowsBulkDynamic`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc generateFourRowsBulkDynamic(ctx: Aes128OpenSslCtx,
+    blocksIn: var openArray[AesBlock],
+    blocksOut: var openArray[AesBlock],
+    rowStart, n: int, dst: var openArray[uint16]) =
+  updateFourRowBlocks(blocksIn, rowStart, n)
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  decodeAesBlocksLe(dst, blocksOut)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateColStripeBulkTDynamic`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc generateColStripeBulkTDynamic(p: FrodoParams, ctx: Aes128Ctx,
+    blocksIn: var openArray[AesBlock],
+    blocksOut: var openArray[AesBlock],
+    colStart, n: int, dstT: var openArray[uint16]) =
+  ## Paper note: eight public A columns are generated and transposed in one pass
+  ## for streamed `s*A+e`, matching the FrodoKEM public-matrix construction.
+  updateColStripeBlocks(blocksIn, colStart, n)
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  decodeAesBlocksLeTransposedModQ(p, dstT, blocksOut, n)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateColStripeBulkTDynamic`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc generateColStripeBulkTDynamic(p: FrodoParams, ctx: Aes128OpenSslCtx,
+    blocksIn: var openArray[AesBlock],
+    blocksOut: var openArray[AesBlock],
+    colStart, n: int, dstT: var openArray[uint16]) =
+  updateColStripeBlocks(blocksIn, colStart, n)
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  decodeAesBlocksLeTransposedModQ(p, dstT, blocksOut, n)
+
+when defined(aesni):
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateFourRowsBulkDynamic`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc generateFourRowsBulkDynamic(ctx: Aes128NiCtx,
+      blocksIn: var openArray[AesBlock],
+      blocksOut: var openArray[AesBlock],
+      rowStart, n: int, dst: var openArray[uint16]) =
+    ## Paper note: AES-NI accelerates the same public seed_A row generation used
+    ## by the streamed Frodo matrix path.
+    updateFourRowBlocks(blocksIn, rowStart, n)
+    encryptBlocks(ctx, blocksIn, blocksOut)
+    decodeAesBlocksLe(dst, blocksOut)
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateColStripeBulkTDynamic`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc generateColStripeBulkTDynamic(p: FrodoParams, ctx: Aes128NiCtx,
+      blocksIn: var openArray[AesBlock],
+      blocksOut: var openArray[AesBlock],
+      colStart, n: int, dstT: var openArray[uint16]) =
+    ## Paper note: AES-NI also feeds the transposed public column stripes for
+    ## `s*A+e`, with reduction during decode.
+    updateColStripeBlocks(blocksIn, colStart, n)
+    encryptBlocks(ctx, blocksIn, blocksOut)
+    decodeAesBlocksLeTransposedModQ(p, dstT, blocksOut, n)
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateColStripeBulk`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc generateColStripeBulk(ctx: Aes128NiCtx,
+      blocksIn: var array[frodoBlocksPerColStripe, AesBlock],
+      blocksOut: var array[frodoBlocksPerColStripe, AesBlock],
+      colStart: int, dst: var array[frodoWordsPerColStripe, uint16]) =
+    var
+      row: int = 0
+    row = 0
+    while row < frodoBlocksPerColStripe:
+      blocksIn[row][0] = byte(row and 0xff)
+      blocksIn[row][1] = byte((row shr 8) and 0xff)
+      blocksIn[row][2] = byte(colStart and 0xff)
+      blocksIn[row][3] = byte((colStart shr 8) and 0xff)
+      row = row + 1
+    encryptBlocks(ctx, blocksIn, blocksOut)
+    decodeAesBlocksLe(dst, blocksOut)
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateFourRowsBulk`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc generateFourRowsBulk(ctx: Aes128NiCtx,
+      blocksIn: var array[frodoBlocksPerFourRows, AesBlock],
+      blocksOut: var array[frodoBlocksPerFourRows, AesBlock],
+      rowStart: int, dst: var array[frodoWordsPerFourRows, uint16]) =
+    var
+      row: int = 0
+      blockCol: int = 0
+      blockIdx: int = 0
+    row = 0
+    while row < 4:
+      blockCol = 0
+      while blockCol < 976:
+        blockIdx = row * (976 div 8) + (blockCol div 8)
+        blocksIn[blockIdx][0] = byte((rowStart + row) and 0xff)
+        blocksIn[blockIdx][1] = byte(((rowStart + row) shr 8) and 0xff)
+        blockCol = blockCol + 8
+      row = row + 1
+    encryptBlocks(ctx, blocksIn, blocksOut)
+    decodeAesBlocksLe(dst, blocksOut)
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateColStripeBulkT`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc generateColStripeBulkT(ctx: Aes128NiCtx,
+      blocksIn: var array[frodoBlocksPerColStripe, AesBlock],
+      blocksOut: var array[frodoBlocksPerColStripe, AesBlock],
+      colStart: int, dstT: var array[frodoWordsPerColStripe, uint16]) =
+    var
+      row: int = 0
+      lane: int = 0
+      rowBase: int = 0
+    row = 0
+    while row < frodoBlocksPerColStripe:
+      blocksIn[row][0] = byte(row and 0xff)
+      blocksIn[row][1] = byte((row shr 8) and 0xff)
+      blocksIn[row][2] = byte(colStart and 0xff)
+      blocksIn[row][3] = byte((colStart shr 8) and 0xff)
+      row = row + 1
+    encryptBlocks(ctx, blocksIn, blocksOut)
+    row = 0
+    while row < frodoBlocksPerColStripe:
+      rowBase = row
+      lane = 0
+      while lane < 8:
+        dstT[lane * 976 + rowBase] = loadU16Le(blocksOut[row], lane * 2)
+        lane = lane + 1
+      row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateFourRowsBulk`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc generateFourRowsBulk(ctx: Aes128Ctx,
+    blocksIn: var array[frodoBlocksPerFourRows, AesBlock],
+    blocksOut: var array[frodoBlocksPerFourRows, AesBlock],
+    rowStart: int, dst: var array[frodoWordsPerFourRows, uint16]) =
+  var
+    row: int = 0
+    blockCol: int = 0
+    blockIdx: int = 0
+  row = 0
+  while row < 4:
+    blockCol = 0
+    while blockCol < 976:
+      blockIdx = row * (976 div 8) + (blockCol div 8)
+      blocksIn[blockIdx][0] = byte((rowStart + row) and 0xff)
+      blocksIn[blockIdx][1] = byte(((rowStart + row) shr 8) and 0xff)
+      blockCol = blockCol + 8
+    row = row + 1
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  decodeAesBlocksLe(dst, blocksOut)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateFourRowsBulk`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc generateFourRowsBulk(ctx: Aes128OpenSslCtx,
+    blocksIn: var array[frodoBlocksPerFourRows, AesBlock],
+    blocksOut: var array[frodoBlocksPerFourRows, AesBlock],
+    rowStart: int, dst: var array[frodoWordsPerFourRows, uint16]) =
+  var
+    row: int = 0
+    blockCol: int = 0
+    blockIdx: int = 0
+  row = 0
+  while row < 4:
+    blockCol = 0
+    while blockCol < 976:
+      blockIdx = row * (976 div 8) + (blockCol div 8)
+      blocksIn[blockIdx][0] = byte((rowStart + row) and 0xff)
+      blocksIn[blockIdx][1] = byte(((rowStart + row) shr 8) and 0xff)
+      blockCol = blockCol + 8
+    row = row + 1
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  decodeAesBlocksLe(dst, blocksOut)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateColStripeBulkT`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc generateColStripeBulkT(ctx: Aes128Ctx,
+    blocksIn: var array[frodoBlocksPerColStripe, AesBlock],
+    blocksOut: var array[frodoBlocksPerColStripe, AesBlock],
+    colStart: int, dstT: var array[frodoWordsPerColStripe, uint16]) =
+  var
+    row: int = 0
+    lane: int = 0
+    rowBase: int = 0
+  row = 0
+  while row < frodoBlocksPerColStripe:
+    blocksIn[row][2] = byte(colStart and 0xff)
+    blocksIn[row][3] = byte((colStart shr 8) and 0xff)
+    row = row + 1
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  row = 0
+  while row < frodoBlocksPerColStripe:
+    rowBase = row
+    lane = 0
+    while lane < 8:
+      dstT[lane * 976 + rowBase] = loadU16Le(blocksOut[row], lane * 2)
+      lane = lane + 1
+    row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateColStripeBulkT`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc generateColStripeBulkT(ctx: Aes128OpenSslCtx,
+    blocksIn: var array[frodoBlocksPerColStripe, AesBlock],
+    blocksOut: var array[frodoBlocksPerColStripe, AesBlock],
+    colStart: int, dstT: var array[frodoWordsPerColStripe, uint16]) =
+  var
+    row: int = 0
+    lane: int = 0
+    rowBase: int = 0
+  row = 0
+  while row < frodoBlocksPerColStripe:
+    blocksIn[row][2] = byte(colStart and 0xff)
+    blocksIn[row][3] = byte((colStart shr 8) and 0xff)
+    row = row + 1
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  row = 0
+  while row < frodoBlocksPerColStripe:
+    rowBase = row
+    lane = 0
+    while lane < 8:
+      dstT[lane * 976 + rowBase] = loadU16Le(blocksOut[row], lane * 2)
+      lane = lane + 1
+    row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateColStripeBulk`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc generateColStripeBulk(ctx: Aes128Ctx,
+    blocksIn: var array[frodoBlocksPerColStripe, AesBlock],
+    blocksOut: var array[frodoBlocksPerColStripe, AesBlock],
+    colStart: int, dst: var array[frodoWordsPerColStripe, uint16]) =
+  var
+    row: int = 0
+  row = 0
+  while row < frodoBlocksPerColStripe:
+    blocksIn[row][2] = byte(colStart and 0xff)
+    blocksIn[row][3] = byte((colStart shr 8) and 0xff)
+    row = row + 1
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  decodeAesBlocksLe(dst, blocksOut)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateColStripeBulk`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc generateColStripeBulk(ctx: Aes128OpenSslCtx,
+    blocksIn: var array[frodoBlocksPerColStripe, AesBlock],
+    blocksOut: var array[frodoBlocksPerColStripe, AesBlock],
+    colStart: int, dst: var array[frodoWordsPerColStripe, uint16]) =
+  var
+    row: int = 0
+  row = 0
+  while row < frodoBlocksPerColStripe:
+    blocksIn[row][2] = byte(colStart and 0xff)
+    blocksIn[row][3] = byte((colStart shr 8) and 0xff)
+    row = row + 1
+  encryptBlocksPublicFast(ctx, blocksIn, blocksOut)
+  decodeAesBlocksLe(dst, blocksOut)
+
+when defined(aesni):
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateRowStripe`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc generateRowStripe(ctx: Aes128NiCtx, row, colStart: int): array[8, uint16] =
+    var
+      blk: AesBlock
+      enc: AesBlock
+      i: int = 0
+    blk = default(AesBlock)
+    blk[0] = byte(row and 0xff)
+    blk[1] = byte((row shr 8) and 0xff)
+    blk[2] = byte(colStart and 0xff)
+    blk[3] = byte((colStart shr 8) and 0xff)
+    enc = encryptBlock(ctx, blk)
+    i = 0
+    while i < 8:
+      result[i] = loadU16Le(enc, i * 2)
+      i = i + 1
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateFourRowStripes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc generateFourRowStripes(ctx: Aes128NiCtx, rowStart, colStart: int): array[4, array[8, uint16]] =
+    var
+      blocks: array[4, AesBlock]
+      encs: array[4, AesBlock]
+      rowIdx: int = 0
+      lane: int = 0
+    rowIdx = 0
+    while rowIdx < 4:
+      blocks[rowIdx] = default(AesBlock)
+      blocks[rowIdx][0] = byte((rowStart + rowIdx) and 0xff)
+      blocks[rowIdx][1] = byte(((rowStart + rowIdx) shr 8) and 0xff)
+      blocks[rowIdx][2] = byte(colStart and 0xff)
+      blocks[rowIdx][3] = byte((colStart shr 8) and 0xff)
+      rowIdx = rowIdx + 1
+    encs = encryptBlock4(ctx, blocks)
+    rowIdx = 0
+    while rowIdx < 4:
+      lane = 0
+      while lane < 8:
+        result[rowIdx][lane] = loadU16Le(encs[rowIdx], lane * 2)
+        lane = lane + 1
+      rowIdx = rowIdx + 1
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateEightRowStripes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc generateEightRowStripes(ctx: Aes128NiCtx, rowStart, colStart: int): array[8, array[8, uint16]] =
+    var
+      blocks: array[8, AesBlock]
+      encs: array[8, AesBlock]
+      rowIdx: int = 0
+      lane: int = 0
+    rowIdx = 0
+    while rowIdx < 8:
+      blocks[rowIdx] = default(AesBlock)
+      blocks[rowIdx][0] = byte((rowStart + rowIdx) and 0xff)
+      blocks[rowIdx][1] = byte(((rowStart + rowIdx) shr 8) and 0xff)
+      blocks[rowIdx][2] = byte(colStart and 0xff)
+      blocks[rowIdx][3] = byte((colStart shr 8) and 0xff)
+      rowIdx = rowIdx + 1
+    encs = encryptBlock8(ctx, blocks)
+    rowIdx = 0
+    while rowIdx < 8:
+      lane = 0
+      while lane < 8:
+        result[rowIdx][lane] = loadU16Le(encs[rowIdx], lane * 2)
+        lane = lane + 1
+      rowIdx = rowIdx + 1
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateFourRowStripeVecs`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  proc generateFourRowStripeVecs(ctx: Aes128NiCtx, rowStart, colStart: int): array[4, i16x8] =
+    var
+      blocks: array[4, AesBlock]
+      encs: array[4, AesBlock]
+      rowIdx: int = 0
+    rowIdx = 0
+    while rowIdx < 4:
+      blocks[rowIdx] = default(AesBlock)
+      blocks[rowIdx][0] = byte((rowStart + rowIdx) and 0xff)
+      blocks[rowIdx][1] = byte(((rowStart + rowIdx) shr 8) and 0xff)
+      blocks[rowIdx][2] = byte(colStart and 0xff)
+      blocks[rowIdx][3] = byte((colStart shr 8) and 0xff)
+      rowIdx = rowIdx + 1
+    encs = encryptBlock4(ctx, blocks)
+    rowIdx = 0
+    while rowIdx < 4:
+      result[rowIdx] = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr encs[rowIdx][0])))
+      rowIdx = rowIdx + 1
+
+when defined(avx2):
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateAsBlock4x8Avx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc accumulateAsBlock4x8Avx2(aRows: openArray[uint16],
+      s: openArray[uint16], result: var openArray[uint16], outOff, strideN: int) =
+    ## Paper note: this accumulates four generated A rows against eight secret
+    ## columns with AVX2 madd, the core streamed `A*s+e` performance path.
+    var
+      sums {.align: 32.}: array[32, uint32]
+      col: int = 0
+      sOff: int = 0
+      j: int = 0
+      sVec: navx.M256i
+      r0: navx.M256i
+      r1: navx.M256i
+      r2: navx.M256i
+      r3: navx.M256i
+      acc0: navx.M256i
+      acc1: navx.M256i
+      acc2: navx.M256i
+      acc3: navx.M256i
+    col = 0
+    while col < 8:
+      sOff = col * strideN
+      acc0 = navx.mm256_setzero_si256()
+      acc1 = navx.mm256_setzero_si256()
+      acc2 = navx.mm256_setzero_si256()
+      acc3 = navx.mm256_setzero_si256()
+      j = 0
+      while j < strideN:
+        sVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr s[sOff + j]))
+        r0 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[0 * strideN + j]))
+        r1 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[1 * strideN + j]))
+        r2 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[2 * strideN + j]))
+        r3 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[3 * strideN + j]))
+        acc0 = navx2.mm256_add_epi32(acc0, navx2.mm256_madd_epi16(r0, sVec))
+        acc1 = navx2.mm256_add_epi32(acc1, navx2.mm256_madd_epi16(r1, sVec))
+        acc2 = navx2.mm256_add_epi32(acc2, navx2.mm256_madd_epi16(r2, sVec))
+        acc3 = navx2.mm256_add_epi32(acc3, navx2.mm256_madd_epi16(r3, sVec))
+        j = j + 16
+      navx.mm256_store_si256(cast[pointer](addr sums[0]), acc0)
+      navx.mm256_store_si256(cast[pointer](addr sums[8]), acc1)
+      navx.mm256_store_si256(cast[pointer](addr sums[16]), acc2)
+      navx.mm256_store_si256(cast[pointer](addr sums[24]), acc3)
+      result[outOff + 0 * 8 + col] = result[outOff + 0 * 8 + col] + uint16(
+        sums[0] + sums[1] + sums[2] + sums[3] + sums[4] + sums[5] + sums[6] + sums[7])
+      result[outOff + 1 * 8 + col] = result[outOff + 1 * 8 + col] + uint16(
+        sums[8] + sums[9] + sums[10] + sums[11] + sums[12] + sums[13] + sums[14] + sums[15])
+      result[outOff + 2 * 8 + col] = result[outOff + 2 * 8 + col] + uint16(
+        sums[16] + sums[17] + sums[18] + sums[19] + sums[20] + sums[21] + sums[22] + sums[23])
+      result[outOff + 3 * 8 + col] = result[outOff + 3 * 8 + col] + uint16(
+        sums[24] + sums[25] + sums[26] + sums[27] + sums[28] + sums[29] + sums[30] + sums[31])
+      col = col + 1
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateSaStripe8Avx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc accumulateSaStripe8Avx2(aColsT: openArray[uint16],
+      s: openArray[uint16], result: var openArray[uint16], colStart, strideN: int) =
+    ## Paper note: this is the AVX2 core for transposed eight-column stripes in
+    ## streamed `s*A+e`, using public-length loops and local reduction.
+    var
+      sums {.align: 32.}: array[32, uint32]
+      row: int = 0
+      sOff: int = 0
+      rowOff: int = 0
+      col: int = 0
+      j: int = 0
+      sVec: navx.M256i
+      a0: navx.M256i
+      a1: navx.M256i
+      a2: navx.M256i
+      a3: navx.M256i
+      acc0: navx.M256i
+      acc1: navx.M256i
+      acc2: navx.M256i
+      acc3: navx.M256i
+    row = 0
+    while row < 8:
+      sOff = row * strideN
+      rowOff = row * strideN + colStart
+      col = 0
+      while col < 8:
+        acc0 = navx.mm256_setzero_si256()
+        acc1 = navx.mm256_setzero_si256()
+        acc2 = navx.mm256_setzero_si256()
+        acc3 = navx.mm256_setzero_si256()
+        j = 0
+        while j < strideN:
+          sVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr s[sOff + j]))
+          a0 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(col + 0) * strideN + j]))
+          a1 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(col + 1) * strideN + j]))
+          a2 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(col + 2) * strideN + j]))
+          a3 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aColsT[(col + 3) * strideN + j]))
+          acc0 = navx2.mm256_add_epi32(acc0, navx2.mm256_madd_epi16(a0, sVec))
+          acc1 = navx2.mm256_add_epi32(acc1, navx2.mm256_madd_epi16(a1, sVec))
+          acc2 = navx2.mm256_add_epi32(acc2, navx2.mm256_madd_epi16(a2, sVec))
+          acc3 = navx2.mm256_add_epi32(acc3, navx2.mm256_madd_epi16(a3, sVec))
+          j = j + 16
+        navx.mm256_store_si256(cast[pointer](addr sums[0]), acc0)
+        navx.mm256_store_si256(cast[pointer](addr sums[8]), acc1)
+        navx.mm256_store_si256(cast[pointer](addr sums[16]), acc2)
+        navx.mm256_store_si256(cast[pointer](addr sums[24]), acc3)
+        result[rowOff + col + 0] = result[rowOff + col + 0] + uint16(
+          sums[0] + sums[1] + sums[2] + sums[3] + sums[4] + sums[5] + sums[6] + sums[7])
+        result[rowOff + col + 1] = result[rowOff + col + 1] + uint16(
+          sums[8] + sums[9] + sums[10] + sums[11] + sums[12] + sums[13] + sums[14] + sums[15])
+        result[rowOff + col + 2] = result[rowOff + col + 2] + uint16(
+          sums[16] + sums[17] + sums[18] + sums[19] + sums[20] + sums[21] + sums[22] + sums[23])
+        result[rowOff + col + 3] = result[rowOff + col + 3] + uint16(
+          sums[24] + sums[25] + sums[26] + sums[27] + sums[28] + sums[29] + sums[30] + sums[31])
+        col = col + 4
+      row = row + 1
+
+when defined(sse2):
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateAsBlock4x8Sse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc accumulateAsBlock4x8Sse(aRows: openArray[uint16],
+      s: openArray[uint16], result: var openArray[uint16], outOff, strideN: int) =
+    var
+      sums: array[4, uint16]
+      col: int = 0
+      sOff: int = 0
+    col = 0
+    while col < 8:
+      sOff = col * strideN
+      dot4RowsSse(aRows, s, sOff, strideN, sums)
+      result[outOff + 0 * 8 + col] = result[outOff + 0 * 8 + col] + sums[0]
+      result[outOff + 1 * 8 + col] = result[outOff + 1 * 8 + col] + sums[1]
+      result[outOff + 2 * 8 + col] = result[outOff + 2 * 8 + col] + sums[2]
+      result[outOff + 3 * 8 + col] = result[outOff + 3 * 8 + col] + sums[3]
+      col = col + 1
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateSaStripe8Sse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc accumulateSaStripe8Sse(aColsT: openArray[uint16],
+      s: openArray[uint16], result: var openArray[uint16], colStart, strideN: int) =
+    var
+      sums: array[8, uint16]
+      row: int = 0
+      sOff: int = 0
+      rowOff: int = 0
+    row = 0
+    while row < 8:
+      sOff = row * strideN
+      rowOff = row * strideN + colStart
+      dot8ColsSse(s, sOff, strideN, aColsT, sums)
+      result[rowOff + 0] = result[rowOff + 0] + sums[0]
+      result[rowOff + 1] = result[rowOff + 1] + sums[1]
+      result[rowOff + 2] = result[rowOff + 2] + sums[2]
+      result[rowOff + 3] = result[rowOff + 3] + sums[3]
+      result[rowOff + 4] = result[rowOff + 4] + sums[4]
+      result[rowOff + 5] = result[rowOff + 5] + sums[5]
+      result[rowOff + 6] = result[rowOff + 6] + sums[6]
+      result[rowOff + 7] = result[rowOff + 7] + sums[7]
+      row = row + 1
+
+when defined(neon) or defined(arm64) or defined(aarch64):
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dot4ColsNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc dot4ColsNeon(s: openArray[uint16], sOff, strideN, colBase: int,
+      aColsT: openArray[uint16], outSums: var array[4, uint16]) =
+    outSums[0] = dotModQ16Neon(s, aColsT, sOff, (colBase + 0) * strideN, strideN)
+    outSums[1] = dotModQ16Neon(s, aColsT, sOff, (colBase + 1) * strideN, strideN)
+    outSums[2] = dotModQ16Neon(s, aColsT, sOff, (colBase + 2) * strideN, strideN)
+    outSums[3] = dotModQ16Neon(s, aColsT, sOff, (colBase + 3) * strideN, strideN)
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dot8ColsNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc dot8ColsNeon(s: openArray[uint16], sOff, strideN: int,
+      aColsT: openArray[uint16], outSums: var array[8, uint16]) =
+    var
+      first4: array[4, uint16]
+      last4: array[4, uint16]
+    dot4ColsNeon(s, sOff, strideN, 0, aColsT, first4)
+    dot4ColsNeon(s, sOff, strideN, 4, aColsT, last4)
+    outSums[0] = first4[0]
+    outSums[1] = first4[1]
+    outSums[2] = first4[2]
+    outSums[3] = first4[3]
+    outSums[4] = last4[0]
+    outSums[5] = last4[1]
+    outSums[6] = last4[2]
+    outSums[7] = last4[3]
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dot4RowsNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc dot4RowsNeon(aRows: openArray[uint16], s: openArray[uint16], sOff, strideN: int,
+      outSums: var array[4, uint16]) =
+    outSums[0] = dotModQ16Neon(aRows, s, 0 * strideN, sOff, strideN)
+    outSums[1] = dotModQ16Neon(aRows, s, 1 * strideN, sOff, strideN)
+    outSums[2] = dotModQ16Neon(aRows, s, 2 * strideN, sOff, strideN)
+    outSums[3] = dotModQ16Neon(aRows, s, 3 * strideN, sOff, strideN)
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateAsBlock4x8Neon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc accumulateAsBlock4x8Neon(aRows: openArray[uint16],
+      s: openArray[uint16], result: var openArray[uint16], outOff, strideN: int) =
+    var
+      sums: array[4, uint16]
+      col: int = 0
+      sOff: int = 0
+    col = 0
+    while col < 8:
+      sOff = col * strideN
+      dot4RowsNeon(aRows, s, sOff, strideN, sums)
+      result[outOff + 0 * 8 + col] = result[outOff + 0 * 8 + col] + sums[0]
+      result[outOff + 1 * 8 + col] = result[outOff + 1 * 8 + col] + sums[1]
+      result[outOff + 2 * 8 + col] = result[outOff + 2 * 8 + col] + sums[2]
+      result[outOff + 3 * 8 + col] = result[outOff + 3 * 8 + col] + sums[3]
+      col = col + 1
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateSaStripe8Neon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc accumulateSaStripe8Neon(aColsT: openArray[uint16],
+      s: openArray[uint16], result: var openArray[uint16], colStart, strideN: int) =
+    var
+      sums: array[8, uint16]
+      row: int = 0
+      sOff: int = 0
+      rowOff: int = 0
+    row = 0
+    while row < 8:
+      sOff = row * strideN
+      rowOff = row * strideN + colStart
+      dot8ColsNeon(s, sOff, strideN, aColsT, sums)
+      result[rowOff + 0] = result[rowOff + 0] + sums[0]
+      result[rowOff + 1] = result[rowOff + 1] + sums[1]
+      result[rowOff + 2] = result[rowOff + 2] + sums[2]
+      result[rowOff + 3] = result[rowOff + 3] + sums[3]
+      result[rowOff + 4] = result[rowOff + 4] + sums[4]
+      result[rowOff + 5] = result[rowOff + 5] + sums[5]
+      result[rowOff + 6] = result[rowOff + 6] + sums[6]
+      result[rowOff + 7] = result[rowOff + 7] + sums[7]
+      row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateAsBlock4x8Scalar`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc accumulateAsBlock4x8Scalar(aRows: openArray[uint16],
+    s: openArray[uint16], result: var openArray[uint16], outOff, strideN: int) =
+  var
+    row: int = 0
+    col: int = 0
+    rowOff: int = 0
+    sOff: int = 0
+  row = 0
+  while row < 4:
+    rowOff = outOff + row * 8
+    col = 0
+    while col < 8:
+      sOff = col * strideN
+      result[rowOff + col] = result[rowOff + col] +
+        dotModQ16(aRows, s, row * strideN, sOff, strideN)
+      col = col + 1
+    row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateSaStripe8Scalar`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc accumulateSaStripe8Scalar(aColsT: openArray[uint16],
+    s: openArray[uint16], result: var openArray[uint16], colStart, strideN: int) =
+  var
+    row: int = 0
+    col: int = 0
+    rowOff: int = 0
+    sOff: int = 0
+  row = 0
+  while row < 8:
+    rowOff = row * strideN + colStart
+    sOff = row * strideN
+    col = 0
+    while col < 8:
+      result[rowOff + col] = result[rowOff + col] +
+        dotModQ16(s, aColsT, sOff, col * strideN, strideN)
+      col = col + 1
+    row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateAsBlock4x8Host`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc accumulateAsBlock4x8Host(aRows: openArray[uint16],
+    s: openArray[uint16], result: var openArray[uint16], outOff, strideN: int) {.inline.} =
+  ## Paper note: this dispatch is the exact call boundary where streamed Frodo
+  ## row products pick AVX2/NEON/SSE2/scalar accumulation.
+  when defined(avx2):
+    accumulateAsBlock4x8Avx2(aRows, s, result, outOff, strideN)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    accumulateAsBlock4x8Neon(aRows, s, result, outOff, strideN)
+  elif defined(sse2):
+    accumulateAsBlock4x8Sse(aRows, s, result, outOff, strideN)
+  else:
+    accumulateAsBlock4x8Scalar(aRows, s, result, outOff, strideN)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateSaStripe8Host`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc accumulateSaStripe8Host(aColsT: openArray[uint16],
+    s: openArray[uint16], result: var openArray[uint16], colStart, strideN: int) {.inline.} =
+  ## Paper note: this dispatch is the column-stripe analogue for streamed `s*A`,
+  ## including the retained SSE-on-AVX2 trial flag for benchmark comparison.
+  when defined(avx2) and defined(sse2) and defined(frodoAvx2SaStripeSse):
+    accumulateSaStripe8Sse(aColsT, s, result, colStart, strideN)
+  elif defined(avx2):
+    accumulateSaStripe8Avx2(aColsT, s, result, colStart, strideN)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    accumulateSaStripe8Neon(aColsT, s, result, colStart, strideN)
+  elif defined(sse2):
+    accumulateSaStripe8Sse(aColsT, s, result, colStart, strideN)
+  else:
+    accumulateSaStripe8Scalar(aColsT, s, result, colStart, strideN)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateSaRowScalar`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc accumulateSaRowScalar(aRow: openArray[uint16], s: openArray[uint16],
+    result: var openArray[uint16], matrixRow, strideN: int) =
+  ## Add one generated public A row to all eight rows of `s*A`.
+  var
+    secretRow: int = 0
+    col: int = 0
+    factor: uint16 = 0
+    outOff: int = 0
+  secretRow = 0
+  while secretRow < 8:
+    factor = s[secretRow * strideN + matrixRow]
+    outOff = secretRow * strideN
+    col = 0
+    while col < strideN:
+      result[outOff + col] = result[outOff + col] + mulLo16(factor, aRow[col])
+      col = col + 1
+    secretRow = secretRow + 1
+
+when defined(avx2):
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateSaRowAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc accumulateSaRowAvx2(aRow: openArray[uint16], s: openArray[uint16],
+      result: var openArray[uint16], matrixRow, strideN: int) =
+    var
+      secretRow: int = 0
+      col: int = 0
+      outOff: int = 0
+      factor: navx.M256i
+      aVec: navx.M256i
+      outVec: navx.M256i
+    secretRow = 0
+    while secretRow < 8:
+      outOff = secretRow * strideN
+      factor = navx2.mm256_set1_epi16(cast[cshort](s[secretRow * strideN + matrixRow]))
+      col = 0
+      while col < strideN:
+        aVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRow[col]))
+        outVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr result[outOff + col]))
+        outVec = navx2.mm256_add_epi16(outVec, navx2.mm256_mullo_epi16(aVec, factor))
+        navx.mm256_storeu_si256(cast[pointer](addr result[outOff + col]), outVec)
+        col = col + 16
+      secretRow = secretRow + 1
+
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateSaRows4Avx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc accumulateSaRows4Avx2(aRows: openArray[uint16], s: openArray[uint16],
+      result: var openArray[uint16], matrixRow, strideN: int) =
+    ## Fuse four public Frodo rows so each secret/output vector is loaded once.
+    var
+      secretRow: int = 0
+      col: int = 0
+      outOff: int = 0
+      secretOff: int = 0
+      factor0: navx.M256i
+      factor1: navx.M256i
+      factor2: navx.M256i
+      factor3: navx.M256i
+      a0: navx.M256i
+      a1: navx.M256i
+      a2: navx.M256i
+      a3: navx.M256i
+      outVec: navx.M256i
+    secretRow = 0
+    while secretRow < 8:
+      outOff = secretRow * strideN
+      secretOff = outOff + matrixRow
+      factor0 = navx2.mm256_set1_epi16(cast[cshort](s[secretOff + 0]))
+      factor1 = navx2.mm256_set1_epi16(cast[cshort](s[secretOff + 1]))
+      factor2 = navx2.mm256_set1_epi16(cast[cshort](s[secretOff + 2]))
+      factor3 = navx2.mm256_set1_epi16(cast[cshort](s[secretOff + 3]))
+      col = 0
+      while col < strideN:
+        a0 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[0 * strideN + col]))
+        a1 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[1 * strideN + col]))
+        a2 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[2 * strideN + col]))
+        a3 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[3 * strideN + col]))
+        outVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr result[outOff + col]))
+        outVec = navx2.mm256_add_epi16(outVec, navx2.mm256_mullo_epi16(a0, factor0))
+        outVec = navx2.mm256_add_epi16(outVec, navx2.mm256_mullo_epi16(a1, factor1))
+        outVec = navx2.mm256_add_epi16(outVec, navx2.mm256_mullo_epi16(a2, factor2))
+        outVec = navx2.mm256_add_epi16(outVec, navx2.mm256_mullo_epi16(a3, factor3))
+        navx.mm256_storeu_si256(cast[pointer](addr result[outOff + col]), outVec)
+        col = col + 16
+      secretRow = secretRow + 1
+
+when defined(sse2):
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateSaRowSse`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc accumulateSaRowSse(aRow: openArray[uint16], s: openArray[uint16],
+      result: var openArray[uint16], matrixRow, strideN: int) =
+    var
+      secretRow: int = 0
+      col: int = 0
+      outOff: int = 0
+      factor: nsse2.M128i
+      aVec: nsse2.M128i
+      outVec: nsse2.M128i
+    secretRow = 0
+    while secretRow < 8:
+      outOff = secretRow * strideN
+      factor = nsse2.mm_set1_epi16(cast[cshort](s[secretRow * strideN + matrixRow]))
+      col = 0
+      while col < strideN:
+        aVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr aRow[col]))
+        outVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr result[outOff + col]))
+        outVec = nsse2.mm_add_epi16(outVec, nsse2.mm_mullo_epi16(aVec, factor))
+        nsse2.mm_storeu_si128(cast[pointer](addr result[outOff + col]), outVec)
+        col = col + 8
+      secretRow = secretRow + 1
+
+when defined(neon) or defined(arm64) or defined(aarch64):
+  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateSaRowNeon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  proc accumulateSaRowNeon(aRow: openArray[uint16], s: openArray[uint16],
+      result: var openArray[uint16], matrixRow, strideN: int) =
+    var
+      secretRow: int = 0
+      col: int = 0
+      outOff: int = 0
+      factor: uint16x8
+      aVec: uint16x8
+      outVec: uint16x8
+    secretRow = 0
+    while secretRow < 8:
+      outOff = secretRow * strideN
+      factor = vmovq_n_u16(s[secretRow * strideN + matrixRow])
+      col = 0
+      while col < strideN:
+        aVec = loadI16x8At[uint16x8](aRow, col)
+        outVec = loadI16x8At[uint16x8](result, outOff + col)
+        outVec = outVec + mulLoI16(aVec, factor)
+        storeI16x8At(outVec, result, outOff + col)
+        col = col + 8
+      secretRow = secretRow + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateSaRowHost`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc accumulateSaRowHost(aRow: openArray[uint16], s: openArray[uint16],
+    result: var openArray[uint16], matrixRow, strideN: int) {.inline.} =
+  when defined(avx2):
+    accumulateSaRowAvx2(aRow, s, result, matrixRow, strideN)
+  elif defined(neon) or defined(arm64) or defined(aarch64):
+    accumulateSaRowNeon(aRow, s, result, matrixRow, strideN)
+  elif defined(sse2):
+    accumulateSaRowSse(aRow, s, result, matrixRow, strideN)
+  else:
+    accumulateSaRowScalar(aRow, s, result, matrixRow, strideN)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `accumulateSaRows4Host`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc accumulateSaRows4Host(aRows: openArray[uint16], s: openArray[uint16],
+    result: var openArray[uint16], matrixRow, strideN: int) {.inline.} =
+  when defined(avx2) and not defined(frodoShakeSaSingleRow):
+    accumulateSaRows4Avx2(aRows, s, result, matrixRow, strideN)
+  else:
+    accumulateSaRowHost(aRows.toOpenArray(0 * strideN, 1 * strideN - 1),
+      s, result, matrixRow + 0, strideN)
+    accumulateSaRowHost(aRows.toOpenArray(1 * strideN, 2 * strideN - 1),
+      s, result, matrixRow + 1, strideN)
+    accumulateSaRowHost(aRows.toOpenArray(2 * strideN, 3 * strideN - 1),
+      s, result, matrixRow + 2, strideN)
+    accumulateSaRowHost(aRows.toOpenArray(3 * strideN, 4 * strideN - 1),
+      s, result, matrixRow + 3, strideN)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateShakeRows`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc generateShakeRows(p: FrodoParams, rowStart, rowCount: int,
+    rowInput, rowBytes: var seq[byte], rows: var seq[uint16]) =
+  ## Regenerate a fixed public range of A without materializing the full matrix.
+  var
+    row: int = 0
+    rowOff: int = 0
+  row = 0
+  while row < rowCount:
+    rowInput[0] = byte((rowStart + row) and 0xff)
+    rowInput[1] = byte(((rowStart + row) shr 8) and 0xff)
+    shake128Into(rowBytes, rowInput)
+    rowOff = row * p.n
+    bytesToWordsLeInto(rows.toOpenArray(rowOff, rowOff + p.n - 1), rowBytes)
+    reduceWordsModQ(p, rows.toOpenArray(rowOff, rowOff + p.n - 1))
+    row = row + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mulAddAsPlusEShakeStream`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc mulAddAsPlusEShakeStream(p: FrodoParams, seedA: openArray[byte],
+    s, e: openArray[uint16]): seq[uint16] =
+  var
+    rowInput: seq[byte] = newSeq[byte](2 + p.bytesSeedA)
+    rowBytes: seq[byte] = newSeq[byte](2 * p.n)
+    rows: seq[uint16] = newSeq[uint16](frodoRowsPerBlock * p.n)
+    rowStart: int = 0
+  copyMem(addr rowInput[2], unsafeAddr seedA[0], p.bytesSeedA)
+  result = newSeq[uint16](p.n * p.nbar)
+  copyMem(addr result[0], unsafeAddr e[0], result.len * sizeof(uint16))
+  rowStart = 0
+  while rowStart < p.n:
+    generateShakeRows(p, rowStart, frodoRowsPerBlock, rowInput, rowBytes, rows)
+    accumulateAsBlock4x8Host(rows, s, result, rowStart * p.nbar, p.n)
+    rowStart = rowStart + frodoRowsPerBlock
+  reduceWordsModQ(p, result)
+  clearBytes(rowInput)
+  clearBytes(rowBytes)
+  clearWords(rows)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mulAddSaPlusEShakeStream`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc mulAddSaPlusEShakeStream(p: FrodoParams, seedA: openArray[byte],
+    s, e: openArray[uint16]): seq[uint16] =
+  var
+    rowInput: seq[byte] = newSeq[byte](2 + p.bytesSeedA)
+    rowBytes: seq[byte] = newSeq[byte](2 * p.n)
+    rowWords: seq[uint16] = newSeq[uint16](frodoRowsPerBlock * p.n)
+    matrixRow: int = 0
+  copyMem(addr rowInput[2], unsafeAddr seedA[0], p.bytesSeedA)
+  result = newSeq[uint16](p.nbar * p.n)
+  copyMem(addr result[0], unsafeAddr e[0], result.len * sizeof(uint16))
+  matrixRow = 0
+  while matrixRow < p.n:
+    generateShakeRows(p, matrixRow, frodoRowsPerBlock, rowInput, rowBytes, rowWords)
+    accumulateSaRows4Host(rowWords, s, result, matrixRow, p.n)
+    matrixRow = matrixRow + frodoRowsPerBlock
+  reduceWordsModQ(p, result)
+  clearBytes(rowInput)
+  clearBytes(rowBytes)
+  clearWords(rowWords)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateMatrixA`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc generateMatrixA(p: FrodoParams, seedA: openArray[byte]): seq[uint16] =
+  ## Generate the Frodo matrix `A` row-wise for the selected parameter set.
+  otterSpan("frodo.generateMatrixA"):
+    var
+      i: int = 0
+      j: int = 0
+      k: int = 0
+      o: int = 0
+    if seedA.len != p.bytesSeedA:
+      raise newException(ValueError, "invalid Frodo seed_A length")
+    result = newSeq[uint16](p.n * p.n)
+    case p.matrixGenerator
+    of fmgAes128:
+      var
+        ctx: Aes128Ctx
+        blk: AesBlock
+        enc: AesBlock
+      ctx.initPublicFast(seedA)
+      i = 0
+      while i < p.n:
+        j = 0
+        while j < p.n:
+          blk = default(AesBlock)
+          blk[0] = byte(i and 0xff)
+          blk[1] = byte((i shr 8) and 0xff)
+          blk[2] = byte(j and 0xff)
+          blk[3] = byte((j shr 8) and 0xff)
+          enc = encryptBlockPublicFast(ctx, blk)
+          k = 0
+          while k < p.stripeStep:
+            o = i * p.n + j + k
+            if o < result.len:
+              result[o] = reduceWordQ(p, loadU16Le(enc, k * 2))
+            k = k + 1
+          j = j + p.stripeStep
+        i = i + 1
+    of fmgShake128:
+      var
+        rowInput: seq[byte] = newSeq[byte](2 + p.bytesSeedA)
+        rowBytes: seq[byte] = newSeq[byte](2 * p.n)
+      if seedA.len > 0:
+        copyMem(addr rowInput[2], unsafeAddr seedA[0], p.bytesSeedA)
+      i = 0
+      while i < p.n:
+        rowInput[0] = byte(i and 0xff)
+        rowInput[1] = byte((i shr 8) and 0xff)
+        shake128Into(rowBytes, rowInput)
+        bytesToWordsLeInto(result.toOpenArray(i * p.n, (i + 1) * p.n - 1), rowBytes)
+        reduceWordsModQ(p, result.toOpenArray(i * p.n, (i + 1) * p.n - 1))
+        i = i + 1
+      clearBytes(rowInput)
+      clearBytes(rowBytes)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mulAddAsPlusE`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc mulAddAsPlusE(p: FrodoParams, A, s, e: openArray[uint16]): seq[uint16] =
+  ## Compute `A * s + e` with `A` in row-major order.
+  otterSpan("frodo.mulAddAsPlusE"):
+    var
+      i: int = 0
+      k: int = 0
+      rowOff: int = 0
+      sOff: int = 0
+    result = newSeq[uint16](p.n * p.nbar)
+    i = 0
+    while i < result.len:
+      result[i] = reduceWordQ(p, e[i])
+      i = i + 1
+    i = 0
+    while i < p.n:
+      rowOff = i * p.n
+      k = 0
+      while k < p.nbar:
+        sOff = k * p.n
+        result[i * p.nbar + k] = addModQ(p, result[i * p.nbar + k],
+          dotModQ(p, A, s, rowOff, sOff, p.n))
+        k = k + 1
+      i = i + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mulAddAsPlusEStream`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc mulAddAsPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray[uint16]): seq[uint16] =
+  ## Compute `A * s + e` while generating each matrix row on demand.
+  ## Paper note: this is the main Frodo difference from a clean reference path:
+  ## it streams public AES rows from seed_A. OpenSSL requires -d:hasOpenSSL3;
+  ## otherwise AES-NI or the pure-Nim AES core is used.
+  otterSpan("frodo.mulAddAsPlusEStream"):
+    if seedA.len != p.bytesSeedA:
+      raise newException(ValueError, "invalid Frodo seed_A length")
+    when not defined(frodoMaterializeShakeMatrix):
+      if p.matrixGenerator == fmgShake128:
+        return mulAddAsPlusEShakeStream(p, seedA, s, e)
+    if not useOptimizedAesStreamPath(p):
+      var
+        A: seq[uint16] = generateMatrixA(p, seedA)
+      result = mulAddAsPlusE(p, A, s, e)
+      clearWords(A)
+      return result
+    result = newSeq[uint16](p.n * p.nbar)
+    if result.len > 0:
+      copyMem(addr result[0], unsafeAddr e[0], result.len * sizeof(uint16))
+    block openSslPath:
+      var
+        ctx: Aes128OpenSslCtx
+        blocksIn: seq[AesBlock] = newSeq[AesBlock](frodoRowsPerBlock * (p.n div 8))
+        blocksOut: seq[AesBlock] = newSeq[AesBlock](blocksIn.len)
+        aRow: seq[uint16] = newSeq[uint16](frodoRowsPerBlock * p.n)
+        i: int = 0
+      if not initOpenSslPublicFast(ctx, seedA):
+        break openSslPath
+      defer:
+        clear(ctx)
+      initFourRowBlocksDynamic(blocksIn, p.n)
+      i = 0
+      while i < p.n:
+        generateFourRowsBulkDynamic(ctx, blocksIn, blocksOut, i, p.n, aRow)
+        reduceWordsModQ(p, aRow)
+        accumulateAsBlock4x8Host(aRow, s, result, i * p.nbar, p.n)
+        i = i + 4
+      reduceWordsModQ(p, result)
+      return result
+    when defined(aesni):
+      var
+        ctx: Aes128NiCtx
+        blocksIn: seq[AesBlock] = newSeq[AesBlock](frodoRowsPerBlock * (p.n div 8))
+        blocksOut: seq[AesBlock] = newSeq[AesBlock](blocksIn.len)
+        aRow: seq[uint16] = newSeq[uint16](frodoRowsPerBlock * p.n)
+        i: int = 0
+      ctx.initPublicFast(seedA)
+      initFourRowBlocksDynamic(blocksIn, p.n)
+      i = 0
+      while i < p.n:
+        generateFourRowsBulkDynamic(ctx, blocksIn, blocksOut, i, p.n, aRow)
+        reduceWordsModQ(p, aRow)
+        accumulateAsBlock4x8Host(aRow, s, result, i * p.nbar, p.n)
+        i = i + frodoRowsPerWideBlock
+    else:
+      var
+        ctx: Aes128Ctx
+        blocksIn: seq[AesBlock] = newSeq[AesBlock](frodoRowsPerBlock * (p.n div 8))
+        blocksOut: seq[AesBlock] = newSeq[AesBlock](blocksIn.len)
+        aRow: seq[uint16] = newSeq[uint16](frodoRowsPerBlock * p.n)
+        i: int = 0
+      ctx.initPublicFast(seedA)
+      initFourRowBlocksDynamic(blocksIn, p.n)
+      i = 0
+      while i < p.n:
+        generateFourRowsBulkDynamic(ctx, blocksIn, blocksOut, i, p.n, aRow)
+        reduceWordsModQ(p, aRow)
+        accumulateAsBlock4x8Host(aRow, s, result, i * p.nbar, p.n)
+        i = i + 4
+    reduceWordsModQ(p, result)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mulAddSaPlusE`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc mulAddSaPlusE(p: FrodoParams, A, s, e: openArray[uint16]): seq[uint16] =
+  ## Compute `s * A + e` with `A` in row-major order.
+  otterSpan("frodo.mulAddSaPlusE"):
+    var
+      i: int = 0
+      j: int = 0
+      k: int = 0
+      aCol: seq[uint16] = @[]
+      sOff: int = 0
+    result = newSeq[uint16](p.nbar * p.n)
+    i = 0
+    while i < result.len:
+      result[i] = reduceWordQ(p, e[i])
+      i = i + 1
+    aCol = newSeq[uint16](p.n)
+    i = 0
+    while i < p.n:
+      j = 0
+      while j < p.n:
+        aCol[j] = A[j * p.n + i]
+        j = j + 1
+      k = 0
+      while k < p.nbar:
+        sOff = k * p.n
+        result[k * p.n + i] = addModQ(p, result[k * p.n + i],
+          dotModQ(p, s, aCol, sOff, 0, p.n))
+        k = k + 1
+      i = i + 1
+
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mulAddSaPlusEStream`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc mulAddSaPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray[uint16]): seq[uint16] =
+  ## Compute `s * A + e` while generating each matrix stripe on demand.
+  ## Paper note: this streams transposed public A column stripes from seed_A,
+  ## reducing memory traffic while preserving the FrodoKEM matrix equation.
+  otterSpan("frodo.mulAddSaPlusEStream"):
+    if seedA.len != p.bytesSeedA:
+      raise newException(ValueError, "invalid Frodo seed_A length")
+    when not defined(frodoMaterializeShakeMatrix):
+      if p.matrixGenerator == fmgShake128:
+        return mulAddSaPlusEShakeStream(p, seedA, s, e)
+    if not useOptimizedAesStreamPath(p):
+      var
+        A: seq[uint16] = generateMatrixA(p, seedA)
+      result = mulAddSaPlusE(p, A, s, e)
+      clearWords(A)
+      return result
+    result = newSeq[uint16](p.nbar * p.n)
+    if result.len > 0:
+      copyMem(addr result[0], unsafeAddr e[0], result.len * sizeof(uint16))
+    block openSslPath:
+      var
+        ctx: Aes128OpenSslCtx
+        blocksIn: seq[AesBlock] = newSeq[AesBlock](p.n)
+        blocksOut: seq[AesBlock] = newSeq[AesBlock](p.n)
+        aColsT: seq[uint16] = newSeq[uint16](p.n * p.stripeStep)
+        kk: int = 0
+      if not initOpenSslPublicFast(ctx, seedA):
+        break openSslPath
+      defer:
+        clear(ctx)
+      initColStripeBlocksDynamic(blocksIn, p.n)
+      kk = 0
+      while kk < p.n:
+        generateColStripeBulkTDynamic(p, ctx, blocksIn, blocksOut, kk, p.n, aColsT)
+        accumulateSaStripe8Host(aColsT, s, result, kk, p.n)
+        kk = kk + p.stripeStep
+      reduceWordsModQ(p, result)
+      return result
+    when defined(aesni):
+      var
+        ctx: Aes128NiCtx
+        blocksIn: seq[AesBlock] = newSeq[AesBlock](p.n)
+        blocksOut: seq[AesBlock] = newSeq[AesBlock](p.n)
+        aColsT: seq[uint16] = newSeq[uint16](p.n * p.stripeStep)
+        kk: int = 0
+      ctx.initPublicFast(seedA)
+      initColStripeBlocksDynamic(blocksIn, p.n)
+      kk = 0
+      while kk < p.n:
+        generateColStripeBulkTDynamic(p, ctx, blocksIn, blocksOut, kk, p.n, aColsT)
+        accumulateSaStripe8Host(aColsT, s, result, kk, p.n)
+        kk = kk + p.stripeStep
+    else:
+      var
+        ctx: Aes128Ctx
+        blocksIn: seq[AesBlock] = newSeq[AesBlock](p.n)
+        blocksOut: seq[AesBlock] = newSeq[AesBlock](p.n)
+        aColsT: seq[uint16] = newSeq[uint16](p.n * p.stripeStep)
+        kk: int = 0
+      ctx.initPublicFast(seedA)
+      initColStripeBlocksDynamic(blocksIn, p.n)
+      kk = 0
+      while kk < p.n:
+        generateColStripeBulkTDynamic(p, ctx, blocksIn, blocksOut, kk, p.n, aColsT)
+        accumulateSaStripe8Host(aColsT, s, result, kk, p.n)
+        kk = kk + p.stripeStep
+    reduceWordsModQ(p, result)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mulAddAsPlusEStreamPair`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc mulAddAsPlusEStreamPair(p: FrodoParams, seedA: seq[byte], seWords: seq[uint16],
+    sOff, eOff: int): seq[uint16] =
+  result = mulAddAsPlusEStream(p, seedA,
+    seWords.toOpenArray(sOff, sOff + p.n * p.nbar - 1),
+    seWords.toOpenArray(eOff, eOff + p.n * p.nbar - 1))
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mulAddSaPlusEStreamPair`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc mulAddSaPlusEStreamPair(p: FrodoParams, seedA: seq[byte], seWords: seq[uint16],
+    sOff, eOff: int): seq[uint16] =
+  result = mulAddSaPlusEStream(p, seedA,
+    seWords.toOpenArray(sOff, sOff + p.n * p.nbar - 1),
+    seWords.toOpenArray(eOff, eOff + p.n * p.nbar - 1))
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mulBs`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc mulBs(p: FrodoParams, b, s: openArray[uint16]): seq[uint16] =
+  ## Compute `b * s`.
+  ## Paper note: this hot nbar-by-nbar product is unrolled locally after
+  ## benchmarking; no separate paper algorithm replaces the FrodoKEM reference equation here.
+  otterSpan("frodo.mulBs"):
+    var
+      i: int = 0
+      j: int = 0
+      k: int = 0
+      acc: uint32 = 0
+    result = newSeq[uint16](p.nbar * p.nbar)
+    i = 0
+    while i < p.nbar:
+      j = 0
+      while j < p.nbar:
+        k = 0
+        acc = 0'u32
+        while k < p.n:
+          acc = acc + uint32(b[i * p.n + k + 0]) * uint32(s[j * p.n + k + 0])
+          acc = acc + uint32(b[i * p.n + k + 1]) * uint32(s[j * p.n + k + 1])
+          acc = acc + uint32(b[i * p.n + k + 2]) * uint32(s[j * p.n + k + 2])
+          acc = acc + uint32(b[i * p.n + k + 3]) * uint32(s[j * p.n + k + 3])
+          acc = acc + uint32(b[i * p.n + k + 4]) * uint32(s[j * p.n + k + 4])
+          acc = acc + uint32(b[i * p.n + k + 5]) * uint32(s[j * p.n + k + 5])
+          acc = acc + uint32(b[i * p.n + k + 6]) * uint32(s[j * p.n + k + 6])
+          acc = acc + uint32(b[i * p.n + k + 7]) * uint32(s[j * p.n + k + 7])
+          k = k + 8
+        result[i * p.nbar + j] = reduceWideQ(p, acc)
+        j = j + 1
+      i = i + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mulAddSbPlusE`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc mulAddSbPlusE(p: FrodoParams, b, s, e: openArray[uint16]): seq[uint16] =
+  ## Compute `s * b + e`.
+  ## Paper note: like `mulBs`, this keeps the reference FrodoKEM operation and
+  ## only applies local loop unrolling rather than a distinct published algorithm.
+  otterSpan("frodo.mulAddSbPlusE"):
+    var
+      j: int = 0
+      k: int = 0
+      iBar: int = 0
+      acc: uint32 = 0
+    result = newSeq[uint16](p.nbar * p.nbar)
+    k = 0
+    while k < p.nbar:
+      iBar = 0
+      while iBar < p.nbar:
+        acc = 0'u32
+        j = 0
+        while j < p.n:
+          acc = acc + uint32(s[k * p.n + j + 0]) * uint32(b[(j + 0) * p.nbar + iBar])
+          acc = acc + uint32(s[k * p.n + j + 1]) * uint32(b[(j + 1) * p.nbar + iBar])
+          acc = acc + uint32(s[k * p.n + j + 2]) * uint32(b[(j + 2) * p.nbar + iBar])
+          acc = acc + uint32(s[k * p.n + j + 3]) * uint32(b[(j + 3) * p.nbar + iBar])
+          acc = acc + uint32(s[k * p.n + j + 4]) * uint32(b[(j + 4) * p.nbar + iBar])
+          acc = acc + uint32(s[k * p.n + j + 5]) * uint32(b[(j + 5) * p.nbar + iBar])
+          acc = acc + uint32(s[k * p.n + j + 6]) * uint32(b[(j + 6) * p.nbar + iBar])
+          acc = acc + uint32(s[k * p.n + j + 7]) * uint32(b[(j + 7) * p.nbar + iBar])
+          j = j + 8
+        result[k * p.nbar + iBar] = reduceWideQ(p, uint32(e[k * p.nbar + iBar]) + acc)
+        iBar = iBar + 1
+      k = k + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `addWords`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc addWords(p: FrodoParams, A, B: openArray[uint16]): seq[uint16] =
+  var
+    i: int = 0
+  result = newSeq[uint16](A.len)
+  i = 0
+  while i < A.len:
+    result[i] = addModQ(p, A[i], B[i])
+    i = i + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `subWords`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc subWords(p: FrodoParams, A, B: openArray[uint16]): seq[uint16] =
+  var
+    i: int = 0
+  result = newSeq[uint16](A.len)
+  i = 0
+  while i < A.len:
+    result[i] = subModQ(p, A[i], B[i])
+    i = i + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `keyEncode`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
+proc keyEncode(p: FrodoParams, input: openArray[byte]): seq[uint16] =
+  otterSpan("frodo.keyEncode"):
+    var
+      npiecesWord: int = 8
+      nwords: int = (p.nbar * p.nbar) div 8
+      mask: uint64 = (1'u64 shl p.extractedBits) - 1'u64
+      i: int = 0
+      j: int = 0
+      temp: uint64 = 0
+      pos: int = 0
+    result = newSeq[uint16](p.nbar * p.nbar)
+    i = 0
+    while i < nwords:
+      temp = 0'u64
+      j = 0
+      while j < p.extractedBits:
+        temp = temp or (uint64(input[i * p.extractedBits + j]) shl (8 * j))
+        j = j + 1
+      j = 0
+      while j < npiecesWord:
+        result[pos] = uint16((temp and mask) shl (p.logQ - p.extractedBits))
+        temp = temp shr p.extractedBits
+        pos = pos + 1
+        j = j + 1
+      i = i + 1
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `keyDecode`; pitfall: reject malformed or non-canonical input before indexed access.
+proc keyDecode(p: FrodoParams, input: openArray[uint16]): seq[byte] =
+  otterSpan("frodo.keyDecode"):
+    var
+      npiecesWord: int = 8
+      nwords: int = (p.nbar * p.nbar) div 8
+      index: int = 0
+      i: int = 0
+      j: int = 0
+      temp: uint16 = 0
+      maskEx: uint16 = (1'u16 shl p.extractedBits) - 1'u16
+      maskQ: uint16 = qMask(p)
+      tempLong: uint64 = 0
+    result = newSeq[byte](p.bytesMu)
+    i = 0
+    while i < nwords:
+      tempLong = 0'u64
+      j = 0
+      while j < npiecesWord:
+        temp = ((input[index] and maskQ) + (1'u16 shl (p.logQ - p.extractedBits - 1))) shr
+          (p.logQ - p.extractedBits)
+        tempLong = tempLong or (uint64(temp and maskEx) shl (p.extractedBits * j))
+        index = index + 1
+        j = j + 1
+      j = 0
+      while j < p.extractedBits:
+        result[i * p.extractedBits + j] = byte((tempLong shr (8 * j)) and 0xff'u64)
+        j = j + 1
+      i = i + 1
+{.pop.}
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `frodoTyrKeypairDerand`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
+proc frodoTyrKeypairDerand*(v: FrodoVariant, randomness: openArray[byte]): FrodoTyrKeypair {.otterTrace.} =
+    ## Generate a pure-Nim FrodoKEM keypair from explicit randomness.
+    var
+      p: FrodoParams = params(v)
+      wordCount: int = p.n * p.nbar
+      pkSeedA: seq[byte] = @[]
+      bWords: seq[uint16] = @[]
+      seedSEWords: seq[uint16] = @[]
+      pkh: seq[byte] = @[]
+    if randomness.len != p.keypairRandomBytes:
+      raise newException(ValueError, p.name & " derand keypair requires " &
+        $p.keypairRandomBytes & " bytes")
+    pkSeedA = newSeq[byte](p.bytesSeedA)
+    shakeIntoForParams(p, pkSeedA,
+      randomness.toOpenArray(randomness.len - p.bytesSeedA, randomness.len - 1))
+    let seedSEInput = prefixedByte(0x5f'u8,
+      randomness.toOpenArray(p.sharedSecretBytes, 2 * p.sharedSecretBytes - 1))
+    seedSEWords = newSeq[uint16](2 * wordCount)
+    shakeWordsLeIntoForParams(p, seedSEWords, seedSEInput)
+    frodoSampleN(p, seedSEWords.toOpenArray(0, wordCount - 1))
+    frodoSampleN(p, seedSEWords.toOpenArray(wordCount, 2 * wordCount - 1))
+    bWords = mulAddAsPlusEStreamPair(p, pkSeedA, seedSEWords, 0, wordCount)
+    result.variant = v
+    result.publicKey = newSeq[byte](p.publicKeyBytes)
+    copyMem(addr result.publicKey[0], unsafeAddr pkSeedA[0], pkSeedA.len)
+    frodoPackInto(result.publicKey.toOpenArray(p.bytesSeedA, result.publicKey.len - 1), bWords, p.logQ)
+    pkh = newSeq[byte](p.bytesPkHash)
+    shakeIntoForParams(p, pkh, result.publicKey)
+    result.secretKey = newSeq[byte](p.secretKeyBytes)
+    copyMem(addr result.secretKey[0], unsafeAddr randomness[0], p.sharedSecretBytes)
+    copyMem(addr result.secretKey[p.sharedSecretBytes], unsafeAddr result.publicKey[0], result.publicKey.len)
+    wordsToBytesLeInto(
+      result.secretKey.toOpenArray(
+        p.sharedSecretBytes + result.publicKey.len,
+        p.sharedSecretBytes + result.publicKey.len + 2 * wordCount - 1
+      ),
+      seedSEWords.toOpenArray(0, wordCount - 1)
+    )
+    copyMem(addr result.secretKey[p.sharedSecretBytes + result.publicKey.len + 2 * wordCount],
+      unsafeAddr pkh[0], pkh.len)
+    # seedSEWords holds the secret matrices S and E; volatile-clear it.
+    secureClearWords(seedSEWords)
+    clearWords(bWords)
+    clearBytes(pkSeedA)
+    clearBytes(pkh)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `frodoTyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
+proc frodoTyrKeypair*(v: FrodoVariant, randomness: seq[byte] = @[]): FrodoTyrKeypair {.otterTrace.} =
+  ## Generate a pure-Nim FrodoKEM keypair.
+  var
+    material: seq[byte] = @[]
+    i: int = 0
+  if randomness.len > 0 and randomness.len != params(v).keypairRandomBytes:
+    raise newException(ValueError, params(v).name & " seeded keypair requires " &
+      $params(v).keypairRandomBytes & " bytes")
+  if randomness.len == 0:
+    material = cryptoRandomBytes(params(v).keypairRandomBytes)
+  else:
+    material = @randomness
+  result = frodoTyrKeypairDerand(v, material)
+  secureClearBytes(material)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `frodoTyrEncapsDerand`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
+proc frodoTyrEncapsDerand*(v: FrodoVariant, pk: openArray[byte], mu: openArray[byte]): FrodoTyrCipher {.otterTrace.} =
+  ## Encapsulate against a pure-Nim Frodo public key from explicit `mu` randomness.
+  var
+    p: FrodoParams = params(v)
+    wordCount: int = p.n * p.nbar
+    noiseWordCount: int = (2 * p.n + p.nbar) * p.nbar
+    ctC1Len: int = (p.logQ * p.n * p.nbar) div 8
+    pkh: seq[byte] = @[]
+    g2Out: seq[byte] = @[]
+    noiseWords: seq[uint16] = @[]
+    bpWords: seq[uint16] = @[]
+    bWords: seq[uint16] = @[]
+    vWords: seq[uint16] = @[]
+    cWords: seq[uint16] = @[]
+    fin: seq[byte] = @[]
+  if pk.len != p.publicKeyBytes:
+    raise newException(ValueError, "invalid Frodo public key length")
+  if mu.len != p.bytesMu:
+    raise newException(ValueError, p.name & " encaps randomness must be " & $p.bytesMu & " bytes")
+  pkh = newSeq[byte](p.bytesPkHash)
+  shakeIntoForParams(p, pkh, pk)
+  let g2Input = concatByteSeq(pkh, mu)
+  g2Out = newSeq[byte](2 * p.sharedSecretBytes)
+  shakeIntoForParams(p, g2Out, g2Input)
+  let spInput = prefixedByte(0x96'u8, g2Out.toOpenArray(0, p.sharedSecretBytes - 1))
+  noiseWords = newSeq[uint16](noiseWordCount)
+  shakeWordsLeIntoForParams(p, noiseWords, spInput)
+  frodoSampleN(p, noiseWords.toOpenArray(0, wordCount - 1))
+  frodoSampleN(p, noiseWords.toOpenArray(wordCount, 2 * wordCount - 1))
+  frodoSampleN(p, noiseWords.toOpenArray(2 * wordCount, noiseWordCount - 1))
+  var
+    pkSeedA: seq[byte] = copyByteSeq(pk.toOpenArray(0, p.bytesSeedA - 1))
+  bpWords = mulAddSaPlusEStreamPair(p, pkSeedA, noiseWords, 0, wordCount)
+  bWords = frodoUnpack(wordCount, pk.toOpenArray(p.bytesSeedA, pk.len - 1), p.logQ)
+  vWords = mulAddSbPlusE(p, bWords,
+    noiseWords.toOpenArray(0, wordCount - 1),
+    noiseWords.toOpenArray(2 * wordCount, noiseWordCount - 1))
+  cWords = keyEncode(p, mu)
+  cWords = addWords(p, vWords, cWords)
+  result.variant = v
+  result.ciphertext = newSeq[byte](p.ciphertextBytes)
+  frodoPackInto(result.ciphertext.toOpenArray(0, ctC1Len - 1), bpWords, p.logQ)
+  frodoPackInto(result.ciphertext.toOpenArray(ctC1Len, result.ciphertext.len - 1), cWords, p.logQ)
+  fin = newSeq[byte](result.ciphertext.len + p.sharedSecretBytes)
+  copyMem(addr fin[0], unsafeAddr result.ciphertext[0], result.ciphertext.len)
+  copyMem(addr fin[result.ciphertext.len], unsafeAddr g2Out[p.sharedSecretBytes], p.sharedSecretBytes)
+  result.sharedSecret = newSeq[byte](p.sharedSecretBytes)
+  shakeIntoForParams(p, result.sharedSecret, fin)
+  clearBytes(pkh)
+  clearBytes(pkSeedA)
+  # g2Out carries the seed for S'/E' and the KDF key k; fin embeds k;
+  # noiseWords/vWords are the secret ephemeral matrices.
+  secureClearBytes(g2Out)
+  secureClearBytes(fin)
+  secureClearWords(noiseWords)
+  clearWords(bpWords)
+  clearWords(bWords)
+  secureClearWords(vWords)
+  clearWords(cWords)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `frodoTyrEncaps`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
+proc frodoTyrEncaps*(v: FrodoVariant, pk: openArray[byte], randomness: seq[byte] = @[]): FrodoTyrCipher {.otterTrace.} =
+  ## Encapsulate against a pure-Nim Frodo public key.
+  var
+    mu: seq[byte] = @[]
+    i: int = 0
+  if randomness.len > 0 and randomness.len != params(v).encapsRandomBytes:
+    raise newException(ValueError, params(v).name & " seeded encaps requires " &
+      $params(v).encapsRandomBytes & " bytes")
+  if randomness.len == 0:
+    mu = cryptoRandomBytes(params(v).encapsRandomBytes)
+  else:
+    mu = @randomness
+  result = frodoTyrEncapsDerand(v, pk, mu)
+  secureClearBytes(mu)
+
+## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `frodoTyrDecaps`; pitfall: preserve implicit rejection and never expose a secret-dependent validity oracle.
+proc frodoTyrDecaps*(v: FrodoVariant, sk, ct: openArray[byte]): seq[byte] {.otterTrace.} =
+  ## Decapsulate a Frodo ciphertext and return the shared secret.
+  var
+    p: FrodoParams = params(v)
+    wordCount: int = p.n * p.nbar
+    noiseWordCount: int = (2 * p.n + p.nbar) * p.nbar
+    ctC1Len = (p.logQ * p.n * p.nbar) div 8
+    bpWords: seq[uint16] = @[]
+    cWords: seq[uint16] = @[]
+    sWords: seq[uint16] = @[]
+    wWords: seq[uint16] = @[]
+    muPrime: seq[byte] = @[]
+    g2Out: seq[byte] = @[]
+    noiseWords: seq[uint16] = @[]
+    bbpWords: seq[uint16] = @[]
+    bWords: seq[uint16] = @[]
+    ccWords: seq[uint16] = @[]
+    skSOff = p.sharedSecretBytes + p.publicKeyBytes
+    skPkOff = p.sharedSecretBytes
+    skPkhOff = p.sharedSecretBytes + p.publicKeyBytes + 2 * p.n * p.nbar
+    fin: seq[byte] = @[]
+    selector: int8 = 0
+    selected: seq[byte] = @[]
+  if sk.len != p.secretKeyBytes:
+    raise newException(ValueError, "invalid Frodo secret key length")
+  if ct.len != p.ciphertextBytes:
+    raise newException(ValueError, "invalid Frodo ciphertext length")
+  bpWords = frodoUnpack(wordCount, ct.toOpenArray(0, ctC1Len - 1), p.logQ)
+  cWords = frodoUnpack(p.nbar * p.nbar, ct.toOpenArray(ctC1Len, ct.len - 1), p.logQ)
+  sWords = bytesToWordsLe(sk.toOpenArray(skSOff, skSOff + 2 * p.n * p.nbar - 1))
+  wWords = mulBs(p, bpWords, sWords)
+  wWords = subWords(p, cWords, wWords)
+  muPrime = keyDecode(p, wWords)
+  let g2Input = concatByteSeq(sk.toOpenArray(skPkhOff, skPkhOff + p.bytesPkHash - 1), muPrime)
+  g2Out = newSeq[byte](2 * p.sharedSecretBytes)
+  shakeIntoForParams(p, g2Out, g2Input)
+  let spInput = prefixedByte(0x96'u8, g2Out.toOpenArray(0, p.sharedSecretBytes - 1))
+  noiseWords = newSeq[uint16](noiseWordCount)
+  shakeWordsLeIntoForParams(p, noiseWords, spInput)
+  frodoSampleN(p, noiseWords.toOpenArray(0, wordCount - 1))
+  frodoSampleN(p, noiseWords.toOpenArray(wordCount, 2 * wordCount - 1))
+  frodoSampleN(p, noiseWords.toOpenArray(2 * wordCount, noiseWordCount - 1))
+  var
+    decSeedA: seq[byte] = copyByteSeq(sk.toOpenArray(skPkOff, skPkOff + p.bytesSeedA - 1))
+  bbpWords = mulAddSaPlusEStreamPair(p, decSeedA, noiseWords, 0, wordCount)
+  bWords = frodoUnpack(wordCount,
+    sk.toOpenArray(skPkOff + p.bytesSeedA, skPkOff + p.publicKeyBytes - 1), p.logQ)
+  wWords = mulAddSbPlusE(p, bWords,
+    noiseWords.toOpenArray(0, wordCount - 1),
+    noiseWords.toOpenArray(2 * wordCount, noiseWordCount - 1))
+  ccWords = addWords(p, wWords, keyEncode(p, muPrime))
+  selector = ctVerifyWords(bpWords, bbpWords) or ctVerifyWords(cWords, ccWords)
+  selected = newSeq[byte](p.sharedSecretBytes)
+  ctSelectBytes(selected, g2Out.toOpenArray(p.sharedSecretBytes, g2Out.len - 1),
+    sk.toOpenArray(0, p.sharedSecretBytes - 1), selector)
+  fin = newSeq[byte](ct.len + selected.len)
+  copyMem(addr fin[0], unsafeAddr ct[0], ct.len)
+  copyMem(addr fin[ct.len], unsafeAddr selected[0], selected.len)
+  result = newSeq[byte](p.sharedSecretBytes)
+  shakeIntoForParams(p, result, fin)
+  # muPrime, g2Out, selected, and fin carry decrypted-message/KDF-key
+  # material; sWords is the long-term secret S; noiseWords/wWords are the
+  # re-encryption secrets. All of those need the volatile clear.
+  secureClearBytes(muPrime)
+  clearBytes(decSeedA)
+  secureClearBytes(g2Out)
+  secureClearBytes(fin)
+  secureClearBytes(selected)
+  clearWords(bpWords)
+  clearWords(cWords)
+  secureClearWords(sWords)
+  secureClearWords(wWords)
+  secureClearWords(noiseWords)
+  clearWords(bbpWords)
+  clearWords(bWords)
+  clearWords(ccWords)

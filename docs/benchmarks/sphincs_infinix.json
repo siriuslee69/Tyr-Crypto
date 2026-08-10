@@ -1,0 +1,92 @@
+{
+  "metadata": {
+    "generated_local": "2026-04-30T08:52:36+00:00",
+    "generated_utc": "2026-04-30T08:52:36Z",
+    "device_label": "infinix_x6871",
+    "device_kind": "phone",
+    "device_model": "Infinix_X6871",
+    "device_os": "Android",
+    "profile": "mobile",
+    "loop_scale": 1.0,
+    "phase": "both",
+    "compiled_backend": "native_neon",
+    "features": [
+      "arm64",
+      "neon",
+      "release",
+      "otterTiming"
+    ]
+  },
+  "rows": [
+    {
+      "kind": "summary",
+      "device_label": "infinix_x6871",
+      "device_kind": "phone",
+      "family": "sphincs",
+      "variant": "sphincsShake128fSimple",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "sign_verify",
+      "loops": 1,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 89460923,
+      "avg_ns_per_call": 89460923.0,
+      "avg_ns_per_op": 89460923.0
+    },
+    {
+      "kind": "function",
+      "device_label": "infinix_x6871",
+      "device_kind": "phone",
+      "family": "sphincs",
+      "variant": "sphincsShake128fSimple",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "sign_verify_hotspots",
+      "group_name": "sphincs.shake128f",
+      "function_name": "sphincs.shake128f",
+      "loops": 1,
+      "warmup": 0,
+      "call_count": 1,
+      "total_ticks": 89610462,
+      "avg_ticks": 89610462,
+      "max_ticks": 89610462
+    },
+    {
+      "kind": "function",
+      "device_label": "infinix_x6871",
+      "device_kind": "phone",
+      "family": "sphincs",
+      "variant": "sphincsShake128fSimple",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "sign_verify_hotspots",
+      "group_name": "sphincs.shake128f",
+      "function_name": "sha3.shake256Into",
+      "loops": 1,
+      "warmup": 0,
+      "call_count": 208,
+      "total_ticks": 296529,
+      "avg_ticks": 1425,
+      "max_ticks": 2461
+    },
+    {
+      "kind": "function",
+      "device_label": "infinix_x6871",
+      "device_kind": "phone",
+      "family": "sphincs",
+      "variant": "sphincsShake128fSimple",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "sign_verify_hotspots",
+      "group_name": "sphincs.shake128f",
+      "function_name": "sha3.shake256ChunksInto",
+      "loops": 1,
+      "warmup": 0,
+      "call_count": 3,
+      "total_ticks": 2232,
+      "avg_ticks": 744,
+      "max_ticks": 1539
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+[submodule "libsodium"]
+	path = submodules/libsodium
+	url = https://github.com/jedisct1/libsodium.git
+	ignore = dirty
+[submodule "liboqs"]
+	path = submodules/liboqs
+	url = https://github.com/open-quantum-safe/liboqs
+	ignore = dirty
+[submodule "openssl"]
+	path = submodules/openssl
+	url = https://github.com/openssl/openssl.git
+	ignore = dirty
+[submodule "cNimWrapper"]
+	path = submodules/cNimWrapper
+	url = https://github.com/siriuslee69/cNimWrapper-Bindr.git
+	branch = main
+[submodule "otter_repo_evaluation"]
+	path = submodules/otter_repo_evaluation
+	url = https://github.com/siriuslee69/Otter-RepoEvaluation.git
+	branch = main
+[submodule "simd_nexus"]
+	path = submodules/simd_nexus
+	url = https://github.com/siriuslee69/SIMD-Nexus.git
+[submodule "pqclean"]
+	path = submodules/pqclean
+	url = https://github.com/PQClean/PQClean.git
+	ignore = dirty
+[submodule "ntru_sampling_ref_sources"]
+	path = submodules/ntru_sampling_ref_sources
+	url = https://github.com/dgazzoni/NTRU-sampling.git
+	branch = main
+	update = none
+	ignore = dirty
+[submodule "pqclean_falcon_ref_sources"]
+	path = submodules/pqclean_falcon_ref_sources
+	url = https://github.com/PQClean/PQClean.git
+	ignore = dirty

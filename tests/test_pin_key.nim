@@ -1,0 +1,105 @@
+import std/unittest
+import ../src/protocols/wrapper/helpers/password_support
+import ../src/protocols/common
+
+when defined(hasLibsodium):
+  import ../src/protocols/wrapper/suite_api
+  import ../src/protocols/bindings/libsodium
+
+  proc sodiumAvailable(): bool =
+    try:
+      if not ensureLibSodiumLoaded():
+        return false
+      ensureSodiumInitialised()
+      return true
+    except LibraryUnavailableError, OSError, IOError, CryptoOperationError:
+      return false
+
+  var pinSodiumAvailable: bool = sodiumAvailable()
+
+suite "password pin derivation":
+  when defined(hasLibsodium):
+    test "pattern derivation is deterministic and pin-sensitive":
+      if not pinSodiumAvailable:
+        skip()
+      else:
+        var
+          salt: seq[uint8] = @[
+            1'u8, 2, 3, 4, 5, 6, 7, 8,
+            9'u8, 10, 11, 12, 13, 14, 15, 16]
+          d0: DerivedSecretBytes
+          d1: DerivedSecretBytes
+          d2: DerivedSecretBytes
+        d0 = derivePatternBytesFromPasswordPinWithSalt("pw", "1234", salt, 12)
+        d1 = derivePatternBytesFromPasswordPinWithSalt("pw", "1234", salt, 12)
+        d2 = derivePatternBytesFromPasswordPinWithSalt("pw", "9999", salt, 12)
+        check d0.bytes == d1.bytes
+        check d0.bytes != d2.bytes
+        check d0.bytes.len == 12
+  else:
+    test "pattern derivation refuses a fast-hash fallback":
+      expect LibraryUnavailableError:
+        discard derivePatternBytesFromPasswordPinWithSalt("pw", "1234",
+          @[1'u8, 2, 3, 4, 5, 6, 7, 8], 12)
+
+when defined(hasLibsodium):
+  if not pinSodiumAvailable:
+    suite "pin key wrapper unavailable":
+      test "libsodium unavailable at runtime":
+        check true
+  else:
+    suite "pin key wrapper":
+      test "derive key and encrypt with pin KDF":
+        var key = deriveKeyFromPassword("test-password", "1234")
+        check key.encryptedMasterKey.len > 0
+        check key.masterKeyNonce.len > 0
+        check key.pinKdf.len > 0
+        check key.pinOpsLimit > 0'u64
+        check key.pinMemLimit > 0
+
+        let plaintext = @[1'u8, 2, 3, 4, 5]
+        let sealed = encryptWithKey(key, plaintext)
+        check sealed.nonce.len == 24
+        check sealed.ciphertext.len == plaintext.len
+        check sealed.hmac.len == 16
+        check key.pinKdf.len == 0
+
+      test "missing pin KDF raises error":
+        var key = deriveKeyFromPassword("test-password", "5678")
+        key.pinKdf.setLen(0)
+        expect ValueError:
+          discard encryptWithKey(key, @[9'u8])
+
+      test "derive symmetric keys from password":
+        let derived = deriveSymmetricKeysFromString(csXChaCha20Gimli, "pw", @[], 0'u16)
+        check derived.state.keys.len == 2
+        check derived.state.keys[0].len == 32
+        check derived.state.keys[1].len == 32
+        check derived.state.nonce.len == 24
+        check derived.kdf.argon2Salt.len == int crypto_pwhash_saltbytes()
+
+      test "derive layered symmetric keys from password":
+        let aesGimliKeys = deriveSymmetricKeysFromString(csAesGimli, "pw", @[], 0'u16)
+        check aesGimliKeys.state.keys.len == 2
+        check aesGimliKeys.state.nonce.len == 24
+        let dualMacKeys = deriveSymmetricKeysFromString(
+          csXChaCha20AesGimliPoly1305, "pw", @[], 0'u16)
+        check dualMacKeys.state.keys.len == 4
+        check dualMacKeys.state.nonce.len == 24
+
+      test "derive symmetric keys deterministic with salt":
+        let salt = deriveSymmetricKeysFromString(csXChaCha20Blake3, "pw", @[], 0'u16).kdf.argon2Salt
+        let d0 = deriveSymmetricKeysFromBytesWithSalt(csXChaCha20Blake3, @[byte 1, 2, 3], salt, 0'u64, 0, @[], 0'u16)
+        let d1 = deriveSymmetricKeysFromBytesWithSalt(csXChaCha20Blake3, @[byte 1, 2, 3], salt, 0'u64, 0, @[], 0'u16)
+        check d0.state.keys.len == 2
+        check d0.state.keys[0] == d1.state.keys[0]
+        check d0.state.keys[1] == d1.state.keys[1]
+
+      test "derive hybrid kex seed from password":
+        let seed = deriveHybridKexDuoSeedFromString("pw")
+        check seed.x25519Seed.len == int crypto_kx_seedbytes()
+else:
+  suite "pin key wrapper unavailable":
+    test "libsodium unavailable raises descriptive error":
+      expect LibraryUnavailableError:
+        discard deriveKeyFromPassword("pw", "1234")

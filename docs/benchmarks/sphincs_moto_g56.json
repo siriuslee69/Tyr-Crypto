@@ -1,0 +1,92 @@
+{
+  "metadata": {
+    "generated_local": "2026-04-30T09:01:23+00:00",
+    "generated_utc": "2026-04-30T09:01:23Z",
+    "device_label": "moto_g56_5g",
+    "device_kind": "phone",
+    "device_model": "moto_g56_5G",
+    "device_os": "Android",
+    "profile": "mobile",
+    "loop_scale": 1.0,
+    "phase": "both",
+    "compiled_backend": "native_neon",
+    "features": [
+      "arm64",
+      "neon",
+      "release",
+      "otterTiming"
+    ]
+  },
+  "rows": [
+    {
+      "kind": "summary",
+      "device_label": "moto_g56_5g",
+      "device_kind": "phone",
+      "family": "sphincs",
+      "variant": "sphincsShake128fSimple",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "sign_verify",
+      "loops": 1,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 128183154,
+      "avg_ns_per_call": 128183154.0,
+      "avg_ns_per_op": 128183154.0
+    },
+    {
+      "kind": "function",
+      "device_label": "moto_g56_5g",
+      "device_kind": "phone",
+      "family": "sphincs",
+      "variant": "sphincsShake128fSimple",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "sign_verify_hotspots",
+      "group_name": "sphincs.shake128f",
+      "function_name": "sphincs.shake128f",
+      "loops": 1,
+      "warmup": 0,
+      "call_count": 1,
+      "total_ticks": 126814231,
+      "avg_ticks": 126814231,
+      "max_ticks": 126814231
+    },
+    {
+      "kind": "function",
+      "device_label": "moto_g56_5g",
+      "device_kind": "phone",
+      "family": "sphincs",
+      "variant": "sphincsShake128fSimple",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "sign_verify_hotspots",
+      "group_name": "sphincs.shake128f",
+      "function_name": "sha3.shake256Into",
+      "loops": 1,
+      "warmup": 0,
+      "call_count": 208,
+      "total_ticks": 422225,
+      "avg_ticks": 2029,
+      "max_ticks": 3076
+    },
+    {
+      "kind": "function",
+      "device_label": "moto_g56_5g",
+      "device_kind": "phone",
+      "family": "sphincs",
+      "variant": "sphincsShake128fSimple",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "sign_verify_hotspots",
+      "group_name": "sphincs.shake128f",
+      "function_name": "sha3.shake256ChunksInto",
+      "loops": 1,
+      "warmup": 0,
+      "call_count": 3,
+      "total_ticks": 2769,
+      "avg_ticks": 923,
+      "max_ticks": 1231
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "metadata": {
+    "generated_local": "2026-05-01T15:02:12+02:00",
+    "generated_utc": "2026-05-01T13:02:12Z",
+    "device_label": "desktop_avx2_ntru_toom4k2_scaled",
+    "device_kind": "desktop",
+    "device_model": "Windows x64 workstation",
+    "device_os": "Windows",
+    "profile": "desktop",
+    "loop_scale": 4.0,
+    "phase": "summary",
+    "compiled_backend": "native_avx2",
+    "features": [
+      "amd64",
+      "sse2",
+      "avx2",
+      "release",
+      "otterTiming",
+      "ntruMulToom4K2"
+    ]
+  },
+  "rows": [
+    {
+      "kind": "summary",
+      "device_label": "desktop_avx2_ntru_toom4k2_scaled",
+      "device_kind": "desktop",
+      "family": "ntru",
+      "variant": "ntruHps2048509",
+      "implementation": "tyr",
+      "backend": "native_avx2",
+      "operation": "roundtrip",
+      "loops": 8,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 18667100,
+      "avg_ns_per_call": 2333387.5,
+      "avg_ns_per_op": 2333387.5
+    },
+    {
+      "kind": "summary",
+      "device_label": "desktop_avx2_ntru_toom4k2_scaled",
+      "device_kind": "desktop",
+      "family": "ntru",
+      "variant": "ntruHps2048677",
+      "implementation": "tyr",
+      "backend": "native_avx2",
+      "operation": "roundtrip",
+      "loops": 8,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 28261000,
+      "avg_ns_per_call": 3532625.0,
+      "avg_ns_per_op": 3532625.0
+    },
+    {
+      "kind": "summary",
+      "device_label": "desktop_avx2_ntru_toom4k2_scaled",
+      "device_kind": "desktop",
+      "family": "ntru",
+      "variant": "ntruHps4096821",
+      "implementation": "tyr",
+      "backend": "native_avx2",
+      "operation": "roundtrip",
+      "loops": 4,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 18362200,
+      "avg_ns_per_call": 4590550.0,
+      "avg_ns_per_op": 4590550.0
+    },
+    {
+      "kind": "summary",
+      "device_label": "desktop_avx2_ntru_toom4k2_scaled",
+      "device_kind": "desktop",
+      "family": "ntru",
+      "variant": "ntruHrss701",
+      "implementation": "tyr",
+      "backend": "native_avx2",
+      "operation": "roundtrip",
+      "loops": 4,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 10615300,
+      "avg_ns_per_call": 2653825.0,
+      "avg_ns_per_op": 2653825.0
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "metadata": {
+    "generated_local": "2026-05-01T13:29:26+00:00",
+    "generated_utc": "2026-05-01T13:29:26Z",
+    "device_label": "moto_g56_saber_heap",
+    "device_kind": "phone",
+    "device_model": "moto",
+    "device_os": "Android",
+    "profile": "mobile",
+    "loop_scale": 8.0,
+    "phase": "summary",
+    "compiled_backend": "native_neon",
+    "features": [
+      "arm64",
+      "neon",
+      "release",
+      "otterTiming",
+      "ntruMulToom4K2Default",
+      "saberHeapBuffers"
+    ]
+  },
+  "rows": [
+    {
+      "kind": "summary",
+      "device_label": "moto_g56_saber_heap",
+      "device_kind": "phone",
+      "family": "saber",
+      "variant": "lightSaber",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "roundtrip",
+      "loops": 8,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 3346231,
+      "avg_ns_per_call": 418278.875,
+      "avg_ns_per_op": 418278.875
+    },
+    {
+      "kind": "summary",
+      "device_label": "moto_g56_saber_heap",
+      "device_kind": "phone",
+      "family": "saber",
+      "variant": "saber",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "roundtrip",
+      "loops": 8,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 4547385,
+      "avg_ns_per_call": 568423.125,
+      "avg_ns_per_op": 568423.125
+    },
+    {
+      "kind": "summary",
+      "device_label": "moto_g56_saber_heap",
+      "device_kind": "phone",
+      "family": "saber",
+      "variant": "fireSaber",
+      "implementation": "tyr",
+      "backend": "native_neon",
+      "operation": "roundtrip",
+      "loops": 8,
+      "warmup": 0,
+      "ops_per_call": 1,
+      "total_ns": 6205154,
+      "avg_ns_per_call": 775644.25,
+      "avg_ns_per_op": 775644.25
+    }
+  ]
+}
