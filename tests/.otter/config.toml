@@ -1,4 +1,4 @@
 title = "Tyr Crypto Tests"
 banner = "Run existing crypto and browser interoperability suites in isolated Otter workers."
-output_path = "testResults/otter"
+output_path = "tests/testResults/otter"
 default_flags = ["*"]

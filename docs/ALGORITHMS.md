@@ -13,7 +13,7 @@
 
 ## Symmetric Primitives
 
-All symmetric primitives are **pure Nim** implementations under `src/protocols/custom_crypto/symmetric/`.
+All symmetric primitives are **pure Nim** implementations under `src/tyr/ciphers/`, `src/tyr/hashes/`, `src/tyr/macs/` and `src/tyr/kdfs/`.
 
 | Primitive | Block / Rate | Digest | SSE | AVX | NEON | Notes |
 |-----------|-------------|--------|-----|-----|------|-------|
@@ -35,7 +35,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 
 ### Kyber (ML-KEM)
 
-**Files:** `src/protocols/custom_crypto/kyber.nim`, `asymmetric/pq/kyber/`
+**Files:** `src/tyr/kems/kyber.nim`, `src/tyr/kems/kyber/`
 
 | Variant | NIST Level | PK bytes | SK bytes | CT bytes | Shared Secret |
 |---------|-----------|----------|----------|----------|---------------|
@@ -50,7 +50,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 
 ### FrodoKEM
 
-**Files:** `src/protocols/custom_crypto/frodo.nim`, `asymmetric/pq/frodo/`
+**Files:** `src/tyr/kems/frodo.nim`, `src/tyr/kems/frodo/`
 
 | Variant | NIST Level | PK bytes | SK bytes | CT bytes | Shared Secret |
 |---------|-----------|----------|----------|----------|---------------|
@@ -72,7 +72,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 
 ### BIKE
 
-**Files:** `src/protocols/custom_crypto/bike.nim`, `asymmetric/pq/bike/`
+**Files:** `src/tyr/kems/bike.nim`, `src/tyr/kems/bike/`
 
 | Variant | NIST Level | PK bytes | SK bytes | CT bytes | Shared Secret |
 |---------|-----------|----------|----------|----------|---------------|
@@ -84,7 +84,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 
 ### NTRU
 
-**Files:** `src/protocols/custom_crypto/ntru.nim`, `asymmetric/pq/ntru/`
+**Files:** `src/tyr/kems/ntru.nim`, `src/tyr/kems/ntru/`
 
 | Variant | NIST Level | PK bytes | SK bytes | CT bytes | Shared Secret |
 |---------|-----------|----------|----------|----------|---------------|
@@ -102,7 +102,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 
 ### SABER
 
-**Files:** `src/protocols/custom_crypto/saber.nim`, `asymmetric/pq/saber/`
+**Files:** `src/tyr/kems/saber.nim`, `src/tyr/kems/saber/`
 
 | Variant | NIST Level | PK bytes | SK bytes | CT bytes | Shared Secret |
 |---------|-----------|----------|----------|----------|---------------|
@@ -118,7 +118,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 
 ### Classic McEliece
 
-**Files:** `src/protocols/custom_crypto/mceliece.nim`, `asymmetric/pq/mceliece/`
+**Files:** `src/tyr/kems/mceliece.nim`, `src/tyr/kems/mceliece/`
 
 | Variant | NIST Level | PK bytes | SK bytes | CT bytes | Shared Secret |
 |---------|-----------|----------|----------|----------|---------------|
@@ -138,7 +138,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 
 ### Dilithium (ML-DSA)
 
-**Files:** `src/protocols/custom_crypto/dilithium.nim`, `asymmetric/pq/dilithium/`
+**Files:** `src/tyr/signatures/dilithium.nim`, `src/tyr/signatures/dilithium/`
 
 | Variant | NIST Level | PK bytes | SK bytes | Signature bytes |
 |---------|-----------|----------|----------|-----------------|
@@ -154,7 +154,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 
 ### Falcon
 
-**Files:** `src/protocols/custom_crypto/falcon.nim`, `asymmetric/pq/falcon/`
+**Files:** `src/tyr/signatures/falcon.nim`, `src/tyr/signatures/falcon/`
 
 | Variant | NIST Level | PK bytes | SK bytes | Signature bytes |
 |---------|-----------|----------|----------|-----------------|
@@ -171,7 +171,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 
 ### SPHINCS+
 
-**Files:** `src/protocols/custom_crypto/sphincs.nim`, `asymmetric/pq/sphincs/`
+**Files:** `src/tyr/signatures/sphincs.nim`, `src/tyr/signatures/sphincs/`
 
 | Variant | NIST Level | PK bytes | SK bytes | Signature bytes |
 |---------|-----------|----------|----------|-----------------|
@@ -189,7 +189,7 @@ All symmetric primitives are **pure Nim** implementations under `src/protocols/c
 
 ### X25519
 
-**Files:** `src/protocols/custom_crypto/x25519.nim`, `asymmetric/none_pq/x25519_pass[1-4].nim`
+**Files:** `src/tyr/kems/x25519.nim`, `src/tyr/kems/x25519/`
 
 | Parameter | Value |
 |-----------|-------|

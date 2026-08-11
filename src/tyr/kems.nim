@@ -45,10 +45,12 @@ import ./kems/frodo
 import ./kems/bike
 import ./kems/ntru
 import ./kems/saber
+import ./kems/x25519
 import ./kems/material
 
 export types
 export kyber, mceliece, frodo, bike, ntru, saber
+export x25519
 export material
 
 ## ╭⟢ keypair

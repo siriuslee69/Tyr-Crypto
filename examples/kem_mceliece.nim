@@ -1,4 +1,10 @@
-import tyr_crypto
+import std/strutils
+import tyr
+
+## std's toHex has no overload for byte sequences, so give it one.
+proc toHex(b: openArray[byte]): string =
+  for x in b:
+    result.add strutils.toHex(x, 2)
 
 var kp = genKeypair(mceliece0TyrSendM)
 

@@ -18,7 +18,7 @@ timing or memory-access caveats. See the reviewed status table in
 ## Quick Start
 
 ```nim
-import tyr_crypto
+import tyr
 
 # ---- Hash ----
 var d = blake3Hash(@[byte 1, 2, 3])
@@ -149,7 +149,7 @@ These numbers are not protocol guarantees. They are README-level guidance taken 
 
 ## API Surface
 
-The canonical wrapper layer is [basic_api.nim](src/protocols/wrapper/basic_api.nim) in [src/tyr_crypto.nim](src/tyr_crypto.nim):
+The typed material surface is split per module - [hashes](src/tyr/hashes/material.nim), [macs](src/tyr/macs/material.nim), [ciphers](src/tyr/ciphers/material.nim), [signatures](src/tyr/signatures/material.nim), [kems](src/tyr/kems/material.nim) - over a shared [core](src/tyr/helpers/material.nim), and all of it is re-exported by [src/tyr.nim](src/tyr.nim):
 
 - `hash` / `hmac` / `authenticate`
 - `sign` / `verify`
@@ -163,7 +163,7 @@ Compatibility aliases still exist in `basic_api.nim` for older callers:
 
 Local pure-Nim implementations use `Tyr` suffixed names (e.g. `kyberTyrKeypair`, `blake3TyrHashM`). Unsuffixed names may resolve to native backend paths when available.
 
-`import tyr_crypto` is the supported all-in-one import and now exports the AES,
+`import tyr` is the supported all-in-one import and now exports the AES,
 Gimli, XChaCha20, NTRU, and SABER facades as well. The small
 `protocols/custom_crypto/*.nim` facades remain as compatibility imports for
 existing callers; they are intentionally not removed, because removing them
@@ -178,7 +178,7 @@ real protocol. Derive an independent target state and key with a public domain
 tag and optional context:
 
 ```nim
-import tyr_crypto
+import tyr
 
 var
   output1024: NuGimli1024
@@ -407,7 +407,7 @@ If Nim's library path is not auto-detected on your machine, set `NIM_LIB_DIR` be
 
 | Path | Purpose |
 |------|---------|
-| `src/protocols/wrapper/wasm/` | Nim wasm bridge sources |
+| `src/tyr/helpers/wasm/` | Nim wasm bridge sources |
 | `tools/build_wasm.nim` | Nim + Emscripten build driver |
 | `bindings/js/dist/tyr_crypto_wasm.mjs` | Generated Emscripten module |
 | `bindings/js/tyr_crypto.mjs` | JS loader / wrapper |
@@ -458,6 +458,6 @@ This repo follows the [Proto conventions](.iron/conventions). Key rules:
 |------|------|
 | Language | Nim |
 | Flow | raw data -> sanitize -> typed material -> operate -> output |
-| Layout | `src/protocols`, `tests`, `tools`, `docs`, `submodules` |
+| Layout | `src/tyr`, `tests`, `tools`, `docs`, `submodules` |
 | Native deps | declare in nimble + submodules |
 | Artifacts | all build/cache/runtime outputs ignored |

@@ -126,12 +126,12 @@ proc buildOtterTestUi() =
     joinPath(otterRootDir(), "src", "clients", "test_ui", "app.nim")])
 
 task check, "Run nim check on core modules":
-  exec withRepoCaches("nim check .iron/meta/registry.nim")
-  exec withRepoCaches("nim check --nimcache:" & repoNimcacheDir("nimcache_check_public").replace('\\', '/') & " src/tyr_crypto.nim")
+  exec withRepoCaches("nim check tools/meta/registry.nim")
+  exec withRepoCaches("nim check --nimcache:" & repoNimcacheDir("nimcache_check_public").replace('\\', '/') & " src/tyr.nim")
 
 task check_core, "Run nim check on core modules without Nimble's built-in package check":
-  exec withRepoCaches("nim check .iron/meta/registry.nim")
-  exec withRepoCaches("nim check --nimcache:" & repoNimcacheDir("nimcache_check_public").replace('\\', '/') & " src/tyr_crypto.nim")
+  exec withRepoCaches("nim check tools/meta/registry.nim")
+  exec withRepoCaches("nim check --nimcache:" & repoNimcacheDir("nimcache_check_public").replace('\\', '/') & " src/tyr.nim")
 
 task check_asymmetric_references, "Check asymmetric function citations and locked references":
   exec withRepoCaches("nim r --nimcache:" & repoNimcacheDir("nimcache_check_asymmetric_references").replace('\\', '/') & " tests/check_asymmetric_references.nim")

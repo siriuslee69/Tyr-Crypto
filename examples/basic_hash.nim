@@ -1,7 +1,13 @@
-import tyr_crypto
+import std/strutils
+import tyr
+
+## std's toHex has no overload for byte sequences, so give it one.
+proc toHex(b: openArray[byte]): string =
+  for x in b:
+    result.add strutils.toHex(x, 2)
 
 let
-  msg = @[byte 'H', 'e', 'l', 'l', 'o']
+  msg = @[byte 'H', byte 'e', byte 'l', byte 'l', byte 'o']
   hash32 = blake3Hash(msg)
   hash64 = blake3Hash(msg, 64)
   keyed = blake3KeyedHash(hash32, msg)
@@ -12,8 +18,8 @@ echo "BLAKE3-512:   ", hash64.toHex
 echo "BLAKE3-keyed: ", keyed.toHex
 echo "BLAKE3-KDF:   ", derived.toHex
 
-let sha3_256 = sha3_256Hash(msg)
-let sha3_512 = sha3_512Hash(msg)
+let sha3_256 = sha3_256(msg)
+let sha3_512 = sha3_512(msg)
 echo "SHA3-256:     ", sha3_256.toHex
 echo "SHA3-512:     ", sha3_512.toHex
 

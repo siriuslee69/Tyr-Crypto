@@ -177,25 +177,25 @@ proc buildCatalog*(): seq[TestCatalogEntry] {.role: {truthBuilder}.} =
     ["functional", "vectors", "edge"], ["tests/test_wasm_bridge.nim"])
   addEntry(result, "bench-bytes", "Byte primitive benchmarks", "benchmark",
     ["benchmark", "symmetric", "hash", "mac"],
-    ["tools/bench_custom_crypto_table.nim"], tckCustomBench, "bytes")
+    ["tests/bench_custom_crypto_table.nim"], tckCustomBench, "bytes")
   addEntry(result, "bench-kem", "KEM benchmarks", "benchmark",
-    ["benchmark", "pq-kem"], ["tools/bench_custom_crypto_table.nim"],
+    ["benchmark", "pq-kem"], ["tests/bench_custom_crypto_table.nim"],
     tckCustomBench, "kem")
   addEntry(result, "bench-signature", "Signature benchmarks", "benchmark",
-    ["benchmark", "pq-signature"], ["tools/bench_custom_crypto_table.nim"],
+    ["benchmark", "pq-signature"], ["tests/bench_custom_crypto_table.nim"],
     tckCustomBench, "signature")
   addEntry(result, "bench-falcon", "Falcon prepared benchmarks", "benchmark",
-    ["benchmark", "pq-signature"], ["tools/bench_custom_crypto_table.nim"],
+    ["benchmark", "pq-signature"], ["tests/bench_custom_crypto_table.nim"],
     tckCustomBench, "falcon")
   addEntry(result, "bench-kdf", "KDF generator benchmarks", "benchmark",
-    ["benchmark", "password"], ["tools/bench_custom_kdf.nim"], tckKdfBench)
+    ["benchmark", "password"], ["tests/bench_custom_kdf.nim"], tckKdfBench)
   addEntry(result, "bench-x25519", "X25519 benchmarks", "benchmark",
     ["benchmark", "classical", "simd"], ["tests/test_x25519_perf.nim"])
   addEntry(result, "bench-ed25519", "Ed25519 benchmarks", "benchmark",
     ["benchmark", "classical"], ["tests/test_ed25519_perf.nim"])
   addEntry(result, "bench-asymmetric", "Asymmetric benchmark collector", "benchmark",
     ["benchmark", "classical", "pq-kem", "pq-signature"],
-    ["tools/collect_asymmetric_benchmarks.nim"], tckAsymmetricBench)
+    ["tests/collect_asymmetric_benchmarks.nim"], tckAsymmetricBench)
   addEntry(result, "bench-sigma-core", "Otter core crypto comparison", "benchmark",
     ["benchmark", "symmetric", "hash"], ["tests/test_sigma_perf.nim"],
     wasmThreads = true)

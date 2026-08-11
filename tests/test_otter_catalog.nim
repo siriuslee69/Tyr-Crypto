@@ -41,7 +41,7 @@ proc selectedNimFlags(): string =
 proc runDesktopGroup(name: string) =
   ## Runs one existing desktop group without duplicating its test definitions.
   var
-    args: seq[string] = @["r", "tools/run_desktop_tests_parallel.nim", "--",
+    args: seq[string] = @["r", "tests/run_desktop_tests_parallel.nim", "--",
       "--runGroup:" & name]
     flags: string = selectedNimFlags()
     process: Process

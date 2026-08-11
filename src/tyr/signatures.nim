@@ -29,10 +29,12 @@ import ./signatures/dilithium
 import ./signatures/falcon
 import ./signatures/sphincs
 import ./signatures/ed25519
+import ./signatures/ecdsa_p256
 import ./signatures/material
 
 export types
 export dilithium, falcon, sphincs, ed25519
+export ecdsa_p256
 export material
 
 ## ╭⟢ keypair

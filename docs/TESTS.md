@@ -53,7 +53,7 @@ nimble test_ntru_saber_avx2
 The parallel desktop runner is implemented in Nim:
 
 ```bash
-nim r tools/run_desktop_tests_parallel.nim -- --only:core,x25519 --maxParallel:2
+nim r tests/run_desktop_tests_parallel.nim -- --only:core,x25519 --maxParallel:2
 ```
 
 ## Native Backend Defines
@@ -105,7 +105,7 @@ nimble build_android_harness_asymmetric_fast
 APK + native test binary under ignored build paths
    |
    v
-nim r tools/run_android_harness.nim -- --serial:<device> --timeoutSeconds:900
+nim r tests/run_android_harness.nim -- --serial:<device> --timeoutSeconds:900
    |
    v
 captured native test output
