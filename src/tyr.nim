@@ -79,8 +79,7 @@ import ./tyr/macs
 import ./tyr/kdfs
 import ./tyr/ciphers
 import ./tyr/otp
-import ./tyr/aeads/suite_api
-import ./tyr/aeads/types as aeadTypes
+import ./tyr/aeads
 import ./tyr/certs/chain
 import ./tyr/signatures/registry
 import ./tyr/helpers/random
@@ -93,8 +92,7 @@ export macs
 export kdfs
 export ciphers
 export otp
-export suite_api
-export aeadTypes
+export aeads
 export chain
 export registry
 export random

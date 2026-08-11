@@ -1,10 +1,10 @@
 import std/unittest
-import ../src/tyr/aeads/types
-import ../src/tyr/aeads/suite_api
+
+import ../src/tyr/aeads
 import ./helpers
 
-proc buildAesGimliState(keyA, keyG, nonce: seq[uint8], tagLen: uint16): SymAuthState =
-  result = initSymAuthState(csAesGimli, @[keyA, keyG], nonce, tagLen)
+proc buildAesGimliState(keyA, keyG, nonce: seq[uint8], tagLen: uint16): AeadState =
+  result = initAeadState(csAesGimli, @[keyA, keyG], nonce, tagLen)
 
 suite "aes gimli":
   test "encrypt/decrypt roundtrip":
@@ -15,10 +15,10 @@ suite "aes gimli":
     for i in 0 ..< msg.len:
       msg[i] = uint8((i * 11) mod 256)
     let state = buildAesGimliState(keyA, keyG, nonce, 32'u16)
-    let cipher = symAuthEnc(msg, state)
+    let cipher = seal(msg, state)
     check cipher.authType == atGimli
     check cipher.auth.len == 32
-    let plain = symAuthDec(cipher, state)
+    let plain = open(cipher, state)
     check plain == msg
 
   test "tag mismatch rejects":
@@ -27,10 +27,10 @@ suite "aes gimli":
     let nonce = hexToBytes("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
     let msg = toBytes("aes gimli tag check")
     let state = buildAesGimliState(keyA, keyG, nonce, 32'u16)
-    var cipher = symAuthEnc(msg, state)
+    var cipher = seal(msg, state)
     cipher.auth[^1] = cipher.auth[^1] xor 0x01'u8
     expect ValueError:
-      discard symAuthDec(cipher, state)
+      discard open(cipher, state)
 
   test "wrong key rejects":
     let keyA = hexToBytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
@@ -38,11 +38,11 @@ suite "aes gimli":
     let nonce = hexToBytes("000102030405060708090a0b0c0d0e0f1011121314151617")
     let msg = toBytes("aes gimli wrong key")
     let state = buildAesGimliState(keyA, keyG, nonce, 32'u16)
-    let cipher = symAuthEnc(msg, state)
+    let cipher = seal(msg, state)
     var wrongState = buildAesGimliState(keyA, keyG, nonce, 32'u16)
     wrongState.keys[1][0] = wrongState.keys[1][0] xor 0xff'u8
     expect ValueError:
-      discard symAuthDec(cipher, wrongState)
+      discard open(cipher, wrongState)
 
   test "tag length variation":
     let keyA = hexToBytes("0101010101010101010101010101010101010101010101010101010101010101")
@@ -50,7 +50,7 @@ suite "aes gimli":
     let nonce = hexToBytes("030303030303030303030303030303030303030303030303")
     let msg = toBytes("aes gimli short tag")
     let state = buildAesGimliState(keyA, keyG, nonce, 16'u16)
-    let cipher = symAuthEnc(msg, state)
+    let cipher = seal(msg, state)
     check cipher.auth.len == 16
-    let plain = symAuthDec(cipher, state)
+    let plain = open(cipher, state)
     check plain == msg

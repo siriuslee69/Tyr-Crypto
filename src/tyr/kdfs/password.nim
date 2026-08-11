@@ -6,7 +6,7 @@
 
 import ../helpers/errors
 import ../aeads/types
-import ../aeads/suite_api as cryptoApi
+import ../aeads as cryptoApi
 import ../hashes/blake3
 
 type
@@ -55,7 +55,7 @@ type
 
   ## DerivedEncryptionKeys: encryption state derived from a password.
   DerivedEncryptionKeys* = object
-    state*: cryptoApi.SymAuthState
+    state*: cryptoApi.AeadState
     kdf*: ArgonKdfParams
 
   ## DerivedKexSeed: deterministic X25519 seed derived from a password.
@@ -302,13 +302,13 @@ when defined(hasLibsodium):
       result = copyBytes(ns)
 
   proc buildEncryptionState(a: CipherSuite, ks: seq[uint8],
-      ns: seq[uint8], t: uint16): cryptoApi.SymAuthState =
+      ns: seq[uint8], t: uint16): cryptoApi.AeadState =
     ## a: algorithm for the state.
     ## ks: raw key material.
     ## ns: nonce bytes.
     ## t: tag length override (0 for default).
     var count: int = algoKeyCount(a)
-    result = cryptoApi.initSymAuthState(a, splitSymmetricKeys(ks, count), ns, t)
+    result = cryptoApi.initAeadState(a, splitSymmetricKeys(ks, count), ns, t)
 
   proc deriveSymmetricKeysFromBytesWithSalt*(a: CipherSuite,
       ps, ss: openArray[uint8], ol: culonglong, ml: csize_t,
@@ -324,7 +324,7 @@ when defined(hasLibsodium):
       keyLen: int = 0
       derived: tuple[bs: seq[uint8], k: ArgonKdfParams]
       nonceBytes: seq[uint8] = @[]
-      state: cryptoApi.SymAuthState
+      state: cryptoApi.AeadState
     keyLen = algoKeyBytes(a)
     derived = deriveArgonBytes(ps, algoContext(a), ss, ol, ml, keyLen)
     nonceBytes = resolveNonce(a, ns)

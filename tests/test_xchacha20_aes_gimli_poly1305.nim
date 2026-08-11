@@ -1,12 +1,12 @@
 import std/unittest
-import ../src/tyr/aeads/types
-import ../src/tyr/aeads/suite_api
+
+import ../src/tyr/aeads
 import ../src/tyr/helpers/errors
 import ./helpers
 
 proc buildPolyLayerState(keyX, keyA, keyG, keyP, nonce: seq[uint8],
-    tagLen: uint16): SymAuthState =
-  result = initSymAuthState(csXChaCha20AesGimliPoly1305,
+    tagLen: uint16): AeadState =
+  result = initAeadState(csXChaCha20AesGimliPoly1305,
     @[keyX, keyA, keyG, keyP], nonce, tagLen)
 
 suite "xchacha20 aes gimli poly1305":
@@ -21,10 +21,10 @@ suite "xchacha20 aes gimli poly1305":
       for i in 0 ..< msg.len:
         msg[i] = uint8((i * 17) mod 256)
       let state = buildPolyLayerState(keyX, keyA, keyG, keyP, nonce, 32'u16)
-      let cipher = symAuthEnc(msg, state)
+      let cipher = seal(msg, state)
       check cipher.authType == atGimliPoly1305
       check cipher.auth.len == 48
-      let plain = symAuthDec(cipher, state)
+      let plain = open(cipher, state)
       check plain == msg
 
     test "tag mismatch rejects":
@@ -35,10 +35,10 @@ suite "xchacha20 aes gimli poly1305":
       let nonce = hexToBytes("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
       let msg = toBytes("xchacha20 aes gimli poly1305 tag check")
       let state = buildPolyLayerState(keyX, keyA, keyG, keyP, nonce, 32'u16)
-      var cipher = symAuthEnc(msg, state)
+      var cipher = seal(msg, state)
       cipher.auth[^1] = cipher.auth[^1] xor 0x1'u8
       expect ValueError:
-        discard symAuthDec(cipher, state)
+        discard open(cipher, state)
 
     test "wrong poly1305 key rejects":
       let keyX = hexToBytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
@@ -48,11 +48,11 @@ suite "xchacha20 aes gimli poly1305":
       let nonce = hexToBytes("000102030405060708090a0b0c0d0e0f1011121314151617")
       let msg = toBytes("xchacha20 aes gimli poly1305 wrong key")
       let state = buildPolyLayerState(keyX, keyA, keyG, keyP, nonce, 32'u16)
-      let cipher = symAuthEnc(msg, state)
+      let cipher = seal(msg, state)
       var wrongState = buildPolyLayerState(keyX, keyA, keyG, keyP, nonce, 32'u16)
       wrongState.keys[3][0] = wrongState.keys[3][0] xor 0xff'u8
       expect ValueError:
-        discard symAuthDec(cipher, wrongState)
+        discard open(cipher, wrongState)
   else:
     test "libsodium unavailable raises descriptive error":
       let keyX = newSeq[uint8](32)
@@ -62,4 +62,4 @@ suite "xchacha20 aes gimli poly1305":
       let nonce = newSeq[uint8](24)
       let state = buildPolyLayerState(keyX, keyA, keyG, keyP, nonce, 32'u16)
       expect LibraryUnavailableError:
-        discard symAuthEnc(toBytes("poly1305"), state)
+        discard seal(toBytes("poly1305"), state)

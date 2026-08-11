@@ -36,7 +36,9 @@ src/
     ciphers.nim  ciphers/        Encryption
       aes/ chacha/ gimli/ nugimli/
     otp.nim  otp/                HOTP / TOTP codes
-    aeads/                       Composite encrypt-and-verify suites
+    aeads.nim  aeads/            Encrypt AND prove nobody changed it
+      composite.nim              The five suites Tyr layers itself
+      gcm.nim                    AES-256-GCM, the one standard primitive
     certs/                       X.509 handling (der, pem, oid, chain, rsa/)
     bindings/                    Optional native backends
                                  (libsodium, liboqs, OpenSSL, PQClean, nimcrypto)
@@ -66,6 +68,12 @@ build/                           Generated build artifacts (ignored)
 | `dynamic.nim` | Runtime tier. Choose the family from a value             |
 | `single.nim`  | Build-flag tier. One family, for small devices           |
 | `material.nim`| Typed material. Key sizes carried by the type            |
+
+`aeads/` has no `single.nim` and no `material.nim`, on purpose. Its five
+composite suites are configurations of one engine rather than separate
+implementations, so a build flag would have nothing to leave out, and the
+key count varies per suite so a fixed-size material type cannot describe
+them. `aeads.nim` says so where a reader will look for it.
 
 ## Four ways to reach an algorithm
 

@@ -1,6 +1,6 @@
 import std/[os, sequtils, unittest]
 import ../src/tyr/helpers/tiers
-import ../src/tyr/aeads/suite_api
+import ../src/tyr/aeads
 import ../src/tyr/helpers/errors
 import ../src/tyr/bindings/libsodium
 import ../src/tyr/bindings/liboqs
@@ -75,8 +75,8 @@ suite "wrapper crypto":
     let expectedCipher = hexToBytes(vec.cipherHex)
     let expectedTag = hexToBytes(vec.tagHex)
 
-    let state = initSymAuthState(csXChaCha20Blake3, @[key, authKey], nonce)
-    let cipher = symAuthEnc(plaintext, state)
+    let state = initAeadState(csXChaCha20Blake3, @[key, authKey], nonce)
+    let cipher = seal(plaintext, state)
     check cipher.authType == atBlake3
     check cipher.ciphertext == expectedCipher
     check cipher.auth == expectedTag
@@ -94,10 +94,10 @@ suite "wrapper crypto":
     var msg = toBytes("wrapper xchacha20 roundtrip")
     msg.add(0'u8)
     msg.add(255'u8)
-    let state = initSymAuthState(csXChaCha20Blake3, @[key, authKey], nonce)
-    let cipher = symAuthEnc(msg, state)
+    let state = initAeadState(csXChaCha20Blake3, @[key, authKey], nonce)
+    let cipher = seal(msg, state)
     check cipher.authType == atBlake3
-    let plain = symAuthDec(cipher, state)
+    let plain = open(cipher, state)
     check plain == msg
 
   test "XChaCha20 tag mismatch rejects":
@@ -109,11 +109,11 @@ suite "wrapper crypto":
     var nonce = newSeq[uint8](24)
     for i in 0 ..< nonce.len:
       nonce[i] = uint8(100 + i)
-    let state = initSymAuthState(csXChaCha20Blake3, @[key, authKey], nonce)
-    var cipher = symAuthEnc(toBytes("wrapper tag mismatch"), state)
+    let state = initAeadState(csXChaCha20Blake3, @[key, authKey], nonce)
+    var cipher = seal(toBytes("wrapper tag mismatch"), state)
     cipher.auth[0] = cipher.auth[0] xor 0x01'u8
     expect ValueError:
-      discard symAuthDec(cipher, state)
+      discard open(cipher, state)
 
   test "XChaCha20 decrypt/write/read roundtrip":
     const nonceLen = 24
@@ -129,9 +129,9 @@ suite "wrapper crypto":
     msg.add(0'u8)
     msg.add(1'u8)
     msg.add(2'u8)
-    let state = initSymAuthState(csXChaCha20Blake3, @[key, authKey], nonce)
-    let cipher = symAuthEnc(msg, state)
-    let plain = symAuthDec(cipher, state)
+    let state = initAeadState(csXChaCha20Blake3, @[key, authKey], nonce)
+    let cipher = seal(msg, state)
+    let plain = open(cipher, state)
 
     let path = getTempDir() / "crypto_wrapper_xchacha20.bin"
     defer:
@@ -145,39 +145,39 @@ suite "wrapper crypto":
     let key = newSeq[uint8](32)
     let authKey = newSeqWith(32, 0x5a'u8)
     let nonce = newSeq[uint8](24)
-    let state = initSymAuthState(csXChaCha20Blake3, @[key, authKey], nonce)
-    var cipher = symAuthEnc(@[0x41'u8], state)
+    let state = initAeadState(csXChaCha20Blake3, @[key, authKey], nonce)
+    var cipher = seal(@[0x41'u8], state)
     cipher.ciphertext[0] = cipher.ciphertext[0] xor 1'u8
     cipher.auth = blake3Hash(cipher.ciphertext, cipher.auth.len)
     expect ValueError:
-      discard symAuthDec(cipher, state)
+      discard open(cipher, state)
 
   test "suite state rejects a second encryption with the same nonce":
     let key = newSeq[uint8](32)
     let authKey = newSeqWith(32, 0x5a'u8)
     let nonce = newSeq[uint8](24)
-    let state = initSymAuthState(csXChaCha20Blake3, @[key, authKey], nonce)
+    let state = initAeadState(csXChaCha20Blake3, @[key, authKey], nonce)
     let stateAlias = state
-    discard symAuthEnc(@[0x00'u8], state)
+    discard seal(@[0x00'u8], state)
     expect ValueError:
-      discard symAuthEnc(@[0xff'u8], stateAlias)
+      discard seal(@[0xff'u8], stateAlias)
 
   test "suite tag boundaries are enforced per algorithm":
     let key = newSeq[uint8](32)
     let authKey = newSeqWith(32, 0x5a'u8)
     let nonce = newSeq[uint8](24)
     let gcmNonce = newSeq[uint8](12)
-    check initSymAuthState(csXChaCha20Blake3, @[key, authKey], nonce).tagLen == 32
+    check initAeadState(csXChaCha20Blake3, @[key, authKey], nonce).tagBytes == 32
     expect ValueError:
-      discard initSymAuthState(csXChaCha20Blake3, @[key, authKey], nonce, 15)
+      discard initAeadState(csXChaCha20Blake3, @[key, authKey], nonce, 15)
     expect ValueError:
-      discard initSymAuthState(csXChaCha20Blake3, @[key, authKey], nonce, 33)
+      discard initAeadState(csXChaCha20Blake3, @[key, authKey], nonce, 33)
     expect ValueError:
-      discard initSymAuthState(csXChaCha20Blake3, @[key], nonce)
-    check initSymAuthState(csAes256Gcm, @[key], gcmNonce).tagLen == 16
+      discard initAeadState(csXChaCha20Blake3, @[key], nonce)
+    check initAeadState(csAes256Gcm, @[key], gcmNonce).tagBytes == 16
     for size in [1'u16, 15'u16, 17'u16, 32'u16]:
       expect ValueError:
-        discard initSymAuthState(csAes256Gcm, @[key], gcmNonce, size)
+        discard initAeadState(csAes256Gcm, @[key], gcmNonce, size)
 
   when defined(hasNimcrypto):
     test "AES-256-GCM encrypt/decrypt roundtrip":
@@ -188,19 +188,19 @@ suite "wrapper crypto":
       for i in 0 ..< nonce.len:
         nonce[i] = uint8(255 - i)
       let msg = toBytes("wrapper aes gcm roundtrip")
-      let state = initSymAuthState(csAes256Gcm, @[key], nonce)
-      let cipher = symAuthEnc(msg, state)
+      let state = initAeadState(csAes256Gcm, @[key], nonce)
+      let cipher = seal(msg, state)
       check cipher.authType == atAeadTag
-      let plain = symAuthDec(cipher, state)
+      let plain = open(cipher, state)
       check plain == msg
   else:
     test "AES-256-GCM unavailable raises descriptive error":
       var key = newSeq[uint8](32)
       var nonce = newSeq[uint8](12)
       let msg = toBytes("aes")
-      let state = initSymAuthState(csAes256Gcm, @[key], nonce)
+      let state = initAeadState(csAes256Gcm, @[key], nonce)
       expect LibraryUnavailableError:
-        discard symAuthEnc(msg, state)
+        discard seal(msg, state)
 
   when defined(hasNimcrypto):
     test "AES-256-GCM decrypt/write/read roundtrip":
@@ -213,9 +213,9 @@ suite "wrapper crypto":
       var msg = toBytes("file roundtrip check for aes gcm")
       msg.add(9'u8)
       msg.add(8'u8)
-      let state = initSymAuthState(csAes256Gcm, @[key], nonce)
-      let cipher = symAuthEnc(msg, state)
-      let plain = symAuthDec(cipher, state)
+      let state = initAeadState(csAes256Gcm, @[key], nonce)
+      let cipher = seal(msg, state)
+      let plain = open(cipher, state)
 
       let path = getTempDir() / "crypto_wrapper_aes.bin"
       defer:
@@ -232,15 +232,15 @@ suite "wrapper crypto":
       var nonce = newSeq[uint8](12)
       for i in 0 ..< nonce.len:
         nonce[i] = uint8(200 - i)
-      let state = initSymAuthState(csAes256Gcm, @[key], nonce)
-      var cipher = symAuthEnc(toBytes("aes gcm tamper"), state)
+      let state = initAeadState(csAes256Gcm, @[key], nonce)
+      var cipher = seal(toBytes("aes gcm tamper"), state)
       cipher.auth[0] = cipher.auth[0] xor 0x80'u8
       expect ValueError:
-        discard symAuthDec(cipher, state)
+        discard open(cipher, state)
       cipher.auth.setLen(15)
       expect ValueError:
-        discard symAuthDec(cipher, state)
+        discard open(cipher, state)
       cipher.auth = newSeq[uint8](16)
       cipher.authType = atBlake3
       expect ValueError:
-        discard symAuthDec(cipher, state)
+        discard open(cipher, state)

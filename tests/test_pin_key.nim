@@ -3,7 +3,7 @@ import ../src/tyr/kdfs/password
 import ../src/tyr/helpers/errors
 
 when defined(hasLibsodium):
-  import ../src/tyr/aeads/suite_api
+  import ../src/tyr/aeads
   import ../src/tyr/bindings/libsodium
 
   proc sodiumAvailable(): bool =
