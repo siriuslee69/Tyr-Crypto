@@ -3,6 +3,27 @@
 Written 2026-08-11. Baseline: `nim check src/tyr_crypto.nim` passes with one
 warning (unused import in `kyber/poly.nim`). 192 `.nim` files, 50,692 lines.
 
+## Status
+
+```
+ Step  What                              State
+ ----  --------------------------------  -----------------------------
+  1    drop 2 forwarding files           DONE  (commit b22f1f4)
+  2    collapse the 32 facade files      DONE  (commit b22f1f4)
+  -    compile-time cipher selection     DONE  (commit e29dfbd)
+  -    poisoned nimcache / cleanbuild    DONE  (commit e29dfbd)
+  3    stale test artifacts              PART  build/ cleared; orphan
+                                               tests still unwired
+  4    merge zeroization helpers         TODO
+  5    module-level `## Reference:`      TODO
+  6    macro for basic_api's 3 lists     TODO
+  7    move rsa/ecdsa_p256/bigint        TODO
+```
+
+Chapter 2 below recorded a recommendation to KEEP the facade layer. That
+recommendation was overruled and the layer is gone. The reasoning is kept
+because the correction it received is the useful part; see "Decision taken".
+
 ---
 
 ╭⟢ Chapter 0 — What we found first 🌊
@@ -81,6 +102,9 @@ that the seam is **undocumented, inconsistently applied, and mislabelled**.
 
 ╭⟢ Chapter 2 — Answer to "should the exporters be one file?" 🍣
 
+> **SUPERSEDED — see "Decision taken" at the end of this chapter.**
+> The answer below was wrong. It is kept because the mistake is instructive.
+
 Short answer: **no — keep one file per algorithm, but fix what they say.**
 
 Three reasons, strongest first.
@@ -117,6 +141,55 @@ no structure.
   Make the rule explicit and uniform (Chapter 3, Step 2).
 - `tyr_crypto.nim` importing 28 facades that each import one real module is a
   double hop. That part *can* be flattened without touching public paths.
+
+### Decision taken ✅
+
+The recommendation above was rejected, and rightly. The rule that replaced it:
+
+> **Caller count never justifies a layer.** Bloat and duplicate layers are not
+> excused by "other repos import it". Break them, and relink afterwards
+> against the right facade.
+
+Two things were wrong in the reasoning above:
+
+1. **Reason 1 was not an argument, it was inertia.** "Nine repos import these
+   paths" describes the cost of the fix, not the value of the thing. Sixty
+   import lines are a morning's work; a permanent extra hop is forever.
+
+2. **Reason 2 was doing the compiler's job by hand.** Nim already drops what
+   a program does not use, and `when` already gates what gets compiled. A
+   hand-built layer of 32 files to influence build size duplicates a job the
+   toolchain already does. Where a genuine compile-time choice IS wanted, it
+   belongs in one `when` wrapper — which is what `protocols/ciphers.nim` now
+   is — not in 32 files that exist all the time.
+
+There is also an architectural reason the caller count was misleading. The
+intended shape of the workspace is:
+
+```
+   Bifrost ──┐                    Bifrost  -> Tyr, for message encryption
+             ├──> Tyr             Geist    -> Tyr, for at-rest encryption
+   Geist ────┘                    everyone else -> Geist, not Tyr
+
+   every other repo ──> Geist ──> Tyr
+```
+
+Only Bifrost and Geist should reach Tyr directly. The nine repos counted
+above are not nine permanent consumers; most are links that should be routed
+through Geist anyway. Preserving their paths would have frozen a wiring
+diagram that is itself being replaced.
+
+**What was actually done:**
+
+- all 32 facade files deleted
+- each PQ family's `operations` module re-exports its `params` (and `types`
+  for BIKE), so one import is self-sufficient and no facade is needed
+- the 20 public `...Tyr...` names now live in exactly one file,
+  `src/protocols/public_names.nim`
+- 144 import statements across 66 files repointed at the real modules
+
+Downstream repos must relink against `tyr_crypto` or the real module path.
+That breakage is intended.
 
 ---
 
