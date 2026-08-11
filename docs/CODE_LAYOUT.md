@@ -206,11 +206,16 @@ Poly1305 it takes ChaCha20 out of the authentication path completely,
 since Poly1305's security never depended on it. For XChaCha20 it removes
 only the HChaCha20 assumption — the keystream is still ChaCha20.
 
-The AEAD suites carry the choice on `AeadState`:
+The AEAD suites carry the choice on `AeadState`, and the one-shot tier
+takes the same two arguments so a caller reading its suite out of a
+header can read the sources from the same place:
 
 ```nim
   initAeadState(csXChaCha20AesGimliPoly1305, keys, nonce, 0'u16,
                 cipherSource = sksBlake3, macSource = pksGimli)
+
+  sealOf(csXChaCha20AesGimliPoly1305, keys, nonce, msg, 0'u16,
+         cipherSource = sksBlake3, macSource = pksGimli)
 ```
 
 Both default to the standard route. Both are bound into `authFrame`

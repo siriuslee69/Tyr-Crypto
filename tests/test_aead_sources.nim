@@ -12,6 +12,7 @@
 import std/unittest
 
 import ../src/tyr/aeads
+import ../src/tyr/aeads/dynamic
 import ../src/tyr/ciphers/xchacha20
 import ../src/tyr/macs/poly1305
 
@@ -164,3 +165,55 @@ suite "aead derivation sources":
         expect ValueError:
           discard open(c, initAeadState(polySuite, keysFor(polySuite), nonce,
             0'u16, cs, ms))
+
+suite "aead sources on the one-shot tier":
+  ## `sealOf`/`openOf` used to build their state with the tagBytes argument
+  ## and nothing after it, so the sources silently took their defaults and
+  ## a caller on this tier had no way to express the choice at all. These
+  ## checks are what would have caught that.
+
+  test "the one-shot tier still defaults to the standard route":
+    for a in composites:
+      check sealOf(a, keysFor(a), nonce, msg).ciphertext ==
+        seal(msg, initAeadState(a, keysFor(a), nonce)).ciphertext
+
+  test "a named source reaches the cipher through the one-shot tier":
+    for a in xchachaSuites:
+      var viaOneShot = sealOf(a, keysFor(a), nonce, msg, 0'u16, sksBlake3)
+      check viaOneShot.ciphertext !=
+        sealOf(a, keysFor(a), nonce, msg).ciphertext
+      check viaOneShot.ciphertext == seal(msg, initAeadState(a, keysFor(a),
+        nonce, 0'u16, sksBlake3)).ciphertext
+
+  test "a named MAC source reaches the tag through the one-shot tier":
+    var viaOneShot = sealOf(polySuite, keysFor(polySuite), nonce, msg, 0'u16,
+      sksHChaCha20, pksGimli)
+    check viaOneShot.auth !=
+      sealOf(polySuite, keysFor(polySuite), nonce, msg).auth
+    check viaOneShot.auth == seal(msg, initAeadState(polySuite,
+      keysFor(polySuite), nonce, 0'u16, sksHChaCha20, pksGimli)).auth
+
+  test "every source combination round-trips one-shot":
+    for cs in SubkeySource:
+      for ms in Poly1305KeySource:
+        var c = sealOf(polySuite, keysFor(polySuite), nonce, msg, 0'u16, cs, ms)
+        check openOf(polySuite, keysFor(polySuite), nonce, c, 0'u16, cs, ms) ==
+          msg
+
+  test "the two tiers interoperate in both directions":
+    ## A message sealed one-shot must open through a hand-built state and
+    ## the other way round, or the sources mean different things per tier.
+    var
+      st = initAeadState(polySuite, keysFor(polySuite), nonce, 0'u16,
+        sksGimli, pksBlake3)
+      oneShot = sealOf(polySuite, keysFor(polySuite), nonce, msg, 0'u16,
+        sksGimli, pksBlake3)
+    check open(oneShot, initAeadState(polySuite, keysFor(polySuite), nonce,
+      0'u16, sksGimli, pksBlake3)) == msg
+    check openOf(polySuite, keysFor(polySuite), nonce, seal(msg, st), 0'u16,
+      sksGimli, pksBlake3) == msg
+
+  test "a mismatched source is refused on the one-shot tier too":
+    var c = sealOf(polySuite, keysFor(polySuite), nonce, msg, 0'u16, sksBlake3)
+    expect ValueError:
+      discard openOf(polySuite, keysFor(polySuite), nonce, c, 0'u16, sksGimli)

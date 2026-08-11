@@ -28,16 +28,32 @@ import ../aeads
 export types
 
 proc sealOf*(a: CipherSuite, keys: seq[seq[uint8]], nonce: seq[uint8],
-    plain: openArray[uint8], tagBytes: uint16 = 0'u16): AeadCiphertext
+    plain: openArray[uint8], tagBytes: uint16 = 0'u16,
+    cipherSource: SubkeySource = sksHChaCha20,
+    macSource: Poly1305KeySource = pksXChaCha20): AeadCiphertext
     {.role: {actor}.} =
   ## a/keys/nonce/plain: suite named at runtime, one 32-byte key per
   ## layer, a nonce never used before with these keys, and the bytes.
   ## tagBytes: wanted tag length, or 0 for the suite's safe default.
-  result = seal(plain, initAeadState(a, keys, nonce, tagBytes))
+  ## cipherSource/macSource: which algorithm derives XChaCha20's subkey
+  ## and Poly1305's one-time key, defaulting to the standard route.
+  ##
+  ## These two travel with the suite for a reason: a caller who reads the
+  ## suite out of a header or a config entry reads the sources from the
+  ## same place. Leaving them off here would have made this tier the one
+  ## place in the library where the choice cannot be expressed.
+  result = seal(plain, initAeadState(a, keys, nonce, tagBytes, cipherSource,
+    macSource))
 
 proc openOf*(a: CipherSuite, keys: seq[seq[uint8]], nonce: seq[uint8],
-    c: AeadCiphertext, tagBytes: uint16 = 0'u16): seq[uint8]
+    c: AeadCiphertext, tagBytes: uint16 = 0'u16,
+    cipherSource: SubkeySource = sksHChaCha20,
+    macSource: Poly1305KeySource = pksXChaCha20): seq[uint8]
     {.role: {actor}.} =
   ## a/keys/nonce/c: the same suite, keys and nonce that sealed it, and
   ## the sealed message. Raises if the tag does not match.
-  result = open(c, initAeadState(a, keys, nonce, tagBytes))
+  ## cipherSource/macSource: must be the pair that sealed it. Both are
+  ## bound into the tag, so a wrong one raises rather than decrypting to
+  ## garbage.
+  result = open(c, initAeadState(a, keys, nonce, tagBytes, cipherSource,
+    macSource))
