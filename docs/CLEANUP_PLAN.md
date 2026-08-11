@@ -12,13 +12,22 @@ warning (unused import in `kyber/poly.nim`). 192 `.nim` files, 50,692 lines.
   2    collapse the 32 facade files      DONE  (commit b22f1f4)
   -    compile-time cipher selection     DONE  (commit e29dfbd)
   -    poisoned nimcache / cleanbuild    DONE  (commit e29dfbd)
+  -    four call tiers per module        DONE  (commit 52ae317)
+  -    folder per algorithm + surface    DONE  (commit dc42cb6)
+  -    split basic_api into 5 material   DONE  (this commit)
+  -    public names to their own module  DONE  (this commit)
   3    stale test artifacts              PART  build/ cleared; orphan
                                                tests still unwired
   4    merge zeroization helpers         TODO
   5    module-level `## Reference:`      TODO
-  6    macro for basic_api's 3 lists     TODO
-  7    move rsa/ecdsa_p256/bigint        TODO
+  6    macro for material's 3 lists      TODO
+  7    move rsa/ecdsa_p256/bigint        DONE  (commit 52ae317)
 ```
+
+`basic_api.nim` is gone. It was 1,857 lines covering every module at once;
+it is now five `material.nim` files, one per module, over a shared
+`helpers/material.nim`. Step 6 still applies, to what is now
+`kems/material.nim`.
 
 Chapter 2 below recorded a recommendation to KEEP the facade layer. That
 recommendation was overruled and the layer is gone. The reasoning is kept
@@ -347,9 +356,9 @@ Keep per-proc citations only where a function implements a *specific* named
 algorithm step and the header would be too coarse. Expect a handful, not a
 thousand.
 
-### Step 6 — Collapse the three parallel lists in `basic_api.nim`  *(medium risk)*
+### Step 6 — Collapse the three parallel lists in `kems/material.nim`  *(medium risk)*
 
-`basic_api.nim` is 1,859 lines and 291 procs. Most of it is fine — it is a
+`kems/material.nim` is 942 lines after the split. Most of it is fine — it is a
 dispatch table and it reads well. But adding one algorithm today means editing
 **three separate lists that must stay in sync**:
 

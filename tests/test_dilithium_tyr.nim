@@ -2,7 +2,7 @@ import std/unittest
 
 import ../src/tyr/signatures/dilithium as custom_dilithium
 import ../src/tyr/signatures/dilithium/poly as dilithium_poly
-import ../src/tyr/kems/material
+import ../src/tyr
 
 when defined(hasLibOqs):
   import ../src/tyr/bindings/liboqs
@@ -241,7 +241,7 @@ suite "dilithium tyr":
     check not custom_dilithium.dilithiumTyrVerify(v, msg, padded,
       kp.publicKey)
 
-  test "basic_api Dilithium Tyr wrappers work":
+  test "typed material Dilithium Tyr wrappers work":
     var
       seed = newSeq[byte](32)
       signM: dilithium0TyrSignM

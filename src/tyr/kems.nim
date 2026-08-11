@@ -17,8 +17,13 @@
 ##   import tyr/kems/dynamic      <- choose from a VALUE while running
 ##                                     keypairOf(AnyKem(family: kfKyber, ...))
 ##
-##   import tyr/kems/single       <- one family, chosen by a -d: build flag,
-##      -d:tyrKemKyber               nothing else compiled. For IoT.
+##   import tyr/kems/single       <- one family, chosen by a -d: build flag
+##      -d:tyrKem=kyber              keypairSingle(kfKyber). For IoT. Works
+##                                   with no flag too; then all are built.
+##
+##   import tyr/kems/material     <- typed material: the key sizes live in
+##                                   the type, so a wrong-length key is a
+##                                   compile error
 ##
 ## Why overloading works here
 ## --------------------------
@@ -40,9 +45,11 @@ import ./kems/frodo
 import ./kems/bike
 import ./kems/ntru
 import ./kems/saber
+import ./kems/material
 
 export types
 export kyber, mceliece, frodo, bike, ntru, saber
+export material
 
 ## ╭⟢ keypair
 

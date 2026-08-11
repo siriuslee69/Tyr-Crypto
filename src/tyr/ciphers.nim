@@ -1,45 +1,44 @@
 ## ---------------------------------------------------------------------
-## | Public Names <- the one place internal names get their public name |
-## | internal  blake3Hash    ->  public  blake3TyrHash                  |
+## | Ciphers <- default tier: name the cipher by its family value       |
 ## ---------------------------------------------------------------------
 ##
-## Why this file exists
-## --------------------
-## Every algorithm here has two names.
+##   import tyr/ciphers            <- THIS FILE. encrypt(cfXChaCha20, ...)
+##   import tyr/ciphers/chacha20   <- one family: chacha20Xor(k, n, msg)
+##   import tyr/ciphers/dynamic    <- pick from a stored value at runtime
+##   import tyr/ciphers/single     <- one family by build flag, for devices
+##   import tyr/ciphers/material   <- typed key+nonce material surface
 ##
-##   blake3Hash      <- the internal name. What the implementation calls
-##                      itself, used by the rest of Tyr.
-##   blake3TyrHash   <- the public name. What other repos call.
+## Stream ciphers have no per-family variant type to overload on, so the
+## family is named by its enum value rather than inferred from a type.
+##
+## Two names for each algorithm
+## ----------------------------
+## Every algorithm here answers to two names.
+##
+##   chacha20Xor      <- the internal name. What the implementation calls
+##                       itself, used by the rest of Tyr.
+##   chacha20TyrXor   <- the public name. What other repos call.
 ##
 ## The "Tyr" in the middle means "this repo's own version of it". Tyr can
-## expose its own BLAKE3 and a library-backed BLAKE3 at the same time, so a
-## caller needs a way to say which one it wants:
+## expose its own ChaCha20 and a library-backed one at the same time, so a
+## caller needs a way to say which it wants. The same split exists one
+## level down in the algorithm enums, where `akKyber0Send` is the library
+## route and `akKyber0TyrSend` is Tyr's.
 ##
-##   blake3Hash(data)      -> Tyr's own code
-##   blake3TyrHash(data)   -> same code, named so it cannot collide
-##
-## The same split already exists one level down in the algorithm enums,
-## where `akKyber0Send` is the library route and `akKyber0TyrSend` is Tyr's.
-##
-## This used to be spread over 32 tiny files under `custom_crypto/`, one per
-## algorithm, each importing one real module and re-exporting it. They are
-## gone. Every public name is now defined exactly once, here.
-##
-## Not every algorithm needs an entry. X25519, Ed25519, Kyber, Dilithium,
-## Falcon, SPHINCS+, BIKE, Frodo, McEliece, NTRU and SABER already define
-## their public `...Tyr...` names inside their own implementation files, so
-## they are re-exported directly by `tyr_crypto.nim` and never appear below.
+## Each module keeps the public names for its own algorithms: hash names
+## live in `tyr/hashes`, tag names in `tyr/macs`, password names in
+## `tyr/kdfs`. Only the cipher names are below.
 
+import ./ciphers/types
 import ./ciphers/aes_ctr
-import ./kdfs/argon2
-import ./hashes/blake3
 import ./ciphers/chacha20
 import ./ciphers/xchacha20
 import ./ciphers/gimli_sponge
-import ./macs/poly1305
-import ./hashes/sha3
+import ./ciphers/material
 
+export types
 export aes_ctr, chacha20, xchacha20, gimli_sponge
+export material
 
 ## ╭⟢ AES-CTR
 
@@ -51,18 +50,6 @@ proc aesCtrTyrXor*(k, n, ps: openArray[uint8],
 proc initAesCtrTyrState*(k, n: openArray[uint8]): AesCtrState {.inline.} =
   ## Public name for the local AES-CTR state initializer.
   result = initAesCtrState(k, n)
-
-## ╭⟢ BLAKE3
-
-proc blake3TyrHash*(input: openArray[byte],
-    outLen: int = outLenDefault): seq[byte] {.inline.} =
-  ## Public name for the local BLAKE3 hash.
-  result = blake3Hash(input, outLen)
-
-proc blake3TyrKeyedHash*(key, input: openArray[byte],
-    outLen: int = outLenDefault): seq[byte] {.inline.} =
-  ## Public name for the local keyed BLAKE3 hash.
-  result = blake3KeyedHash(key, input, outLen)
 
 ## ╭⟢ ChaCha20 / XChaCha20
 
@@ -91,6 +78,11 @@ proc xchacha20TyrStream*(key, nonce: openArray[byte], length: int,
   result = xchacha20Stream(key, nonce, length, initialCounter)
 
 ## ╭⟢ Gimli sponge
+##
+## One permutation serving three jobs. The XOF and tag helpers live here
+## rather than in `tyr/hashes` and `tyr/macs` because all three are the
+## same sponge with different padding, and splitting them would scatter
+## one implementation across three modules.
 
 proc gimliTyrXof*(ks, ns, ms: openArray[uint8],
     outLen: int): seq[uint8] {.inline.} =
@@ -106,105 +98,7 @@ proc gimliTyrStreamXor*(ks, ns, input: openArray[uint8]): seq[uint8] {.inline.} 
   ## Public name for the local Gimli stream-xor helper.
   result = gimliStreamXor(ks, ns, input)
 
-## ╭⟢ Poly1305
-
-proc poly1305TyrMac*(key, msg: openArray[byte]): Poly1305Tag {.inline.} =
-  ## Public name for the local Poly1305 MAC.
-  result = poly1305Mac(key, msg)
-
-proc poly1305TyrTag*(key, msg: openArray[byte]): seq[byte] {.inline.} =
-  ## Public name for the local Poly1305 detached tag helper.
-  result = poly1305Tag(key, msg)
-
-proc poly1305TyrVerify*(key, msg, tag: openArray[byte]): bool {.inline.} =
-  ## Public name for the local Poly1305 verifier.
-  result = poly1305Verify(key, msg, tag)
-
-## ╭⟢ SHA-3 / SHAKE
-
-proc sha3TyrHash*(input: openArray[byte],
-    outLen: int = 32): seq[byte] {.inline.} =
-  ## Public name for the local SHA3 hash.
-  result = sha3Hash(input, outLen)
-
-proc shake256Tyr*(input: openArray[byte], outLen: int): seq[byte] {.inline.} =
-  ## Public name for the local SHAKE256 XOF.
-  result = shake256(input, outLen)
-
-proc shake128Tyr*(input: openArray[byte], outLen: int): seq[byte] {.inline.} =
-  ## Public name for the local SHAKE128 XOF.
-  result = shake128(input, outLen)
-
-## ╭⟢ Argon2
-##
-## Two shapes are offered for each. The first takes a filled-in
-## `Argon2Params` object. The second takes the four numbers directly, for
-## callers that do not want to build the object first.
-
-proc argon2iTyrHash*(password, salt: openArray[byte], p: Argon2Params,
-    b: Argon2Backend = a2bAuto): seq[byte] {.inline.} =
-  ## Public name for the local Argon2i hash.
-  result = argon2iHash(password, salt, p, b)
-
-proc argon2iTyrHash*(password, salt: openArray[byte], p: Argon2Params,
-    h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] {.inline.} =
-  ## Public name for the local custom Argon2i hash variant.
-  result = argon2iHash(password, salt, p, h, b)
-
-proc argon2iTyrHash*(password, salt: openArray[byte], passCount,
-    memoryKiB, laneCount, outLen: int,
-    b: Argon2Backend = a2bAuto): seq[byte] {.inline.} =
-  ## Public name for the local Argon2i hash.
-  result = argon2iHash(password, salt, passCount, memoryKiB, laneCount, outLen, b)
-
-proc argon2iTyrHash*(password, salt: openArray[byte], passCount,
-    memoryKiB, laneCount, outLen: int,
-    h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] {.inline.} =
-  ## Public name for the local custom Argon2i hash variant.
-  result = argon2iHash(password, salt, passCount, memoryKiB, laneCount, outLen, h, b)
-
-proc argon2idTyrHash*(password, salt: openArray[byte], p: Argon2Params,
-    b: Argon2Backend = a2bAuto): seq[byte] {.inline.} =
-  ## Public name for the local Argon2id hash.
-  result = argon2idHash(password, salt, p, b)
-
-proc argon2idTyrHash*(password, salt: openArray[byte], p: Argon2Params,
-    h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] {.inline.} =
-  ## Public name for the local custom Argon2id hash variant.
-  result = argon2idHash(password, salt, p, h, b)
-
-proc argon2idTyrHash*(password, salt: openArray[byte], passCount,
-    memoryKiB, laneCount, outLen: int,
-    b: Argon2Backend = a2bAuto): seq[byte] {.inline.} =
-  ## Public name for the local Argon2id hash.
-  result = argon2idHash(password, salt, passCount, memoryKiB, laneCount, outLen, b)
-
-proc argon2idTyrHash*(password, salt: openArray[byte], passCount,
-    memoryKiB, laneCount, outLen: int,
-    h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] {.inline.} =
-  ## Public name for the local custom Argon2id hash variant.
-  result = argon2idHash(password, salt, passCount, memoryKiB, laneCount, outLen, h, b)
-
-proc deriveArgonLikeKey*(password, salt: openArray[byte], p: Argon2Params,
-    h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] {.inline.} =
-  ## Standalone Tyr-owned custom Argon2id-style key derivation surface.
-  result = argon2idHash(password, salt, p, h, b)
-
-proc deriveArgonLikeKey*(password, salt: openArray[byte], passCount,
-    memoryKiB, laneCount, outLen: int,
-    h: Argon2HashAlgorithm, b: Argon2Backend = a2bAuto): seq[byte] {.inline.} =
-  ## Standalone Tyr-owned custom Argon2id-style key derivation surface.
-  result = argon2idHash(password, salt, passCount, memoryKiB, laneCount, outLen, h, b)
-
-## ╭⟢ Default tier: name the cipher by its family value
-##
-## Stream ciphers have no per-family variant type to overload on, so the
-## family is named by its enum value rather than inferred from a type.
-## For a choice that arrives at runtime use `tyr/ciphers/dynamic` instead;
-## for one cipher and nothing else use `tyr/ciphers/single`.
-
-import ./ciphers/types
-export types
+## ╭⟢ Pick the cipher by its family value
 
 proc encrypt*(f: CipherFamily, k, n, plain: openArray[byte]): seq[byte] =
   ## f/k/n/plain: cipher family, key, nonce, readable bytes.

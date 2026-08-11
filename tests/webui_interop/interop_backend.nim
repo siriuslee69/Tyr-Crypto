@@ -1,5 +1,5 @@
 ## ----------------------------------------------------------------------
-## WebUI Interop Backend <- native basic_api counterpart for browser wasm
+## WebUI Interop Backend <- native material-surface counterpart for browser wasm
 ## ----------------------------------------------------------------------
 
 import std/[base64, json, strutils]
@@ -7,7 +7,7 @@ import std/[base64, json, strutils]
 import metaPragmas
 import ../../src/tyr/kems/kyber as kyber
 import ../../src/tyr/kems/x25519 as x25519
-import ../../src/tyr/kems/material
+import ../../src/tyr
 import ../../src/tyr/helpers/tiers
 import ./[test_catalog, test_jobs]
 
@@ -62,7 +62,7 @@ proc decodeOptionalBytes(n: JsonNode, field: string): seq[uint8] {.role: {helper
     result = decodeBytes(n, field)
 
 proc parseStreamAlgo(s: string): StreamCipherAlgorithm {.role: {parser}.} =
-  ## Maps the browser bridge names onto the typed basic_api enum.
+  ## Maps the browser bridge names onto the typed material enum.
   case s
   of "xchacha20":
     result = scaXChaCha20
@@ -124,7 +124,7 @@ proc buildKemResponse(kind, algo: string, ciphertext, sharedSecret: openArray[ui
   })
 
 proc processSymmetric(R: InteropRequest): string {.role: {actor}.} =
-  ## Decrypts a browser payload or encrypts a native payload with basic_api.
+  ## Decrypts a browser payload or encrypts a native payload with the material surface.
   var
     algo: StreamCipherAlgorithm = parseStreamAlgo(R.algo)
     output: seq[uint8] = @[]

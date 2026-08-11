@@ -200,3 +200,20 @@ proc cryptoRandomBytes*[T](length: int, extraEntropy: openArray[T]): seq[uint8] 
     secureClearBytes(extraBytes)
   extraBytes = toByteSeq(extraEntropy)
   result = cryptoRandomBytesInternal(length, extraBytes)
+
+## ╭⟢ Pick the randomness mode by its tier value
+##
+## Both modes read the OS generator. `raSystemMixed` additionally folds in
+## whatever entropy the caller supplies, which cannot make the output
+## weaker and helps on devices whose OS pool is thin at boot.
+
+import ./tiers
+
+proc cryptoRand*(alg: RandomAlgorithm, length: int,
+    extraEntropy: seq[uint8] = @[]): seq[uint8] =
+  ## Return cryptographically strong random bytes using the selected randomness mode.
+  case alg
+  of raSystem:
+    result = cryptoRandomBytes(length)
+  of raSystemMixed:
+    result = cryptoRandomBytes(length, extraEntropy)

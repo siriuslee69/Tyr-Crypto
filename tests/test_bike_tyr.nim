@@ -4,7 +4,7 @@ import std/unittest
 
 import ../src/tyr/kems/bike as custom_bike
 import ../src/tyr/hashes/sha3 as tyr_sha3
-import ../src/tyr/kems/material
+import ../src/tyr
 
 when defined(hasLibOqs):
   import ../src/tyr/bindings/liboqs
@@ -69,7 +69,7 @@ suite "bike tyr":
     check env.ciphertext.len == 1573
     check env.sharedSecret.len == 32
 
-  test "basic_api BIKE Tyr roundtrip matches shared secret":
+  test "typed material BIKE Tyr roundtrip matches shared secret":
     var
       keypairRandom = newSeq[byte](64)
       encapsRandom = newSeq[byte](64)

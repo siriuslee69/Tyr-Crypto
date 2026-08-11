@@ -1,6 +1,6 @@
 import std/unittest
 import ../src/tyr/helpers/tiers
-import ../src/tyr/kems/material
+import ../src/tyr
 import ../src/tyr/helpers/errors
 import ./helpers
 

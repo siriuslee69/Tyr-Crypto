@@ -3,7 +3,7 @@ import std/unittest
 import ../src/tyr/kems/frodo as custom_frodo
 import ../src/tyr/kems/frodo/util as frodo_util
 import ../src/tyr/hashes/sha3 as tyr_sha3
-import ../src/tyr/kems/material
+import ../src/tyr
 
 when defined(hasLibOqs):
   import ../src/tyr/helpers/tiers
@@ -39,7 +39,7 @@ template runTyrApiRoundtripCase(variant, SendType, OpenType: untyped,
     keypairBase: int) =
   block:
     let p = custom_frodo.frodoParamsTable[variant]
-    checkpoint("basic_api typed " & p.name)
+    checkpoint("typed material " & p.name)
     var
       keypairRandom = newSeq[byte](p.keypairRandomBytes)
       sendM: SendType
@@ -257,7 +257,7 @@ suite "frodo tyr":
       runPureRoundtripCase(custom_frodo.frodo1344aes, 29, 93)
       runPureRoundtripCase(custom_frodo.frodo1344shake, 33, 97)
 
-    test "basic_api Frodo Tyr typed materials roundtrip for all variants":
+    test "typed material Frodo Tyr typed materials roundtrip for all variants":
       runTyrApiRoundtripCase(custom_frodo.frodo640aes, frodo0AesTyrSendM,
         frodo0AesTyrOpenM, 41)
       runTyrApiRoundtripCase(custom_frodo.frodo640shake, frodo0ShakeTyrSendM,

@@ -1,7 +1,7 @@
 import std/unittest
 import ../src/tyr/helpers/tiers
 import ../src/tyr/helpers/errors
-import ../src/tyr/kems/material
+import ../src/tyr
 
 suite "multi kex duo":
   when defined(hasLibOqs):

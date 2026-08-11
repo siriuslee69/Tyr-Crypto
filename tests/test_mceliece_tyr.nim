@@ -2,7 +2,7 @@
 
 import std/unittest
 
-import ../src/tyr/kems/material
+import ../src/tyr
 import ../src/tyr/kems/mceliece as custom_mceliece
 import ../src/tyr/kems/mceliece/encrypt as mceliece_encrypt
 import ../src/tyr/hashes/sha3 as tyr_sha3

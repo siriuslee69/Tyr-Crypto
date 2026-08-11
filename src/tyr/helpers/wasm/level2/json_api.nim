@@ -2,7 +2,7 @@
 ## Wasm JSON API <- invoke Tyr basic JSON and hash surfaces
 ## ------------------------------------------------------
 
-import ../../../kems/material as basicApi
+import ../../../ciphers/material as cipherMaterial
 import ../../../hashes/blake3 as blake3Impl
 import ../../../ciphers/gimli_sponge
 import ../../../macs/hmac as hmacImpl
@@ -20,7 +20,7 @@ proc capabilitiesJson*(): string =
 proc basicEncryptJson*(reqJson: string): string =
   try:
     var req = decodeBasicEncryptRequest(reqJson)
-    var payload = basicApi.symEnc(req.algo, req.key, req.nonce, req.message)
+    var payload = cipherMaterial.symEnc(req.algo, req.key, req.nonce, req.message)
     result = buildBasicCipherJson(req.algo, payload)
   except CatchableError as exc:
     result = buildErrorJson(exc.msg)
@@ -28,7 +28,7 @@ proc basicEncryptJson*(reqJson: string): string =
 proc basicDecryptJson*(reqJson: string): string =
   try:
     var req = decodeBasicDecryptRequest(reqJson)
-    var payload = basicApi.symDec(req.algo, req.key, req.nonce, req.payload)
+    var payload = cipherMaterial.symDec(req.algo, req.key, req.nonce, req.payload)
     result = buildBasicCipherJson(req.algo, payload)
   except CatchableError as exc:
     result = buildErrorJson(exc.msg)

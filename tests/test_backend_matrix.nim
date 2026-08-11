@@ -88,7 +88,7 @@ proc runSodiumX25519Roundtrip() =
   check crypto_scalarmult_curve25519(addr sharedB[0], addr skB[0], addr pkA[0]) == 0
   check sharedA == sharedB
 
-proc runBasicApiX25519Roundtrip() =
+proc runMaterialX25519Roundtrip() =
   var
     receiver: AsymKeypair
     env: AsymCipher
@@ -111,7 +111,7 @@ proc runSodiumEd25519Roundtrip(msg: openArray[byte]) =
   check crypto_sign_ed25519_verify_detached(addr sig[0], unsafeAddr msg[0],
     culonglong(msg.len), addr pk[0]) == 0
 
-proc runBasicApiEd25519Roundtrip(msg: openArray[byte]) =
+proc runMaterialEd25519Roundtrip(msg: openArray[byte]) =
   var
     msgBuf: seq[byte] = @[]
     kp: AsymKeypair
@@ -230,13 +230,13 @@ suite "backend matrix":
 
     if hasSodium:
       benchCase("libsodium_x25519_roundtrip", loopsLibsodium, runSodiumX25519Roundtrip)
-      benchCase("basic_api_x25519_roundtrip", loopsLibsodium, runBasicApiX25519Roundtrip)
+      benchCase("material_x25519_roundtrip", loopsLibsodium, runMaterialX25519Roundtrip)
       benchCase("libsodium_ed25519_roundtrip", loopsLibsodium,
         proc() = runSodiumEd25519Roundtrip(msgShort))
-      benchCase("basic_api_ed25519_roundtrip", loopsLibsodium,
-        proc() = runBasicApiEd25519Roundtrip(msgShort))
+      benchCase("material_ed25519_roundtrip", loopsLibsodium,
+        proc() = runMaterialEd25519Roundtrip(msgShort))
     else:
-      checkpoint("libsodium unavailable; skipping libsodium/basic_api classical backend bench")
+      checkpoint("libsodium unavailable; skipping libsodium/material classical backend bench")
 
     benchCase("tyr_kyber768_roundtrip", loopsKyber, proc() = runKyberRoundtrip(kyber768))
     benchCase("tyr_kyber1024_roundtrip", loopsKyber, proc() = runKyberRoundtrip(kyber1024))

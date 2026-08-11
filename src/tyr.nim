@@ -29,14 +29,28 @@
 ##      header. Every family is compiled in, because any could be chosen.
 ##
 ##   4. import tyr/kems/single         ONE family, chosen by a BUILD FLAG
-##      -d:tyrKemKyber
-##        kyberTyrKeypair(kyber768)
+##      -d:tyrKem=kyber
+##        keypairSingle(kfKyber)
 ##
-##      For small devices. Nothing else is even parsed, so a family that
-##      cannot compile for your target never gets in the way.
+##      For small devices. Usable with no flag at all - then every family
+##      is available and the choice is still settled while compiling. Add
+##      the flag and nothing else is even parsed, so a family that cannot
+##      compile for your target never gets in the way.
 ##
-## The names differ per tier (`keypair` / `keypairOf` / `kyberTyrKeypair`)
-## so all four can be imported side by side without ever colliding.
+## The names differ per tier (`keypair` / `keypairOf` / `keypairSingle` /
+## `kyberTyrKeypair`) so all four can be imported side by side without
+## ever colliding.
+##
+## A fifth shape: typed material
+## -----------------------------
+## Beside the four tiers, each module offers a `material` surface whose
+## types carry the exact key and nonce sizes, turning a wrong length into
+## a compile error instead of a runtime check:
+##
+##     var m = xchacha20cipherM(key: k, nonce: n)
+##     var ct = encrypt(message, m)
+##
+## See `tyr/helpers/material` for what the five share.
 ##
 ## Where things live
 ## -----------------
@@ -56,6 +70,7 @@
 ## Each module folder also holds `types.nim`, which explains that family of
 ## algorithms in plain words and carries the safety warnings. Read those
 ## first - the nonce, one-time-key and password warnings live there.
+## Alongside it sits `material.nim`, that module's typed material surface.
 
 import ./tyr/kems
 import ./tyr/signatures
@@ -67,7 +82,6 @@ import ./tyr/otp
 import ./tyr/aeads/suite_api
 import ./tyr/aeads/types as aeadTypes
 import ./tyr/certs/chain
-import ./tyr/kems/material
 import ./tyr/signatures/registry
 import ./tyr/helpers/random
 import ./tyr/helpers/tiers
@@ -82,7 +96,6 @@ export otp
 export suite_api
 export aeadTypes
 export chain
-export material
 export registry
 export random
 export tiers

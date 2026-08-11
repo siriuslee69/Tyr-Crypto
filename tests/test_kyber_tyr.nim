@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/tyr/kems/material
+import ../src/tyr
 import ../src/tyr/kems/kyber as custom_kyber
 import ../src/tyr/kems/kyber/[
   params, types, poly, polyvec, symmetric, indcpa]

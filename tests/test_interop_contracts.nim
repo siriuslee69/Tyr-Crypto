@@ -1,5 +1,5 @@
 ## -------------------------------------------------------------------
-## Interop Contracts <- browser WASM and native basic_api test runner
+## Interop Contracts <- browser WASM and native material-surface test runner
 ## -------------------------------------------------------------------
 
 import std/[json, locks, os, osproc, strutils, unittest]

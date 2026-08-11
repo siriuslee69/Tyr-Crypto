@@ -1,7 +1,7 @@
 import std/unittest
 
 import ../src/tyr/signatures/sphincs as custom_sphincs
-import ../src/tyr/kems/material
+import ../src/tyr
 
 when defined(hasLibOqs):
   import ../src/tyr/bindings/liboqs
@@ -116,7 +116,7 @@ suite "sphincs tyr":
       check not custom_sphincs.sphincsTyrVerify(
         custom_sphincs.sphincsShake128fSimple, msg, sig, malformedPk)
 
-    test "basic_api SPHINCS Tyr wrappers work":
+    test "typed material SPHINCS Tyr wrappers work":
       var
         seed = newSeq[byte](48)
         signM: sphincsHaraka128fSimpleTyrSignM

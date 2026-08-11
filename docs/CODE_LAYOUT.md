@@ -1,61 +1,121 @@
 # Code Layout
 
+## One rule
+
+Every algorithm's code lives in a **folder**. Beside it sits a `.nim` file of
+the same name holding nothing but the export surface.
+
+```
+kems/mceliece.nim      <- the surface: imports the folder, exports it, no logic
+kems/mceliece/         <- the implementation: operations, pk_gen, benes, ...
+```
+
+`import tyr/kems/mceliece` therefore stays short no matter how many files
+the implementation needs, and reading the surface tells you what the
+algorithm offers without wading through the mathematics.
+
+The same shape repeats one level up: `src/tyr.nim` over `src/tyr/`.
+
 ## Repo Map
 
 ```
 Path                             Responsibility
-src/                             Source tree
-  tyr_crypto.nim                 Public export facade (import this)
-  protocols/
-    custom_crypto/               Pure-Nim primitive implementations
-      symmetric/                 Hashes, MACs, RNG, stream ciphers, KDFs, OTP
-        aes/                     AES-CTR (core + SIMD)
-        argon2/                  Argon2 memory-hard KDF
-        blake3/                  BLAKE3 hash (scalar + SIMD)
-        chacha/                  ChaCha20 / XChaCha20 (scalar + SIMD)
-        gimli/                   Gimli permutation, sponge, SSE
-        poly1305/                Poly1305 MAC (scalar + SIMD)
-        sha3/                    SHA3/SHAKE (scalar + SIMD)
-        hmac.nim                 HMAC
-        kdf.nim                  Custom memory-hard KDF
-        otp.nim                  One-time pad helpers
-        random.nim               CSPRNG
-      asymmetric/
-        none_pq/                 Non-PQ asymmetric
-          x25519_impl.nim        X25519 hardened Montgomery ladder
-          x25519_common.nim      Shared X25519 helpers
-          ed25519_impl.nim       Ed25519 (RFC 8032) with embedded SHA-512
-        pq/                      Post-quantum asymmetric
-          bike/                  BIKE QC-MDPC KEM
-          common/                ct_compare.nim, pq_rng.nim
-          dilithium/             ML-DSA (Dilithium)
-          falcon/                Falcon (scalar + SIMD backends)
-          frodo/                 FrodoKEM (LWE-based)
-          kyber/                 ML-KEM (Kyber)
-          mceliece/              Classic McEliece code-based KEM
-          ntru/                  NTRU HPS/HRSS KEM
-          saber/                 SABER Module-LWR KEM
-          sphincs/              SPHINCS+ hash-based sig
-      <top-level facades>        Compatibility re-exports (e.g. kyber.nim → asymmetric/pq/kyber/)
-    wrapper/                     Typed public operation API
-      basic_api.nim              Canonical wrapper (encrypt/decrypt/sign/verify/seal/open)
-      helpers/                   algorithms.nim, signature_support.nim
-      wasm/                      Wasm/JS bridge
-    bindings/                    Optional native ABI bindings (libsodium, liboqs, OpenSSL)
-    builders/                    Native dependency build helpers
-    helpers/                     otter_support.nim, etc.
-bindings/
-  js/                            Wasm loader and TypeScript declarations
-tests/                           Unit, vector, parity, and harness tests
-tools/                           Bench, harness, and report scripts
+src/
+  tyr.nim                        Everything, one name per operation
+  tyr/
+    kems.nim  kems/              Key agreement
+      kyber/ mceliece/ frodo/ bike/ ntru/ saber/ x25519/
+    signatures.nim  signatures/  Proving authorship
+      dilithium/ falcon/ sphincs/ ed25519/ ecdsa_p256/
+    hashes.nim  hashes/          Fingerprints
+      blake3/ sha3/ sha256/ sha512/
+    macs.nim  macs/              Keyed fingerprints
+      hmac/ poly1305/
+    kdfs.nim  kdfs/              Key derivation
+      argon2/ blake3_gimli_kdf/ kdf/
+    ciphers.nim  ciphers/        Encryption
+      aes/ chacha/ gimli/ nugimli/
+    otp.nim  otp/                HOTP / TOTP codes
+    aeads/                       Composite encrypt-and-verify suites
+    certs/                       X.509 handling (der, pem, oid, chain, rsa/)
+    bindings/                    Optional native backends
+                                 (libsodium, liboqs, OpenSSL, PQClean, nimcrypto)
+    helpers/                     Shared plumbing
+      material.nim               What every typed material surface shares
+      tiers.nim                  Backend tier enums
+      random.nim                 CSPRNG + cryptoRand
+      errors.nim  secure_memory.nim  bigint.nim  otter_support.nim
+      common/                    ct_compare.nim, pq_rng.nim
+      wasm/                      Wasm/JS bridge (level0..level2)
+bindings/js/                     Wasm loader and TypeScript declarations
+tests/                           Unit, vector, parity, benchmark and harness tests
+tools/                           Builders, bench drivers, report scripts
 submodules/                      Pinned upstream source dependencies
 docs/                            Documentation
   benchmarks/                    Curated benchmark JSON snapshots
   research/                      Paper indices and optimization notes
-.iron/                           Repo coordination and conventions
 build/                           Generated build artifacts (ignored)
-nimcache/                        Nim compilation cache (ignored)
 ```
+
+## The five files every module has
+
+| File          | What it is                                              |
+|---------------|---------------------------------------------------------|
+| `<module>.nim`| Default tier. One name per operation, picked by overload |
+| `types.nim`   | The family enum, key shapes, and the safety warnings     |
+| `dynamic.nim` | Runtime tier. Choose the family from a value             |
+| `single.nim`  | Build-flag tier. One family, for small devices           |
+| `material.nim`| Typed material. Key sizes carried by the type            |
+
+## Four ways to reach an algorithm
+
+```
+import tyr                     keypair(kyber768)          <- overload on the
+                                                             variant's TYPE
+import tyr/kems/mceliece       mcelieceTyrKeypair(...)    <- one family, by
+                                                             its own long name
+import tyr/kems/dynamic        keypairOf(anyKemValue)     <- choose from a
+                                                             VALUE at runtime
+import tyr/kems/single         keypairSingle(kfKyber)     <- choose with
+  (-d:tyrKem=kyber)                                          -d:, for IoT
+```
+
+The names differ per tier (`keypair` / `keypairOf` / `keypairSingle` /
+`kyberTyrKeypair`) so all four can be imported side by side and never
+collide.
+
+Choosing what gets compiled is a build-time decision by nature: Nim
+resolves every `import` before any of your code exists, so no `case` or
+`when` written inside a proc can un-import a family. `single.nim` reduces
+that to one flag with a readable value, and works with no flag at all.
+
+## The material surface
+
+Beside the four tiers, each module offers material types that carry the
+exact key and nonce sizes:
+
+```nim
+var m = xchacha20cipherM(key: k, nonce: n)   # wrong size = won't compile
+var ct = encrypt(message, m)
+```
+
+The family tiers take `openArray[byte]` and check lengths while running.
+The material types make a wrong length a compile error instead.
+
+```
+helpers/material.nim        AlgorithmKind, algorithmLayouts, AsymEnvelope
+   ^                        (shared: imports nothing)
+   |
+   +-- hashes/material.nim      blake3HashM sha3HashM ...
+   +-- macs/material.nim        blake3hmacM poly1305hmacM ...
+   +-- ciphers/material.nim     xchacha20cipherM aesCtrcipherM ...
+   +-- signatures/material.nim  ed25519SignM falcon0VerifyM ...
+   +-- kems/material.nim        kyber0SendM mceliece0OpenM ...
+```
+
+`AlgorithmKind` stays one flat list because `algorithmLayouts` is indexed
+by it. Splitting the list would split the table into five that no longer
+line up.
 
 ## Dependency Flow
 
@@ -63,46 +123,21 @@ nimcache/                        Nim compilation cache (ignored)
 User code
    |
    v
-src/tyr_crypto.nim
+src/tyr.nim  (or one module umbrella, or one algorithm surface)
    |
-   +--> wrapper/basic_api.nim
+   +--> tyr/<module>.nim          default tier, overloads
    |       |
-   |       +--> wrapper/helpers/algorithms.nim
-   |       +--> custom_crypto/* (symmetric and asymmetric facades)
-   |       +--> custom_crypto/symmetric/*  (implementation)
-   |       +--> custom_crypto/asymmetric/* (implementation)
-   |       +--> bindings/* when enabled by -d:has*
+   |       +--> tyr/<module>/<family>.nim      export surface
+   |       |        +--> tyr/<module>/<family>/   implementation
+   |       |
+   |       +--> tyr/<module>/material.nim
+   |                +--> tyr/helpers/material.nim
    |
-   +--> custom_crypto/* compatibility facades
-   +--> custom_crypto/asymmetric/pq/*  (direct access for advanced use)
+   +--> tyr/bindings/*            when enabled by -d:has*
 ```
 
-## Primitive Layout
-
-```
-custom_crypto/
-   |
-   +--> symmetric/
-   |       +--> aes, argon2, blake3, chacha, gimli, hmac, kdf, otp, poly1305, random, sha3
-   |
-   +--> asymmetric/
-            +--> none_pq/
-            |       +--> x25519_common.nim, x25519_impl.nim, ed25519_impl.nim
-            |
-            +--> pq/
-                    common/      ct_compare.nim, pq_rng.nim
-                    bike/        GF2X mul, black-gray decoder, sampling
-                    dilithium/    NTT poly, polyvec, rejection sampling
-                    falcon/      FFT, Gaussian sampling, FPR, sign, verify
-                    frodo/       AES/SHAKE matrix, noise, encode/decode
-                    kyber/       NTT, indcpa, polyvec, KEM FO transform
-                    mceliece/    Goppa code: keygen, encrypt, decrypt, GF(2^13)
-                    ntru/        NTT-unfriendly poly mul, fixed-weight sampling
-                    saber/       Schoolbook poly mul, SHAKE noise gen
-                    sphincs/     WOTS+, FORS, Merkle tree, SHAKE hash
-```
-
-Top-level facades (e.g. `custom_crypto/kyber.nim`) re-export the `asymmetric/pq/kyber/` implementation so existing imports keep working. New code should import from class-specific folders.
+Implementations depend on `helpers/`, never on a module umbrella. Nothing
+in `src/` imports a test or a tool.
 
 ## Data Flow
 
@@ -113,10 +148,10 @@ raw bytes or typed crypto material
 sanitize/validate (check sizes, reject invalid inputs)
    |
    v
-typed crypto material (KyberSendM, DilithiumSignM, etc.)
+typed crypto material (kyber0SendM, dilithium0SignM, ...)
    |
    v
-actor operation: hash / encrypt / sign / encapsulate
+operation: hash / encrypt / sign / encapsulate
    |
    v
 typed output: bytes, tag, signature, KEM envelope
@@ -124,25 +159,28 @@ typed output: bytes, tag, signature, KEM envelope
 
 ## Naming Rules
 
-| Name shape     | Meaning                                       |
-|----------------|-----------------------------------------------|
-| `*Tyr*`        | Local pure-Nim implementation path            |
-| unsuffixed     | Optional native backend path                  |
-| `*M`           | Typed material object for basic_api           |
-| `*SendM/*OpenM`| KEM sender/opening material                   |
-| `*SignM/*VerifyM` | Signature material                        |
-| `*Pass1-4`     | Competing X25519 arithmetic optimization pass |
+| Name shape        | Meaning                                          |
+|-------------------|--------------------------------------------------|
+| `*Tyr*`           | This repo's own pure-Nim implementation          |
+| unsuffixed        | Optional native backend path                     |
+| `*M`              | Typed material object                            |
+| `*SendM/*OpenM`   | KEM sender / opening material                    |
+| `*SignM/*VerifyM` | Signature material                               |
+| `*Of`             | Runtime tier (`dynamic.nim`)                     |
+| `*Single`         | Build-flag tier (`single.nim`)                   |
+| `*Pass1-4`        | Competing X25519 arithmetic optimization pass    |
 
 ## Test Group Mapping
 
-| Group | Source path |
-|-------|-------------|
-| core | wrapper/basic_api.nim, helpers |
-| custom_crypto | custom_crypto/symmetric/ + argon2 + kdf |
-| sha3/poly1305/aes | custom_crypto/symmetric/sha3/, poly1305/, aes/ |
-| gimli/blake3 | custom_crypto/symmetric/gimli/, blake3/ |
-| x25519 | custom_crypto/asymmetric/none_pq/x25519* |
-| kyber/frodo/bike | custom_crypto/asymmetric/pq/{kyber,frodo,bike}/ |
-| ntru/saber | custom_crypto/asymmetric/pq/{ntru,saber}/ |
-| dilithium/falcon | custom_crypto/asymmetric/pq/{dilithium,falcon}/ |
-| sphincs/mceliece | custom_crypto/asymmetric/pq/{sphincs,mceliece}/ |
+| Group             | Source path                                 |
+|-------------------|---------------------------------------------|
+| core              | tyr.nim, helpers/, */material.nim           |
+| custom_crypto     | ciphers/, kdfs/argon2, kdfs/kdf             |
+| sha3/poly1305/aes | hashes/sha3/, macs/poly1305/, ciphers/aes/  |
+| gimli/blake3      | ciphers/gimli/, hashes/blake3/              |
+| x25519            | kems/x25519/                                |
+| kyber/frodo/bike  | kems/{kyber,frodo,bike}/                    |
+| ntru/saber        | kems/{ntru,saber}/                          |
+| dilithium/falcon  | signatures/{dilithium,falcon}/              |
+| sphincs/mceliece  | signatures/sphincs/, kems/mceliece/         |
+| cipher_runtime    | ciphers/dynamic.nim                         |

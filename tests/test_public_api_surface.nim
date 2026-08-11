@@ -61,7 +61,7 @@ suite "public api surface":
     check sphincsTyrVerify(sphincsShake128fSimple, msg, sphincsSig, sphincsKp.publicKey)
 
   when defined(hasLibsodium):
-    test "top-level module exports standard basic_api dispatch":
+    test "top-level module exports the standard material dispatch":
       var
         msg = toBytes("public surface standard dispatch")
         kp: AsymKeypair
