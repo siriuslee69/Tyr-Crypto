@@ -111,6 +111,7 @@ proc buildGroups(): seq[TestGroup] =
     "test_hybrid_kex_triple.nim", "test_hybrid_kex_duo.nim",
     "test_signatures.nim", "test_liboqs.nim", "test_openssl.nim"])
   addGroup(result, "custom_crypto", ["test_custom_crypto.nim"])
+  addGroup(result, "cipher_runtime", ["test_cipher_runtime.nim"])
   addGroup(result, "sha3", ["test_sha3_custom.nim", "test_sha3_simd.nim"])
   addGroup(result, "sha512", ["test_sha512_custom.nim"])
   addGroup(result, "poly1305", ["test_poly1305_custom.nim", "test_poly1305_simd.nim"])

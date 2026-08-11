@@ -518,3 +518,27 @@ task test_backend_matrix, "Run the backend matrix bench against liboqs and libso
 
 task test_public_api_surface, "Compile and run the top-level public API export smoke test":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_public_api_surface").replace('\\', '/') & " -d:hasLibOqs -d:hasLibsodium -r tests/test_public_api_surface.nim")
+
+task test_cipher_select, "Compile-check every -d:tyrCipher... single-cipher build mode":
+  ## Each flag must build on its own, and naming two at once must be refused.
+  for flag in ["tyrCipherXChaCha20", "tyrCipherChaCha20", "tyrCipherAesCtr",
+      "tyrCipherGimli"]:
+    exec withRepoCaches("nim check --nimcache:" &
+      repoNimcacheDir("nimcache_cipher_select_" & flag).replace('\\', '/') &
+      " -d:" & flag & " src/protocols/ciphers.nim")
+  exec withRepoCaches("nim check --nimcache:" &
+    repoNimcacheDir("nimcache_cipher_select_default").replace('\\', '/') &
+    " src/protocols/ciphers.nim")
+
+task cleanbuild, "Delete generated build caches and test binaries":
+  ## Nim records the config it saw into each nimcache. If a cache was made
+  ## while `nimble.paths` existed and that file is later gone, every reused
+  ## build fails with "cannot open: nimble.paths". Clearing build/ fixes it.
+  ## Nothing here is tracked by git; it all regenerates on the next build.
+  var
+    buildDir: string = joinPath(getCurrentDir(), "build")
+  if dirExists(buildDir):
+    rmDir(buildDir)
+    echo "removed " & buildDir
+  else:
+    echo "nothing to clean"

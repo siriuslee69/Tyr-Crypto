@@ -39,6 +39,7 @@ import ./protocols/custom_crypto/symmetric/argon2/argon2
 import ./protocols/wrapper/helpers/signature_support
 import ./protocols/certificates
 import ./protocols/public_names
+import ./protocols/ciphers
 
 export algorithms
 export random
@@ -74,3 +75,4 @@ export argon2
 export signature_support
 export certificates
 export public_names
+export ciphers
