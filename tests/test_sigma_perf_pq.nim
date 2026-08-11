@@ -5,13 +5,13 @@
 
 import std/unittest
 
-import ../src/protocols/custom_crypto/[kyber as custom_kyber,
-  frodo as custom_frodo,
-  bike as custom_bike,
-  mceliece as custom_mceliece,
-  dilithium as custom_dilithium,
-  falcon as custom_falcon,
-  sphincs as custom_sphincs]
+import ../src/protocols/custom_crypto/asymmetric/pq/kyber/operations as custom_kyber
+import ../src/protocols/custom_crypto/asymmetric/pq/frodo/operations as custom_frodo
+import ../src/protocols/custom_crypto/asymmetric/pq/bike/operations as custom_bike
+import ../src/protocols/custom_crypto/asymmetric/pq/mceliece/operations as custom_mceliece
+import ../src/protocols/custom_crypto/asymmetric/pq/dilithium/operations as custom_dilithium
+import ../src/protocols/custom_crypto/asymmetric/pq/falcon/operations as custom_falcon
+import ../src/protocols/custom_crypto/asymmetric/pq/sphincs/operations as custom_sphincs
 import otter_repo_evaluation
 
 when defined(hasLibOqs):

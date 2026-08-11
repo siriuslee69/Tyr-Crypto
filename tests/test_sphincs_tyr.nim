@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/sphincs as custom_sphincs
+import ../src/protocols/custom_crypto/asymmetric/pq/sphincs/operations as custom_sphincs
 import ../src/protocols/wrapper/basic_api
 
 when defined(hasLibOqs):

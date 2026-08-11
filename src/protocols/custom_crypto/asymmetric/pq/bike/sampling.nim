@@ -5,8 +5,8 @@
 import ./params
 import ./types
 import ./util
-import ../../../sha3
-import ../../../random
+import ../../../symmetric/sha3/sha3
+import ../../../symmetric/random
 
 type
   ## Internal SHAKE256-backed byte stream for BIKE sampling.

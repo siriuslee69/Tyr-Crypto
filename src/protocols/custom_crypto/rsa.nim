@@ -14,9 +14,9 @@
 
 import metaPragmas
 import ./bigint
-import ./sha256
+import ./symmetric/sha2/sha256
 import ./symmetric/sha2/sha512
-import ./random
+import ./symmetric/random
 import ../certificates/[der, oid, pem]
 
 type

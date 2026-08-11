@@ -1,5 +1,7 @@
 import std/unittest
-import ../src/protocols/custom_crypto/[hmac, blake3, poly1305]
+import ../src/protocols/custom_crypto/symmetric/hmac
+import ../src/protocols/custom_crypto/symmetric/blake3/blake3
+import ../src/protocols/custom_crypto/symmetric/poly1305/poly1305
 import ./helpers
 
 proc blake3ManualHashHmac(key, msg: openArray[byte], blockLen, outLen: int): seq[byte] =

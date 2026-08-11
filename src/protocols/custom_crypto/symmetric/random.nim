@@ -4,7 +4,7 @@
 
 when not defined(tyrWasm):
   import std/sysrand
-import ../xchacha20
+import ../symmetric/chacha/xchacha20
 import ./chacha/chacha20 as chachaCore
 import ./secure_memory
 

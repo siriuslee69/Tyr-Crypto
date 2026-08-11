@@ -3,10 +3,11 @@
 ## --------------------------------------------------------------------
 
 import ./params
+export params
 import ./poly
 import ../common/ct_compare
-import ../../../sha3
-import ../../../random
+import ../../../symmetric/sha3/sha3
+import ../../../symmetric/random
 import ../../../../helpers/otter_support
 
 type

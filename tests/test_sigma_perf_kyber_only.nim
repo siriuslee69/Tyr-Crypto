@@ -6,7 +6,7 @@
 
 import std/unittest
 
-import ../src/protocols/custom_crypto/kyber as custom_kyber
+import ../src/protocols/custom_crypto/asymmetric/pq/kyber/operations as custom_kyber
 import otter_repo_evaluation
 
 when defined(hasLibOqs):

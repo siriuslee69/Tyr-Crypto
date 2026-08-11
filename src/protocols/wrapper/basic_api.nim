@@ -6,18 +6,21 @@ import std/[locks, monotimes, os, times]
 
 import ../common
 import ./helpers/algorithms
-import ../custom_crypto/random
+import ../custom_crypto/symmetric/random
 import ../bindings/liboqs
-import ../custom_crypto/[chacha20, xchacha20, aes_ctr, hmac]
-import ../custom_crypto/x25519 as customX25519
-import ../custom_crypto/blake3
-import ../custom_crypto/dilithium as customDilithium
-import ../custom_crypto/gimli_sponge
-import ../custom_crypto/bike as customBike
-import ../custom_crypto/frodo as customFrodo
-import ../custom_crypto/kyber as customKyber
-import ../custom_crypto/mceliece as customMcEliece
-import ../custom_crypto/sphincs as customSphincs
+import ../custom_crypto/symmetric/chacha/chacha20
+import ../custom_crypto/symmetric/chacha/xchacha20
+import ../custom_crypto/symmetric/aes/aes_ctr
+import ../custom_crypto/symmetric/hmac
+import ../custom_crypto/asymmetric/none_pq/x25519_impl as customX25519
+import ../custom_crypto/symmetric/blake3/blake3
+import ../custom_crypto/asymmetric/pq/dilithium/operations as customDilithium
+import ../custom_crypto/symmetric/gimli/gimli_sponge
+import ../custom_crypto/asymmetric/pq/bike/operations as customBike
+import ../custom_crypto/asymmetric/pq/frodo/operations as customFrodo
+import ../custom_crypto/asymmetric/pq/kyber/operations as customKyber
+import ../custom_crypto/asymmetric/pq/mceliece/operations as customMcEliece
+import ../custom_crypto/asymmetric/pq/sphincs/operations as customSphincs
 import ./helpers/signature_support as wrapSign
 
 const

@@ -5,7 +5,7 @@
 
 import std/[os, strutils, unittest]
 
-import ../src/protocols/custom_crypto/frodo as custom_frodo
+import ../src/protocols/custom_crypto/asymmetric/pq/frodo/operations as custom_frodo
 import otter_repo_evaluation
 
 when defined(hasLibOqs):

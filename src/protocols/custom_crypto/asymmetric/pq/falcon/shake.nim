@@ -2,7 +2,7 @@
 ## Falcon Shake <- stateful SHAKE256 reader for Falcon
 ## --------------------------------------------------------
 
-import ../../../sha3
+import ../../../symmetric/sha3/sha3
 import ./util
 
 type

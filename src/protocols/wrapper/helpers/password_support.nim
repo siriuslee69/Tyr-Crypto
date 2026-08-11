@@ -7,7 +7,7 @@
 import ../../common
 import ../../algorithms
 import ../../suite_api as cryptoApi
-import ../../custom_crypto/blake3
+import ../../custom_crypto/symmetric/blake3/blake3
 
 type
   ## Secret: secure container for user-provided secrets.
@@ -113,7 +113,7 @@ proc buildPasswordPinInput(ps, pins: openArray[uint8]): seq[uint8] =
 when defined(hasLibsodium):
   import std/sysrand
   import ../../bindings/libsodium
-  import ../../custom_crypto/xchacha20
+  import ../../custom_crypto/symmetric/chacha/xchacha20
 
   const
     masterKeyLen = 32

@@ -2,7 +2,7 @@
 ## Falcon RNG <- ChaCha20 PRNG seeded from local SHAKE256
 ## ----------------------------------------------------------
 
-import ../../../sha3
+import ../../../symmetric/sha3/sha3
 import ./shake
 import ./util
 

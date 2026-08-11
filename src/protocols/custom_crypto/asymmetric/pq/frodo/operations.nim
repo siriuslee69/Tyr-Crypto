@@ -3,12 +3,13 @@
 ## ----------------------------------------------------------
 
 import ./params
+export params
 import ./util
 import ./noise
 import ../../../../helpers/otter_support
-import ../../../aes_core
-import ../../../sha3
-import ../../../random
+import ../../../symmetric/aes/aes_core
+import ../../../symmetric/sha3/sha3
+import ../../../symmetric/random
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   import simd_nexus/simd/base_operations

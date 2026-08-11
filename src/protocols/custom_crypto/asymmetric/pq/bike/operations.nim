@@ -3,13 +3,15 @@
 ## ----------------------------------------------------------
 
 import ./params
+export params
 import ./types
+export types
 import ./util
 import ./sampling
 import ./gf2x
 import ./decode
 import ../../../../helpers/otter_support
-import ../../../sha3
+import ../../../symmetric/sha3/sha3
 
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrKeypairFromParts`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc bikeTyrKeypairFromParts*(v: BikeVariant, seed0, seed1: openArray[byte]): BikeTyrKeypair

@@ -1,5 +1,5 @@
 import std/[os, unittest]
-import ../src/protocols/custom_crypto/blake3
+import ../src/protocols/custom_crypto/symmetric/blake3/blake3
 import ./helpers
 
 const

@@ -5,7 +5,10 @@
 
 import std/[dynlib, os, unittest]
 
-import ../src/protocols/custom_crypto/[blake3, chacha20, xchacha20, xchacha20_simd]
+import ../src/protocols/custom_crypto/symmetric/blake3/blake3
+import ../src/protocols/custom_crypto/symmetric/chacha/chacha20
+import ../src/protocols/custom_crypto/symmetric/chacha/xchacha20
+import ../src/protocols/custom_crypto/symmetric/chacha/xchacha20_simd
 import ../src/protocols/bindings/libsodium
 import otter_repo_evaluation
 

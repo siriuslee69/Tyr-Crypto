@@ -2,7 +2,7 @@
 
 import std/unittest
 
-import ../src/protocols/custom_crypto/bike as custom_bike
+import ../src/protocols/custom_crypto/asymmetric/pq/bike/operations as custom_bike
 import ../src/protocols/custom_crypto/symmetric/sha3/sha3 as tyr_sha3
 import ../src/protocols/wrapper/basic_api
 

@@ -4,9 +4,9 @@ import std/[algorithm, monotimes, unittest]
 
 import ./helpers
 import ../src/protocols/custom_crypto/asymmetric/pq/common/ct_compare
-import ../src/protocols/custom_crypto/dilithium as custom_dilithium
-import ../src/protocols/custom_crypto/sphincs as custom_sphincs
-import ../src/protocols/custom_crypto/mceliece as custom_mceliece
+import ../src/protocols/custom_crypto/asymmetric/pq/dilithium/operations as custom_dilithium
+import ../src/protocols/custom_crypto/asymmetric/pq/sphincs/operations as custom_sphincs
+import ../src/protocols/custom_crypto/asymmetric/pq/mceliece/operations as custom_mceliece
 
 proc fillSeed(seed: var seq[byte], base: int) =
   var i = 0

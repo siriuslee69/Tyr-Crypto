@@ -9,6 +9,8 @@ import ./chacha/xchacha20
 import ./gimli/gimli_sponge
 import ./sha3/sha3
 import ./secure_memory
+import ./blake3_gimli_kdf
+export blake3_gimli_kdf
 
 const
   kdfDomain = "tyr-custom-kdf-v2"

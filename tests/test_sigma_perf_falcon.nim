@@ -5,7 +5,7 @@
 
 import std/[os, strutils, unittest]
 
-import ../src/protocols/custom_crypto/falcon as custom_falcon
+import ../src/protocols/custom_crypto/asymmetric/pq/falcon/operations as custom_falcon
 import ../src/protocols/custom_crypto/asymmetric/pq/falcon/randomness as falcon_randomness
 import ../src/protocols/custom_crypto/asymmetric/pq/falcon/[format, sign as pure_falcon_sign, pure_verify as pure_falcon_verify]
 import otter_repo_evaluation

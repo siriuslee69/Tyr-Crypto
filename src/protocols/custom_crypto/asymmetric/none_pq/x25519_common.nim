@@ -4,7 +4,8 @@
 
 import std/[typetraits, volatile]
 
-import ../../[blake3, random]
+import ../../symmetric/blake3/blake3
+import ../../symmetric/random
 
 const
   x25519KeyBytes* = 32

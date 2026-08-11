@@ -1,7 +1,7 @@
 import std/[json, os, osproc, strutils, unittest]
 
-import ../src/protocols/custom_crypto/aes_core
-import ../src/protocols/custom_crypto/dilithium as custom_dilithium
+import ../src/protocols/custom_crypto/symmetric/aes/aes_core
+import ../src/protocols/custom_crypto/asymmetric/pq/dilithium/operations as custom_dilithium
 
 when defined(hasLibOqs):
   import ../src/protocols/bindings/liboqs

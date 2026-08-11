@@ -4,7 +4,7 @@
 
 import std/[bitops, monotimes, random]
 import metaPragmas
-import ../../src/protocols/custom_crypto/random as tyrRandom
+import ../../src/protocols/custom_crypto/symmetric/random as tyrRandom
 import ./primitives
 import ./stream_types
 import ./stream_metrics

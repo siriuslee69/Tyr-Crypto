@@ -1,6 +1,6 @@
 import std/unittest
-import ../src/protocols/wrapper/algorithms
-import ../src/protocols/wrapper/suite_api
+import ../src/protocols/algorithms
+import ../src/protocols/suite_api
 import ./helpers
 
 proc buildState(keyX, keyA, keyG, nonce: seq[uint8], tagLen: uint16): SymAuthState =

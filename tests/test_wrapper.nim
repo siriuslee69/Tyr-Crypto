@@ -1,11 +1,11 @@
 import std/[os, sequtils, unittest]
 import ../src/protocols/wrapper/helpers/algorithms
-import ../src/protocols/wrapper/suite_api
+import ../src/protocols/suite_api
 import ../src/protocols/common
 import ../src/protocols/bindings/libsodium
 import ../src/protocols/bindings/liboqs
 import ../src/protocols/builders/liboqs_builder
-import ../src/protocols/custom_crypto/blake3
+import ../src/protocols/custom_crypto/symmetric/blake3/blake3
 import ./helpers
 import ./crypto_vectors
 

@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/x25519 as customX25519
+import ../src/protocols/custom_crypto/asymmetric/none_pq/x25519_impl as customX25519
 import ../src/protocols/custom_crypto/asymmetric/none_pq/x25519_common
 import ../src/protocols/custom_crypto/asymmetric/none_pq/x25519_impl as rawX25519
 import ../src/protocols/bindings/libsodium

@@ -18,8 +18,8 @@ import ./[oid, x509, verify]
 import ../custom_crypto/rsa
 import ../custom_crypto/ecdsa_p256
 import ../custom_crypto/symmetric/sha2/sha512
-import ../custom_crypto/sha256
-import ../custom_crypto/ed25519
+import ../custom_crypto/symmetric/sha2/sha256
+import ../custom_crypto/asymmetric/none_pq/ed25519_impl as ed25519
 
 type
   ChainVerifyResult* {.role: {truthState}.} = object

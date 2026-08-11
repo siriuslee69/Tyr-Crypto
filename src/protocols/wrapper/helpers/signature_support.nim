@@ -6,10 +6,10 @@
 
 import ../../common
 import ../../bindings/liboqs
-import ../../custom_crypto/ed25519 as custom_ed25519
-import ../../custom_crypto/dilithium as custom_dilithium
-import ../../custom_crypto/falcon as custom_falcon
-import ../../custom_crypto/sphincs as custom_sphincs
+import ../../custom_crypto/asymmetric/none_pq/ed25519_impl as custom_ed25519
+import ../../custom_crypto/asymmetric/pq/dilithium/operations as custom_dilithium
+import ../../custom_crypto/asymmetric/pq/falcon/operations as custom_falcon
+import ../../custom_crypto/asymmetric/pq/sphincs/operations as custom_sphincs
 import ./algorithms
 
 const

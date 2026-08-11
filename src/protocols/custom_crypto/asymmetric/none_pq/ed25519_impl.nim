@@ -28,7 +28,7 @@
 ##   verified by the RFC 8032 vectors in tests/test_ed25519_custom.nim.
 
 import ./x25519_common
-import ../../random
+import ../../symmetric/random
 
 const
   ed25519SeedBytes* = 32

@@ -3,6 +3,7 @@
 ## ---------------------------------------------------------
 
 import ./params
+export params
 import ./core
 import ../common/pq_rng
 import ../../../../helpers/otter_support

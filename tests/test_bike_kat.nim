@@ -1,7 +1,7 @@
 import std/[json, os, osproc, strutils, unittest]
 
-import ../src/protocols/custom_crypto/aes_core
-import ../src/protocols/custom_crypto/bike as custom_bike
+import ../src/protocols/custom_crypto/symmetric/aes/aes_core
+import ../src/protocols/custom_crypto/asymmetric/pq/bike/operations as custom_bike
 
 when defined(hasLibOqs):
   import ../src/protocols/bindings/liboqs

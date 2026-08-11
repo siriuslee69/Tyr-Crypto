@@ -5,7 +5,7 @@
 import std/unittest
 import metaPragmas
 import ../src/protocols/certificates
-import ../src/protocols/custom_crypto/ed25519
+import ../src/protocols/custom_crypto/asymmetric/none_pq/ed25519_impl as ed25519
 
 const
   fixtureKey = staticRead(

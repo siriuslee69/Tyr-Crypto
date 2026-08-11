@@ -2,7 +2,7 @@
 
 import ./params
 import ./util
-import ../../../random
+import ../../../symmetric/random
 
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; encapsulation error generation and syndrome computation for `sameMask`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc sameMask(x, y: uint16): byte {.inline.} =

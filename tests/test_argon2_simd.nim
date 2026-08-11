@@ -1,5 +1,5 @@
 import std/unittest
-import ../src/protocols/custom_crypto/argon2
+import ../src/protocols/custom_crypto/symmetric/argon2/argon2
 import ./helpers
 
 proc patternedBlock(seed: uint64): array[128, uint64] =

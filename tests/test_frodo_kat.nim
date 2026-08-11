@@ -1,7 +1,7 @@
 import std/[json, os, osproc, strutils, unittest]
 
-import ../src/protocols/custom_crypto/aes_core
-import ../src/protocols/custom_crypto/frodo as custom_frodo
+import ../src/protocols/custom_crypto/symmetric/aes/aes_core
+import ../src/protocols/custom_crypto/asymmetric/pq/frodo/operations as custom_frodo
 
 when defined(hasLibOqs):
   import ../src/protocols/bindings/liboqs

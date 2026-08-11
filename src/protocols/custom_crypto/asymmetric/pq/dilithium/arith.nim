@@ -3,7 +3,7 @@
 ## -----------------------------------------------------------------
 
 import ./params
-import ../../../sha3
+import ../../../symmetric/sha3/sha3
 
 const
   dilithiumMont = -4186625'i32

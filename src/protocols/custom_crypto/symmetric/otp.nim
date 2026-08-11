@@ -2,10 +2,10 @@
 ## OTP Ops <- HOTP/TOTP over Blake3/Gimli/ChaCha backends
 ## ---------------------------------------------------------
 
-import ../blake3
-import ../gimli_sponge
-import ../xchacha20
-import ../xchacha20_simd
+import ../symmetric/blake3/blake3
+import ../symmetric/gimli/gimli_sponge
+import ../symmetric/chacha/xchacha20
+import ../symmetric/chacha/xchacha20_simd
 import ./secure_memory
 
 type

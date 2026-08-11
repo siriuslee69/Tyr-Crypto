@@ -4,7 +4,7 @@
 
 import std/[algorithm, monotimes, os, strutils]
 
-import ../src/protocols/custom_crypto/kdf as custom_kdf
+import ../src/protocols/custom_crypto/symmetric/kdf as custom_kdf
 
 const
   defaultMemoryKiB = 64

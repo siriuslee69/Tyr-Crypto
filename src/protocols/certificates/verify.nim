@@ -4,7 +4,7 @@
 
 import std/[net, strutils]
 import metaPragmas
-import ../custom_crypto/ed25519
+import ../custom_crypto/asymmetric/none_pq/ed25519_impl as ed25519
 import ./x509
 
 type

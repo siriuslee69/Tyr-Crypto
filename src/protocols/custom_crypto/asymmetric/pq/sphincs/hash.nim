@@ -6,7 +6,7 @@ import ./params
 import ./address
 import ./context
 import ./util
-import ../../../sha3
+import ../../../symmetric/sha3/sha3
 
 when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defined(aarch64):
   import simd_nexus/simd/base_operations

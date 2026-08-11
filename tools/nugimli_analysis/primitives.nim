@@ -4,7 +4,10 @@
 
 import std/bitops
 import metaPragmas
-import ../../src/protocols/custom_crypto/nugimli
+import ../../src/protocols/custom_crypto/nugimli/types
+import ../../src/protocols/custom_crypto/nugimli/domain
+import ../../src/protocols/custom_crypto/nugimli/cascade
+import ../../src/protocols/custom_crypto/nugimli/reference
 import ../../src/protocols/custom_crypto/nugimli/core
 
 proc fullRounds*[N: static[int]](): int {.inline, role: {parser}.} =

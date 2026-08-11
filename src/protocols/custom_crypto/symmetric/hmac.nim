@@ -3,10 +3,10 @@
 ## ---------------------------------------------------------
 
 import metaPragmas
-import ../blake3
-import ../gimli_sponge
-import ../sha3 as customSha3
-import ../poly1305 as customPoly1305
+import ../symmetric/blake3/blake3
+import ../symmetric/gimli/gimli_sponge
+import ../symmetric/sha3/sha3 as customSha3
+import ../symmetric/poly1305/poly1305 as customPoly1305
 import ../asymmetric/pq/common/ct_compare
 import ./secure_memory
 

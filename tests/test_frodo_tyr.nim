@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/frodo as custom_frodo
+import ../src/protocols/custom_crypto/asymmetric/pq/frodo/operations as custom_frodo
 import ../src/protocols/custom_crypto/asymmetric/pq/frodo/util as frodo_util
 import ../src/protocols/custom_crypto/symmetric/sha3/sha3 as tyr_sha3
 import ../src/protocols/wrapper/basic_api

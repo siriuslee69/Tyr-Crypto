@@ -3,7 +3,7 @@ import ../src/protocols/wrapper/helpers/password_support
 import ../src/protocols/common
 
 when defined(hasLibsodium):
-  import ../src/protocols/wrapper/suite_api
+  import ../src/protocols/suite_api
   import ../src/protocols/bindings/libsodium
 
   proc sodiumAvailable(): bool =

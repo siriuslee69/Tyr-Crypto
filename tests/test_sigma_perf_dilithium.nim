@@ -5,7 +5,7 @@
 
 import std/[os, strutils, unittest]
 
-import ../src/protocols/custom_crypto/dilithium as custom_dilithium
+import ../src/protocols/custom_crypto/asymmetric/pq/dilithium/operations as custom_dilithium
 import otter_repo_evaluation
 
 when defined(hasLibOqs):

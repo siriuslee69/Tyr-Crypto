@@ -3,6 +3,7 @@
 ## ----------------------------------------------------------------
 
 import ./params
+export params
 import ./keygen
 import ./pure_verify
 import ./sign

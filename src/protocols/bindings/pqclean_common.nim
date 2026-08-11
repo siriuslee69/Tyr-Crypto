@@ -2,8 +2,8 @@
 ## PQClean Common <- shared SHAKE/SHA3 and deterministic RNG plumbing
 ## -----------------------------------------------------------------
 
-import ../custom_crypto/aes_core
-import ../custom_crypto/random
+import ../custom_crypto/symmetric/aes/aes_core
+import ../custom_crypto/symmetric/random
 
 {.passC: "-Isubmodules/pqclean/common".}
 {.compile: "../../../submodules/pqclean/common/aes.c".}

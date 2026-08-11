@@ -5,7 +5,7 @@
 
 import std/[os, strutils, unittest]
 
-import ../src/protocols/custom_crypto/falcon
+import ../src/protocols/custom_crypto/asymmetric/pq/falcon/operations as falcon
 import ../src/protocols/custom_crypto/asymmetric/pq/falcon/randomness
 import ../src/protocols/custom_crypto/asymmetric/pq/falcon/codec
 import ../src/protocols/custom_crypto/asymmetric/pq/falcon/fpr

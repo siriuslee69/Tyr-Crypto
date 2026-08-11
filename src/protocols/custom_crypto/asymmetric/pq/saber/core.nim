@@ -4,7 +4,7 @@
 
 import ./params
 import ../common/pq_rng
-import ../../../sha3
+import ../../../symmetric/sha3/sha3
 import ../kyber/verify
 import ../../../../helpers/otter_support
 

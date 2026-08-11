@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/gimli
+import ../src/protocols/custom_crypto/symmetric/gimli/gimli
 
 suite "gimli sse":
   when defined(emscripten) or defined(tyrWasm):

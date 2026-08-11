@@ -4,8 +4,8 @@
 
 import std/[json, os, strutils, unittest]
 
-import ../src/protocols/custom_crypto/ntru as custom_ntru
-import ../src/protocols/custom_crypto/sha256
+import ../src/protocols/custom_crypto/asymmetric/pq/ntru/operations as custom_ntru
+import ../src/protocols/custom_crypto/symmetric/sha2/sha256
 import ../src/protocols/custom_crypto/asymmetric/pq/common/pq_rng as pqc
 import ../src/protocols/custom_crypto/symmetric/sha3/sha3 as tyr_sha3
 

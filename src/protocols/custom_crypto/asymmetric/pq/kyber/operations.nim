@@ -3,12 +3,13 @@
 ## ---------------------------------------------------------
 
 import ./params
+export params
 import ./util
 import ./indcpa
 import ./symmetric
 import ./verify
 import ../../../../helpers/otter_support
-import ../../../random
+import ../../../symmetric/random
 
 type
   ## Public/secret keypair emitted by the pure-Nim Kyber backend.

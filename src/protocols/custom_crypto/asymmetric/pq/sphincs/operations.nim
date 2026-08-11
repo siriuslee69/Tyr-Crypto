@@ -3,6 +3,7 @@
 ## ---------------------------------------------------------------------
 
 import ./params
+export params
 import ./address
 import ./context
 import ./hash
@@ -13,7 +14,7 @@ import ./wots
 import ./util
 import ../common/ct_compare
 import ../../../../helpers/otter_support
-import ../../../random
+import ../../../symmetric/random
 
 type
   SphincsTyrKeypair* = object

@@ -1,6 +1,7 @@
 ## Parameterized Classic McEliece KEM operations for the pure-Nim backend.
 
 import ./params
+export params
 import ./util
 import ./sk_gen
 import ./pk_gen
@@ -8,8 +9,8 @@ import ./controlbits
 import ./encrypt
 import ./decrypt
 import ../../../../helpers/otter_support
-import ../../../sha3
-import ../../../random
+import ../../../symmetric/sha3/sha3
+import ../../../symmetric/random
 
 type
   ## Public/secret keypair emitted by the pure-Nim McEliece backend.

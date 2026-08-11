@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/ed25519 as customEd25519
+import ../src/protocols/custom_crypto/asymmetric/none_pq/ed25519_impl as customEd25519
 import ./helpers
 
 suite "custom ed25519":

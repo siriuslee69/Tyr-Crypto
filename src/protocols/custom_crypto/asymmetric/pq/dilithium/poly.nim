@@ -4,7 +4,7 @@
 
 import ./params
 import ./arith
-import ../../../sha3
+import ../../../symmetric/sha3/sha3
 import ../../../../helpers/otter_support
 import std/[typetraits, volatile]
 

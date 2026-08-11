@@ -5,7 +5,11 @@
 import metaPragmas
 import ./algorithms
 import ./common
-import ./custom_crypto/[aes_ctr, blake3, gimli_sponge, hmac, xchacha20]
+import ./custom_crypto/symmetric/aes/aes_ctr
+import ./custom_crypto/symmetric/blake3/blake3
+import ./custom_crypto/symmetric/gimli/gimli_sponge
+import ./custom_crypto/symmetric/hmac
+import ./custom_crypto/symmetric/chacha/xchacha20
 when defined(hasNimcrypto):
   import ./bindings/nimcrypto
 

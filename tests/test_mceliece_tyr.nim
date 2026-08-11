@@ -3,7 +3,7 @@
 import std/unittest
 
 import ../src/protocols/wrapper/basic_api
-import ../src/protocols/custom_crypto/mceliece as custom_mceliece
+import ../src/protocols/custom_crypto/asymmetric/pq/mceliece/operations as custom_mceliece
 import ../src/protocols/custom_crypto/asymmetric/pq/mceliece/encrypt as mceliece_encrypt
 import ../src/protocols/custom_crypto/symmetric/sha3/sha3 as tyr_sha3
 

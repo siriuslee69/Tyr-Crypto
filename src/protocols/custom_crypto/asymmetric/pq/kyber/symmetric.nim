@@ -3,7 +3,7 @@
 ## ---------------------------------------------------------
 
 import ./params
-import ../../../sha3
+import ../../../symmetric/sha3/sha3
 
 ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; hash, XOF, and domain-separation rules for `hashHInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc hashHInto*(dst: var openArray[byte], A: openArray[byte]) =

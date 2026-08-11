@@ -2,7 +2,7 @@
 ## Falcon Randomness <- pure-Nim randombytes hook for Falcon internals
 ## -------------------------------------------------------------------
 
-import ../../../random
+import ../../../symmetric/random
 import ./util
 
 type

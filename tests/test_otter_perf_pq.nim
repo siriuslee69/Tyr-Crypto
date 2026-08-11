@@ -5,7 +5,13 @@
 
 import std/[algorithm, tables, unittest]
 
-import ../src/protocols/custom_crypto/[kyber, frodo, bike, mceliece, dilithium, falcon, sphincs]
+import ../src/protocols/custom_crypto/asymmetric/pq/kyber/operations as kyber
+import ../src/protocols/custom_crypto/asymmetric/pq/frodo/operations as frodo
+import ../src/protocols/custom_crypto/asymmetric/pq/bike/operations as bike
+import ../src/protocols/custom_crypto/asymmetric/pq/mceliece/operations as mceliece
+import ../src/protocols/custom_crypto/asymmetric/pq/dilithium/operations as dilithium
+import ../src/protocols/custom_crypto/asymmetric/pq/falcon/operations as falcon
+import ../src/protocols/custom_crypto/asymmetric/pq/sphincs/operations as sphincs
 import ../src/protocols/custom_crypto/asymmetric/pq/kyber/[params, indcpa]
 import ../src/protocols/custom_crypto/asymmetric/pq/falcon/[sign as pure_falcon_sign, pure_verify as pure_falcon_verify]
 import otter_repo_evaluation

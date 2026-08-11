@@ -5,9 +5,15 @@
 
 import std/[algorithm, json, math, monotimes, os, parseopt, strutils, tables, times]
 
-import ../src/protocols/custom_crypto/[kyber, frodo, bike, mceliece, dilithium, falcon, sphincs]
-import ../src/protocols/custom_crypto/ntru as custom_ntru
-import ../src/protocols/custom_crypto/saber as custom_saber
+import ../src/protocols/custom_crypto/asymmetric/pq/kyber/operations as kyber
+import ../src/protocols/custom_crypto/asymmetric/pq/frodo/operations as frodo
+import ../src/protocols/custom_crypto/asymmetric/pq/bike/operations as bike
+import ../src/protocols/custom_crypto/asymmetric/pq/mceliece/operations as mceliece
+import ../src/protocols/custom_crypto/asymmetric/pq/dilithium/operations as dilithium
+import ../src/protocols/custom_crypto/asymmetric/pq/falcon/operations as falcon
+import ../src/protocols/custom_crypto/asymmetric/pq/sphincs/operations as sphincs
+import ../src/protocols/custom_crypto/asymmetric/pq/ntru/operations as custom_ntru
+import ../src/protocols/custom_crypto/asymmetric/pq/saber/operations as custom_saber
 import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_impl]
 import ../src/protocols/custom_crypto/asymmetric/pq/kyber/[params as kyber_params, operations as kyber_ops, indcpa]
 import ../src/protocols/custom_crypto/asymmetric/pq/frodo/params as frodo_params

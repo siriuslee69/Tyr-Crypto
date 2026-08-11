@@ -5,7 +5,10 @@
 import std/[monotimes, os, strutils]
 import metaPragmas
 import otter_repo_evaluation
-import ../src/protocols/custom_crypto/nugimli
+import ../src/protocols/custom_crypto/nugimli/types
+import ../src/protocols/custom_crypto/nugimli/domain
+import ../src/protocols/custom_crypto/nugimli/cascade
+import ../src/protocols/custom_crypto/nugimli/reference
 
 const
   leakageSamplesPerClass = 50_000

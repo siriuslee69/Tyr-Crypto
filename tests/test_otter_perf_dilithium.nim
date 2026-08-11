@@ -5,7 +5,7 @@
 
 import std/[algorithm, tables, unittest]
 
-import ../src/protocols/custom_crypto/dilithium
+import ../src/protocols/custom_crypto/asymmetric/pq/dilithium/operations as dilithium
 import otter_repo_evaluation
 
 const

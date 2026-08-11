@@ -4,8 +4,8 @@
 
 import std/volatile
 
-import ../../../aes_core
-import ../../../random
+import ../../../symmetric/aes/aes_core
+import ../../../symmetric/random
 
 const
   pqKatEntropyBytes* = 48

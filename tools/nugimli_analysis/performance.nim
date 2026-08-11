@@ -4,7 +4,7 @@
 
 import metaPragmas
 import otter_repo_evaluation
-import ../../src/protocols/custom_crypto/gimli
+import ../../src/protocols/custom_crypto/symmetric/gimli/gimli
 import ./primitives
 
 const

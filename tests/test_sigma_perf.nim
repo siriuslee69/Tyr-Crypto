@@ -5,8 +5,12 @@
 
 import std/[monotimes, unittest]
 
-import ../src/protocols/custom_crypto/[blake3, gimli, gimli_sponge, xchacha20,
-  xchacha20_simd, aes_ctr]
+import ../src/protocols/custom_crypto/symmetric/blake3/blake3
+import ../src/protocols/custom_crypto/symmetric/gimli/gimli
+import ../src/protocols/custom_crypto/symmetric/gimli/gimli_sponge
+import ../src/protocols/custom_crypto/symmetric/chacha/xchacha20
+import ../src/protocols/custom_crypto/symmetric/chacha/xchacha20_simd
+import ../src/protocols/custom_crypto/symmetric/aes/aes_ctr
 import otter_repo_evaluation
 
 const

@@ -3,11 +3,11 @@
 ## ------------------------------------------------------
 
 import ../../basic_api as basicApi
-import ../../../custom_crypto/blake3 as blake3Impl
-import ../../../custom_crypto/gimli_sponge
-import ../../../custom_crypto/hmac as hmacImpl
-import ../../../custom_crypto/x25519 as x25519Impl
-import ../../../custom_crypto/kyber as kyberImpl
+import ../../../custom_crypto/symmetric/blake3/blake3 as blake3Impl
+import ../../../custom_crypto/symmetric/gimli/gimli_sponge
+import ../../../custom_crypto/symmetric/hmac as hmacImpl
+import ../../../custom_crypto/asymmetric/none_pq/x25519_impl as x25519Impl
+import ../../../custom_crypto/asymmetric/pq/kyber/operations as kyberImpl
 import ../level0/types
 import ../level1/json_codec
 

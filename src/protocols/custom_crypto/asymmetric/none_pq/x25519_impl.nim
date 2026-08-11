@@ -13,6 +13,7 @@
 
 import ../../../helpers/otter_support
 import ./x25519_common
+export x25519_common
 
 when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defined(aarch64):
   import simd_nexus/simd/base_operations
@@ -556,7 +557,7 @@ proc x25519ScalarmultBaseRaw*(publicKey: var X25519Bytes32,
   result = x25519ScalarmultRaw(publicKey, secretKey, x25519Basepoint)
 
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrShared`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc x25519TyrShared*(secretKey, publicKey: openArray[byte]): seq[byte] =
+proc x25519TyrShared*(secretKey, publicKey: openArray[byte]): seq[byte] {.otterTrace.} =
   var
     sk = toFixed32(secretKey)
     pk = toFixed32(publicKey)
@@ -570,7 +571,7 @@ proc x25519TyrShared*(secretKey, publicKey: openArray[byte]): seq[byte] =
   result = toSeqBytes(shared)
 
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrPublicKey`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc x25519TyrPublicKey*(secretKey: openArray[byte]): seq[byte] =
+proc x25519TyrPublicKey*(secretKey: openArray[byte]): seq[byte] {.otterTrace.} =
   var
     sk = toFixed32(secretKey)
     pk: X25519Bytes32
@@ -582,7 +583,7 @@ proc x25519TyrPublicKey*(secretKey: openArray[byte]): seq[byte] =
   result = toSeqBytes(pk)
 
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
-proc x25519TyrKeypair*(): X25519TyrKeypair =
+proc x25519TyrKeypair*(): X25519TyrKeypair {.otterTrace.} =
   var
     sk = randomSecret32()
     pk: X25519Bytes32
@@ -595,7 +596,7 @@ proc x25519TyrKeypair*(): X25519TyrKeypair =
   result.secretKey = toSeqBytes(sk)
 
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrKeypairFromSeed`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
-proc x25519TyrKeypairFromSeed*(seed: openArray[byte]): X25519TyrKeypair =
+proc x25519TyrKeypairFromSeed*(seed: openArray[byte]): X25519TyrKeypair {.otterTrace.} =
   var
     sk = deriveSeedSecretCompat(seed)
     pk: X25519Bytes32

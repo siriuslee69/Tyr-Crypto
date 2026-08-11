@@ -5,7 +5,7 @@
 import std/[os, strutils, unittest]
 
 import ./helpers
-import ../src/protocols/custom_crypto/saber as custom_saber
+import ../src/protocols/custom_crypto/asymmetric/pq/saber/operations as custom_saber
 import ../src/protocols/custom_crypto/asymmetric/pq/common/pq_rng as pqc
 import ../src/protocols/custom_crypto/symmetric/sha3/sha3 as tyr_sha3
 

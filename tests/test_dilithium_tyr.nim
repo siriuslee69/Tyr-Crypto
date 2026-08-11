@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/dilithium as custom_dilithium
+import ../src/protocols/custom_crypto/asymmetric/pq/dilithium/operations as custom_dilithium
 import ../src/protocols/custom_crypto/asymmetric/pq/dilithium/poly as dilithium_poly
 import ../src/protocols/wrapper/basic_api
 

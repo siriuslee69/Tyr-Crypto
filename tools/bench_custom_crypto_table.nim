@@ -4,23 +4,23 @@
 
 import std/[algorithm, monotimes, os, strutils]
 
-import ../src/protocols/custom_crypto/chacha20 as custom_chacha20
-import ../src/protocols/custom_crypto/xchacha20 as custom_xchacha20
-import ../src/protocols/custom_crypto/xchacha20_simd as custom_xchacha20_simd
-import ../src/protocols/custom_crypto/aes_ctr as custom_aes_ctr
-import ../src/protocols/custom_crypto/gimli_sponge as custom_gimli_sponge
-import ../src/protocols/custom_crypto/blake3 as custom_blake3
-import ../src/protocols/custom_crypto/sha3 as custom_sha3
-import ../src/protocols/custom_crypto/poly1305 as custom_poly1305
-import ../src/protocols/custom_crypto/hmac as custom_hmac
-import ../src/protocols/custom_crypto/kyber as custom_kyber
-import ../src/protocols/custom_crypto/frodo as custom_frodo
-import ../src/protocols/custom_crypto/bike as custom_bike
-import ../src/protocols/custom_crypto/mceliece as custom_mceliece
-import ../src/protocols/custom_crypto/dilithium as custom_dilithium
-import ../src/protocols/custom_crypto/falcon as custom_falcon
+import ../src/protocols/custom_crypto/symmetric/chacha/chacha20 as custom_chacha20
+import ../src/protocols/custom_crypto/symmetric/chacha/xchacha20 as custom_xchacha20
+import ../src/protocols/custom_crypto/symmetric/chacha/xchacha20_simd as custom_xchacha20_simd
+import ../src/protocols/custom_crypto/symmetric/aes/aes_ctr as custom_aes_ctr
+import ../src/protocols/custom_crypto/symmetric/gimli/gimli_sponge as custom_gimli_sponge
+import ../src/protocols/custom_crypto/symmetric/blake3/blake3 as custom_blake3
+import ../src/protocols/custom_crypto/symmetric/sha3/sha3 as custom_sha3
+import ../src/protocols/custom_crypto/symmetric/poly1305/poly1305 as custom_poly1305
+import ../src/protocols/custom_crypto/symmetric/hmac as custom_hmac
+import ../src/protocols/custom_crypto/asymmetric/pq/kyber/operations as custom_kyber
+import ../src/protocols/custom_crypto/asymmetric/pq/frodo/operations as custom_frodo
+import ../src/protocols/custom_crypto/asymmetric/pq/bike/operations as custom_bike
+import ../src/protocols/custom_crypto/asymmetric/pq/mceliece/operations as custom_mceliece
+import ../src/protocols/custom_crypto/asymmetric/pq/dilithium/operations as custom_dilithium
+import ../src/protocols/custom_crypto/asymmetric/pq/falcon/operations as custom_falcon
 import ../src/protocols/custom_crypto/asymmetric/pq/falcon/randomness as falcon_randomness
-import ../src/protocols/custom_crypto/sphincs as custom_sphincs
+import ../src/protocols/custom_crypto/asymmetric/pq/sphincs/operations as custom_sphincs
 
 const
   smallBytes = 64

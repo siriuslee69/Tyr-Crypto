@@ -5,7 +5,8 @@
 import std/[base64, json, strutils]
 
 import ../../.iron/meta/metaPragmas
-import ../../src/protocols/custom_crypto/[kyber, x25519]
+import ../../src/protocols/custom_crypto/asymmetric/pq/kyber/operations as kyber
+import ../../src/protocols/custom_crypto/asymmetric/none_pq/x25519_impl as x25519
 import ../../src/protocols/wrapper/basic_api
 import ../../src/protocols/wrapper/helpers/algorithms
 import ./[test_catalog, test_jobs]

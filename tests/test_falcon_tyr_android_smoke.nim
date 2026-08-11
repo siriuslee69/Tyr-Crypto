@@ -5,7 +5,7 @@
 
 import std/unittest
 
-import ../src/protocols/custom_crypto/falcon
+import ../src/protocols/custom_crypto/asymmetric/pq/falcon/operations as falcon
 import ../src/protocols/custom_crypto/asymmetric/pq/falcon/randomness
 
 var
