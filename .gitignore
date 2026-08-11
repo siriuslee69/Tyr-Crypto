@@ -33,7 +33,6 @@ nimcache/
 *.h
 bindings/js/dist/
 tests/webui_interop/web/wasm/
-testResults/
 src/libsodium/
 src/liboqs/
 iron/iron_config.md
@@ -43,6 +42,7 @@ tests/test_*
 !tests/test_*.nim
 .fuse_hidden*
 tests/test_sigma_perf
+tests/testResults/
 
 !tests/android_harness/gradle/wrapper/gradle-wrapper.jar
 

@@ -32,6 +32,33 @@
 ##
 ## Encrypt-then-MAC: the tag is computed over the CIPHERTEXT, so `open`
 ## can reject a forgery before decrypting anything.
+##
+## Why these tags are NOT HMAC
+## ---------------------------
+## Tyr has its own HMAC in `tyr/macs` - `blake3CustomHmac`,
+## `gimliCustomHmac`, `sha3CustomHmac` - doing the real two-pass dance
+## with the 0x36 and 0x5c constants. This file does not call it, on
+## purpose.
+##
+## HMAC's inner/outer xor exists to solve ONE problem: Merkle-Damgard
+## hashes (MD5, SHA-1, SHA-2) output their whole internal state, so
+## `H(key || message)` can be extended by an attacker who never sees the
+## key. Nesting blocks that.
+##
+## Neither primitive used below has that weakness:
+##
+##   BLAKE3   has a native keyed mode - the key replaces the IV. It is
+##            specified as a PRF, and its own documentation says to use
+##            keyed mode rather than HMAC-BLAKE3.
+##   Gimli    is a sponge. The capacity is never squeezed out, so there is
+##            no state to extend. `gimliTag` also absorbs under a domain
+##            separator distinct from `gimliXof`'s, so a tag can never be
+##            confused with XOF output taken under the same key.
+##
+## Wrapping either in ipad/opad would double the work and buy nothing.
+## Use the HMAC procs in `tyr/macs` when you need a MAC over a
+## Merkle-Damgard hash, or interoperability with something that expects
+## RFC 2104 bytes.
 
 import metaPragmas
 

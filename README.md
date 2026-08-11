@@ -379,7 +379,7 @@ The WebUI host and relay never compile or execute catalog tests. A compiler
 crash, native test crash, WASM runtime failure, or stopped worker is recorded in
 atomic job state without taking down the UI or persistent test backend.
 
-The editable output field at the top defaults to `testResults/`. Pressing its
+The editable output field at the top defaults to `tests/testResults/`. Pressing its
 folder button opens the built-in directory picker; direct paths and `~/...`
 paths are accepted as well. Every native test or benchmark writes:
 
@@ -388,7 +388,8 @@ paths are accepted as well. Every native test or benchmark writes:
 - `<timestamp>-<job>-<test-id>.json`: both phase states, durations, exit codes,
   stop state, and result paths.
 
-The browser-WASM matrix writes the same `.log` and `.json` pair. `testResults/`
+The browser-WASM matrix writes the same `.log` and `.json` pair. Everything
+lands under `tests/`, never the repository root; `tests/testResults/`
 is ignored by Git so repeated local runs do not dirty the repository.
 
 New cards use the `pairedTest` template in

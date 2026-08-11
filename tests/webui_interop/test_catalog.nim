@@ -32,9 +32,15 @@ proc repoRoot(): string {.role: {helper}.} =
   ## Returns the Tyr-Crypto repository root.
   result = parentDir(parentDir(parentDir(currentSourcePath())))
 
+proc testsRoot(): string {.role: {helper}.} =
+  ## Returns the `tests/` directory. Every result file goes somewhere
+  ## under here, never the repository root - run output is not source and
+  ## should not sit next to it.
+  result = parentDir(parentDir(currentSourcePath()))
+
 proc defaultResultsDirectory*(): string {.role: {helper}.} =
-  ## Returns the default persistent UI result directory.
-  result = joinPath(repoRoot(), "testResults")
+  ## Returns the default persistent UI result directory, `tests/testResults`.
+  result = joinPath(testsRoot(), "testResults")
 
 proc appendPairedTest(C: var seq[TestCatalogEntry], id, title, family: string,
     tags, sources: openArray[string], kind: TestCommandKind = tckTests,
@@ -280,7 +286,10 @@ proc expandDirectory(path: string): string {.role: {helper}.} =
   if expanded.len == 0:
     expanded = resultsDirectory()
   if not expanded.isAbsolute():
-    expanded = joinPath(repoRoot(), expanded)
+    ## Relative entries resolve under `tests/`, not the repository root,
+    ## so typing a bare folder name in the dashboard cannot drop output
+    ## beside the source tree.
+    expanded = joinPath(testsRoot(), expanded)
   result = normalizedPath(expanded)
 
 proc browseDirectoryPayload*(path: string): string {.role: {dataFetcher}.} =

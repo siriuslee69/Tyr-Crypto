@@ -120,6 +120,7 @@ proc buildGroups(): seq[TestGroup] =
     "test_wrapper.nim", "test_pin_key.nim", "test_aes_gimli.nim",
     "test_xchacha20_gimli.nim", "test_xchacha20_aes_gimli.nim",
     "test_xchacha20_aes_gimli_poly1305.nim", "test_aead_runtime.nim"])
+  addGroup(result, "derive_sources", ["test_derive_sources.nim"])
   addGroup(result, "gimli", [
     "test_gimli_sse.nim", "test_gimli_vectors.nim", "test_nugimli.nim",
     "test_nugimli_domain.nim", "test_nugimli_stream_campaign.nim"])

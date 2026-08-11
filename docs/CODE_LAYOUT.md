@@ -177,6 +177,34 @@ typed output: bytes, tag, signature, KEM envelope
 | `*Of`             | Runtime tier (`dynamic.nim`)                     |
 | `*Single`         | Build-flag tier (`single.nim`)                   |
 | `*Pass1-4`        | Competing X25519 arithmetic optimization pass    |
+| `*b3` / `*gi`     | Variant deriving its key material with BLAKE3 /  |
+|                   | Gimli instead of the standard route. Two-letter  |
+|                   | source codes: `hc` `xc` `b3` `gi`                |
+
+## Swappable key derivation
+
+Two algorithms need a value derived by a *second* algorithm, and Tyr lets
+you choose which:
+
+```
+  xchacha20Xor      subkey from HChaCha20     <- standard, the default
+  xchacha20b3Xor    subkey from BLAKE3
+  xchacha20giXor    subkey from Gimli
+
+  poly1305xcTag     one-time key from XChaCha20 keystream  <- the default
+  poly1305b3Tag     one-time key from BLAKE3
+  poly1305giTag     one-time key from Gimli
+```
+
+The default is always the standard construction, byte-identical to what
+it was before the variants existed — `test_derive_sources.nim` asserts
+that. The variants are **not interoperable** with the standard or each
+other; store the two-letter source code alongside anything you keep.
+
+What each actually removes differs, and the doc comments say so: for
+Poly1305 it takes ChaCha20 out of the authentication path completely,
+since Poly1305's security never depended on it. For XChaCha20 it removes
+only the HChaCha20 assumption — the keystream is still ChaCha20.
 
 ## Test Group Mapping
 
@@ -186,6 +214,7 @@ typed output: bytes, tag, signature, KEM envelope
 | custom_crypto     | ciphers/, kdfs/argon2, kdfs/kdf             |
 | sha3/poly1305/aes | hashes/sha3/, macs/poly1305/, ciphers/aes/  |
 | gimli/blake3      | ciphers/gimli/, hashes/blake3/              |
+| derive_sources    | ciphers/chacha/xchacha20_derive, macs/poly1305/derive |
 | x25519            | kems/x25519/                                |
 | kyber/frodo/bike  | kems/{kyber,frodo,bike}/                    |
 | ntru/saber        | kems/{ntru,saber}/                          |
