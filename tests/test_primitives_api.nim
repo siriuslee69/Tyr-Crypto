@@ -1,7 +1,7 @@
 import std/unittest
-import ../src/protocols/wrapper/helpers/algorithms
-import ../src/protocols/wrapper/basic_api
-import ../src/protocols/common
+import ../src/tyr/helpers/tiers
+import ../src/tyr/kems/material
+import ../src/tyr/helpers/errors
 import ./helpers
 
 suite "primitives api":
@@ -97,11 +97,11 @@ suite "primitives api":
       discard hmacCreate(maPoly1305, key, msg, 17)
     check hmacCreate(maBlake3, key, msg, 16).len == 16
 
-  test "crypoRand returns requested length":
+  test "cryptoRand returns requested length":
     var
       a: seq[byte] = @[]
       b: seq[byte] = @[]
-    a = crypoRand(raSystem, 24)
+    a = cryptoRand(raSystem, 24)
     b = cryptoRand(raSystemMixed, 24, toBytes("dispatch entropy"))
     check a.len == 24
     check b.len == 24

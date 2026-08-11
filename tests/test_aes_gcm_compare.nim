@@ -1,9 +1,9 @@
 import std/unittest
 
 when defined(hasLibsodium) and defined(hasNimcrypto):
-  import ../src/protocols/common
-  import ../src/protocols/bindings/nimcrypto
-  import ../src/protocols/bindings/libsodium
+  import ../src/tyr/helpers/errors
+  import ../src/tyr/bindings/nimcrypto
+  import ../src/tyr/bindings/libsodium
   import ./helpers
 
   proc ensureSodiumAvailable(): bool =

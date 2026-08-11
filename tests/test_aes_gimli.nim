@@ -1,6 +1,6 @@
 import std/unittest
-import ../src/protocols/algorithms
-import ../src/protocols/suite_api
+import ../src/tyr/aeads/types
+import ../src/tyr/aeads/suite_api
 import ./helpers
 
 proc buildAesGimliState(keyA, keyG, nonce: seq[uint8], tagLen: uint16): SymAuthState =

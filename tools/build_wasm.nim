@@ -5,7 +5,7 @@
 import std/[algorithm, json, os, osproc, sequtils, strutils]
 
 const
-  wasmSource = "src/protocols/wrapper/wasm/exports.nim"
+  wasmSource = "src/tyr/helpers/wasm/exports.nim"
   wasmBuildDir = "build/wasm"
   wasmNimcacheDir = "build/wasm/nimcache_wasm32"
   wasmOutputDir = "bindings/js/dist"

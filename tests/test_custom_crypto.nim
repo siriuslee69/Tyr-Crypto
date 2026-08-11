@@ -1,11 +1,11 @@
 import std/[base64, strutils, unittest]
-import ../src/protocols/custom_crypto/symmetric/argon2/argon2
-import ../src/protocols/custom_crypto/symmetric/blake3/blake3
-import ../src/protocols/custom_crypto/symmetric/chacha/chacha20
-import ../src/protocols/custom_crypto/symmetric/chacha/xchacha20
-import ../src/protocols/custom_crypto/symmetric/gimli/gimli_sponge
-import ../src/protocols/custom_crypto/symmetric/kdf
-import ../src/protocols/custom_crypto/symmetric/blake3_gimli_kdf
+import ../src/tyr/kdfs/argon2
+import ../src/tyr/hashes/blake3
+import ../src/tyr/ciphers/chacha20
+import ../src/tyr/ciphers/xchacha20
+import ../src/tyr/ciphers/gimli_sponge
+import ../src/tyr/kdfs/kdf
+import ../src/tyr/kdfs/blake3_gimli_kdf
 import ./crypto_vectors
 import ./helpers
 

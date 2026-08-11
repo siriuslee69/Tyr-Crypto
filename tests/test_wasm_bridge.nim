@@ -1,7 +1,7 @@
 import std/[base64, json, unittest]
 
-import ../src/protocols/wrapper/wasm/level0/types
-import ../src/protocols/wrapper/wasm/level2/json_api
+import ../src/tyr/helpers/wasm/level0/types
+import ../src/tyr/helpers/wasm/level2/json_api
 
 proc wasmBytesToString(bs: openArray[uint8]): string =
   result = newString(bs.len)

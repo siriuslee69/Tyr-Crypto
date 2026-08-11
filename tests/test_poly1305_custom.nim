@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/symmetric/poly1305/poly1305
+import ../src/tyr/macs/poly1305
 import ./helpers
 
 suite "poly1305 custom crypto":

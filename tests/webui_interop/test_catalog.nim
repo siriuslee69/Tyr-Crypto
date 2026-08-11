@@ -4,7 +4,7 @@
 
 import std/[algorithm, json, os, osproc, strutils, times]
 
-import ../../.iron/meta/metaPragmas
+import metaPragmas
 
 type
   TestCommandKind* = enum

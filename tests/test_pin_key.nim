@@ -1,10 +1,10 @@
 import std/unittest
-import ../src/protocols/wrapper/helpers/password_support
-import ../src/protocols/common
+import ../src/tyr/kdfs/password
+import ../src/tyr/helpers/errors
 
 when defined(hasLibsodium):
-  import ../src/protocols/suite_api
-  import ../src/protocols/bindings/libsodium
+  import ../src/tyr/aeads/suite_api
+  import ../src/tyr/bindings/libsodium
 
   proc sodiumAvailable(): bool =
     try:

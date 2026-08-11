@@ -1,7 +1,7 @@
 import std/unittest
-import ../src/protocols/algorithms
-import ../src/protocols/suite_api
-import ../src/protocols/common
+import ../src/tyr/aeads/types
+import ../src/tyr/aeads/suite_api
+import ../src/tyr/helpers/errors
 import ./helpers
 
 proc buildPolyLayerState(keyX, keyA, keyG, keyP, nonce: seq[uint8],

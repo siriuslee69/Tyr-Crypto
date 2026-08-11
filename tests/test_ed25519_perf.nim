@@ -1,6 +1,6 @@
 import std/[monotimes, strformat, times, unittest]
 
-import ../src/protocols/custom_crypto/asymmetric/none_pq/ed25519_impl as customEd25519
+import ../src/tyr/signatures/ed25519 as customEd25519
 
 const
   corpusLen = 8

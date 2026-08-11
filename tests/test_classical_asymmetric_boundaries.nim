@@ -4,7 +4,9 @@
 
 import std/unittest
 
-import ../src/protocols/custom_crypto/[bigint, ecdsa_p256, rsa]
+import ../src/tyr/helpers/bigint
+import ../src/tyr/signatures/ecdsa_p256
+import ../src/tyr/certs/rsa
 
 proc identityRsaKeys(e: uint32 = 1'u32): tuple[
     publicKey: RsaPublicKey, privateKey: RsaPrivateKey] =

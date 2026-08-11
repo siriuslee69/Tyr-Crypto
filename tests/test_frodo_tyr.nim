@@ -1,13 +1,13 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/asymmetric/pq/frodo/operations as custom_frodo
-import ../src/protocols/custom_crypto/asymmetric/pq/frodo/util as frodo_util
-import ../src/protocols/custom_crypto/symmetric/sha3/sha3 as tyr_sha3
-import ../src/protocols/wrapper/basic_api
+import ../src/tyr/kems/frodo as custom_frodo
+import ../src/tyr/kems/frodo/util as frodo_util
+import ../src/tyr/hashes/sha3 as tyr_sha3
+import ../src/tyr/kems/material
 
 when defined(hasLibOqs):
-  import ../src/protocols/wrapper/helpers/algorithms
-  import ../src/protocols/bindings/liboqs
+  import ../src/tyr/helpers/tiers
+  import ../src/tyr/bindings/liboqs
 
 proc fillSeed(seed: var seq[byte], base: int) =
   var

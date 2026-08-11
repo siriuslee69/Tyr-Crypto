@@ -3,8 +3,8 @@
 ## --------------------------------------------------------------------
 
 import std/unittest
-import ../tools/nugimli_analysis/stream_types
-import ../tools/nugimli_analysis/stream_campaign
+import ./nugimli_analysis/stream_types
+import ./nugimli_analysis/stream_campaign
 
 suite "nugimli stream campaign":
   test "builds every direct and three-width route combination":

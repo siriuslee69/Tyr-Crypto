@@ -5,11 +5,11 @@
 
 import std/[os, strutils, unittest]
 
-import ../src/protocols/custom_crypto/asymmetric/pq/frodo/operations as custom_frodo
+import ../src/tyr/kems/frodo as custom_frodo
 import otter_repo_evaluation
 
 when defined(hasLibOqs):
-  import ../src/protocols/bindings/liboqs
+  import ../src/tyr/bindings/liboqs
 
 type
   ProfileInfo = object

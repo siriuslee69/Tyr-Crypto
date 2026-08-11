@@ -3,10 +3,10 @@
 ## ------------------------------------------------------------------
 
 import std/[strutils, unittest]
-import ../src/protocols/custom_crypto/nugimli/types
-import ../src/protocols/custom_crypto/nugimli/domain
-import ../src/protocols/custom_crypto/nugimli/cascade
-import ../src/protocols/custom_crypto/nugimli/reference
+import ../src/tyr/ciphers/nugimli/types
+import ../src/tyr/ciphers/nugimli/domain
+import ../src/tyr/ciphers/nugimli/cascade
+import ../src/tyr/ciphers/nugimli/reference
 
 suite "nugimli domain derivation":
   test "key and state domains are deterministic and independent":

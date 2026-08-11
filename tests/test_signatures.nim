@@ -1,8 +1,8 @@
 import std/unittest
-import ../src/protocols/wrapper/helpers/signature_support
-import ../src/protocols/common
-import ../src/protocols/wrapper/helpers/algorithms
-import ../src/protocols/wrapper/basic_api
+import ../src/tyr/signatures/registry
+import ../src/tyr/helpers/errors
+import ../src/tyr/helpers/tiers
+import ../src/tyr/kems/material
 
 suite "signatures wrapper":
   test "ed25519 pure Nim wrapper roundtrip works without libsodium":

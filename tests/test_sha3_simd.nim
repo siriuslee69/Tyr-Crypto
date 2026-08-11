@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/symmetric/sha3/sha3 as custom_sha3
+import ../src/tyr/hashes/sha3 as custom_sha3
 
 proc fromHex(s: string): seq[byte] =
   proc hexVal(c: char): int =

@@ -1,6 +1,6 @@
 import std/unittest
-import ../src/protocols/common
-import ../src/protocols/bindings/nimcrypto
+import ../src/tyr/helpers/errors
+import ../src/tyr/bindings/nimcrypto
 
 when defined(hasNimcrypto):
   import ./helpers

@@ -1,6 +1,6 @@
 import std/unittest
-import ../src/protocols/common
-import ../src/protocols/bindings/liboqs
+import ../src/tyr/helpers/errors
+import ../src/tyr/bindings/liboqs
 
 when defined(hasLibOqs):
   import ./helpers

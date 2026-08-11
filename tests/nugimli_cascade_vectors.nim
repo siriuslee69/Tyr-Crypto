@@ -5,7 +5,7 @@
 ## Key word i   = ((i + 1) * 0x9E3779B9) xor 0x3C6EF372.
 ## Words and bytes inside words are little-endian.
 
-import ../src/protocols/custom_crypto/nugimli/types
+import ../src/tyr/ciphers/nugimli/types
 
 const
   cascadePermutation512Vector*: NuGimli512 = [

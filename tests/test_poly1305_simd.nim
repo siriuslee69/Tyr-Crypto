@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/symmetric/poly1305/poly1305 as custom_poly1305
+import ../src/tyr/macs/poly1305 as custom_poly1305
 
 const
   poly1305BoundaryLengths: array[7, int] = [0, 15, 16, 17, 31, 32, 33]

@@ -4,8 +4,8 @@
 
 import std/unittest
 
-import ../src/protocols/custom_crypto/symmetric/sha2/sha512 as custom_sha512
-import ../src/protocols/custom_crypto/asymmetric/none_pq/ed25519_impl as reference_sha512
+import ../src/tyr/hashes/sha512 as custom_sha512
+import ../src/tyr/signatures/ed25519 as reference_sha512
 import ./helpers
 
 proc patternedBytes(n: int): seq[byte] =

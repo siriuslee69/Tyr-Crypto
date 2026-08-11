@@ -1,10 +1,10 @@
 import std/[json, os, osproc, strutils, unittest]
 
-import ../src/protocols/custom_crypto/symmetric/aes/aes_core
-import ../src/protocols/custom_crypto/asymmetric/pq/sphincs/operations as custom_sphincs
+import ../src/tyr/ciphers/aes/aes_core
+import ../src/tyr/signatures/sphincs as custom_sphincs
 
 when defined(hasLibOqs):
-  import ../src/protocols/bindings/liboqs
+  import ../src/tyr/bindings/liboqs
 
 const
   sphincsKatEntropyLen = 48

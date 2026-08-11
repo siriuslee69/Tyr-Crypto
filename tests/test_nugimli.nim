@@ -4,11 +4,11 @@
 
 import std/unittest
 import metaPragmas
-import ../src/protocols/custom_crypto/nugimli/types
-import ../src/protocols/custom_crypto/nugimli/domain
-import ../src/protocols/custom_crypto/nugimli/cascade
-import ../src/protocols/custom_crypto/nugimli/reference
-import ../src/protocols/custom_crypto/nugimli/core
+import ../src/tyr/ciphers/nugimli/types
+import ../src/tyr/ciphers/nugimli/domain
+import ../src/tyr/ciphers/nugimli/cascade
+import ../src/tyr/ciphers/nugimli/reference
+import ../src/tyr/ciphers/nugimli/core
 import ./nugimli_cascade_vectors
 
 proc fillNuGimliState[N: static[int]](S: var array[N, uint32],

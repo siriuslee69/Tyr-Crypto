@@ -1,5 +1,5 @@
 import std/[unittest, strutils]
-import ../src/protocols/common
+import ../src/tyr/helpers/errors
 
 suite "common helpers":
   test "raiseUnavailable provides descriptive error":

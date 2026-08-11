@@ -2,12 +2,12 @@
 
 import std/unittest
 
-import ../src/protocols/custom_crypto/asymmetric/pq/bike/operations as custom_bike
-import ../src/protocols/custom_crypto/symmetric/sha3/sha3 as tyr_sha3
-import ../src/protocols/wrapper/basic_api
+import ../src/tyr/kems/bike as custom_bike
+import ../src/tyr/hashes/sha3 as tyr_sha3
+import ../src/tyr/kems/material
 
 when defined(hasLibOqs):
-  import ../src/protocols/bindings/liboqs
+  import ../src/tyr/bindings/liboqs
 
 proc fillBikeSeed(seed: var seq[byte], base: int) =
   var

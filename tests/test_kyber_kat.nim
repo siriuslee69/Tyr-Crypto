@@ -1,10 +1,10 @@
 import std/[json, os, osproc, strutils, unittest]
 
-import ../src/protocols/custom_crypto/symmetric/aes/aes_core
-import ../src/protocols/custom_crypto/asymmetric/pq/kyber/operations as custom_kyber
+import ../src/tyr/ciphers/aes/aes_core
+import ../src/tyr/kems/kyber as custom_kyber
 
 when defined(hasLibOqs):
-  import ../src/protocols/bindings/liboqs
+  import ../src/tyr/bindings/liboqs
 
 const
   katEntropyLen = 48

@@ -1,5 +1,5 @@
 import std/unittest
-import ../src/protocols/custom_crypto/symmetric/random
+import ../src/tyr/helpers/random
 
 static:
   doAssert not compiles(cryptoRandomBytes(1, [uint16 1]))

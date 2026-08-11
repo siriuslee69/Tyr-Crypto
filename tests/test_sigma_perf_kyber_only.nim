@@ -6,11 +6,11 @@
 
 import std/unittest
 
-import ../src/protocols/custom_crypto/asymmetric/pq/kyber/operations as custom_kyber
+import ../src/tyr/kems/kyber as custom_kyber
 import otter_repo_evaluation
 
 when defined(hasLibOqs):
-  import ../src/protocols/bindings/liboqs
+  import ../src/tyr/bindings/liboqs
 
 const
   fastLoops = 100

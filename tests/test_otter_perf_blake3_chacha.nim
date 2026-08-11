@@ -5,10 +5,10 @@
 
 import std/[algorithm, tables, unittest]
 
-import ../src/protocols/custom_crypto/symmetric/blake3/blake3
-import ../src/protocols/custom_crypto/symmetric/chacha/chacha20
-import ../src/protocols/custom_crypto/symmetric/chacha/xchacha20
-import ../src/protocols/custom_crypto/symmetric/chacha/xchacha20_simd
+import ../src/tyr/hashes/blake3
+import ../src/tyr/ciphers/chacha20
+import ../src/tyr/ciphers/xchacha20
+import ../src/tyr/ciphers/chacha/xchacha20_simd
 import otter_repo_evaluation
 
 const

@@ -7,7 +7,7 @@ import std/[json, locks, os, osproc, strutils, unittest]
 import webui
 import webui/bindings as webuiBindings
 
-import ../.iron/meta/metaPragmas
+import metaPragmas
 import ./webui_interop/[interop_backend, test_catalog, test_jobs]
 
 var

@@ -1,8 +1,8 @@
 import std/unittest
 
-import ../src/protocols/wrapper/basic_api
-import ../src/protocols/wrapper/helpers/algorithms
-import ../src/protocols/wrapper/helpers/signature_support
+import ../src/tyr/kems/material
+import ../src/tyr/helpers/tiers
+import ../src/tyr/signatures/registry
 
 suite "quick api":
   test "algorithm layouts expose single-algorithm metadata":

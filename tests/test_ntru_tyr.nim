@@ -4,10 +4,10 @@
 
 import std/[json, os, strutils, unittest]
 
-import ../src/protocols/custom_crypto/asymmetric/pq/ntru/operations as custom_ntru
-import ../src/protocols/custom_crypto/symmetric/sha2/sha256
-import ../src/protocols/custom_crypto/asymmetric/pq/common/pq_rng as pqc
-import ../src/protocols/custom_crypto/symmetric/sha3/sha3 as tyr_sha3
+import ../src/tyr/kems/ntru as custom_ntru
+import ../src/tyr/hashes/sha256
+import ../src/tyr/helpers/common/pq_rng as pqc
+import ../src/tyr/hashes/sha3 as tyr_sha3
 
 const
   ntruKatEntropyLen = 48

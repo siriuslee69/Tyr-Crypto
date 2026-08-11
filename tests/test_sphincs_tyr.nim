@@ -1,10 +1,10 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/asymmetric/pq/sphincs/operations as custom_sphincs
-import ../src/protocols/wrapper/basic_api
+import ../src/tyr/signatures/sphincs as custom_sphincs
+import ../src/tyr/kems/material
 
 when defined(hasLibOqs):
-  import ../src/protocols/bindings/liboqs
+  import ../src/tyr/bindings/liboqs
 
 proc fillSphincsSeed(seed: var seq[byte], base: int) =
   for i in 0 ..< seed.len:

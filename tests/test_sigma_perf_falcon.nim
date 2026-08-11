@@ -5,13 +5,15 @@
 
 import std/[os, strutils, unittest]
 
-import ../src/protocols/custom_crypto/asymmetric/pq/falcon/operations as custom_falcon
-import ../src/protocols/custom_crypto/asymmetric/pq/falcon/randomness as falcon_randomness
-import ../src/protocols/custom_crypto/asymmetric/pq/falcon/[format, sign as pure_falcon_sign, pure_verify as pure_falcon_verify]
+import ../src/tyr/signatures/falcon as custom_falcon
+import ../src/tyr/signatures/falcon/randomness as falcon_randomness
+import ../src/tyr/signatures/falcon/format
+import ../src/tyr/signatures/falcon/sign as pure_falcon_sign
+import ../src/tyr/signatures/falcon/pure_verify as pure_falcon_verify
 import otter_repo_evaluation
 
 when defined(hasLibOqs):
-  import ../src/protocols/bindings/liboqs
+  import ../src/tyr/bindings/liboqs
 
 const
   keypairLoops = 2

@@ -4,8 +4,14 @@
 
 import std/unittest
 import metaPragmas
-import ../src/protocols/certificates
-import ../src/protocols/custom_crypto/asymmetric/none_pq/ed25519_impl as ed25519
+import ../src/tyr/certs/chain
+import ../src/tyr/certs/pem
+import ../src/tyr/certs/der
+import ../src/tyr/certs/x509
+import ../src/tyr/certs/oid
+import ../src/tyr/certs/keys
+import ../src/tyr/certs/verify
+import ../src/tyr/signatures/ed25519 as ed25519
 
 const
   fixtureKey = staticRead(

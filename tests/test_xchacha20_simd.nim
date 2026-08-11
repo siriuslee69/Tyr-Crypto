@@ -1,9 +1,9 @@
 import std/unittest
-import ../src/protocols/custom_crypto/symmetric/chacha/chacha20 as chacha
-import ../src/protocols/custom_crypto/symmetric/chacha/chacha20_scalar as scalar
-import ../src/protocols/custom_crypto/symmetric/chacha/xchacha20 as xchacha
-import ../src/protocols/custom_crypto/symmetric/chacha/xchacha20_simd
-import ../src/protocols/custom_crypto/symmetric/chacha/xchacha20_batch
+import ../src/tyr/ciphers/chacha20 as chacha
+import ../src/tyr/ciphers/chacha/chacha20_scalar as scalar
+import ../src/tyr/ciphers/xchacha20 as xchacha
+import ../src/tyr/ciphers/chacha/xchacha20_simd
+import ../src/tyr/ciphers/xchacha20_batch
 import ./helpers
 
 proc checkBackendBoundaries(b: XChaChaBackend, L: openArray[int]) =

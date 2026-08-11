@@ -4,7 +4,7 @@
 
 import std/[json, monotimes, os, osproc, sets, strutils, tables, times]
 
-import ../../.iron/meta/metaPragmas
+import metaPragmas
 import ./test_catalog
 
 const

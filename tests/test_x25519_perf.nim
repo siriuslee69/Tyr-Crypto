@@ -1,7 +1,8 @@
 import std/[monotimes, strformat, times, unittest]
 
-import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_impl]
-import ../src/protocols/bindings/libsodium
+import ../src/tyr/kems/x25519/x25519_common
+import ../src/tyr/kems/x25519
+import ../src/tyr/bindings/libsodium
 
 const
   scalarCorpusLen = 32

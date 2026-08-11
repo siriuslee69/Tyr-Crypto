@@ -1,9 +1,9 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/asymmetric/none_pq/x25519_impl as customX25519
-import ../src/protocols/custom_crypto/asymmetric/none_pq/x25519_common
-import ../src/protocols/custom_crypto/asymmetric/none_pq/x25519_impl as rawX25519
-import ../src/protocols/bindings/libsodium
+import ../src/tyr/kems/x25519 as customX25519
+import ../src/tyr/kems/x25519/x25519_common
+import ../src/tyr/kems/x25519 as rawX25519
+import ../src/tyr/bindings/libsodium
 import ./[crypto_vectors, helpers]
 
 proc sodiumAvailable(): bool =

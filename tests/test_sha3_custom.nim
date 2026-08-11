@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/symmetric/sha3/sha3
+import ../src/tyr/hashes/sha3
 import ./helpers
 
 suite "sha3 custom crypto":

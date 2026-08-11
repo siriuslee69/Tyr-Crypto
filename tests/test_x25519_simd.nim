@@ -1,6 +1,7 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/asymmetric/none_pq/[x25519_common, x25519_impl]
+import ../src/tyr/kems/x25519/x25519_common
+import ../src/tyr/kems/x25519
 
 proc buildDeterministicInputs2(secretKeys, publicKeys: var array[2, X25519Bytes32]) =
   var

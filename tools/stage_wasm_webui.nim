@@ -4,7 +4,7 @@
 
 import std/[os, strutils]
 
-import ../.iron/meta/metaPragmas
+import metaPragmas
 
 const
   sourceDir = "bindings/js"

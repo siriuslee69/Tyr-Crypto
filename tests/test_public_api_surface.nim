@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/tyr_crypto
+import ../src/tyr
 import ./helpers
 
 suite "public api surface":

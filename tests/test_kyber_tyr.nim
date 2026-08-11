@@ -1,13 +1,13 @@
 import std/unittest
 
-import ../src/protocols/wrapper/basic_api
-import ../src/protocols/custom_crypto/asymmetric/pq/kyber/operations as custom_kyber
-import ../src/protocols/custom_crypto/asymmetric/pq/kyber/[
+import ../src/tyr/kems/material
+import ../src/tyr/kems/kyber as custom_kyber
+import ../src/tyr/kems/kyber/[
   params, types, poly, polyvec, symmetric, indcpa]
 
 when defined(hasLibOqs):
-  import ../src/protocols/wrapper/helpers/algorithms
-  import ../src/protocols/bindings/liboqs
+  import ../src/tyr/helpers/tiers
+  import ../src/tyr/bindings/liboqs
 
 proc fillPatternSeed(seed: var seq[byte], base: int) =
   var

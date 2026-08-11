@@ -1,6 +1,6 @@
 import std/unittest
 
-import ../src/protocols/custom_crypto/symmetric/blake3/blake3
+import ../src/tyr/hashes/blake3
 
 proc buildBlock(seed: uint32): array[16, uint32] =
   var

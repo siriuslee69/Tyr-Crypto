@@ -1,7 +1,7 @@
 import std/unittest
-import ../src/protocols/wrapper/helpers/algorithms
-import ../src/protocols/common
-import ../src/protocols/wrapper/basic_api
+import ../src/tyr/helpers/tiers
+import ../src/tyr/helpers/errors
+import ../src/tyr/kems/material
 
 suite "multi kex triple":
   when defined(hasLibOqs):

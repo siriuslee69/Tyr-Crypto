@@ -4,7 +4,8 @@
 
 import std/unittest
 
-import ../src/protocols/ciphers
+import ../src/tyr/ciphers
+import ../src/tyr/ciphers/dynamic
 
 suite "cipher runtime selection":
 
@@ -23,48 +24,48 @@ suite "cipher runtime selection":
     while i < 200:
       msg.add byte(i)
       i = i + 1
-    for c in TyrCipher:
+    for c in CipherFamily:
       n = newSeq[byte](nonceBytes(c))
       i = 0
       while i < n.len:
         n[i] = byte(255 - i)
         i = i + 1
-      ct = tyrCipherEncrypt(c, k, n, msg)
+      ct = encryptOf(c, k, n, msg)
       check ct.len == msg.len
       check ct != msg
-      check tyrCipherDecrypt(c, k, n, ct) == msg
+      check decryptOf(c, k, n, ct) == msg
 
   test "runtime pick equals calling the algorithm directly":
     var
       k: seq[byte] = newSeq[byte](32)
       msg: seq[byte] = @[9'u8, 8, 7, 6, 5, 4, 3, 2, 1, 0]
-    check tyrCipherXor(tcXChaCha20, k, newSeq[byte](24), msg) ==
+    check cipherXorOf(cfXChaCha20, k, newSeq[byte](24), msg) ==
       xchacha20Xor(k, newSeq[byte](24), msg)
-    check tyrCipherXor(tcChaCha20, k, newSeq[byte](12), msg) ==
+    check cipherXorOf(cfChaCha20, k, newSeq[byte](12), msg) ==
       chacha20Xor(k, newSeq[byte](12), msg)
-    check tyrCipherXor(tcAesCtr, k, newSeq[byte](16), msg) ==
+    check cipherXorOf(cfAesCtr, k, newSeq[byte](16), msg) ==
       aesCtrXor(k, newSeq[byte](16), msg)
-    check tyrCipherXor(tcGimliStream, k, newSeq[byte](24), msg) ==
+    check cipherXorOf(cfGimliStream, k, newSeq[byte](24), msg) ==
       gimliStreamXor(k, newSeq[byte](24), msg)
 
   test "names survive a write-then-read trip":
-    for c in TyrCipher:
-      check parseTyrCipher(cipherName(c)) == c
+    for c in CipherFamily:
+      check parseCipherFamily(familyName(c)) == c
     expect ValueError:
-      discard parseTyrCipher("no-such-cipher")
+      discard parseCipherFamily("no-such-cipher")
 
   test "wrong key or nonce size is refused before any cipher runs":
     var k: seq[byte] = newSeq[byte](32)
-    for c in TyrCipher:
+    for c in CipherFamily:
       expect ValueError:
-        discard tyrCipherXor(c, newSeq[byte](31), newSeq[byte](nonceBytes(c)), @[1'u8])
+        discard cipherXorOf(c, newSeq[byte](31), newSeq[byte](nonceBytes(c)), @[1'u8])
       expect ValueError:
-        discard tyrCipherXor(c, k, newSeq[byte](nonceBytes(c) + 1), @[1'u8])
+        discard cipherXorOf(c, k, newSeq[byte](nonceBytes(c) + 1), @[1'u8])
 
   test "declared sizes match what the ciphers accept":
-    check nonceBytes(tcXChaCha20) == 24
-    check nonceBytes(tcChaCha20) == 12
-    check nonceBytes(tcAesCtr) == 16
-    check nonceBytes(tcGimliStream) == 24
-    for c in TyrCipher:
+    check nonceBytes(cfXChaCha20) == 24
+    check nonceBytes(cfChaCha20) == 12
+    check nonceBytes(cfAesCtr) == 16
+    check nonceBytes(cfGimliStream) == 24
+    for c in CipherFamily:
       check keyBytes(c) == 32

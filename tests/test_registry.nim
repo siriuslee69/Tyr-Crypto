@@ -1,6 +1,6 @@
 import std/unittest
 import registry
-import ../src/protocols/wrapper/helpers/algorithms
+import ../src/tyr/helpers/tiers
 
 suite "registry helpers":
   test "cipher backends include metadata":

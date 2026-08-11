@@ -1,8 +1,9 @@
 import std/[monotimes, times, unittest]
 
-import ../src/tyr_crypto
-import ../src/protocols/common
-import ../src/protocols/bindings/[liboqs, libsodium]
+import ../src/tyr
+import ../src/tyr/helpers/errors
+import ../src/tyr/bindings/liboqs
+import ../src/tyr/bindings/libsodium
 import ./helpers
 
 const

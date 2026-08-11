@@ -1,6 +1,6 @@
 import std/unittest
-import ../src/protocols/custom_crypto/symmetric/aes/aes_ctr
-import ../src/protocols/custom_crypto/symmetric/aes/aes_core
+import ../src/tyr/ciphers/aes_ctr
+import ../src/tyr/ciphers/aes/aes_core
 import ./helpers
 when defined(hasNimcrypto):
   import nimcrypto/rijndael

@@ -1,6 +1,6 @@
 import std/[strutils, unittest]
 import metaPragmas
-import ../src/protocols/custom_crypto/symmetric/sha2/sha256
+import ../src/tyr/hashes/sha256
 import ./helpers
 
 proc repeatedByte(b: byte, n: int): seq[byte] {.role: {helper}.} =

@@ -1,10 +1,10 @@
 import std/[json, os, osproc, strutils, unittest]
 
-import ../src/protocols/custom_crypto/symmetric/aes/aes_core
-import ../src/protocols/custom_crypto/asymmetric/pq/dilithium/operations as custom_dilithium
+import ../src/tyr/ciphers/aes/aes_core
+import ../src/tyr/signatures/dilithium as custom_dilithium
 
 when defined(hasLibOqs):
-  import ../src/protocols/bindings/liboqs
+  import ../src/tyr/bindings/liboqs
 
 const
   diliKatEntropyLen = 48

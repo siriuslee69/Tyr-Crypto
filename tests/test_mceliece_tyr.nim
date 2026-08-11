@@ -2,13 +2,13 @@
 
 import std/unittest
 
-import ../src/protocols/wrapper/basic_api
-import ../src/protocols/custom_crypto/asymmetric/pq/mceliece/operations as custom_mceliece
-import ../src/protocols/custom_crypto/asymmetric/pq/mceliece/encrypt as mceliece_encrypt
-import ../src/protocols/custom_crypto/symmetric/sha3/sha3 as tyr_sha3
+import ../src/tyr/kems/material
+import ../src/tyr/kems/mceliece as custom_mceliece
+import ../src/tyr/kems/mceliece/encrypt as mceliece_encrypt
+import ../src/tyr/hashes/sha3 as tyr_sha3
 
 when defined(hasLibOqs):
-  import ../src/protocols/bindings/liboqs
+  import ../src/tyr/bindings/liboqs
 
 proc buildSeed(start: int): seq[byte] =
   result = newSeq[byte](32)

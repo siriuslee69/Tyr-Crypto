@@ -1,6 +1,6 @@
 import std/[os, strutils]
-import ../src/protocols/wrapper/helpers/password_support
-import ../src/protocols/common
+import ../src/tyr/kdfs/password
+import ../src/tyr/helpers/errors
 import ./helpers
 
 when defined(hasLibsodium):

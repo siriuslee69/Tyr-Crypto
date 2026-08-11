@@ -5,13 +5,13 @@
 
 import std/[os, strutils, unittest]
 
-import ../src/protocols/custom_crypto/asymmetric/pq/falcon/operations as falcon
-import ../src/protocols/custom_crypto/asymmetric/pq/falcon/randomness
-import ../src/protocols/custom_crypto/asymmetric/pq/falcon/codec
-import ../src/protocols/custom_crypto/asymmetric/pq/falcon/fpr
-import ../src/protocols/custom_crypto/asymmetric/pq/falcon/format
-import ../src/protocols/custom_crypto/asymmetric/pq/falcon/pure_verify
-import ../src/protocols/custom_crypto/asymmetric/pq/falcon/sign
+import ../src/tyr/signatures/falcon as falcon
+import ../src/tyr/signatures/falcon/randomness
+import ../src/tyr/signatures/falcon/codec
+import ../src/tyr/signatures/falcon/fpr
+import ../src/tyr/signatures/falcon/format
+import ../src/tyr/signatures/falcon/pure_verify
+import ../src/tyr/signatures/falcon/sign
 
 var
   falconDeterministicBase: int = 0
