@@ -1,85 +1,123 @@
 ## ---------------------------------------------------------------------
-## | KEM Single <- compile exactly ONE family, chosen by a build flag    |
-## | -d:tyrKemKyber  ->  only Kyber enters the build                     |
+## | KEM Single <- import ONE family, or all of them, from one flag      |
+## | no flag -> every family    -d:tyrKem=kyber -> Kyber alone           |
 ## ---------------------------------------------------------------------
 ##
-## What this is for
-## ----------------
-## Small devices. A microcontroller build should contain the one algorithm
-## the device uses and nothing else. This file compiles no code of its own;
-## it only decides which family module the compiler is allowed to see.
+## Usable straight away, no flag required
+## -------------------------------------
 ##
-##   nim c -d:tyrKemKyber myfirmware.nim
-##     -> Kyber only. McEliece, Frodo, BIKE, NTRU and SABER are never
-##        imported, so they are never parsed, never compiled, never linked.
+##     import tyr/kems/single
 ##
-## Why not just rely on the optimiser
-## ----------------------------------
-## Nim does drop code you never call, so on a normal desktop build the
-## optimiser gets you the same binary. The difference shows on a device:
+##     var kp = keypairSingle(kfKyber)        # <- compile-time choice
 ##
-##   an unused module is still PARSED and TYPE-CHECKED for your target
+## With no flag this behaves like the full library: every family is
+## available, and `keypairSingle` picks between them WHILE COMPILING, so
+## there is no runtime branch and no cost.
 ##
-## If a family pulls in something the target has no answer for, the build
-## fails even though the code would have been dropped later. `when` is the
-## only tier that prevents the module being looked at in the first place.
+## Then, when you want a small build, add one flag and change nothing else:
 ##
-## The flags
-## ---------
+##     nim c -d:tyrKem=kyber myfirmware.nim
 ##
-##   flag                  compiles      call it with
-##   -------------------   -----------   --------------------------
-##   -d:tyrKemKyber        Kyber         kyberTyrKeypair(kyber768)
-##   -d:tyrKemMcEliece     McEliece      mcelieceTyrKeypair(...)
-##   -d:tyrKemFrodo        Frodo         frodoTyrKeypair(...)
-##   -d:tyrKemBike         BIKE          bikeTyrKeypair(bikeL1)
-##   -d:tyrKemNtru         NTRU          ntruTyrKeypair(...)
-##   -d:tyrKemSaber        SABER         saberTyrKeypair(...)
+## Now only Kyber is compiled. The same `keypairSingle(kfKyber)` call keeps
+## working; asking for any other family becomes a compile error naming the
+## flag you would need. Your source does not change between the two builds.
 ##
-## Naming two at once is refused below rather than letting the first win.
-## Naming none is refused too - importing this file means you intended to
-## pick one, so silence would be a mistake, not a default.
+##   -d:tyrKem=<name>     compiles          names
+##   ------------------   ---------------   --------------------------
+##   (omitted)            every family      all of them
+##   kyber                Kyber             kyberTyrKeypair(kyber768)
+##   mceliece             Classic McEliece  mcelieceTyrKeypair(...)
+##   frodo                FrodoKEM          frodoTyrKeypair(...)
+##   bike                 BIKE              bikeTyrKeypair(bikeL1)
+##   ntru                 NTRU              ntruTyrKeypair(...)
+##   saber                SABER             saberTyrKeypair(...)
+##
+## Why a build flag and not a call in your code
+## --------------------------------------------
+## Nim resolves every `import` before any of your code exists. A `case` or
+## `when` written inside a proc runs long after all the imports have already
+## been read, so it cannot un-import anything. Choosing what enters the
+## build is therefore a build-time decision by nature. This file keeps that
+## decision down to ONE flag with a readable value, and makes the no-flag
+## case work, which is as close to "from inside the code" as the language
+## allows.
 
 import ./types
 export types
 
-when defined(tyrKemKyber):
-  when defined(tyrKemMcEliece) or defined(tyrKemFrodo) or defined(tyrKemBike) or
-      defined(tyrKemNtru) or defined(tyrKemSaber):
-    {.error: "pick only one -d:tyrKem... flag".}
+const tyrKem* {.strdefine.}: string = ""
+  ## Which single KEM family to compile. Empty (the default) means all.
+
+when tyrKem == "":
+  import ./kyber
+  import ./mceliece
+  import ./frodo
+  import ./bike
+  import ./ntru
+  import ./saber
+  export kyber, mceliece, frodo, bike, ntru, saber
+elif tyrKem == "kyber":
   import ./kyber
   export kyber
-
-elif defined(tyrKemMcEliece):
-  when defined(tyrKemFrodo) or defined(tyrKemBike) or defined(tyrKemNtru) or
-      defined(tyrKemSaber):
-    {.error: "pick only one -d:tyrKem... flag".}
+elif tyrKem == "mceliece":
   import ./mceliece
   export mceliece
-
-elif defined(tyrKemFrodo):
-  when defined(tyrKemBike) or defined(tyrKemNtru) or defined(tyrKemSaber):
-    {.error: "pick only one -d:tyrKem... flag".}
+elif tyrKem == "frodo":
   import ./frodo
   export frodo
-
-elif defined(tyrKemBike):
-  when defined(tyrKemNtru) or defined(tyrKemSaber):
-    {.error: "pick only one -d:tyrKem... flag".}
+elif tyrKem == "bike":
   import ./bike
   export bike
-
-elif defined(tyrKemNtru):
-  when defined(tyrKemSaber):
-    {.error: "pick only one -d:tyrKem... flag".}
+elif tyrKem == "ntru":
   import ./ntru
   export ntru
-
-elif defined(tyrKemSaber):
+elif tyrKem == "saber":
   import ./saber
   export saber
-
 else:
-  {.error: "tyr/kems/single needs one -d:tyrKem... flag " &
-    "(tyrKemKyber, tyrKemMcEliece, tyrKemFrodo, tyrKemBike, tyrKemNtru, tyrKemSaber). " &
-    "For every family at once use `import tyr/kems` instead.".}
+  {.error: "unknown -d:tyrKem=" & tyrKem &
+    " (expected: kyber, mceliece, frodo, bike, ntru, saber, or omit the flag for all)".}
+
+proc keypairSingle*(f: static KemFamily, seed: seq[byte] = @[]): KemKeypair =
+  ## f/seed: family named as a COMPILE-TIME value, plus optional fixed
+  ## randomness for reproducible tests.
+  ##
+  ## `f` is `static`, so the branch below is chosen while compiling and the
+  ## others are discarded. Asking for a family this build excluded is a
+  ## compile error telling you which flag to change.
+  when f == kfKyber:
+    when not declared(kyberTyrKeypair):
+      {.error: "Kyber is not in this build; use -d:tyrKem=kyber or omit the flag".}
+    else:
+      var t = kyberTyrKeypair(kyber768, seed)
+      result = KemKeypair(family: kfKyber, public: t.publicKey, secret: t.secretKey)
+  elif f == kfMcEliece:
+    when not declared(mcelieceTyrKeypair):
+      {.error: "McEliece is not in this build; use -d:tyrKem=mceliece or omit the flag".}
+    else:
+      var t = mcelieceTyrKeypair(mceliece6688128f, seed)
+      result = KemKeypair(family: kfMcEliece, public: t.publicKey, secret: t.secretKey)
+  elif f == kfFrodo:
+    when not declared(frodoTyrKeypair):
+      {.error: "Frodo is not in this build; use -d:tyrKem=frodo or omit the flag".}
+    else:
+      var t = frodoTyrKeypair(frodo640shake, seed)
+      result = KemKeypair(family: kfFrodo, public: t.publicKey, secret: t.secretKey)
+  elif f == kfBike:
+    when not declared(bikeTyrKeypair):
+      {.error: "BIKE is not in this build; use -d:tyrKem=bike or omit the flag".}
+    else:
+      var t = bikeTyrKeypair(bikeL1, seed)
+      result = KemKeypair(family: kfBike, public: t.publicKey, secret: t.secretKey)
+  elif f == kfNtru:
+    when not declared(ntruTyrKeypair):
+      {.error: "NTRU is not in this build; use -d:tyrKem=ntru or omit the flag".}
+    else:
+      var t = ntruTyrKeypair(ntruhps2048509, seed)
+      result = KemKeypair(family: kfNtru, public: t.publicKey, secret: t.secretKey)
+  elif f == kfSaber:
+    when not declared(saberTyrKeypair):
+      {.error: "SABER is not in this build; use -d:tyrKem=saber or omit the flag".}
+    else:
+      var t = saberTyrKeypair(saber, seed)
+      result = KemKeypair(family: kfSaber, public: t.publicKey, secret: t.secretKey)

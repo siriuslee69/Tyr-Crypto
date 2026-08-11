@@ -1,25 +1,34 @@
 ## ---------------------------------------------------------------------
-## | MAC Single <- compile exactly ONE authenticator, by build flag     |
+## | MAC Single <- import ONE family, or all, from one flag
+## | no flag -> everything    -d:tyrMac=<name> -> that one alone
 ## ---------------------------------------------------------------------
 ##
-##   -d:tyrMacPoly1305   ->  poly1305Tag(key, msg)     (one-time key!)
-##   -d:tyrMacHmac       ->  the hash-based MACs (BLAKE3 / Gimli / SHA-3)
+##     import tyr/macs/single        # works with no flag at all
 ##
-## The three hash-based constructions share one module, so they arrive
-## together; Poly1305 is independent and can stand alone.
+## Add one flag for a small build; your source does not change:
+##
+##     nim c -d:tyrMac=<name> myfirmware.nim
+##
+## Nim resolves every import before any of your code exists, so what
+## enters the build is a build-time decision by nature. This keeps that
+## decision down to one flag, and makes the no-flag case work.
 
 import ./types
 export types
 
-when defined(tyrMacPoly1305):
-  when defined(tyrMacHmac):
-    {.error: "pick only one -d:tyrMac... flag".}
+const tyrMac* {.strdefine.}: string = ""
+  ## Which single family to compile. Empty (the default) means all.
+
+when tyrMac == "":
+  import ./poly1305
+  import ./hmac
+  export poly1305, hmac
+elif tyrMac == "poly1305":
   import ./poly1305
   export poly1305
-elif defined(tyrMacHmac):
+elif tyrMac == "hmac":
   import ./hmac
   export hmac
 else:
-  {.error: "tyr/macs/single needs one -d:tyrMac... flag " &
-    "(tyrMacPoly1305, tyrMacHmac). " &
-    "For every family at once use `import tyr/macs` instead.".}
+  {.error: "unknown -d:tyrMac=" & tyrMac &
+    " (expected: poly1305, hmac, or omit the flag for all)".}

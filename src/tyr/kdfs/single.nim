@@ -1,31 +1,38 @@
 ## ---------------------------------------------------------------------
-## | KDF Single <- compile exactly ONE derivation family, by build flag |
+## | KDF Single <- import ONE family, or all, from one flag
+## | no flag -> everything    -d:tyrKdf=<name> -> that one alone
 ## ---------------------------------------------------------------------
 ##
-##   -d:tyrKdfArgon2        ->  argon2idHash(...)   slow, for passwords
-##   -d:tyrKdfBlake3Gimli   ->  deriveBlake3GimliStageKey(...)   fast
-##   -d:tyrKdfCustom        ->  deriveCustomKdf(...)             fast
+##     import tyr/kdfs/single        # works with no flag at all
 ##
-## ⚠ On a device that checks a human PIN or password, pick tyrKdfArgon2.
-## The fast families are for material that is already a strong secret.
+## Add one flag for a small build; your source does not change:
+##
+##     nim c -d:tyrKdf=<name> myfirmware.nim
+##
+## Nim resolves every import before any of your code exists, so what
+## enters the build is a build-time decision by nature. This keeps that
+## decision down to one flag, and makes the no-flag case work.
 
 import ./types
 export types
 
-when defined(tyrKdfArgon2):
-  when defined(tyrKdfBlake3Gimli) or defined(tyrKdfCustom):
-    {.error: "pick only one -d:tyrKdf... flag".}
+const tyrKdf* {.strdefine.}: string = ""
+  ## Which single family to compile. Empty (the default) means all.
+
+when tyrKdf == "":
+  import ./argon2
+  import ./blake3_gimli_kdf
+  import ./kdf
+  export argon2, blake3_gimli_kdf, kdf
+elif tyrKdf == "argon2":
   import ./argon2
   export argon2
-elif defined(tyrKdfBlake3Gimli):
-  when defined(tyrKdfCustom):
-    {.error: "pick only one -d:tyrKdf... flag".}
+elif tyrKdf == "blake3gimli":
   import ./blake3_gimli_kdf
   export blake3_gimli_kdf
-elif defined(tyrKdfCustom):
+elif tyrKdf == "custom":
   import ./kdf
   export kdf
 else:
-  {.error: "tyr/kdfs/single needs one -d:tyrKdf... flag " &
-    "(tyrKdfArgon2, tyrKdfBlake3Gimli, tyrKdfCustom). " &
-    "For every family at once use `import tyr/kdfs` instead.".}
+  {.error: "unknown -d:tyrKdf=" & tyrKdf &
+    " (expected: argon2, blake3gimli, custom, or omit the flag for all)".}

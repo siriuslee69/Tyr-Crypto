@@ -519,16 +519,21 @@ task test_backend_matrix, "Run the backend matrix bench against liboqs and libso
 task test_public_api_surface, "Compile and run the top-level public API export smoke test":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_public_api_surface").replace('\\', '/') & " -d:hasLibOqs -d:hasLibsodium -r tests/test_public_api_surface.nim")
 
-task test_cipher_select, "Compile-check every -d:tyrCipher... single-cipher build mode":
-  ## Each flag must build on its own, and naming two at once must be refused.
-  for flag in ["tyrCipherXChaCha20", "tyrCipherChaCha20", "tyrCipherAesCtr",
-      "tyrCipherGimli"]:
+task test_single_select, "Compile-check every -d:tyr...=<name> single-family build mode":
+  ## Each module must build with no flag (all families) and with each value.
+  for spec in @[("tyrKem", @["kyber","mceliece","frodo","bike","ntru","saber"], "kems"),
+      ("tyrSig", @["dilithium","falcon","sphincs","ed25519"], "signatures"),
+      ("tyrHash", @["blake3","sha256","sha512","sha3"], "hashes"),
+      ("tyrMac", @["poly1305","hmac"], "macs"),
+      ("tyrKdf", @["argon2","blake3gimli","custom"], "kdfs"),
+      ("tyrCipher", @["chacha20","xchacha20","aesctr","gimli"], "ciphers")]:
     exec withRepoCaches("nim check --nimcache:" &
-      repoNimcacheDir("nimcache_cipher_select_" & flag).replace('\\', '/') &
-      " -d:" & flag & " src/protocols/ciphers.nim")
-  exec withRepoCaches("nim check --nimcache:" &
-    repoNimcacheDir("nimcache_cipher_select_default").replace('\\', '/') &
-    " src/protocols/ciphers.nim")
+      repoNimcacheDir("nimcache_single_" & spec[2]).replace('\\', '/') &
+      " src/tyr/" & spec[2] & "/single.nim")
+    for v in spec[1]:
+      exec withRepoCaches("nim check --nimcache:" &
+        repoNimcacheDir("nimcache_single_" & spec[2] & "_" & v).replace('\\', '/') &
+        " -d:" & spec[0] & "=" & v & " src/tyr/" & spec[2] & "/single.nim")
 
 task cleanbuild, "Delete generated build caches and test binaries":
   ## Nim records the config it saw into each nimcache. If a cache was made
