@@ -57,7 +57,7 @@ suite "custom SHA-512 and SHA-384":
       split: int = 0
     for n in lengths:
       A = patternedBytes(n)
-      expected = reference_sha512.sha512Hash(A)
+      expected = reference_sha512.ed25519Sha512Hash(A)
       check custom_sha512.sha512Hash(A) == expected
       split = n div 2
       check incrementalSha512(A, 0) == expected

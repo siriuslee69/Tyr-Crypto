@@ -11,8 +11,8 @@
 ## Unlike the KEM and signature tiers, hash families have no per-family
 ## variant type to overload on, so the family is named by its enum value.
 ##
-## Each algorithm also answers to a `...Tyr...` public name, meaning "this
-## repo's own version of it" - see the block at the bottom of this file.
+## Each algorithm also answers to a `...Tyr...` public name on its own
+## surface, e.g. `tyr/kdfs/argon2` gives `argon2idTyrHash`.
 
 import ./hashes/types
 import ./hashes/blake3
@@ -37,33 +37,3 @@ proc digest*(f: HashFamily, data: openArray[byte], outLen: int = 0): seq[byte] =
   of hfSha3:   result = sha3Hash(data, n)
   of hfSha256: result = @(sha256Hash(data))
   of hfSha512: result = @(sha512Hash(data))
-
-## ╭⟢ Public names
-##
-## `blake3Hash` is what the implementation calls itself and what the rest
-## of Tyr uses. `blake3TyrHash` is the same code under the name other
-## repos call, chosen so it cannot collide with a library-backed BLAKE3
-## imported alongside it.
-
-proc blake3TyrHash*(input: openArray[byte],
-    outLen: int = outLenDefault): seq[byte] {.inline.} =
-  ## Public name for the local BLAKE3 hash.
-  result = blake3Hash(input, outLen)
-
-proc blake3TyrKeyedHash*(key, input: openArray[byte],
-    outLen: int = outLenDefault): seq[byte] {.inline.} =
-  ## Public name for the local keyed BLAKE3 hash.
-  result = blake3KeyedHash(key, input, outLen)
-
-proc sha3TyrHash*(input: openArray[byte],
-    outLen: int = 32): seq[byte] {.inline.} =
-  ## Public name for the local SHA3 hash.
-  result = sha3Hash(input, outLen)
-
-proc shake256Tyr*(input: openArray[byte], outLen: int): seq[byte] {.inline.} =
-  ## Public name for the local SHAKE256 XOF.
-  result = shake256(input, outLen)
-
-proc shake128Tyr*(input: openArray[byte], outLen: int): seq[byte] {.inline.} =
-  ## Public name for the local SHAKE128 XOF.
-  result = shake128(input, outLen)

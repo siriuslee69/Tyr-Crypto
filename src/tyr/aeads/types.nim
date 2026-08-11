@@ -56,6 +56,11 @@
 ## ⚠ There is no associated-data input yet. Everything you need bound to
 ## the ciphertext must be inside the message.
 
+import ../ciphers/chacha/xchacha20_derive
+import ../macs/poly1305/derive
+
+export xchacha20_derive, derive
+
 type
   ## Which authenticated composite to use. See the table above.
   CipherSuite* = enum
@@ -160,6 +165,24 @@ proc isSinglePrimitive*(a: CipherSuite): bool =
 ## Opening is unrestricted - checking a tag reveals nothing and can be
 ## repeated as often as you like.
 
+## ╭⟢ Which algorithm derives what
+##
+## Two steps inside these suites are performed by a SECOND algorithm, and
+## both are swappable - see `tyr/ciphers/chacha/xchacha20_derive` and
+## `tyr/macs/poly1305/derive` for what each choice does and does not
+## remove.
+##
+##   cipherSource   derives XChaCha20's subkey       default HChaCha20
+##   macSource      derives Poly1305's one-time key  default XChaCha20
+##
+## The defaults are the standard constructions, so a state built without
+## naming them behaves exactly as it always did. A suite that uses
+## neither XChaCha20 nor Poly1305 ignores the corresponding field.
+##
+## ⚠ Both sides must agree. A ciphertext sealed with `sksBlake3` opens
+## only under `sksBlake3`. Record the two-letter codes from `sourceName`
+## with anything you keep.
+
 type
   ## One suite, its keys, and one nonce that may be sealed with once.
   AeadState* = ref object
@@ -167,6 +190,8 @@ type
     keys*: seq[seq[uint8]]
     nonce*: seq[uint8]
     tagBytes*: uint16
+    cipherSource*: SubkeySource
+    macSource*: Poly1305KeySource
     sealed: bool
 
   ## A sealed message: the scrambled bytes plus the tag that proves they
@@ -177,11 +202,15 @@ type
     authType*: AuthType
 
 proc initAeadState*(a: CipherSuite, keys: seq[seq[uint8]], nonce: seq[uint8],
-    tagBytes: uint16 = 0'u16): AeadState =
+    tagBytes: uint16 = 0'u16,
+    cipherSource: SubkeySource = sksHChaCha20,
+    macSource: Poly1305KeySource = pksXChaCha20): AeadState =
   ## a: which suite.
   ## keys: one 32-byte key per layer, in the order the suite lists them.
   ## nonce: `nonceBytes(a)` bytes, never before used with these keys.
   ## tagBytes: wanted tag length, or 0 for the suite's safe default.
+  ## cipherSource/macSource: which algorithm derives XChaCha20's subkey
+  ## and Poly1305's one-time key. Both default to the standard route.
   ##
   ## Every length is checked here, so a wrong count or a short key fails
   ## at setup rather than producing a ciphertext nobody can open.
@@ -201,6 +230,8 @@ proc initAeadState*(a: CipherSuite, keys: seq[seq[uint8]], nonce: seq[uint8],
     i = i + 1
   result.nonce = nonce
   result.tagBytes = resolveTagBytes(a, tagBytes)
+  result.cipherSource = cipherSource
+  result.macSource = macSource
   result.sealed = false
 
 proc claimForSeal*(s: AeadState) =

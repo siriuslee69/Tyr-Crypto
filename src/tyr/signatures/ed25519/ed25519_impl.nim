@@ -24,7 +24,7 @@
 ##   RFC 8032 hard-wires Ed25519 to SHA-512 (the SHA-2 family).
 ##   The SHA3/SHAKE code in symmetric/sha3 is Keccak - a different
 ##   algorithm with different outputs - so it CANNOT be swapped in.
-##   This embedded sha512Hash is the only SHA-512 in the repo and is
+##   This embedded ed25519Sha512Hash is the only SHA-512 in the repo and is
 ##   verified by the RFC 8032 vectors in tests/test_ed25519_custom.nim.
 
 import ../../kems/x25519/x25519_common
@@ -160,8 +160,11 @@ proc store64Be(A: var openArray[byte], o: int, v: uint64) {.inline.} =
   A[o + 6] = byte((v shr 8) and 0xff'u64)
   A[o + 7] = byte(v and 0xff'u64)
 
-## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `sha512Hash`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc sha512Hash*(A: openArray[byte]): Ed25519Bytes64 =
+## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `ed25519Sha512Hash`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc ed25519Sha512Hash*(A: openArray[byte]): Ed25519Bytes64 =
+  ## Ed25519's own embedded SHA-512, required by RFC 8032. Kept separate
+  ## from `tyr/hashes/sha512` so the two can cross-check each other and
+  ## so `import tyr` has one unambiguous `sha512Hash`.
   ## The input may be secret (seeds, nonce prefixes), so every internal
   ## copy of it - padded message, message schedule, working registers -
   ## is wiped with volatile stores when the proc returns.
@@ -966,7 +969,7 @@ proc clampDigestScalar(h: Ed25519Bytes64): Ed25519Bytes32 =
 ## Reference: [RFC-8032] sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification; implementation support for the family algorithms for `publicKeyFromSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc publicKeyFromSeed(seed: Ed25519Bytes32): Ed25519Bytes32 =
   var
-    h = sha512Hash(seed)
+    h = ed25519Sha512Hash(seed)
     a = clampDigestScalar(h)
   defer:
     secureClearPod(h)
@@ -1046,7 +1049,7 @@ proc ed25519TyrSign*(message, secretKey: openArray[byte]): seq[byte] =
   if publicDiff != 0'u8:
     raise newException(ValueError,
       "Ed25519 secret key public half does not match its seed")
-  h = sha512Hash(seed)
+  h = ed25519Sha512Hash(seed)
   a = clampDigestScalar(h)
   prefixMsg = newSeqOfCap[byte](32 + message.len)
   i = 32
@@ -1055,7 +1058,7 @@ proc ed25519TyrSign*(message, secretKey: openArray[byte]): seq[byte] =
     inc i
   for b in message:
     prefixMsg.add(b)
-  rDigest = sha512Hash(prefixMsg)
+  rDigest = ed25519Sha512Hash(prefixMsg)
   r = reduce64(rDigest)
   rPoint = geBase(r)
   rEncoded = pointEncode(rPoint)
@@ -1070,7 +1073,7 @@ proc ed25519TyrSign*(message, secretKey: openArray[byte]): seq[byte] =
     inc i
   for b in message:
     hramInput.add(b)
-  hramDigest = sha512Hash(hramInput)
+  hramDigest = ed25519Sha512Hash(hramInput)
   hram = reduce64(hramDigest)
   s = scalarMulAdd(hram, a, r)
   i = 0
@@ -1124,7 +1127,7 @@ proc ed25519TyrVerify*(message, signature, publicKey: openArray[byte]): bool =
     inc i
   for b in message:
     hramInput.add(b)
-  hramDigest = sha512Hash(hramInput)
+  hramDigest = ed25519Sha512Hash(hramInput)
   hram = reduce64(hramDigest)
   sB = pointScalarMultVartime(basePoint(), sigS)
   hA = pointScalarMultVartime(aPoint, hram)

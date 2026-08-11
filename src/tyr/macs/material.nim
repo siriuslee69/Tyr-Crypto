@@ -21,6 +21,7 @@
 import ../helpers/material
 import ../helpers/tiers
 import ./hmac
+import ./poly1305
 
 export material
 
@@ -110,13 +111,20 @@ proc poly1305Len(outLen: uint16): int =
 ## ╭⟢ Pick the authenticator by its tier value
 
 proc macOutLen(alg: MacAlgorithm, outLen: int): int =
-  if outLen > 0:
-    return outLen
-  case alg
-  of maPoly1305:
-    result = 16
-  else:
-    result = digestBytes
+  ## alg/outLen: which authenticator, and the requested tag length, or 0
+  ## for its natural one.
+  ##
+  ## A requested length is validated like any other. This used to return
+  ## early on `outLen > 0` and skip both checks below, so the policy was
+  ## really being enforced by whatever the backend happened to do next -
+  ## which meant it moved whenever a backend changed. It lives here now.
+  result = outLen
+  if result <= 0:
+    case alg
+    of maPoly1305:
+      result = 16
+    else:
+      result = digestBytes
   if result < 16:
     raise newException(ValueError, "high-level MAC output must be at least 16 bytes")
   if alg == maPoly1305 and result != 16:
@@ -124,6 +132,15 @@ proc macOutLen(alg: MacAlgorithm, outLen: int): int =
 
 proc hmacCreate*(alg: MacAlgorithm, key, msg: seq[uint8], outLen: int = 0): seq[uint8] =
   ## Create a detached MAC/tag with the selected keyed hash backend.
+  ##
+  ## ⚠ `maPoly1305` is a ONE-TIME authenticator and this entry point hands
+  ## `key` straight to it. That key must never cover a second message: two
+  ## tags under one key let an attacker solve for the key and forge
+  ## freely. The other three take a long-lived key safely.
+  ##
+  ## For a Poly1305 tag that IS safe under a reused key, use
+  ## `poly1305DerivedTag` from `tyr/macs/poly1305`, which takes a nonce and
+  ## derives a fresh one-time key from it.
   let resolvedOutLen = macOutLen(alg, outLen)
   case alg
   of maBlake3:
@@ -131,7 +148,7 @@ proc hmacCreate*(alg: MacAlgorithm, key, msg: seq[uint8], outLen: int = 0): seq[
   of maGimli:
     result = gimliCustomHmac(key, msg, resolvedOutLen)
   of maPoly1305:
-    result = poly1305CustomHmac(key, msg, resolvedOutLen)
+    result = poly1305Tag(key, msg)
   of maSha3:
     result = sha3CustomHmac(key, msg, resolvedOutLen)
 

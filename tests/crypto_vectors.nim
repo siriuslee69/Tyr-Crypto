@@ -99,5 +99,9 @@ const
     nonceHex: "b33ffd3096479bcfbc9aee49417688a0a2554f8d95389419",
     plaintextHex: "0000000000000000000000000000000000000000000000000000000000",
     cipherHex: "c6e9758160083ac604ef90e712ce6e75d7797590744e0cf060f013739c",
-    tagHex: "d08b9705f8454ba092bd356d8cd647ad3a032fb8ff8495d56bee5061f731b02f"
+    # Tyr's own tag, not an external vector. Regenerated when authFrame
+    # moved to v3 and began binding the suite id and both derivation
+    # sources. cipherHex above is unchanged, which is the evidence that
+    # XChaCha20 itself still behaves identically.
+    tagHex: "d4b3c1d996da28adc780abaf225db16a4fa7286e80b7c80e49c6bf9e2b20b3b3"
   )

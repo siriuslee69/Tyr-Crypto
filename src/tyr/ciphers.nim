@@ -25,9 +25,9 @@
 ## level down in the algorithm enums, where `akKyber0Send` is the library
 ## route and `akKyber0TyrSend` is Tyr's.
 ##
-## Each module keeps the public names for its own algorithms: hash names
-## live in `tyr/hashes`, tag names in `tyr/macs`, password names in
-## `tyr/kdfs`. Only the cipher names are below.
+## Each ALGORITHM SURFACE keeps its own public names, so a single-algorithm
+## import reaches them too: `tyr/ciphers/chacha20` gives `chacha20TyrXor`,
+## `tyr/hashes/blake3` gives `blake3TyrHash`. They are re-exported here.
 
 import ./ciphers/types
 import ./ciphers/aes_ctr
@@ -39,64 +39,6 @@ import ./ciphers/material
 export types
 export aes_ctr, chacha20, xchacha20, gimli_sponge
 export material
-
-## ╭⟢ AES-CTR
-
-proc aesCtrTyrXor*(k, n, ps: openArray[uint8],
-    b: AesCtrBackend = acbAuto): seq[uint8] {.inline.} =
-  ## Public name for the local AES-CTR xor helper.
-  result = aesCtrXor(k, n, ps, b)
-
-proc initAesCtrTyrState*(k, n: openArray[uint8]): AesCtrState {.inline.} =
-  ## Public name for the local AES-CTR state initializer.
-  result = initAesCtrState(k, n)
-
-## ╭⟢ ChaCha20 / XChaCha20
-
-proc chacha20TyrXor*(key, nonce: openArray[byte],
-    input: openArray[byte]): seq[byte] {.inline.} =
-  ## Public name for the local ChaCha20 xor helper.
-  result = chacha20Xor(key, nonce, input)
-
-proc chacha20TyrStream*(key, nonce: openArray[byte], length: int,
-    initialCounter: uint32 = 0'u32): seq[byte] {.inline.} =
-  ## Public name for the local ChaCha20 keystream helper.
-  result = chacha20Stream(key, nonce, length, initialCounter)
-
-proc hchacha20Tyr*(key, nonce: openArray[byte]): array[32, byte] {.inline.} =
-  ## Public name for the local HChaCha20 core.
-  result = hchacha20(key, nonce)
-
-proc xchacha20TyrXor*(key, nonce: openArray[byte],
-    input: openArray[byte]): seq[byte] {.inline.} =
-  ## Public name for the local XChaCha20 xor helper.
-  result = xchacha20Xor(key, nonce, input)
-
-proc xchacha20TyrStream*(key, nonce: openArray[byte], length: int,
-    initialCounter: uint32 = 0'u32): seq[byte] {.inline.} =
-  ## Public name for the local XChaCha20 keystream helper.
-  result = xchacha20Stream(key, nonce, length, initialCounter)
-
-## ╭⟢ Gimli sponge
-##
-## One permutation serving three jobs. The XOF and tag helpers live here
-## rather than in `tyr/hashes` and `tyr/macs` because all three are the
-## same sponge with different padding, and splitting them would scatter
-## one implementation across three modules.
-
-proc gimliTyrXof*(ks, ns, ms: openArray[uint8],
-    outLen: int): seq[uint8] {.inline.} =
-  ## Public name for the local Gimli XOF.
-  result = gimliXof(ks, ns, ms, outLen)
-
-proc gimliTyrTag*(ks, ns, ms: openArray[uint8],
-    outLen: int): seq[uint8] {.inline.} =
-  ## Public name for the local Gimli tag helper.
-  result = gimliTag(ks, ns, ms, outLen)
-
-proc gimliTyrStreamXor*(ks, ns, input: openArray[uint8]): seq[uint8] {.inline.} =
-  ## Public name for the local Gimli stream-xor helper.
-  result = gimliStreamXor(ks, ns, input)
 
 ## ╭⟢ Pick the cipher by its family value
 

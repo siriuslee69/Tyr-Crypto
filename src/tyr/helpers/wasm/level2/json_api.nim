@@ -6,6 +6,7 @@ import ../../../ciphers/material as cipherMaterial
 import ../../../hashes/blake3 as blake3Impl
 import ../../../ciphers/gimli_sponge
 import ../../../macs/hmac as hmacImpl
+import ../../../hashes/sha3 as sha3Impl
 import ../../../kems/x25519 as x25519Impl
 import ../../../kems/kyber as kyberImpl
 import ../level0/types
@@ -63,7 +64,7 @@ proc gimliHashJson*(reqJson: string): string =
 proc sha3HashJson*(reqJson: string): string =
   try:
     var req = decodeHashRequest(reqJson)
-    var digest = hmacImpl.sha3Hash(req.input,
+    var digest = sha3Impl.sha3Hash(req.input,
       if req.outLen == 0'u16: 32 else: int(req.outLen))
     result = buildBytesJson("sha3Hash", digest)
   except CatchableError as exc:

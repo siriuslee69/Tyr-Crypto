@@ -20,3 +20,20 @@ import ./poly1305/derive
 
 export poly1305
 export derive
+
+## ╭⟢ Public names
+##
+## ⚠ All three take the key straight to Poly1305, so it must be one-time.
+## For a long-lived key use `poly1305DerivedTag` above.
+
+proc poly1305TyrMac*(key, msg: openArray[byte]): Poly1305Tag {.inline.} =
+  ## Public name for the local Poly1305 MAC. ⚠ One-time key.
+  result = poly1305Mac(key, msg)
+
+proc poly1305TyrTag*(key, msg: openArray[byte]): seq[byte] {.inline.} =
+  ## Public name for the local Poly1305 detached tag. ⚠ One-time key.
+  result = poly1305Tag(key, msg)
+
+proc poly1305TyrVerify*(key, msg, tag: openArray[byte]): bool {.inline.} =
+  ## Public name for the local Poly1305 verifier. ⚠ One-time key.
+  result = poly1305Verify(key, msg, tag)

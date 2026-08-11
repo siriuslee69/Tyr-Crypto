@@ -109,21 +109,33 @@ suite "custom hmac":
     check a.len == 16
     check a != c
 
-  test "poly1305 custom mac derives a distinct one-time key":
+  test "poly1305 derived tag makes a reused master key safe":
+    ## The derived form takes a nonce and turns it into a fresh one-time
+    ## (r, s), so one master key can cover many messages. Raw poly1305Tag
+    ## uses the key directly and must never see a second message.
     var
       key: seq[byte] =
         hexToBytes("4242424242424242424242424242424242424242424242424242424242424242")
+      nonce: seq[byte] = newSeq[byte](24)
+      other: seq[byte] = newSeq[byte](24)
       msg: seq[byte] = toBytes("poly1305 derived tag")
       changed: seq[byte] = toBytes("poly1305 derived tah")
-      tag: seq[byte] = poly1305CustomHmac(key, msg)
-      repeated: seq[byte] = poly1305CustomHmac(key, msg)
-      changedTag: seq[byte] = poly1305CustomHmac(key, changed)
+    for i in 0 ..< 24:
+      nonce[i] = byte(i)
+      other[i] = byte(200 - i)
+    var
+      tag: seq[byte] = poly1305DerivedTag(key, nonce, msg)
+      repeated: seq[byte] = poly1305DerivedTag(key, nonce, msg)
+      changedTag: seq[byte] = poly1305DerivedTag(key, nonce, changed)
+      otherNonce: seq[byte] = poly1305DerivedTag(key, other, msg)
     check tag == repeated
     check tag != poly1305Tag(key, msg)
     check tag != changedTag
+    check tag != otherNonce
     check tag.len == 16
-    check hmacVerify(tag, repeated)
-    check not hmacVerify(tag, changedTag)
+    check poly1305DerivedVerify(key, nonce, msg, tag)
+    check not poly1305DerivedVerify(key, nonce, changed, tag)
+    check not poly1305DerivedVerify(key, other, msg, tag)
 
   test "generic callbacks must exist and return exact lengths":
     let

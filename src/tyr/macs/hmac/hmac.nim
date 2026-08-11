@@ -6,7 +6,6 @@ import metaPragmas
 import ../../hashes/blake3
 import ../../ciphers/gimli_sponge
 import ../../hashes/sha3 as customSha3
-import ../poly1305 as customPoly1305
 import ../../helpers/common/ct_compare
 import ../../helpers/secure_memory
 
@@ -276,11 +275,6 @@ proc sha3HashAdapter(input: openArray[byte], outLen: int): seq[byte] =
   ## outLen: requested output length.
   result = customSha3.sha3Hash(input, outLen)
 
-proc sha3Hash*(input: openArray[byte], outLen: int = 32): seq[byte] =
-  ## input: message bytes.
-  ## outLen: output length. Must be one of 28, 32, 48, or 64.
-  result = customSha3.sha3Hash(input, outLen)
-
 proc blake3CustomHmac*(key, msg: openArray[byte], outLen: int = outLenDefault,
     blockLen: int = blake3HmacBlockLen, constA: uint8 = hmacConstA,
     constB: uint8 = hmacConstB): seq[byte] =
@@ -320,29 +314,6 @@ proc gimliCustomHmac*(key, msg: openArray[byte],
   result = customHmacFromKeyedHash(key, msg, blockLen, outLen,
     gimliKeyedHashAdapter, gimliHashAdapter, 32, constA, constB,
     min(blockLen, 32))
-
-proc poly1305CustomHmac*(key, msg: openArray[byte],
-    outLen: int = poly1305HmacOutLen, blockLen: int = 0,
-    constA: uint8 = hmacConstA, constB: uint8 = hmacConstB): seq[byte] =
-  ## key: 32-byte master key used to derive a fresh Poly1305 key per message.
-  ## msg: message bytes.
-  ## outLen: requested output length. Must be `16`.
-  discard blockLen
-  discard constA
-  discard constB
-  if key.len != customPoly1305.poly1305KeyBytes:
-    raise newException(ValueError, "poly1305 keyed hash requires a 32-byte key")
-  if outLen != poly1305HmacOutLen:
-    raise newException(ValueError, "poly1305 keyed hash requires a 16-byte output length")
-  var
-    masterKey: seq[byte] = @[]
-    oneTimeKey: seq[byte] = @[]
-  defer:
-    secureClearBytes(masterKey)
-    secureClearBytes(oneTimeKey)
-  masterKey = blake3DeriveKey("Tyr-Crypto Poly1305 MAC master key v2", key, 32)
-  oneTimeKey = blake3KeyedHash(masterKey, msg, customPoly1305.poly1305KeyBytes)
-  result = customPoly1305.poly1305Tag(oneTimeKey, msg)
 
 proc sha3CustomHmac*(key, msg: openArray[byte], outLen: int = 32,
     blockLen: int = 0, constA: uint8 = hmacConstA,

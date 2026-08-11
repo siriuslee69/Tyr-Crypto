@@ -32,3 +32,31 @@ elif tyrMac == "hmac":
 else:
   {.error: "unknown -d:tyrMac=" & tyrMac &
     " (expected: poly1305, hmac, or omit the flag for all)".}
+
+proc macSingle*(f: static MacFamily, key, msg: openArray[byte],
+    outLen: int = 32): seq[byte] =
+  ## f/key/msg/outLen: family as a COMPILE-TIME value, secret key,
+  ## message, and wanted tag length.
+  ##
+  ## ⚠ For `mfPoly1305` the key must be fresh for this one message, and
+  ## the tag is always 16 bytes whatever `outLen` says. See `types.nim`.
+  when f == mfBlake3Keyed:
+    when not declared(blake3CustomHmac):
+      {.error: "BLAKE3-keyed is not in this build; use -d:tyrMac=hmac or omit the flag".}
+    else:
+      result = blake3CustomHmac(key, msg, outLen)
+  elif f == mfGimli:
+    when not declared(gimliCustomHmac):
+      {.error: "Gimli MAC is not in this build; use -d:tyrMac=hmac or omit the flag".}
+    else:
+      result = gimliCustomHmac(key, msg, outLen)
+  elif f == mfPoly1305:
+    when not declared(poly1305Tag):
+      {.error: "Poly1305 is not in this build; use -d:tyrMac=poly1305 or omit the flag".}
+    else:
+      result = poly1305Tag(key, msg)
+  elif f == mfHmacSha3:
+    when not declared(sha3CustomHmac):
+      {.error: "HMAC-SHA3 is not in this build; use -d:tyrMac=hmac or omit the flag".}
+    else:
+      result = sha3CustomHmac(key, msg, outLen)

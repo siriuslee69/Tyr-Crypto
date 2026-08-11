@@ -24,7 +24,7 @@ proc deriveKeyOf*(f: KdfFamily, secret, salt: openArray[byte],
   of kdfArgon2id:
     result = argon2idHash(secret, salt, passCount, memoryKiB, laneCount, outLen)
   of kdfBlake3Gimli:
-    result = deriveBlake3GimliStageKey(secret, salt, 0,
+    result = deriveBlake3GimliStageKey(secret, salt, 1,
       cfg = initBlake3GimliKdfConfig(keyBytes = outLen))
   of kdfCustom:
     result = deriveCustomKdf(secret, ckaBlake3, passCount, memoryKiB * 1024,

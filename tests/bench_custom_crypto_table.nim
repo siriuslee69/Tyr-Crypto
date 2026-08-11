@@ -343,7 +343,7 @@ proc buildSymmetricSpecs(msgLen: int, notes: var seq[string]): seq[BenchSpec] =
     mixBytes(outBytes)
   )
   addByteSpec(result, "xchacha20", msgLen, proc() =
-    var outBytes = custom_xchacha20.xchacha20TyrXor(ctx.key32, ctx.nonce24, ctx.msg)
+    var outBytes = custom_xchacha20.xchacha20Xor(ctx.key32, ctx.nonce24, ctx.msg)
     mixBytes(outBytes)
   )
   when defined(sse2):
@@ -447,8 +447,9 @@ proc buildMacSpecs(msgLen: int, notes: var seq[string]): seq[BenchSpec] =
     var outBytes = custom_hmac.sha3CustomHmac(ctx.key32, ctx.msg, 32)
     mixBytes(outBytes)
   )
-  addByteSpec(result, "poly1305_hmac", msgLen, proc() =
-    var outBytes = custom_hmac.poly1305CustomHmac(ctx.key32, ctx.msg)
+  addByteSpec(result, "poly1305_derived", msgLen, proc() =
+    var outBytes = custom_poly1305.poly1305DerivedTag(ctx.key32,
+      ctx.nonce24, ctx.msg)
     mixBytes(outBytes)
   )
 

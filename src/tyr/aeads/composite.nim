@@ -22,13 +22,19 @@
 ##
 ## Why the tag covers a frame, not the raw bytes
 ## ---------------------------------------------
-## `authFrame` prefixes a fixed domain string, the suite id, and the
-## LENGTHS of the nonce and ciphertext before the bytes themselves. Length
-## prefixes make the input unambiguous: without them a nonce ending in
-## some bytes and a ciphertext starting with them could be re-split
-## differently and still produce the same tag, letting an attacker move
-## the boundary. The suite id in the frame stops a tag made under one
-## suite from validating under another.
+## `authFrame` prefixes a fixed domain string, the suite id, both
+## derivation sources, and the LENGTHS of the nonce and ciphertext before
+## the bytes themselves. Length prefixes make the input unambiguous:
+## without them a nonce ending in some bytes and a ciphertext starting
+## with them could be re-split differently and still produce the same tag,
+## letting an attacker move the boundary. The suite id and the sources
+## stop a tag made under one configuration from validating under another.
+##
+## EVERY tag here covers the frame, not the bare ciphertext - the BLAKE3
+## one, all three Gimli ones, and the Poly1305 half. They used to differ:
+## the Gimli suites tagged `(key, nonce, ciphertext)` directly, so they
+## bound neither the suite id nor anything else this paragraph claims.
+## That is fixed; the claim now holds for all five.
 ##
 ## Encrypt-then-MAC: the tag is computed over the CIPHERTEXT, so `open`
 ## can reject a forgery before decrypting anything.
@@ -67,7 +73,6 @@ import ../ciphers/aes_ctr
 import ../ciphers/gimli_sponge
 import ../ciphers/xchacha20
 import ../hashes/blake3
-import ../macs/hmac
 
 export types
 
@@ -81,26 +86,40 @@ proc appendUint64Le(dst: var seq[uint8], v: uint64) {.role: {dataWriter}.} =
 proc authFrame*(ct: openArray[uint8], s: AeadState): seq[uint8]
     {.role: {truthBuilder}.} =
   ## ct/s: ciphertext and suite state, bound into an unambiguous MAC input.
-  const domain = "Tyr-Crypto authenticated suite v2"
+  ##
+  ## The suite id AND both derivation sources go in, because all three are
+  ## part of what "this ciphertext" means. Without the sources, two peers
+  ## disagreeing about `cipherSource` would still agree on the tag - the
+  ## tag covers the ciphertext, which is intact - and the receiver would
+  ## get silent garbage instead of an error. Binding them turns that
+  ## misconfiguration into a clean authentication failure.
+  ##
+  ## v3 of the domain marks exactly that change. Tags from v2 do not
+  ## validate here, which is what a version bump is for.
+  const domain = "Tyr-Crypto authenticated suite v3"
   var i: int = 0
-  result = newSeqOfCap[uint8](domain.len + 1 + 16 + s.nonce.len + ct.len)
+  result = newSeqOfCap[uint8](domain.len + 3 + 16 + s.nonce.len + ct.len)
   while i < domain.len:
     result.add(uint8(ord(domain[i])))
     i = i + 1
   result.add(uint8(ord(s.suite)))
+  result.add(uint8(ord(s.cipherSource)))
+  result.add(uint8(ord(s.macSource)))
   appendUint64Le(result, uint64(s.nonce.len))
   result.add(s.nonce)
   appendUint64Le(result, uint64(ct.len))
   result.add(ct)
 
-proc xorLayer(data, key, nonce: openArray[uint8], useAes: bool): seq[uint8]
-    {.role: {actor}.} =
+proc xorLayer(data, key, nonce: openArray[uint8], useAes: bool,
+    src: SubkeySource): seq[uint8] {.role: {actor}.} =
   ## data/key/nonce/useAes: bytes, 32-byte key, suite nonce, cipher choice.
+  ## src: which algorithm derives XChaCha20's subkey. AES-CTR has no such
+  ## step and ignores it.
   ## AES-CTR takes the first 16 nonce bytes; XChaCha20 takes all 24.
   if useAes:
     result = aesCtrXor(key, nonce.toOpenArray(0, 15), data)
   else:
-    result = xchacha20Xor(key, nonce, data)
+    result = xchacha20VariantXor(key, nonce, data, src)
 
 proc compositeCipher*(data: openArray[uint8], s: AeadState): seq[uint8]
     {.role: {actor}.} =
@@ -112,16 +131,16 @@ proc compositeCipher*(data: openArray[uint8], s: AeadState): seq[uint8]
   ## about it. `seal` in `tyr/aeads` pairs it with `compositeTag`.
   case s.suite
   of csXChaCha20Blake3:
-    result = xorLayer(data, s.keys[0], s.nonce, false)
+    result = xorLayer(data, s.keys[0], s.nonce, false, s.cipherSource)
   of csXChaCha20Gimli:
-    result = xorLayer(data, s.keys[0], s.nonce, false)
+    result = xorLayer(data, s.keys[0], s.nonce, false, s.cipherSource)
     result = gimliStreamXor(s.keys[1], s.nonce, result)
   of csAesGimli:
-    result = xorLayer(data, s.keys[0], s.nonce, true)
+    result = xorLayer(data, s.keys[0], s.nonce, true, s.cipherSource)
     result = gimliStreamXor(s.keys[1], s.nonce, result)
   of csXChaCha20AesGimli, csXChaCha20AesGimliPoly1305:
-    result = xorLayer(data, s.keys[0], s.nonce, false)
-    result = xorLayer(result, s.keys[1], s.nonce, true)
+    result = xorLayer(data, s.keys[0], s.nonce, false, s.cipherSource)
+    result = xorLayer(result, s.keys[1], s.nonce, true, s.cipherSource)
     result = gimliStreamXor(s.keys[2], s.nonce, result)
   of csAes256Gcm:
     raise newException(ValueError,
@@ -137,19 +156,20 @@ proc compositeTag*(ct: openArray[uint8], s: AeadState): tuple[kind: AuthType,
     result.bytes = blake3KeyedHash(s.keys[1], authFrame(ct, s), int(s.tagBytes))
   of csXChaCha20Gimli:
     result.kind = atGimli
-    result.bytes = gimliTag(s.keys[1], s.nonce, ct, int(s.tagBytes))
+    result.bytes = gimliTag(s.keys[1], s.nonce, authFrame(ct, s), int(s.tagBytes))
   of csAesGimli:
     result.kind = atGimli
-    result.bytes = gimliTag(s.keys[1], s.nonce, ct, int(s.tagBytes))
+    result.bytes = gimliTag(s.keys[1], s.nonce, authFrame(ct, s), int(s.tagBytes))
   of csXChaCha20AesGimli:
     result.kind = atGimli
-    result.bytes = gimliTag(s.keys[2], s.nonce, ct, int(s.tagBytes))
+    result.bytes = gimliTag(s.keys[2], s.nonce, authFrame(ct, s), int(s.tagBytes))
   of csXChaCha20AesGimliPoly1305:
     ## Two authenticators over one ciphertext, appended. The Poly1305 half
     ## uses its own fourth key, which is what keeps it a one-time key.
     result.kind = atGimliPoly1305
-    result.bytes = gimliTag(s.keys[2], s.nonce, ct, int(s.tagBytes))
-    result.bytes.add(poly1305CustomHmac(s.keys[3], authFrame(ct, s), 16))
+    result.bytes = gimliTag(s.keys[2], s.nonce, authFrame(ct, s), int(s.tagBytes))
+    result.bytes.add(poly1305DerivedTag(s.keys[3], s.nonce, authFrame(ct, s),
+      s.macSource))
   of csAes256Gcm:
     raise newException(ValueError,
       "AES-256-GCM is not a composite suite; it is handled in aeads/gcm")
