@@ -7,7 +7,7 @@ import ./util
 
 type
   FalconRandombytesCallback* = proc (random_array: ptr uint8,
-    bytes_to_read: csize_t) {.cdecl.}
+    bytes_to_read: csize_t) {.cdecl, gcsafe.}
 
 var falconRandombytesCallback {.threadvar.}: FalconRandombytesCallback
 

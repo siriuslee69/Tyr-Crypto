@@ -30,10 +30,10 @@ type
     exhausted: bool
     initialized: bool
 
-proc initAesCtrState*(k, n: openArray[uint8]): AesCtrState
-proc clear*(s: var AesCtrState) {.inline, raises: [].}
+proc initAesCtrState*(k, n: openArray[uint8]): AesCtrState {.gcsafe.}
+proc clear*(s: var AesCtrState) {.inline, raises: [], gcsafe.}
 proc aesCtrXorInPlace*(s: var AesCtrState, ps: var openArray[uint8],
-    b: AesCtrBackend = acbAuto)
+    b: AesCtrBackend = acbAuto) {.gcsafe.}
 
 proc resolveBackend(b: AesCtrBackend): AesCtrBackend =
   case b
@@ -170,7 +170,7 @@ proc aesCtrXor*(k, n, ps: openArray[uint8], b: AesCtrBackend = acbAuto): ByteSeq
   aesCtrXorInPlace(s, rs, b)
   result = rs
 
-proc initAesCtrState*(k, n: openArray[uint8]): AesCtrState =
+proc initAesCtrState*(k, n: openArray[uint8]): AesCtrState {.gcsafe.} =
   ## k: AES-256 key bytes.
   ## n: 16-byte nonce/counter.
   if k.len != 32:
@@ -185,12 +185,12 @@ proc initAesCtrState*(k, n: openArray[uint8]): AesCtrState =
   s.initialized = true
   result = s
 
-proc clear*(s: var AesCtrState) {.inline, raises: [].} =
+proc clear*(s: var AesCtrState) {.inline, raises: [], gcsafe.} =
   ## End a streaming operation by wiping its expanded key and counter.
   secureClearPod(s)
 
 proc aesCtrXorInPlace*(s: var AesCtrState, ps: var openArray[uint8],
-    b: AesCtrBackend) =
+    b: AesCtrBackend) {.gcsafe.} =
   ## s: AES-CTR streaming state.
   ## ps: data to transform in-place.
   ## b: backend selection.

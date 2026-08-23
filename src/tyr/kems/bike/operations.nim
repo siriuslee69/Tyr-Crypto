@@ -14,7 +14,7 @@ import ../../helpers/otter_support
 import ../../hashes/sha3
 
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrKeypairFromParts`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
-proc bikeTyrKeypairFromParts*(v: BikeVariant, seed0, seed1: openArray[byte]): BikeTyrKeypair
+proc bikeTyrKeypairFromParts*(v: BikeVariant, seed0, seed1: openArray[byte]): BikeTyrKeypair {.gcsafe.}
 
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `seedToMessage`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc seedToMessage(seed: BikeSeed): BikeMessage =
@@ -114,7 +114,7 @@ proc bikeTyrKeypairDerand*(v: BikeVariant, randomness: openArray[byte]): BikeTyr
     randomness.toOpenArray(bikeSeedBytes, bikeKeypairRandomBytes - 1))
 
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrKeypairFromParts`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
-proc bikeTyrKeypairFromParts*(v: BikeVariant, seed0, seed1: openArray[byte]): BikeTyrKeypair =
+proc bikeTyrKeypairFromParts*(v: BikeVariant, seed0, seed1: openArray[byte]): BikeTyrKeypair {.gcsafe.} =
   ## Generate a BIKE keypair from the two exact 32-byte seeds used by the KEM.
   var
     secret: tuple[h0, h1: BikePadPoly, w0, w1: BikeIndexList]

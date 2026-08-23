@@ -133,7 +133,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       i = i + 1
 
 ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyReduce*(r: var Poly) {.inline.}
+proc polyReduce*(r: var Poly) {.inline, gcsafe.}
 
 ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyCompressInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyCompressInto*(dst: var openArray[byte], p: KyberParams, a: Poly) =
@@ -426,7 +426,7 @@ proc polyToMont*(r: var Poly) {.inline.} =
       i = i + 1
 
 ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyReduce*(r: var Poly) {.inline.} =
+proc polyReduce*(r: var Poly) {.inline, gcsafe.} =
   ## Apply Barrett reduction to all coefficients.
   var
     i: int = 0

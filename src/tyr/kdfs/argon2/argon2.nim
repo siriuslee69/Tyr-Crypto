@@ -624,10 +624,10 @@ proc xorBlock(D: var ArgonBlock, S: ArgonBlock) =
     i = i + 1
 
 
-proc fillBlock(prevBlock, refBlock: ArgonBlock): ArgonBlock
+proc fillBlock(prevBlock, refBlock: ArgonBlock): ArgonBlock {.gcsafe.}
 
 
-proc fillBlockWithXor(prevBlock, refBlock, nextBlock: ArgonBlock): ArgonBlock
+proc fillBlockWithXor(prevBlock, refBlock, nextBlock: ArgonBlock): ArgonBlock {.gcsafe.}
 
 
 proc fillBlockScalar*(prevBlock, refBlock: openArray[uint64],
@@ -677,7 +677,7 @@ proc fillBlockWithXorScalar*(prevBlock, refBlock, nextBlock: openArray[uint64],
     i = i + 1
 
 
-proc fillBlock(prevBlock, refBlock: ArgonBlock, backend: Argon2Backend): ArgonBlock =
+proc fillBlock(prevBlock, refBlock: ArgonBlock, backend: Argon2Backend): ArgonBlock {.gcsafe.} =
   ## prevBlock: previous block inside the lane.
   ## refBlock: referenced block selected by the index function.
   ## backend: resolved execution backend.
@@ -702,7 +702,7 @@ proc fillBlock(prevBlock, refBlock: ArgonBlock, backend: Argon2Backend): ArgonBl
 
 
 proc fillBlockWithXor(prevBlock, refBlock, nextBlock: ArgonBlock,
-    backend: Argon2Backend): ArgonBlock =
+    backend: Argon2Backend): ArgonBlock {.gcsafe.} =
   ## prevBlock: previous block inside the lane.
   ## refBlock: referenced block selected by the index function.
   ## nextBlock: existing destination block for pass>0 xor mode.
@@ -727,7 +727,7 @@ proc fillBlockWithXor(prevBlock, refBlock, nextBlock: ArgonBlock,
     result = fillBlockWithXor(prevBlock, refBlock, nextBlock)
 
 
-proc fillBlock(prevBlock, refBlock: ArgonBlock): ArgonBlock =
+proc fillBlock(prevBlock, refBlock: ArgonBlock): ArgonBlock {.gcsafe.} =
   ## prevBlock: previous block inside the lane.
   ## refBlock: referenced block selected by the index function.
   var
@@ -738,7 +738,7 @@ proc fillBlock(prevBlock, refBlock: ArgonBlock): ArgonBlock =
   xorBlock(result, blockR)
 
 
-proc fillBlockWithXor(prevBlock, refBlock, nextBlock: ArgonBlock): ArgonBlock =
+proc fillBlockWithXor(prevBlock, refBlock, nextBlock: ArgonBlock): ArgonBlock {.gcsafe.} =
   ## prevBlock: previous block inside the lane.
   ## refBlock: referenced block selected by the index function.
   ## nextBlock: existing destination block for pass>0 xor mode.

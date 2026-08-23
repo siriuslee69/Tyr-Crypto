@@ -206,7 +206,7 @@ proc unpackBits(V: var openArray[uint16], src: openArray[byte], bits, count: int
     i = i + 1
 
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyMod3Phi`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyMod3Phi*(r: var NtruPoly, p: NtruParams)
+proc polyMod3Phi*(r: var NtruPoly, p: NtruParams) {.gcsafe.}
 
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyS3ToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyS3ToBytes*(dst: var openArray[byte], p: NtruParams, a: NtruPoly) =
@@ -307,7 +307,7 @@ proc polyTrinaryZqToZ3*(r: var NtruPoly, p: NtruParams) =
     i = i + 1
 
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyMod3Phi`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyMod3Phi*(r: var NtruPoly, p: NtruParams) =
+proc polyMod3Phi*(r: var NtruPoly, p: NtruParams) {.gcsafe.} =
   var
     i: int = 0
   i = 0

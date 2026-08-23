@@ -43,16 +43,16 @@ when defined(aesni):
       initialized: bool
 
 type
-  EvpAes128EcbProc = proc (): ptr EVP_CIPHER {.cdecl.}
-  EvpCipherCtxNewProc = proc (): ptr EVP_CIPHER_CTX {.cdecl.}
-  EvpCipherCtxFreeProc = proc (ctx: ptr EVP_CIPHER_CTX) {.cdecl.}
+  EvpAes128EcbProc = proc (): ptr EVP_CIPHER {.cdecl, gcsafe.}
+  EvpCipherCtxNewProc = proc (): ptr EVP_CIPHER_CTX {.cdecl, gcsafe.}
+  EvpCipherCtxFreeProc = proc (ctx: ptr EVP_CIPHER_CTX) {.cdecl, gcsafe.}
   EvpEncryptInitExProc = proc (ctx: ptr EVP_CIPHER_CTX, cipher: ptr EVP_CIPHER,
-    impl: pointer, key: ptr uint8, iv: ptr uint8): cint {.cdecl.}
+    impl: pointer, key: ptr uint8, iv: ptr uint8): cint {.cdecl, gcsafe.}
   EvpEncryptUpdateProc = proc (ctx: ptr EVP_CIPHER_CTX, outBuf: ptr uint8,
-    outLen: ptr cint, inBuf: ptr uint8, inLen: cint): cint {.cdecl.}
+    outLen: ptr cint, inBuf: ptr uint8, inLen: cint): cint {.cdecl, gcsafe.}
   EvpEncryptFinalExProc = proc (ctx: ptr EVP_CIPHER_CTX, outBuf: ptr uint8,
-    outLen: ptr cint): cint {.cdecl.}
-  EvpCipherCtxSetPaddingProc = proc (ctx: ptr EVP_CIPHER_CTX, pad: cint): cint {.cdecl.}
+    outLen: ptr cint): cint {.cdecl, gcsafe.}
+  EvpCipherCtxSetPaddingProc = proc (ctx: ptr EVP_CIPHER_CTX, pad: cint): cint {.cdecl, gcsafe.}
 
 proc clear*(ctx: var Aes128Ctx) {.inline, raises: [].} =
   ## Overwrite the expanded AES-128 key schedule.
@@ -200,7 +200,7 @@ proc initOpenSslPublicFast*(ctx: var Aes128OpenSslCtx, key: openArray[uint8]): b
   true
 
 proc encryptBlocksPublicFast*(ctx: Aes128OpenSslCtx, input: openArray[AesBlock],
-    output: var openArray[AesBlock])
+    output: var openArray[AesBlock]) {.gcsafe.}
 
 proc encryptBlock*(ctx: Aes128OpenSslCtx, input: AesBlock): AesBlock =
   var
@@ -211,7 +211,7 @@ proc encryptBlock*(ctx: Aes128OpenSslCtx, input: AesBlock): AesBlock =
   result = outBlock[0]
 
 proc encryptBlocksPublicFast*(ctx: Aes128OpenSslCtx, input: openArray[AesBlock],
-    output: var openArray[AesBlock]) =
+    output: var openArray[AesBlock]) {.gcsafe.} =
   var
     outLen: cint = 0
     finalLen: cint = 0
@@ -716,7 +716,7 @@ proc encryptBlockPublicFast*(ctx: Aes128Ctx, input: AesBlock): AesBlock =
   store32Be(result, 12, t3)
 
 proc encryptBlocksPublicFast*(ctx: Aes128Ctx, input: openArray[AesBlock],
-    output: var openArray[AesBlock]) =
+    output: var openArray[AesBlock]) {.gcsafe.} =
   ## Fast AES-128 bulk encryption for public-data-only use.
   var
     i: int = 0

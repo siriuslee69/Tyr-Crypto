@@ -19,7 +19,7 @@ when (defined(avx2) or defined(sse2) or defined(neon) or defined(arm64) or
     gfVectorMask = 0x1fff'u32
 
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `evalPoly`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc evalPoly*(p: McElieceParams; f: openArray[GF]; a: GF): GF
+proc evalPoly*(p: McElieceParams; f: openArray[GF]; a: GF): GF {.gcsafe.}
 
 when defined(avx2) and not defined(mcelieceScalarRoot):
   ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `gfMulAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
@@ -207,7 +207,7 @@ when (defined(neon) or defined(arm64) or defined(aarch64)) and
       i = i + 1
 
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `evalPoly`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc evalPoly*(p: McElieceParams; f: openArray[GF]; a: GF): GF =
+proc evalPoly*(p: McElieceParams; f: openArray[GF]; a: GF): GF {.gcsafe.} =
   ## Evaluate polynomial f at point a (f[0] is constant term).
   assert f.len >= p.sysT + 1
   var r = f[p.sysT]

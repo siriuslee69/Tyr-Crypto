@@ -63,10 +63,13 @@ const
   falconWordMask = 0x7FFFFFFF'u32
   falconMaxLogn = 10
 
+## Per-thread memoization. The tables are a pure function of (logn, primeIdx),
+## so a thread-local copy is byte-identical to a shared one -- and a shared
+## one would be a data race the moment two threads generated keys at once.
 var
-  falconNttCache: array[falconMaxLogn + 1, array[falconPrimes.len, FalconNttTables]]
-  falconPrimeCache: array[falconPrimes.len, FalconPrimeRuntime]
-  falconPrimeCacheReady: array[falconPrimes.len, bool]
+  falconNttCache {.threadvar.}: array[falconMaxLogn + 1, array[falconPrimes.len, FalconNttTables]]
+  falconPrimeCache {.threadvar.}: array[falconPrimes.len, FalconPrimeRuntime]
+  falconPrimeCacheReady {.threadvar.}: array[falconPrimes.len, bool]
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `initRnsPoly`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc initRnsPoly(n, stride: int): RnsPoly {.inline.} =
@@ -806,7 +809,7 @@ proc decodeCoeff31(poly: RnsPoly, coeff, wordLen: int): FalconSigned31 =
     result.neg = false
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `divRemAbs31`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc divRemAbs31(num, den: openArray[uint32]): tuple[q, r: seq[uint32]]
+proc divRemAbs31(num, den: openArray[uint32]): tuple[q, r: seq[uint32]] {.gcsafe.}
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `roundDivAbs31`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc roundDivAbs31(num, den: openArray[uint32]): uint32 =
@@ -845,7 +848,7 @@ proc bitLen31(w: uint32): int {.inline.} =
     x = x shr 1
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `divRemAbs31`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc divRemAbs31(num, den: openArray[uint32]): tuple[q, r: seq[uint32]] =
+proc divRemAbs31(num, den: openArray[uint32]): tuple[q, r: seq[uint32]] {.gcsafe.} =
   let numCmp = cmpAbs31(num, den)
   if den.len == 0:
     raise newException(ValueError, "division by zero")

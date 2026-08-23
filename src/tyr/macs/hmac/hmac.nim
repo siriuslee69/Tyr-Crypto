@@ -11,10 +11,10 @@ import ../../helpers/secure_memory
 
 type
   ## HashProc: unkeyed hash callback used by the generic HMAC helper.
-  HashProc* = proc(input: openArray[byte], outLen: int): seq[byte] {.nimcall.}
+  HashProc* = proc(input: openArray[byte], outLen: int): seq[byte] {.nimcall, gcsafe.}
 
   ## KeyedHashProc: keyed hash callback used by the keyed HMAC helper.
-  KeyedHashProc* = proc(key, input: openArray[byte], outLen: int): seq[byte] {.nimcall.}
+  KeyedHashProc* = proc(key, input: openArray[byte], outLen: int): seq[byte] {.nimcall, gcsafe.}
 
 const
   hmacConstA* = 0x36'u8
@@ -248,18 +248,18 @@ proc customHmacFromKeyedHash*(key, msg: openArray[byte], blockLen, outLen: int,
   if result.len != outLen:
     raise newException(ValueError, "keyed hmac function returned wrong length")
 
-proc blake3HashAdapter(input: openArray[byte], outLen: int): seq[byte] =
+proc blake3HashAdapter(input: openArray[byte], outLen: int): seq[byte] {.gcsafe.} =
   ## input: message bytes.
   ## outLen: requested output length.
   result = blake3Hash(input, outLen)
 
-proc blake3KeyedHashAdapter(key, input: openArray[byte], outLen: int): seq[byte] =
+proc blake3KeyedHashAdapter(key, input: openArray[byte], outLen: int): seq[byte] {.gcsafe.} =
   ## key: keyed BLAKE3 key bytes.
   ## input: message bytes.
   ## outLen: requested output length.
   result = blake3KeyedHash(key, input, outLen)
 
-proc gimliKeyedHashAdapter(key, input: openArray[byte], outLen: int): seq[byte] =
+proc gimliKeyedHashAdapter(key, input: openArray[byte], outLen: int): seq[byte] {.gcsafe.} =
   ## key: keyed Gimli bytes.
   ## input: message bytes.
   ## outLen: requested output length.
@@ -267,10 +267,10 @@ proc gimliKeyedHashAdapter(key, input: openArray[byte], outLen: int): seq[byte] 
     nonce: seq[byte] = newSeq[byte](24)
   result = gimliTag(key, nonce, input, outLen)
 
-proc gimliHashAdapter(input: openArray[byte], outLen: int): seq[byte] =
+proc gimliHashAdapter(input: openArray[byte], outLen: int): seq[byte] {.gcsafe.} =
   result = gimliXof(@[], @[], input, outLen)
 
-proc sha3HashAdapter(input: openArray[byte], outLen: int): seq[byte] =
+proc sha3HashAdapter(input: openArray[byte], outLen: int): seq[byte] {.gcsafe.} =
   ## input: message bytes.
   ## outLen: requested output length.
   result = customSha3.sha3Hash(input, outLen)

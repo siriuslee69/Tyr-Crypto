@@ -27,7 +27,7 @@ type
 ## Testing/reproducibility surface. Keep public during KAT and optimization
 ## work; tighten or remove this from the public API once Kyber stabilizes.
 ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `kyberTyrKeypairFromParts`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
-proc kyberTyrKeypairFromParts*(v: KyberVariant, indcpaSeed, zSeed: openArray[byte]): KyberTyrKeypair
+proc kyberTyrKeypairFromParts*(v: KyberVariant, indcpaSeed, zSeed: openArray[byte]): KyberTyrKeypair {.gcsafe.}
 
 ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `kyberTyrKeypairDerand`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc kyberTyrKeypairDerand*(v: KyberVariant, seedMaterial: openArray[byte]): KyberTyrKeypair =
@@ -40,7 +40,7 @@ proc kyberTyrKeypairDerand*(v: KyberVariant, seedMaterial: openArray[byte]): Kyb
     seedMaterial.toOpenArray(32, 63))
 
 ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; key generation, encapsulation/signing, and decapsulation/verification algorithms for `kyberTyrKeypairFromParts`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
-proc kyberTyrKeypairFromParts*(v: KyberVariant, indcpaSeed, zSeed: openArray[byte]): KyberTyrKeypair =
+proc kyberTyrKeypairFromParts*(v: KyberVariant, indcpaSeed, zSeed: openArray[byte]): KyberTyrKeypair {.gcsafe.} =
   ## Generate a pure-Nim Kyber keypair from the two exact randomness draws used by the KEM.
   var
     p: KyberParams = params(v)

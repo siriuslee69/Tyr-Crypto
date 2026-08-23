@@ -364,12 +364,12 @@ proc absorbFinalBlockWithDomain(S: var Sha3State, A: openArray[byte], o, rateByt
   blk[rateBytes - 1] = blk[rateBytes - 1] xor 0x80'u8
   absorbBlock(S, blk, 0, rateBytes)
 
-proc keccakF1600Ref*(S: var Sha3State) {.raises: [].}
-proc shake256Into*(dst: var openArray[byte], A: openArray[byte])
-proc shake256Into*(dst: var openArray[byte], A0, A1: openArray[byte])
-proc shake256Into*(dst: var openArray[byte], A0, A1, A2: openArray[byte])
-proc shake256WordsLeInto*(dst: var openArray[uint16], A: openArray[byte])
-proc shake128Into*(dst: var openArray[byte], A: openArray[byte])
+proc keccakF1600Ref*(S: var Sha3State) {.raises: [], gcsafe.}
+proc shake256Into*(dst: var openArray[byte], A: openArray[byte]) {.gcsafe.}
+proc shake256Into*(dst: var openArray[byte], A0, A1: openArray[byte]) {.gcsafe.}
+proc shake256Into*(dst: var openArray[byte], A0, A1, A2: openArray[byte]) {.gcsafe.}
+proc shake256WordsLeInto*(dst: var openArray[uint16], A: openArray[byte]) {.gcsafe.}
+proc shake128Into*(dst: var openArray[byte], A: openArray[byte]) {.gcsafe.}
 
 proc squeezeBytesState(S: var Sha3State, dst: var openArray[byte], rateBytes: int) {.inline, raises: [].} =
   var
@@ -515,7 +515,7 @@ proc absorbFinalPartsWithDomain(S: var Sha3State, rateBytes: int, domain: byte,
   tail[rateBytes - 1] = tail[rateBytes - 1] xor 0x80'u8
   absorbBlock(S, tail, 0, rateBytes)
 
-proc keccakF1600Ref*(S: var Sha3State) {.raises: [].} =
+proc keccakF1600Ref*(S: var Sha3State) {.raises: [], gcsafe.} =
   ## Apply the scalar Keccak-f[1600] permutation to a 25-lane state.
   template chiRow(x0, x1, x2, x3, x4, y0, y1, y2, y3, y4: untyped) =
     x0 = y0 xor ((not y1) and y2)
@@ -888,7 +888,7 @@ proc shake256ChunksInto*(dst: var openArray[byte], A0, A1, A2: openArray[byte]) 
     finalizePartial()
     squeezeBytesInto(S, dst, shake256RateBytes)
 
-proc shake256Into*(dst: var openArray[byte], A: openArray[byte]) =
+proc shake256Into*(dst: var openArray[byte], A: openArray[byte]) {.gcsafe.} =
   ## SHAKE256 XOF over `A` into a preallocated output buffer.
   otterSpan("sha3.shake256Into"):
     var
@@ -899,17 +899,17 @@ proc shake256Into*(dst: var openArray[byte], A: openArray[byte]) =
     shake256AbsorbOnce(S, A)
     squeezeBytesInto(S, dst, shake256RateBytes)
 
-proc shake256Into*(dst: var openArray[byte], A0, A1: openArray[byte]) =
+proc shake256Into*(dst: var openArray[byte], A0, A1: openArray[byte]) {.gcsafe.} =
   ## SHAKE256 XOF over `A0 || A1` without a temporary concatenation buffer.
   var
     empty: array[0, byte]
   shake256ChunksInto(dst, A0, A1, empty)
 
-proc shake256Into*(dst: var openArray[byte], A0, A1, A2: openArray[byte]) =
+proc shake256Into*(dst: var openArray[byte], A0, A1, A2: openArray[byte]) {.gcsafe.} =
   ## SHAKE256 XOF over `A0 || A1 || A2` without a temporary concatenation buffer.
   shake256ChunksInto(dst, A0, A1, A2)
 
-proc shake256WordsLeInto*(dst: var openArray[uint16], A: openArray[byte]) =
+proc shake256WordsLeInto*(dst: var openArray[uint16], A: openArray[byte]) {.gcsafe.} =
   ## SHAKE256 XOF over `A` into a preallocated little-endian word buffer.
   otterSpan("sha3.shake256WordsLeInto"):
     var
@@ -927,7 +927,7 @@ proc shake256WordsLeInto*(dst: var openArray[uint16], A: openArray[byte]) =
     keccakF1600Ref(S)
     squeezeWordsLeInto(S, dst, rateBytes)
 
-proc shake128Into*(dst: var openArray[byte], A: openArray[byte]) =
+proc shake128Into*(dst: var openArray[byte], A: openArray[byte]) {.gcsafe.} =
   ## SHAKE128 XOF over `A` into a preallocated output buffer.
   var
     S: Sha3State

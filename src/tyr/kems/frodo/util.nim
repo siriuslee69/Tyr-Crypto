@@ -25,9 +25,9 @@ proc secureClearWords*(W: var openArray[uint16]) {.raises: [].} =
     i = i + 1
 
 ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `frodoPackInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
-proc frodoPackInto*(dst: var openArray[byte], input: openArray[uint16], lsb: int)
+proc frodoPackInto*(dst: var openArray[byte], input: openArray[uint16], lsb: int) {.gcsafe.}
 ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `frodoUnpackInto`; pitfall: reject malformed or non-canonical input before indexed access.
-proc frodoUnpackInto*(dst: var openArray[uint16], input: openArray[byte], lsb: int)
+proc frodoUnpackInto*(dst: var openArray[uint16], input: openArray[byte], lsb: int) {.gcsafe.}
 
 ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `loadU16Le`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc loadU16Le*(A: openArray[byte], o: int = 0): uint16 {.inline.} =
@@ -122,7 +122,7 @@ proc frodoPack*(outLen: int, input: openArray[uint16], lsb: int): seq[byte] =
     frodoPackInto(result, input, lsb)
 
 ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `frodoPackInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
-proc frodoPackInto*(dst: var openArray[byte], input: openArray[uint16], lsb: int) =
+proc frodoPackInto*(dst: var openArray[byte], input: openArray[uint16], lsb: int) {.gcsafe.} =
   ## Pack `lsb` low bits from each Frodo word into a preallocated byte string.
   otterSpan("frodo.frodoPackInto"):
     var
@@ -177,7 +177,7 @@ proc frodoUnpack*(outLen: int, input: openArray[byte], lsb: int): seq[uint16] =
     frodoUnpackInto(result, input, lsb)
 
 ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `frodoUnpackInto`; pitfall: reject malformed or non-canonical input before indexed access.
-proc frodoUnpackInto*(dst: var openArray[uint16], input: openArray[byte], lsb: int) =
+proc frodoUnpackInto*(dst: var openArray[uint16], input: openArray[byte], lsb: int) {.gcsafe.} =
   ## Unpack Frodo words into a preallocated word buffer.
   otterSpan("frodo.frodoUnpackInto"):
     var

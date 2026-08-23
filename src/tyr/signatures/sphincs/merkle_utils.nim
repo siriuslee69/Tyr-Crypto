@@ -46,7 +46,7 @@ proc computeRoot*(root: var openArray[byte], leaf: openArray[byte], leafIdx,
 proc treehashx1*[T](root: var openArray[byte], authPath: var openArray[byte],
     ctx: SphincsCtx, leafIdx, idxOffset, treeHeight: uint32,
     genLeaf: proc (leaf: var openArray[byte], ctx: SphincsCtx, addrIdx: uint32,
-      info: var T) {.nimcall.}, treeAddr: var SphincsAddress, info: var T) =
+      info: var T) {.nimcall, gcsafe.}, treeAddr: var SphincsAddress, info: var T) =
   var
     stack: array[spxMaxTreeHeight * spxN, byte]
     idx: uint32 = 0

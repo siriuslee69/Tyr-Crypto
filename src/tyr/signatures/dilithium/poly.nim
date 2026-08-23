@@ -1168,7 +1168,7 @@ proc polyUniformEta*(p: DilithiumParams, a: var DilithiumPoly,
   clearSensitivePlainData(fixedSeed)
 
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyZUnpack`; pitfall: reject malformed or non-canonical input before indexed access.
-proc polyZUnpack*(p: DilithiumParams, r: var DilithiumPoly, a: openArray[byte]) {.raises: [].}
+proc polyZUnpack*(p: DilithiumParams, r: var DilithiumPoly, a: openArray[byte]) {.raises: [], gcsafe.}
 
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformGamma1Seed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniformGamma1Seed*(p: DilithiumParams, a: var DilithiumPoly,
@@ -1487,7 +1487,7 @@ proc polyZPack*(p: DilithiumParams, r: var seq[byte], a: DilithiumPoly) =
   polyZPack(p, r.toOpenArray(0, r.len - 1), a)
 
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyZUnpack`; pitfall: reject malformed or non-canonical input before indexed access.
-proc polyZUnpack*(p: DilithiumParams, r: var DilithiumPoly, a: openArray[byte]) =
+proc polyZUnpack*(p: DilithiumParams, r: var DilithiumPoly, a: openArray[byte]) {.gcsafe.} =
   var
     i: int = 0
     j: int = 0

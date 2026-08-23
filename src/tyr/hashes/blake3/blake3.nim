@@ -397,7 +397,7 @@ proc updateBlake3*(s: var Blake3Hasher, bs: openArray[byte]) =
       processChunk(s, chunkLen)
       s.chunkBufLen = 0
 
-proc clearBlake3*(s: var Blake3Hasher) {.raises: [].}
+proc clearBlake3*(s: var Blake3Hasher) {.raises: [], gcsafe.}
 
 proc finalBlake3*(s: var Blake3Hasher, outLen: int = outLenDefault): seq[byte] =
   var
@@ -426,7 +426,7 @@ proc finalBlake3*(s: var Blake3Hasher, outLen: int = outLenDefault): seq[byte] =
   result = newSeq[byte](outLen)
   outputBytes(s.lastOutput, true, result)
 
-proc clearBlake3*(s: var Blake3Hasher) {.raises: [].} =
+proc clearBlake3*(s: var Blake3Hasher) {.raises: [], gcsafe.} =
   ## Wipe buffered input, keyed state, and tree chaining values.
   var
     i: int = 0
