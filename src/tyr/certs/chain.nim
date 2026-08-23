@@ -250,6 +250,15 @@ proc verifyCertificateChain*(leaf: X509Certificate,
     if intermediates[idx].hasKeyUsage and not intermediates[idx].canKeyCertSign:
       result.err = "intermediate certificate does not permit certificate signing"
       return
+    ## pathLenConstraint counts the CA certificates allowed BELOW this one,
+    ## not counting the leaf. `depth` is how many hops the walk has already
+    ## taken, so at depth 0 the certificate being signed is the leaf and no
+    ## CA sits below; at depth 1 exactly one does, and so on. An intermediate
+    ## marked pathlen:0 that signed another CA is a certificate being used
+    ## for more than it was issued for.
+    if intermediates[idx].hasPathLen and depth > intermediates[idx].pathLen:
+      result.err = "intermediate certificate exceeds its path length constraint"
+      return
     sig = verifySignatureWithIssuer(current, intermediates[idx])
     if not sig.ok:
       result.err = sig.err
