@@ -35,7 +35,7 @@ this workspace. It is not legal advice.
 
 ## Tracked Binary Exception
 
-- `tests/android_harness/gradle/wrapper/gradle-wrapper.jar`
+- `evaluation/tests/android_harness/gradle/wrapper/gradle-wrapper.jar`
   - kept intentionally so the Android harness can bootstrap Gradle consistently
   - Gradle is distributed under Apache-2.0; keep wrapper updates tied to the
     corresponding `gradle-wrapper.properties` change

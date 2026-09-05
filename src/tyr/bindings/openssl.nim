@@ -28,8 +28,6 @@ when defined(hasOpenSSL3):
   import std/[dynlib, os, strutils]
   import builders/openssl_builder
 
-  const
-    moduleDir = splitFile(currentSourcePath()).dir
 
   type
     EVP_PKEY* = object
@@ -136,16 +134,6 @@ when defined(hasOpenSSL3):
         appendLibCandidates(candidates, trimmed)
     candidates
 
-  proc defaultSourceDir(): string =
-    let envSource = getEnv("OPENSSL_SOURCE").strip()
-    if envSource.len > 0:
-      return envSource
-    let submoduleDir = joinPath(absolutePath(joinPath(moduleDir, "..", "..", "..")),
-      "submodules", "openssl")
-    if dirExists(submoduleDir):
-      return submoduleDir
-    joinPath(parentDir(absolutePath(joinPath(moduleDir, "..", "..", ".."))), "openssl")
-
   proc defaultLibCandidates(): seq[string] =
     var candidates = envLibCandidates()
     let
@@ -179,7 +167,7 @@ when defined(hasOpenSSL3):
       return false
     builderAttempted = true
     let sourceDir = defaultSourceDir()
-    let buildRoot = joinPath(absolutePath(joinPath(moduleDir, "..", "..", "..")),
+    let buildRoot = joinPath(repoRoot(),
       "build", "openssl")
     if promptAndBuildOpenSsl(extraLibCandidates, sourceDir, buildRoot):
       return true

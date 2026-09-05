@@ -25,7 +25,7 @@
 ##   The SHA3/SHAKE code in symmetric/sha3 is Keccak - a different
 ##   algorithm with different outputs - so it CANNOT be swapped in.
 ##   This embedded ed25519Sha512Hash is the only SHA-512 in the repo and is
-##   verified by the RFC 8032 vectors in tests/test_ed25519_custom.nim.
+##   verified by the RFC 8032 vectors in evaluation/tests/test_ed25519_custom.nim.
 
 import ../../kems/x25519/x25519_common
 import ../../helpers/random

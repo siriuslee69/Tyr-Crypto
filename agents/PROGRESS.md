@@ -1,4 +1,4 @@
-Commit Message: Restore the liboqs test matrix and pin the KEM seed contract
+Commit Message: Move evaluation under evaluation/ and stop cloning unpinned native sources
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -43,12 +43,24 @@ Required for the first interoperable TLS 1.3 profile:
   reliable volatile clear.
 
 Required before using Tyr as a general public-Web TLS client:
-- [ ] Implement incremental SHA-384 and its HMAC/HKDF forms.
-- [ ] Implement pure-Nim ECDSA P-256 signature verification with strict DER
+- [~] Implement incremental SHA-384 and its HMAC/HKDF forms. The hash itself
+  is done (`initSha384`/`finishSha384`/`sha384Hash`); the HMAC and HKDF
+  forms over SHA-384 are still missing.
+- [x] Implement pure-Nim ECDSA P-256 signature verification with strict DER
   signature parsing, public-key validation, and invalid-curve rejection.
-- [ ] Implement pure-Nim RSA PKCS#1 v1.5 and RSA-PSS verification for SHA-256 and
+  `src/tyr/signatures/ecdsa_p256/` carries the curve arithmetic, signing,
+  verification, SPKI/PEM key parsing, and ECDH, and is exported from
+  `src/tyr/signatures.nim`. Verification checks the public key is on the
+  curve and not the point at infinity, holds `r` and `s` inside
+  `[1, n-1]`, and rejects a resulting point at infinity. The DER reader
+  refuses trailing bytes, a wrong shape, a wrong child count, and a
+  non-canonical INTEGER. Boundary tests live in
+  `evaluation/tests/test_classical_asymmetric_boundaries.nim`.
+- [~] Implement pure-Nim RSA PKCS#1 v1.5 and RSA-PSS verification for SHA-256 and
   SHA-384, with strict modulus, exponent, padding, salt-length, and key-size
-  policy checks.
+  policy checks. PKCS#1 v1.5 is done for SHA-256/384/512 (`rsaVerifyPkcs1v15`,
+  bounded by `rsaMinBits`/`rsaMaxBits`). PSS exists for SHA-256 only
+  (`rsaVerifyPssSha256`); the SHA-384 PSS form is still missing.
 - [ ] Expand X.509 algorithm and extension coverage only from real public-chain
   fixtures; fail closed on unsupported critical behavior.
 - [ ] Add Linux/NixOS CA-bundle and Windows root-store adapters without making
@@ -72,17 +84,43 @@ Validation and release gates:
   pure-Nim path is described as production ready.
 
 Implemented:
+- Tests, benchmarks, and statistics now live below `evaluation/`, as the
+  conventions ask: `evaluation/tests/`, `evaluation/benchmarks/`,
+  `evaluation/statistics/`. Build-time utilities moved to `tools/`. The
+  measurement files that both tests and benchmarks share -
+  `oqs_random_hook.nim` and `nugimli_analysis/` - sit at `evaluation/`
+  rather than inside one of the two.
+- Files no longer count folders upwards to find the repository. Both
+  `evaluation/paths.nim` and `tools/builders/repo_paths.nim` look for
+  `tyr.nimble` instead. Counting is what silently broke the citation gate
+  and the native-source lookup below.
+- The native builders were looking for `submodules/liboqs` one folder
+  above the repository, never finding it, and cloning a fresh upstream
+  copy instead. Builds were therefore running against whatever upstream
+  happened to be at the time - a different commit than the pinned
+  submodule - rather than the version this repository pins.
+- The same path logic had been written six times over - once in each of the
+  three native builders and once in each of the three bindings. There is now
+  one copy, and the bindings use the builders'.
+- Three compiled binaries that had been committed by accident under
+  `tests/` are gone, and `.gitignore` now covers the new layout.
+- The constant-time timing checks repeat the whole measurement and keep the
+  best attempt. A machine building a native library beside the test can
+  starve it for a whole measurement window; a verification that really is
+  slower on one path is slower on every attempt, so the check still bites.
+- ECDSA P-256 is implemented and exported; the backlog said otherwise.
+  Its message-verification path no longer repeats the digest path.
 - The liboqs random-source callback is now `gcsafe`: caller entropy of any
   length is squeezed into a fixed 64-byte array with SHAKE256, so the C
   callback never reads garbage-collected memory. This unblocked every
   liboqs-backed test group, which had stopped compiling.
-- One shared deterministic liboqs generator (`tests/oqs_random_hook.nim`)
+- One shared deterministic liboqs generator (`evaluation/tests/oqs_random_hook.nim`)
   replaces nine near-identical per-test copies. Its feed lives in
   hand-managed memory, which is what makes the callback contract holdable.
 - `genKeypair`/`encaps` now refuse a `seed` on the library-backed KEM tiers
   instead of silently returning a fresh key pair each call; a separate
   `extraEntropy` argument carries the "stir this in" case. Pinned by
-  `tests/test_kem_seed_contract.nim`.
+  `evaluation/tests/test_kem_seed_contract.nim`.
 - Falcon signatures now cross-verify against liboqs in both directions for
   512 and 1024, and McEliece interoperates in both directions for all three
   tiers. Both families previously only checked their own work.
@@ -160,8 +198,8 @@ Implemented:
 - Added `tools/bench_pq_profiles.nim` plus a `nimble bench_pq_profiles` task to build matched `liboqs_min_pq_scalar` / `liboqs_min_pq_avx2` profiles and run the Sigma PQ comparison suites with the intended Tyr scalar and AVX2 flags.
 - Added `Otter-RepoEvaluation` to the visible submodule manifest and local submodule path resolution used by Tyr's Otter profiling tasks.
 - Added `nimble test_neon_checks` and `nimble test_simd_matrix` so NEON coverage is a first-class runnable path instead of living only in manual notes.
-- Added `tests/test_android_custom_crypto.nim` as an Android-targeted custom/SIMD subset.
-- Added `tests/android_harness` plus build/run scripts to package and execute the native test harness inside a minimal Android app.
+- Added `evaluation/tests/test_android_custom_crypto.nim` as an Android-targeted custom/SIMD subset.
+- Added `evaluation/tests/android_harness` plus build/run scripts to package and execute the native test harness inside a minimal Android app.
 - Android harness Gradle caches, generated `.bin` files, app build outputs, local properties, and built `jniLibs` native libraries are now ignored; the previously tracked generated harness artifacts were removed from the index only.
 - Replaced the copied `submodules/pqclean_*_ref` source snapshots with the real upstream PQClean submodule pinned to the `round3` tag.
 - Replaced the copied Falcon PQClean C reference snapshot under `src/protocols/custom_crypto/asymmetric/pq/falcon/upstream` with the pinned `submodules/pqclean_falcon_ref_sources` submodule.
@@ -216,8 +254,8 @@ Verification:
 - Added public AEAD boundary regressions for mutated state, direct GCM calls, and nonce reuse.
 - `nimble tasks` passed and no longer lists `test_config`.
 - `nimble check_core` passed.
-- `nim check --nimcache:build/nimcache_check_test_all_no_config tests/test_all.nim` passed.
-- `nim c --nimcache:build/nimcache_test_public_api_no_config -r tests/test_public_api_surface.nim` passed.
+- `nim check --nimcache:build/nimcache_check_test_all_no_config evaluation/tests/test_all.nim` passed.
+- `nim c --nimcache:build/nimcache_test_public_api_no_config -r evaluation/tests/test_public_api_surface.nim` passed.
 - `rg -n "tyr_config|test_config|userconfig|config\.toml|loadOptionalTyrConfig|TyrConfig|runtime config|config parser|raw config|protocols/config|nimcache_check_config|nimcache_test_config" --glob '!submodules/**' --glob '!docs/research/**'` reports only the intentional README sentence stating no runtime config loader exists.
 - `git diff --check` passed.
 - `nim check --nimcache:build\nimcache_check_custom_kdf src\protocols\custom_crypto\kdf.nim` passed.
@@ -287,7 +325,7 @@ Verification:
 - `nim check --nimcache:build\nimcache_pq_research_falcon tests\test_falcon_tyr.nim` passed.
 - `nim check --nimcache:build\nimcache_pq_research_mceliece tests\test_mceliece_tyr.nim` passed.
 - `nim check --nimcache:build\nimcache_pq_research_sphincs tests\test_sphincs_tyr.nim` passed.
-- `nim c --nimcache:build/nimcache_test_ntru_tyr -r tests/test_ntru_tyr.nim` passed after fixing the volatile wipe pointer path.
+- `nim c --nimcache:build/nimcache_test_ntru_tyr -r evaluation/tests/test_ntru_tyr.nim` passed after fixing the volatile wipe pointer path.
 - `nimble test_ntru_saber` passed.
 - `nimble test_ntru_saber_avx2` passed.
 - NTRU rollback/trial builds `-d:ntruMulToom4K2`, `-d:ntruMulToom4`, and `-d:ntruMulCoeff` passed focused KAT/roundtrip test runs after the K2 default promotion.
@@ -301,12 +339,12 @@ Verification:
 Readiness: Not production ready yet—the repo still ships tracked binaries, the autopush automation never reads the audit log, and environment tooling keeps claiming missing headers even when the submodules are present.
 
 Findings:
-- [High] Several binaries such as `tests/test_all.exe`, `tests/test_chunky_crypto.exe`, etc. are tracked under `tests/`; these artifacts bloat the repo, force every clone to pull platform-specific output, and diverge from what contributors actually rebuild, so the repo cannot be treated as a clean, production-grade library until they are removed or moved to a release artifact store.
+- [High] Several binaries such as `evaluation/tests/test_all.exe`, `evaluation/tests/test_chunky_crypto.exe`, etc. are tracked under `evaluation/tests/`; these artifacts bloat the repo, force every clone to pull platform-specific output, and diverge from what contributors actually rebuild, so the repo cannot be treated as a clean, production-grade library until they are removed or moved to a release artifact store.
 - [Medium] `task autopush` in `tyr_crypto.nimble` reads `iron/progress.md` but the tracked audit log lives at `.iron/PROGRESS.md`, so autopush never picks up the human-written commit message and instead falls back to the default string—it currently ignores the very metadata meant to describe what changed.
 - [Medium] `tools/ensure_env.nim` checks for libsodium/liboqs/OpenSSL headers at paths such as `submodules/openssl/include/submodules/openssl/sha.h`, yet the real headers sit at `submodules/openssl/include/openssl/sha.h`; the mismatch makes `needSubmodules()` always return `true`, so every builder run claims the submodules (and their headers) are missing even when they are already checked out.
 
 Next steps:
-- [ ] Stop tracking the generated `tests/*.exe` artifacts (e.g., delete them, add the pattern to `.gitignore`, and rely on `nimble test` runs to produce them locally).
+- [ ] Stop tracking the generated `evaluation/tests/*.exe` artifacts (e.g., delete them, add the pattern to `.gitignore`, and rely on `nimble test` runs to produce them locally).
 - [ ] Point `task autopush` at `.iron/PROGRESS.md` (and make sure it handles the upgrade from uppercase to lowercase paths) so the commit message reflects the audit log.
 - [ ] Fix `opensslHeader` (and any other header paths in `tools/ensure_env.nim`) to match the actual layout under `submodules/*/include/`, allowing `needSubmodules()` to detect the headers correctly.
 
@@ -314,12 +352,12 @@ Next steps:
 Readiness: Not production ready yet—the repo still ships tracked binaries, the autopush automation never reads the audit log, and environment tooling keeps claiming missing headers even when the submodules are present.
 
 Findings:
-- [High] Numerous binaries such as `tests/test_all.exe`, `tests/test_chunky_crypto.exe`, etc. are tracked under `tests/`; these artifacts bloat the repo, force every clone to fetch 50+ MB of platform-specific output, and will diverge from what contributors actually rebuild, so the repo cannot be treated as a clean, production-grade library until they are removed or moved to a release artifact store.
+- [High] Numerous binaries such as `evaluation/tests/test_all.exe`, `evaluation/tests/test_chunky_crypto.exe`, etc. are tracked under `evaluation/tests/`; these artifacts bloat the repo, force every clone to fetch 50+ MB of platform-specific output, and will diverge from what contributors actually rebuild, so the repo cannot be treated as a clean, production-grade library until they are removed or moved to a release artifact store.
 - [Medium] `task autopush` in `tyr_crypto.nimble` reads `iron/progress.md` but the tracked audit log lives at `.iron/PROGRESS.md`, so autopush never picks up the human-written commit message and instead falls back to the default string—it currently ignores the very metadata meant to describe what changed.
 - [Medium] `tools/ensure_env.nim` verifies the libsodium/liboqs/OpenSSL headers by looking for `submodules/openssl/include/submodules/openssl/sha.h`, yet the real header path is `submodules/openssl/include/openssl/sha.h`, so the check always fails, `nimble build_*` reruns `git submodule update` every time, and the environment setup reports missing dependencies even though the submodules are already checked out.
 
 Next steps:
-- [ ] Stop tracking the generated `tests/*.exe` artifacts (e.g. delete them, add the pattern to `.gitignore`, and rely on `nimble test` runs to produce them locally).
+- [ ] Stop tracking the generated `evaluation/tests/*.exe` artifacts (e.g. delete them, add the pattern to `.gitignore`, and rely on `nimble test` runs to produce them locally).
 - [ ] Point `task autopush` at `.iron/PROGRESS.md` (and make sure it handles the upgrade from uppercase to lowercase paths) so the commit message reflects the audit log.
 - [ ] Fix `opensslHeader` (and any other header paths in `tools/ensure_env.nim`) to match the real layout under `submodules/*/include/`, so `needSubmodules()` can detect the headers and stop insisting that the submodules are missing.
 
@@ -350,7 +388,7 @@ Implemented:
 - Added `src/tyr_crypto/wasm/exports.nim` so the bridge can be compiled as a C ABI surface for Emscripten.
 - Added `bindings/js/tyr_crypto.mjs` and `bindings/js/tyr_crypto.d.ts` as the checked-in JS/TS loader layer.
 - Added `tools/build_wasm.nim` plus `nimble build_wasm`, `nimble build_wasm_debug`, and `nimble test_wasm`.
-- Added `tests/test_wasm_bridge.nim` and included it in `tests/test_all.nim`.
+- Added `evaluation/tests/test_wasm_bridge.nim` and included it in `evaluation/tests/test_all.nim`.
 
 Verification:
 - `nim check --nimcache:build\\nimcache_wasm_check src\\tyr_crypto\\wasm\\exports.nim` (pass)
@@ -380,7 +418,7 @@ Verification:
 - `nim c -r -d:release --nimcache:build\\nimcache_test_frodo_run2 tests\\test_frodo_tyr.nim` (pass)
 
 Remaining blockers:
-- The exact-match and interop branches in `tests/test_frodo_tyr.nim` only compile and run when `-d:hasLibOqs` is enabled; that path was not active in this verification environment, so the new custom/liboqs Frodo byte-for-byte comparisons were not executed here.
+- The exact-match and interop branches in `evaluation/tests/test_frodo_tyr.nim` only compile and run when `-d:hasLibOqs` is enabled; that path was not active in this verification environment, so the new custom/liboqs Frodo byte-for-byte comparisons were not executed here.
 
 ## 2026-04-24 Endian + NEON Pass
 Summary: Removed the remaining host-endian shortcuts I found in the custom crypto stack and added a first NEON-backed SIMD path through `SIMD-Nexus` for the portable 128-bit lane consumers.
@@ -423,9 +461,9 @@ Implemented:
   - `test_x25519_simd`
 - Added `test_neon_checks` and `test_simd_matrix` tasks to `tyr_crypto.nimble`.
 - Added `tools/zigcc_linux_aarch64.cmd` / `tools/zigcc_linux_x86_64.cmd` for Zig-based Linux cross-compiles used by the Android harness flow.
-- Added `tests/test_android_custom_crypto.nim` to package only the relevant custom/SIMD suites into the Android-native harness binary.
+- Added `evaluation/tests/test_android_custom_crypto.nim` to package only the relevant custom/SIMD suites into the Android-native harness binary.
 - Fixed `SIMD-Nexus/src/protocols/simd/base_operations.nim` so the NEON dynamic shift paths no longer force compile-time-only intrinsics during real ARM64 C compilation.
-- Added an Android harness app under `tests/android_harness` that runs the packaged native binary from `nativeLibraryDir` and writes output to `files/last_test_output.txt`.
+- Added an Android harness app under `evaluation/tests/android_harness` that runs the packaged native binary from `nativeLibraryDir` and writes output to `files/last_test_output.txt`.
 
 Verification:
 - `nim c -r --nimcache:build\\nimcache_run_custom_crypto_again tests\\test_custom_crypto.nim` (pass)
@@ -443,7 +481,7 @@ Verification:
 - x86_64 native harness cross-compile:
   - `nim c --os:linux --cpu:amd64 ... tests\\test_android_custom_crypto.nim` (pass)
 - Android harness APK build:
-  - `tests/android_harness/gradlew.bat assembleDebug` (pass)
+  - `evaluation/tests/android_harness/gradlew.bat assembleDebug` (pass)
 - Motorola app run:
   - installed APK, launched `org.tyrcrypto.harness.MainActivity`, and read back `files/last_test_output.txt` via `run-as` (pass)
 - Motorola direct native run:
@@ -456,7 +494,7 @@ Remaining note:
 Summary: extended the Android-native validation from the custom/SIMD subset into the pure asymmetric/PQ stack on the Motorola and found a real ARM64-specific Kyber issue.
 
 Implemented:
-- Added `tests/test_android_asymmetric_crypto.nim` and `tests/test_android_asymmetric_fast.nim` as Android-targeted asymmetric/PQ harness entrypoints.
+- Added `evaluation/tests/test_android_asymmetric_crypto.nim` and `evaluation/tests/test_android_asymmetric_fast.nim` as Android-targeted asymmetric/PQ harness entrypoints.
 - Added a lightweight `{.otterTrace.}` pragma in `src/protocols/helpers/otter_support.nim` for function entry/leave tracing without manual `echo` instrumentation.
 - Applied `otterTrace` to the top-level pure-Nim asym/PQ entrypoints:
   - X25519 facade
@@ -470,11 +508,11 @@ Implemented:
 
 Verification:
 - Full ARM64 release asym/PQ harness cross-compiled successfully:
-  - `tests/test_android_asymmetric_crypto.nim`
+  - `evaluation/tests/test_android_asymmetric_crypto.nim`
 - Reduced ARM64 release asym/PQ harness cross-compiled successfully:
-  - `tests/test_android_asymmetric_fast.nim`
+  - `evaluation/tests/test_android_asymmetric_fast.nim`
 - Motorola direct run of the reduced asym/PQ harness completed and surfaced a failing Kyber test:
-  - `cached polyvec basemul matches scalar reference` in `tests/test_kyber_tyr.nim`
+  - `cached polyvec basemul matches scalar reference` in `evaluation/tests/test_kyber_tyr.nim`
   - failing coefficients differ by exactly `3329`, which points to an ARM64/NEON normalization/reduction mismatch rather than random corruption.
 
 Current result:
@@ -494,7 +532,7 @@ Implemented:
 
 Verification:
 - `nim c -r -d:release --nimcache:build\\nimcache_run_kyber_host_fix tests\\test_kyber_tyr.nim` (pass)
-- Rebuilt `tests/test_android_asymmetric_fast.nim` for Linux ARM64 + NEON and reran it sequentially on the Motorola (pass)
+- Rebuilt `evaluation/tests/test_android_asymmetric_fast.nim` for Linux ARM64 + NEON and reran it sequentially on the Motorola (pass)
 
 Current result:
 - The reduced Motorola asymmetric/PQ harness now passes for:
@@ -512,7 +550,7 @@ Implemented:
 - Parameterized `tools/build_android_harness.ps1` with `custom_crypto`, `asymmetric_fast`, and `asymmetric_full` targets plus optional release builds.
 - Added `nimble build_android_harness_asymmetric_fast` and `nimble build_android_harness_asymmetric_full`.
 - Reworked `tools/run_android_harness.ps1` so it polls `files/last_test_output.txt` until completion instead of assuming every run finishes in 8 seconds.
-- Added `tests/test_falcon_tyr_android_smoke.nim` and switched `tests/test_android_asymmetric_fast.nim` to use that smoke subset instead of the full Falcon suite.
+- Added `evaluation/tests/test_falcon_tyr_android_smoke.nim` and switched `evaluation/tests/test_android_asymmetric_fast.nim` to use that smoke subset instead of the full Falcon suite.
 
 Verification:
 - Motorola direct native run of the original reduced asymmetric bundle: about 423 seconds, with `test_falcon_tyr.nim` alone accounting for about 421 seconds.
@@ -530,7 +568,7 @@ Implemented:
 - Extended the X25519 shared implementation template so ARM64 can use the existing generic 2-lane SIMD batch flow through `uint64x2`.
 - Added exported `x25519ScalarmultBatchNeon2x` / `x25519TyrSharedNeon2x` support through the pass modules and top-level X25519 facade.
 - Added a NEON byte-lane row-XOR fast path in Classic McEliece `pkGen`, targeting the elimination loops that previously stayed scalar on ARM64.
-- Extended the ARM64/NEON compile-check matrix to include `tests/test_x25519_simd.nim` and `tests/test_mceliece_tyr.nim`.
+- Extended the ARM64/NEON compile-check matrix to include `evaluation/tests/test_x25519_simd.nim` and `evaluation/tests/test_mceliece_tyr.nim`.
 - Added ARM64-aware X25519 perf and Otter perf test branches so the new NEON path has normal benchmark entrypoints.
 
 Verification:
@@ -541,8 +579,8 @@ Verification:
   - `nim check --cpu:arm64 -d:neon --nimcache:build\\nimcache_check_x25519_neon tests\\test_x25519_simd.nim` (pass)
   - `nim check --cpu:arm64 -d:neon --nimcache:build\\nimcache_check_mceliece_neon tests\\test_mceliece_tyr.nim` (pass)
 - Motorola direct runs:
-  - `tests/test_x25519_simd.nim` (pass, exercises `NEON2x batch matches scalar across all passes`)
-  - `tests/test_mceliece_tyr.nim` (pass)
+  - `evaluation/tests/test_x25519_simd.nim` (pass, exercises `NEON2x batch matches scalar across all passes`)
+  - `evaluation/tests/test_mceliece_tyr.nim` (pass)
 
 Remaining note:
 - This pass does not mean "all asymmetric algorithms are now NEON-accelerated". Falcon is still effectively scalar on ARM64 in this repo, Frodo's explicit wide arithmetic is still x86-SIMD-only, and SPHINCS batch hashing is still x86-gated at the call-site level even though the shared SHA3 layer has ARM64 SIMD underneath.
@@ -564,7 +602,7 @@ Implemented:
   - added a 128-bit SSE2 cached-polyvec basemul path in `kyber/polyvec.nim` so older x86 no longer falls straight from AVX2 to scalar for that hot path.
   - deliberately did not fake a NEON version of that kernel because the available NEON bindings in this environment do not expose the signed 16-bit widening multiplies that the cached Kyber arithmetic needs for a correct 1:1 port.
 - Repo wiring:
-  - extended `nimble test_neon_checks` / `test_simd_matrix` compile coverage to include `tests/test_sphincs_tyr.nim` alongside the earlier X25519/McEliece additions.
+  - extended `nimble test_neon_checks` / `test_simd_matrix` compile coverage to include `evaluation/tests/test_sphincs_tyr.nim` alongside the earlier X25519/McEliece additions.
 
 Verification:
 - SPHINCS:
@@ -763,25 +801,25 @@ Implemented:
 - Vectorized the Falcon keygen norm accumulation in `src/protocols/custom_crypto/asymmetric/pq/falcon/keygen.nim`
 - Updated Falcon runtime entrypoints in `src/protocols/custom_crypto/asymmetric/pq/falcon/operations.nim` so explicit `falconScalar` vs `falconSimd` calls now really select different execution paths inside the same build
 - Widened test/benchmark metadata:
-  - `tests/test_falcon_tyr.nim` now enables the scalar-vs-SIMD comparisons whenever the shared SIMD path is available, not only under `-d:avx2`
-  - added `tests/test_falcon_tyr_simd_smoke.nim` as a fast Falcon-512 scalar-vs-SIMD validator
-  - upgraded `tests/test_falcon_tyr_android_smoke.nim` so the fast Android asymmetric bundle also exercises Falcon scalar-vs-SIMD matching
-  - `tests/test_sigma_perf_falcon.nim` now labels the active backend through the public Falcon backend metadata
+  - `evaluation/tests/test_falcon_tyr.nim` now enables the scalar-vs-SIMD comparisons whenever the shared SIMD path is available, not only under `-d:avx2`
+  - added `evaluation/tests/test_falcon_tyr_simd_smoke.nim` as a fast Falcon-512 scalar-vs-SIMD validator
+  - upgraded `evaluation/tests/test_falcon_tyr_android_smoke.nim` so the fast Android asymmetric bundle also exercises Falcon scalar-vs-SIMD matching
+  - `evaluation/benchmarks/bench_sigma_falcon.nim` now labels the active backend through the public Falcon backend metadata
   - `tools/bench_custom_crypto_table.nim` now reports Falcon SIMD rows as `simd128`
-  - `tyr_crypto.nimble` `test_neon_checks` now includes `tests/test_falcon_tyr.nim`
+  - `tyr_crypto.nimble` `test_neon_checks` now includes `evaluation/tests/test_falcon_tyr.nim`
 
 Verification:
 - Host compile-check:
-  - `nim check tests/test_falcon_tyr.nim` (pass)
+  - `nim check evaluation/tests/test_falcon_tyr.nim` (pass)
 - ARM64/NEON compile-check:
-  - `nim check --cpu:arm64 -d:neon tests/test_falcon_tyr.nim` (pass)
+  - `nim check --cpu:arm64 -d:neon evaluation/tests/test_falcon_tyr.nim` (pass)
 - Host runtime:
-  - `tests/test_falcon_tyr_simd_smoke.nim` (pass)
+  - `evaluation/tests/test_falcon_tyr_simd_smoke.nim` (pass)
   - scalar roundtrip: pass
   - scalar vs simd deterministic keypair/sign: pass
   - scalar vs simd prepared signing: pass
 - Android x86_64 emulator:
-  - direct native `tests/test_falcon_tyr_simd_smoke.nim` binary still exits with `SIGSEGV` / `exit=139`
+  - direct native `evaluation/tests/test_falcon_tyr_simd_smoke.nim` binary still exits with `SIGSEGV` / `exit=139`
   - no useful crash signal beyond the same emulator instability already observed earlier
 - Physical ARM64 phones with the release ARM64 smoke binary:
   - Motorola Edge 50 Fusion: pass
@@ -790,8 +828,8 @@ Verification:
 - Repo matrix:
   - `nimble test_neon_checks` (pass)
 - Fast Android asymmetric harness entrypoint:
-  - `nim check tests/test_android_asymmetric_fast.nim` (pass)
-  - `nim check --cpu:arm64 -d:neon tests/test_android_asymmetric_fast.nim` (pass)
+  - `nim check evaluation/tests/test_android_asymmetric_fast.nim` (pass)
+  - `nim check --cpu:arm64 -d:neon evaluation/tests/test_android_asymmetric_fast.nim` (pass)
 
 Current conclusion:
 - Falcon now has a real portable SIMD path for shared 128-bit SSE2/NEON execution instead of only an AVX2-shaped label.
@@ -965,13 +1003,13 @@ Docs update:
   - `docs/benchmarks/asymmetric_bench_report_desktop_only.html`
 
 ## 2026-05-01 Falcon Split + Frodo Hybrid Probe Pass
-Summary: checked the literature direction for further PQ SIMD work, split Falcon desktop tests/benchmarks by variant, tried deeper Frodo hybrid SSE/AVX ideas, rejected the measured regressions, and refreshed desktop plus three-phone validation.
+Summary: checked the literature direction for further PQ SIMD work, split Falcon desktop evaluation/tests/benchmarks by variant, tried deeper Frodo hybrid SSE/AVX ideas, rejected the measured regressions, and refreshed desktop plus three-phone validation.
 
 Implemented:
 - Falcon:
   - split `tools/run_desktop_tests_parallel.ps1` into `falcon512` and `falcon1024` groups, both still selectable through `-Only falcon`.
-  - added `TYR_FALCON_TEST_VARIANT` filtering in `tests/test_falcon_tyr.nim` so each process runs only its assigned variant.
-  - reduced Falcon benchmark loop/warmup counts in `tests/test_sigma_perf_falcon.nim` and `tools/bench_custom_crypto_table.nim`.
+  - added `TYR_FALCON_TEST_VARIANT` filtering in `evaluation/tests/test_falcon_tyr.nim` so each process runs only its assigned variant.
+  - reduced Falcon benchmark loop/warmup counts in `evaluation/benchmarks/bench_sigma_falcon.nim` and `tools/bench_custom_crypto_table.nim`.
   - split `tools/bench_pq_profiles.nim` Falcon suites into `falcon512` and `falcon1024`.
   - added `--only=falcon512` / `--only=falcon1024` support to `tools/collect_asymmetric_benchmarks.nim`.
 - Frodo:
@@ -1085,10 +1123,10 @@ Summary:
 - Updated `docs/CODE_LAYOUT.md` to the new none_pq layout.
 
 Verification:
-- `nim c -r tests/test_x25519_custom.nim` - RFC vector, deterministic seeds, small-order rejection all OK.
-- `nim c -r tests/test_x25519_simd.nim` (plain and `-d:avx2`) - SSE2x/AVX4x batches match scalar, small-order lanes isolated.
-- `nim c -r tests/test_ed25519_custom.nim` (plain and `-d:avx2`) - RFC 8032 vectors 1+2, tamper rejection, SSE2x/AVX4x batch APIs all OK.
-- `nim check` clean on `src/tyr_crypto.nim`, `tests/test_x25519_perf.nim`, `tests/test_otter_perf_x25519.nim`, all three tools, and the `--cpu:arm64 -d:neon` cross-check of `tests/test_x25519_simd.nim`.
+- `nim c -r evaluation/tests/test_x25519_custom.nim` - RFC vector, deterministic seeds, small-order rejection all OK.
+- `nim c -r evaluation/tests/test_x25519_simd.nim` (plain and `-d:avx2`) - SSE2x/AVX4x batches match scalar, small-order lanes isolated.
+- `nim c -r evaluation/tests/test_ed25519_custom.nim` (plain and `-d:avx2`) - RFC 8032 vectors 1+2, tamper rejection, SSE2x/AVX4x batch APIs all OK.
+- `nim check` clean on `src/tyr_crypto.nim`, `evaluation/benchmarks/bench_x25519.nim`, `evaluation/benchmarks/bench_otter_x25519.nim`, all three tools, and the `--cpu:arm64 -d:neon` cross-check of `evaluation/tests/test_x25519_simd.nim`.
 
 ## 2026-07-08 Ed25519 Constant-Time + Secret-Lifetime Hardening
 Summary:
@@ -1101,7 +1139,7 @@ Summary:
 - Cost on this machine (release build, 50-op average): sign 0.26 ms -> 0.36 ms (+38%), verify 0.38 ms -> 0.44 ms (+16% from the point-op wipes).
 
 Verification:
-- `nim c -r tests/test_ed25519_custom.nim` (plain and `-d:avx2`) - RFC 8032 vectors 1+2 byte-exact, tamper rejection, SSE2x/AVX4x batch APIs all OK.
+- `nim c -r evaluation/tests/test_ed25519_custom.nim` (plain and `-d:avx2`) - RFC 8032 vectors 1+2 byte-exact, tamper rejection, SSE2x/AVX4x batch APIs all OK.
 - `nim check src/tyr_crypto.nim` clean.
 - Release-mode before/after benchmark of sign/verify confirms correct signatures and the expected slowdown only.
 
@@ -1143,13 +1181,13 @@ Implemented:
 Verification:
 - `nim check --nimcache:build/nimcache_public_all_exports src/tyr_crypto.nim`
   passed.
-- `nim c -r -o:build/test_custom_crypto_hardened --nimcache:build/nimcache_audit_custom tests/test_custom_crypto.nim`
+- `nim c -r -o:build/test_custom_crypto_hardened --nimcache:build/nimcache_audit_custom evaluation/tests/test_custom_crypto.nim`
   passed, including the reference Gimli XOF and new domain-separation checks.
-- `nim c -r -o:build/test_custom_hmac_hardened --nimcache:build/nimcache_audit_hmac tests/test_custom_hmac.nim`
+- `nim c -r -o:build/test_custom_hmac_hardened --nimcache:build/nimcache_audit_hmac evaluation/tests/test_custom_hmac.nim`
   passed.
-- `nim c -r -o:build/test_frodo_tyr_hardened --nimcache:build/nimcache_audit_frodo tests/test_frodo_tyr.nim`
+- `nim c -r -o:build/test_frodo_tyr_hardened --nimcache:build/nimcache_audit_frodo evaluation/tests/test_frodo_tyr.nim`
   passed.
-- `nim c -r -o:build/test_gimli_vectors_hardened --nimcache:build/nimcache_audit_gimli_vectors tests/test_gimli_vectors.nim`
+- `nim c -r -o:build/test_gimli_vectors_hardened --nimcache:build/nimcache_audit_gimli_vectors evaluation/tests/test_gimli_vectors.nim`
   passed.
 ## 2026-07-12 SIMD Coverage Audit and SABER/McEliece Pass
 
@@ -1224,8 +1262,8 @@ Measured on the same Linux AVX2 host with two interleaved scale-4 runs:
 - AES variants were unchanged controls and varied with normal run-order noise.
 
 Verification:
-- AVX2 release `tests/test_frodo_tyr.nim`: pass for all six variants and typed API.
-- ARM64/NEON `nim check tests/test_frodo_tyr.nim`: pass.
+- AVX2 release `evaluation/tests/test_frodo_tyr.nim`: pass for all six variants and typed API.
+- ARM64/NEON `nim check evaluation/tests/test_frodo_tyr.nim`: pass.
 - `git diff --check`: pass.
 
 ## 2026-07-12 Asymmetric Specification Audit
@@ -1299,7 +1337,7 @@ Verification:
   x86_64. The exact resulting APK was installed on connected
   `motorola_edge_50_fusion` and completed with `exit=0`; every
   packaged suite and edge-case test passed.
-- Host `tests/test_certificate_codecs.nim`, `tests/test_tls_primitives.nim`,
+- Host `evaluation/tests/test_certificate_codecs.nim`, `evaluation/tests/test_tls_primitives.nim`,
   focused asymmetric family suites, NTRU KAT hashes, and SABER official vectors
   passed after the final regression additions.
 
@@ -1352,11 +1390,11 @@ Implemented:
 
 Verification:
 - `nim check src/protocols/wrapper/wasm/exports.nim`: pass.
-- `nim c -r tests/test_wasm_bridge.nim`: pass, including X25519 and Kyber-768
+- `nim c -r evaluation/tests/test_wasm_bridge.nim`: pass, including X25519 and Kyber-768
   bridge KEM round trips.
 - `nimble test_wasm`: pass.
 - Native WebUI transport contract: pass.
-- `nim check tests/test_webui_interop.nim` with the installed WebUI package:
+- `nim check evaluation/tests/test_webui_interop.nim` with the installed WebUI package:
   pass.
 - `nimble build_wasm_custom_crypto`: pass with Emscripten 5.0.7.
 - `nimble test_webui_interop`: pass. The isolated real-browser run completed

@@ -50,8 +50,13 @@ src/
       common/                    ct_compare.nim, pq_rng.nim
       wasm/                      Wasm/JS bridge (level0..level2)
 bindings/js/                     Wasm loader and TypeScript declarations
-tests/                           Unit, vector, parity, benchmark and harness tests
-tools/                           Builders, bench drivers, report scripts
+evaluation/                      Everything that measures the code, not the code
+  tests/                         Unit, edge-case, regression, and harness tests
+  benchmarks/                    Speed and size measurements
+  statistics/                    Repository and code checks
+  nugimli_analysis/              Shared analysis used by both tests and benchmarks
+  paths.nim                      Finds the repository root by looking, not counting
+tools/                           Builders and pre-compile-time utilities
 submodules/                      Pinned upstream source dependencies
 docs/                            Documentation
   benchmarks/                    Curated benchmark JSON snapshots

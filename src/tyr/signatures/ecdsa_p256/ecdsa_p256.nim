@@ -442,31 +442,10 @@ proc ecdsaVerifyP256WithDigest*(pub: P256AffinePoint, digest: openArray[byte],
 proc ecdsaVerifyP256*(pub: P256AffinePoint, msg: openArray[byte],
     sig: EcdsaSignature): bool {.role: {math}.} =
   ## pub/msg/sig: public key, signed message, and candidate signature.
-  var
-    e, w, u1, u2: BigInt
-    R: P256Point
-    A: P256AffinePoint
-    inv: tuple[ok: bool, value: BigInt]
-  if pub.infinity or not isOnCurve(pub):
-    return false
-  if bigIsZero(sig.r) or bigIsZero(sig.s):
-    return false
-  if bigCmp(sig.r, p256N) >= 0 or bigCmp(sig.s, p256N) >= 0:
-    return false
-  e = bitsToInt(sha256Hash(msg))
-  e = bigMod(e, p256N)
-  inv = bigModInv(sig.s, p256N)
-  if not inv.ok:
-    return false
-  w = inv.value
-  u1 = bigMod(bigMul(e, w), p256N)
-  u2 = bigMod(bigMul(sig.r, w), p256N)
-  R = pointAdd(scalarMulPublic(u1, p256Generator()),
-    scalarMulPublic(u2, fromAffine(pub)))
-  if isInfinity(R):
-    return false
-  A = toAffine(R)
-  result = bigCmp(bigMod(A.x, p256N), sig.r) == 0
+  ## The ordinary case: hash the message with SHA-256, then run the one
+  ## verification above. Only the hash differs between the two, so only
+  ## the hash is written twice.
+  result = ecdsaVerifyP256WithDigest(pub, sha256Hash(msg), sig)
 
 ## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `rfc6979Nonce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc rfc6979Nonce(d: BigInt, digest: Sha256Digest): BigInt {.role: {math}.} =

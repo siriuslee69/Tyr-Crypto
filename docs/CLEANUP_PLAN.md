@@ -256,7 +256,7 @@ Retitle all 32 headers from "compatibility facade" to "public surface".
 
 ### Step 3 — Sweep stale build artifacts  *(no risk)*
 
-Six `.exe` files in `tests/` have no matching `.nim` — leftovers from deleted
+Six `.exe` files in `evaluation/tests/` have no matching `.nim` — leftovers from deleted
 tests. They are gitignored, so this is disk hygiene only:
 
 ```

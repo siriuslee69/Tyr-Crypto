@@ -31,26 +31,6 @@ when defined(hasLibOqs):
   import std/[dynlib, os, strutils]
   import builders/liboqs_builder
 
-  const moduleDir = splitFile(currentSourcePath()).dir
-
-  proc repoRoot(): string =
-    absolutePath(joinPath(moduleDir, "..", "..", ".."))
-
-  proc defaultSourceDir(): string =
-    let envSource = getEnv("LIBOQS_SOURCE").strip()
-    if envSource.len > 0:
-      return envSource
-    let submoduleDir = joinPath(repoRoot(), "submodules", "liboqs")
-    if dirExists(submoduleDir):
-      return submoduleDir
-    joinPath(parentDir(repoRoot()), "liboqs")
-
-  proc defaultBuildRoot(): string =
-    let envBuild = getEnv("LIBOQS_BUILD_ROOT").strip()
-    if envBuild.len > 0:
-      return envBuild
-    joinPath(repoRoot(), "build", "liboqs")
-
   proc appendLibMatches(candidates: var seq[string], dirPath: string) =
     if dirExists(dirPath):
       let patterns = when defined(windows):
@@ -79,8 +59,8 @@ when defined(hasLibOqs):
     appendLibMatches(candidates, joinPath(absolutePath(sourceDir), "build", "lib64"))
     appendLibMatches(candidates, joinPath(absolutePath(sourceDir), "build", "install", "lib"))
     appendLibMatches(candidates, joinPath(absolutePath(sourceDir), "build", "install", "lib64"))
-    appendLibMatches(candidates, joinPath(moduleDir, "..", "..", "build", "liboqs", "install", "lib"))
-    appendLibMatches(candidates, joinPath(moduleDir, "..", "..", "build", "liboqs", "install", "lib64"))
+    appendLibMatches(candidates, joinPath(defaultBuildRoot(), "install", "lib"))
+    appendLibMatches(candidates, joinPath(defaultBuildRoot(), "install", "lib64"))
     appendLibMatches(candidates, joinPath(buildRoot, "install", "lib"))
     appendLibMatches(candidates, joinPath(buildRoot, "install", "bin"))
     appendLibMatches(candidates, joinPath(buildRoot, "build", "lib"))

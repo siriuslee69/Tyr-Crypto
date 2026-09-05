@@ -32,30 +32,36 @@ nimcache/
 *.c
 *.h
 bindings/js/dist/
-tests/webui_interop/web/wasm/
+evaluation/tests/webui_interop/web/wasm/
+evaluation/tests/testResults/
 src/libsodium/
 src/liboqs/
-iron/iron_config.md
-.iron/.local*
-!.iron/.local*.template
-tests/test_*
-!tests/test_*.nim
+evaluation/tests/test_*
+!evaluation/tests/test_*.nim
+evaluation/benchmarks/bench_*
+!evaluation/benchmarks/bench_*.nim
+evaluation/benchmarks/evaluate_*
+!evaluation/benchmarks/evaluate_*.nim
+evaluation/benchmarks/probe_*
+!evaluation/benchmarks/probe_*.nim
+evaluation/benchmarks/collect_*
+!evaluation/benchmarks/collect_*.nim
+evaluation/benchmarks/render_*
+!evaluation/benchmarks/render_*.nim
 .fuse_hidden*
-tests/test_sigma_perf
-tests/testResults/
 
-!tests/android_harness/gradle/wrapper/gradle-wrapper.jar
+!evaluation/tests/android_harness/gradle/wrapper/gradle-wrapper.jar
 
 # Android harness generated artifacts
-tests/android_harness/.gradle/
-tests/android_harness/build/
-tests/android_harness/app/build/
-tests/android_harness/.cxx/
-tests/android_harness/app/.cxx/
-tests/android_harness/local.properties
-tests/android_harness/captures/
-tests/android_harness/**/*.bin
-tests/android_harness/app/src/main/jniLibs/**/*.so
+evaluation/tests/android_harness/.gradle/
+evaluation/tests/android_harness/build/
+evaluation/tests/android_harness/app/build/
+evaluation/tests/android_harness/.cxx/
+evaluation/tests/android_harness/app/.cxx/
+evaluation/tests/android_harness/local.properties
+evaluation/tests/android_harness/captures/
+evaluation/tests/android_harness/**/*.bin
+evaluation/tests/android_harness/app/src/main/jniLibs/**/*.so
 
 # Research-paper PDF policy:
 # - PDFs without explicit redistribution terms are local cache only.
@@ -96,4 +102,3 @@ docs/research/pq_non_ntru_saber/papers/*.pdf
 !docs/research/pq_non_ntru_saber/papers/2024-0500_side_channel_resistant_sphincs.pdf
 !docs/research/pq_non_ntru_saber/papers/2024-1149_dilithium_sampling_implementation_analysis.pdf
 !docs/research/pq_non_ntru_saber/papers/2025-0214_dilithium_rejection_sampling_side_channel.pdf
-.iron/conventions/

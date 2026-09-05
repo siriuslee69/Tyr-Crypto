@@ -1,5 +1,6 @@
 when defined(hasLibsodium):
   import std/[os, osproc, strutils, terminal]
+  import ./repo_paths
   when defined(windows):
     import ./libsodium_zigcc_windows
 
@@ -16,23 +17,40 @@ when defined(hasLibsodium):
                  "/bin/sh"
     moduleDir = splitFile(currentSourcePath()).dir
 
-  proc repoRoot(): string =
-    absolutePath(joinPath(moduleDir, "..", "..", ".."))
+  proc repoRoot*(): string =
+    ## The repository this builder belongs to, found by looking for the
+    ## package file rather than by counting folders upwards.
+    result = builderRepoRoot(moduleDir)
 
-  proc defaultSourceDir(): string =
-    let envSource = getEnv("LIBSODIUM_SOURCE").strip()
-    if envSource.len > 0:
-      return envSource
-    let submoduleDir = joinPath(repoRoot(), "submodules", "libsodium")
+  proc defaultSourceDir*(): string =
+    ## Prefers the pinned copy under `submodules/`. A sibling checkout
+    ## beside the repository is the fallback. An empty answer means no
+    ## local source was found, and the caller fetches its own rather than
+    ## guessing at a relative path.
+    var
+      root: string = repoRoot()
+      submoduleDir: string = ""
+    result = getEnv("LIBSODIUM_SOURCE").strip()
+    if result.len > 0:
+      return
+    if root.len == 0:
+      return ""
+    submoduleDir = joinPath(root, "submodules", "libsodium")
     if dirExists(submoduleDir):
       return submoduleDir
-    joinPath(parentDir(repoRoot()), "libsodium")
+    result = joinPath(parentDir(root), "libsodium")
 
-  proc defaultBuildRoot(): string =
-    let envBuild = getEnv("LIBSODIUM_BUILD_ROOT").strip()
-    if envBuild.len > 0:
-      return envBuild
-    joinPath(repoRoot(), "build", "libsodium")
+  proc defaultBuildRoot*(): string =
+    ## Where the built library lands. Never a bare relative path: that
+    ## would follow whatever folder the compiler happened to start in.
+    var
+      root: string = repoRoot()
+    result = getEnv("LIBSODIUM_BUILD_ROOT").strip()
+    if result.len > 0:
+      return
+    if root.len == 0:
+      return getCurrentDir() / "build" / "libsodium"
+    result = joinPath(root, "build", "libsodium")
 
   proc isPositiveResponse(s: string): bool =
     let trimmed = s.strip().toLowerAscii()

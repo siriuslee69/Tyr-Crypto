@@ -53,7 +53,7 @@ nimble test_ntru_saber_avx2
 The parallel desktop runner is implemented in Nim:
 
 ```bash
-nim r tests/run_desktop_tests_parallel.nim -- --only:core,x25519 --maxParallel:2
+nim r evaluation/tests/run_desktop_tests_parallel.nim -- --only:core,x25519 --maxParallel:2
 ```
 
 ## Native Backend Defines
@@ -85,11 +85,11 @@ required part of that architecture. WASM/JS targets receive no host SIMD symbol.
 Use this explicit override for a portable scalar control build:
 
 ```bash
-nim c -d:tyrExplicitCapabilities -u:sse2 -u:avx2 -u:aesni -u:neon tests/test_falcon_tyr.nim
+nim c -d:tyrExplicitCapabilities -u:sse2 -u:avx2 -u:aesni -u:neon evaluation/tests/test_falcon_tyr.nim
 ```
 
 Otter uses the same override before adding the capabilities selected in its
-flag menu. Tyr's `tests/.otter/config.toml` selects all safe capabilities that
+flag menu. Tyr's `evaluation/tests/.otter/config.toml` selects all safe capabilities that
 Otter detects by default, so general Test UI runs use the optimized paths too.
 
 External backends such as `hasLibOqs` and unsafe experiments such as
@@ -105,7 +105,7 @@ nimble build_android_harness_asymmetric_fast
 APK + native test binary under ignored build paths
    |
    v
-nim r tests/run_android_harness.nim -- --serial:<device> --timeoutSeconds:900
+nim r evaluation/tests/run_android_harness.nim -- --serial:<device> --timeoutSeconds:900
    |
    v
 captured native test output

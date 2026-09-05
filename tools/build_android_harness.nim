@@ -86,15 +86,15 @@ proc parseConfig(): BuildConfig =
 proc targetInfo(t: HarnessTarget): TargetInfo =
   case t
   of targetCustomCrypto:
-    result.entryPoint = "tests/test_android_custom_crypto.nim"
+    result.entryPoint = "evaluation/tests/test_android_custom_crypto.nim"
     result.binaryBase = "test_android_custom_crypto"
     result.nimcacheBase = "custom"
   of targetAsymmetricFast:
-    result.entryPoint = "tests/test_android_asymmetric_fast.nim"
+    result.entryPoint = "evaluation/tests/test_android_asymmetric_fast.nim"
     result.binaryBase = "test_android_asymmetric_fast"
     result.nimcacheBase = "asymmetric_fast"
   of targetAsymmetricFull:
-    result.entryPoint = "tests/test_android_asymmetric_crypto.nim"
+    result.entryPoint = "evaluation/tests/test_android_asymmetric_crypto.nim"
     result.binaryBase = "test_android_asymmetric_crypto"
     result.nimcacheBase = "asymmetric_full"
 

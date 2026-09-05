@@ -102,7 +102,7 @@ nimble test_neon_checks
 nimble test_simd_matrix
 ```
 
-Use [test_primitives_api.nim](tests/test_primitives_api.nim) when dispatch behavior changes and [test_quick_api.nim](tests/test_quick_api.nim) when typed material layout changes.
+Use [test_primitives_api.nim](evaluation/tests/test_primitives_api.nim) when dispatch behavior changes and [test_quick_api.nim](evaluation/tests/test_quick_api.nim) when typed material layout changes.
 
 ## Documentation Rules
 - Update [README.md](README.md) when the public surface, commands, dependency story, or issue playbook changes.

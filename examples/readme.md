@@ -15,4 +15,4 @@
 | [x25519_ecdh.nim](x25519_ecdh.nim) | X25519 key agreement |
 | [wrapper.nim](wrapper.nim) | Typed material wrapper (encrypt/decrypt/sign/verify) |
 
-See [tests/](../tests/) for KAT (Known-Answer Test) vectors and [tools/bench_custom_crypto_table.nim](../tools/bench_custom_crypto_table.nim) for benchmark scripts.
+See [evaluation/tests/](../evaluation/tests/) for KAT (Known-Answer Test) vectors and [tools/bench_custom_crypto_table.nim](../tools/bench_custom_crypto_table.nim) for benchmark scripts.

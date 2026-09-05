@@ -1,7 +1,7 @@
 # NuGimli Cascade Test Vectors
 
 The complete machine-readable vectors are stored in
-`tests/nugimli_cascade_vectors.nim`. That file contains every 32-bit output
+`evaluation/tests/nugimli_cascade_vectors.nim`. That file contains every 32-bit output
 word for Cascade-512, Cascade-1024, and Cascade-2048.
 
 ## Representation
@@ -55,4 +55,4 @@ A1B6E6FF 158B0C80 A2FECBEE E92399E3
 
 The longer 1024- and 2048-bit arrays remain in the machine-readable vector
 module to avoid maintaining duplicate copies. Tagged SHAKE256 derivation
-vectors are frozen separately in `tests/test_nugimli_domain.nim`.
+vectors are frozen separately in `evaluation/tests/test_nugimli_domain.nim`.

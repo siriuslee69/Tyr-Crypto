@@ -339,7 +339,7 @@ which optional flags should be enabled. The dropdown excludes target facts and
 passes selected choices as validated `-d:name` arguments into both direct Otter
 workers and Tyr's nested native/WASM compilers.
 
-Tyr's `tests/.otter/config.toml` uses `default_flags = ["*"]`. Otter activates
+Tyr's `evaluation/tests/.otter/config.toml` uses `default_flags = ["*"]`. Otter activates
 all safe compiler capabilities supported by the current CPU, including SIMD
 support, and omits host SIMD flags from Emscripten builds.
 Third-party switches such as
@@ -379,7 +379,7 @@ The WebUI host and relay never compile or execute catalog tests. A compiler
 crash, native test crash, WASM runtime failure, or stopped worker is recorded in
 atomic job state without taking down the UI or persistent test backend.
 
-The editable output field at the top defaults to `tests/testResults/`. Pressing its
+The editable output field at the top defaults to `evaluation/tests/testResults/`. Pressing its
 folder button opens the built-in directory picker; direct paths and `~/...`
 paths are accepted as well. Every native test or benchmark writes:
 
@@ -389,11 +389,11 @@ paths are accepted as well. Every native test or benchmark writes:
   stop state, and result paths.
 
 The browser-WASM matrix writes the same `.log` and `.json` pair. Everything
-lands under `tests/`, never the repository root; `tests/testResults/`
+lands under `evaluation/tests/`, never the repository root; `evaluation/tests/testResults/`
 is ignored by Git so repeated local runs do not dirty the repository.
 
 New cards use the `pairedTest` template in
-`tests/webui_interop/test_catalog.nim`. The declaration supplies only metadata,
+`evaluation/tests/webui_interop/test_catalog.nim`. The declaration supplies only metadata,
 sources, fixed arguments, and optional WASM threading; shared worker code owns
 compilation, native/WASM sequencing, logs, polling, crash isolation, and stop
 handling.
@@ -458,6 +458,6 @@ This repo follows the [Proto conventions](.iron/conventions). Key rules:
 |------|------|
 | Language | Nim |
 | Flow | raw data -> sanitize -> typed material -> operate -> output |
-| Layout | `src/tyr`, `tests`, `tools`, `docs`, `submodules` |
+| Layout | `src/tyr`, `evaluation/tests`, `tools`, `docs`, `submodules` |
 | Native deps | declare in nimble + submodules |
 | Artifacts | all build/cache/runtime outputs ignored |

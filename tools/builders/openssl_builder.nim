@@ -1,5 +1,6 @@
 when defined(hasOpenSSL3):
   import std/[os, osproc, strutils, terminal]
+  import ./repo_paths
   import protocols/io/responses
 
   const
@@ -11,14 +12,39 @@ when defined(hasOpenSSL3):
                          @["libcrypto.so.3", "libcrypto.so"]
     moduleDir = splitFile(currentSourcePath()).dir
 
-  proc repoRoot(): string =
-    absolutePath(joinPath(moduleDir, "..", "..", ".."))
+  proc repoRoot*(): string =
+    ## The repository this builder belongs to, found by looking for the
+    ## package file rather than by counting folders upwards.
+    result = builderRepoRoot(moduleDir)
 
-  proc defaultBuildRoot(): string =
-    let envBuild = getEnv("OPENSSL_BUILD_ROOT").strip()
-    if envBuild.len > 0:
-      return envBuild
-    joinPath(repoRoot(), "build", "openssl")
+  proc defaultSourceDir*(): string =
+    ## Prefers the pinned copy under `submodules/`. A sibling checkout
+    ## beside the repository is the fallback. An empty answer means no
+    ## local source was found.
+    var
+      root: string = repoRoot()
+      submoduleDir: string = ""
+    result = getEnv("OPENSSL_SOURCE").strip()
+    if result.len > 0:
+      return
+    if root.len == 0:
+      return ""
+    submoduleDir = joinPath(root, "submodules", "openssl")
+    if dirExists(submoduleDir):
+      return submoduleDir
+    result = joinPath(parentDir(root), "openssl")
+
+  proc defaultBuildRoot*(): string =
+    ## Where the built library lands. Never a bare relative path: that
+    ## would follow whatever folder the compiler happened to start in.
+    var
+      root: string = repoRoot()
+    result = getEnv("OPENSSL_BUILD_ROOT").strip()
+    if result.len > 0:
+      return
+    if root.len == 0:
+      return getCurrentDir() / "build" / "openssl"
+    result = joinPath(root, "build", "openssl")
 
   proc quoteShellCommand(cmd: string, args: openArray[string]): string =
     let command = quoteShell(cmd)

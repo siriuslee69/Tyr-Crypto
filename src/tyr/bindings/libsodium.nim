@@ -18,12 +18,6 @@ when defined(hasLibsodium):
   import std/[dynlib, os, strutils]
   import builders/libsodium_builder
 
-  const
-    moduleDir = splitFile(currentSourcePath()).dir
-
-  proc repoRoot(): string =
-    absolutePath(joinPath(moduleDir, "..", "..", ".."))
-
   type
     SodiumInitProc = proc (): cint {.cdecl.}
     CryptoAeadSizeProc = proc (): csize_t {.cdecl.}
@@ -234,21 +228,6 @@ when defined(hasLibsodium):
       if trimmed.len > 0:
         appendLibCandidates(candidates, trimmed)
     candidates
-
-  proc defaultSourceDir(): string =
-    let envSource = getEnv("LIBSODIUM_SOURCE").strip()
-    if envSource.len > 0:
-      return envSource
-    let submoduleDir = joinPath(repoRoot(), "submodules", "libsodium")
-    if dirExists(submoduleDir):
-      return submoduleDir
-    joinPath(parentDir(repoRoot()), "libsodium")
-
-  proc defaultBuildRoot(): string =
-    let envBuild = getEnv("LIBSODIUM_BUILD_ROOT").strip()
-    if envBuild.len > 0:
-      return envBuild
-    joinPath(repoRoot(), "build", "libsodium")
 
   proc defaultLibCandidates(): seq[string] =
     var candidates = envLibCandidates()

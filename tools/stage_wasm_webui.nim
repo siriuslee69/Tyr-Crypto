@@ -8,7 +8,7 @@ import metaPragmas
 
 const
   sourceDir = "bindings/js"
-  targetDir = "tests/webui_interop/web/wasm"
+  targetDir = "evaluation/tests/webui_interop/web/wasm"
 
 proc copyDirectoryContents(source, target: string) {.role: {dataWriter}.} =
   ## Copies one generated bridge directory into the WebUI asset root.

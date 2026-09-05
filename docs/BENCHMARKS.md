@@ -17,8 +17,8 @@ The unified report accepts section arguments. A focused post-fix Falcon run can
 be built and executed without the unrelated byte/KEM tables:
 
 ```bash
-TYR_FALCON_BENCH_VARIANT=512 nim c --threads:on -d:release -r tests/bench_custom_crypto_table.nim signature falcon
-TYR_FALCON_BENCH_VARIANT=1024 tests/bench_custom_crypto_table signature falcon
+TYR_FALCON_BENCH_VARIANT=512 nim c --threads:on -d:release -r evaluation/benchmarks/bench_custom_crypto_table.nim signature falcon
+TYR_FALCON_BENCH_VARIANT=1024 evaluation/benchmarks/bench_custom_crypto_table signature falcon
 ```
 
 The first command compiles with Tyr's automatic safe host capabilities. The
