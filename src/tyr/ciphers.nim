@@ -29,6 +29,7 @@
 ## import reaches them too: `tyr/ciphers/chacha20` gives `chacha20TyrXor`,
 ## `tyr/hashes/blake3` gives `blake3TyrHash`. They are re-exported here.
 
+import metaPragmas
 import ./ciphers/types
 import ./ciphers/aes_ctr
 import ./ciphers/chacha20
@@ -42,7 +43,8 @@ export material
 
 ## ╭⟢ Pick the cipher by its family value
 
-proc encrypt*(f: CipherFamily, k, n, plain: openArray[byte]): seq[byte] =
+proc encrypt*(f: CipherFamily, k, n, plain: openArray[byte]): seq[byte]
+    {.role: {encryptor}.} =
   ## f/k/n/plain: cipher family, key, nonce, readable bytes.
   ## ⚠ The nonce must never repeat under one key - see `ciphers/types.nim`.
   case f
@@ -51,7 +53,8 @@ proc encrypt*(f: CipherFamily, k, n, plain: openArray[byte]): seq[byte] =
   of cfAesCtr:      result = aesCtrXor(k, n, plain)
   of cfGimliStream: result = gimliStreamXor(k, n, plain)
 
-proc decrypt*(f: CipherFamily, k, n, cipherText: openArray[byte]): seq[byte] =
+proc decrypt*(f: CipherFamily, k, n, cipherText: openArray[byte]): seq[byte]
+    {.role: {decryptor}.} =
   ## f/k/n/cipherText: cipher family, key, nonce, scrambled bytes.
   ## Same work as `encrypt`; these ciphers undo themselves.
   result = encrypt(f, k, n, cipherText)

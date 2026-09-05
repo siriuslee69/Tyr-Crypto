@@ -11,6 +11,7 @@
 ## stops at the first differing byte, and the time it took leaks how much
 ## of the tag an attacker has guessed correctly.
 
+import metaPragmas
 import ./macs/types
 import ./macs/hmac
 import ./macs/poly1305
@@ -20,7 +21,8 @@ export types
 export hmac, poly1305
 export material
 
-proc mac*(f: MacFamily, key, msg: openArray[byte], outLen: int = 32): seq[byte] =
+proc mac*(f: MacFamily, key, msg: openArray[byte], outLen: int = 32): seq[byte]
+    {.role: {actor}.} =
   ## f/key/msg/outLen: family, secret key, message, wanted tag length.
   ## ⚠ For `mfPoly1305` the key must be fresh for this one message; see
   ## `isOneTime`. Poly1305 always returns 16 bytes and ignores `outLen`.
@@ -30,7 +32,7 @@ proc mac*(f: MacFamily, key, msg: openArray[byte], outLen: int = 32): seq[byte] 
   of mfPoly1305:    result = poly1305Tag(key, msg)
   of mfHmacSha3:    result = sha3CustomHmac(key, msg, outLen)
 
-proc macVerify*(expected, actual: openArray[byte]): bool =
+proc macVerify*(expected, actual: openArray[byte]): bool {.role: {actor}.} =
   ## expected/actual: the tag you computed, and the tag that arrived.
   ## Constant-time compare: the answer takes the same time whether the tags
   ## differ in the first byte or the last, so nothing leaks.

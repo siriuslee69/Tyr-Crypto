@@ -1,4 +1,4 @@
-Commit Message: Move evaluation under evaluation/ and stop cloning unpinned native sources
+Commit Message: Name the roles on the public dispatch API
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -84,6 +84,12 @@ Validation and release gates:
   pure-Nim path is described as production ready.
 
 Implemented:
+- The public dispatch API carries `role` pragmas: `encaps`/`encrypt` are
+  encryptors, `decaps`/`decrypt` decryptors, `keypair` an orchestrator,
+  matching the words `gcmSeal` and `gcmOpen` already used. The rest of the
+  tree is still mostly unnamed - 640 of 4341 routines carry a role - and
+  the remainder needs reading rather than guessing, since a confidently
+  wrong role is worse for a reader than none.
 - Tests, benchmarks, and statistics now live below `evaluation/`, as the
   conventions ask: `evaluation/tests/`, `evaluation/benchmarks/`,
   `evaluation/statistics/`. Build-time utilities moved to `tools/`. The

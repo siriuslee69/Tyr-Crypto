@@ -24,6 +24,7 @@
 ## knows which code to call. The choice is settled while compiling and
 ## costs nothing at runtime.
 
+import metaPragmas
 import ./signatures/types
 import ./signatures/dilithium
 import ./signatures/falcon
@@ -39,46 +40,46 @@ export material
 
 ## ╭⟢ keypair
 
-proc keypair*(v: DilithiumVariant, seed: seq[byte] = @[]): SigKeypair =
+proc keypair*(v: DilithiumVariant, seed: seq[byte] = @[]): SigKeypair {.role: {orchestrator}.} =
   ## v/seed: variant, and optional fixed randomness for reproducible tests.
   var t = dilithiumTyrKeypair(v, seed)
   result = SigKeypair(family: sfDilithium, public: t.publicKey, secret: t.secretKey)
 
-proc keypair*(v: FalconVariant): SigKeypair =
+proc keypair*(v: FalconVariant): SigKeypair {.role: {orchestrator}.} =
   ## v: which Falcon parameter set to generate for.
   var t = falconTyrKeypair(v)
   result = SigKeypair(family: sfFalcon, public: t.publicKey, secret: t.secretKey)
 
-proc keypair*(v: SphincsVariant, seed: seq[byte] = @[]): SigKeypair =
+proc keypair*(v: SphincsVariant, seed: seq[byte] = @[]): SigKeypair {.role: {orchestrator}.} =
   ## v/seed: variant, and optional fixed randomness for reproducible tests.
   var t = sphincsTyrKeypair(v, seed)
   result = SigKeypair(family: sfSphincs, public: t.publicKey, secret: t.secretKey)
 
 ## ╭⟢ sign
 
-proc sign*(v: DilithiumVariant, msg, sk: openArray[byte]): seq[byte] =
+proc sign*(v: DilithiumVariant, msg, sk: openArray[byte]): seq[byte] {.role: {actor}.} =
   ## v/msg/sk: variant, the bytes to sign, your secret key.
   result = dilithiumTyrSign(v, msg, sk)
 
-proc sign*(v: FalconVariant, msg, sk: openArray[byte]): seq[byte] =
+proc sign*(v: FalconVariant, msg, sk: openArray[byte]): seq[byte] {.role: {actor}.} =
   ## v/msg/sk: variant, the bytes to sign, your secret key.
   result = falconTyrSign(v, msg, sk)
 
-proc sign*(v: SphincsVariant, msg, sk: openArray[byte]): seq[byte] =
+proc sign*(v: SphincsVariant, msg, sk: openArray[byte]): seq[byte] {.role: {actor}.} =
   ## v/msg/sk: variant, the bytes to sign, your secret key.
   result = sphincsTyrSign(v, msg, sk)
 
 ## ╭⟢ verify
 
-proc verify*(v: DilithiumVariant, msg, sig, pk: openArray[byte]): bool =
+proc verify*(v: DilithiumVariant, msg, sig, pk: openArray[byte]): bool {.role: {actor}.} =
   ## v/msg/sig/pk: variant, the signed bytes, the signature, signer's public key.
   ## Returns false for a forged or altered message; never raises on bad input.
   result = dilithiumTyrVerify(v, msg, sig, pk)
 
-proc verify*(v: FalconVariant, msg, sig, pk: openArray[byte]): bool =
+proc verify*(v: FalconVariant, msg, sig, pk: openArray[byte]): bool {.role: {actor}.} =
   ## v/msg/sig/pk: variant, the signed bytes, the signature, signer's public key.
   result = falconTyrVerify(v, msg, sig, pk)
 
-proc verify*(v: SphincsVariant, msg, sig, pk: openArray[byte]): bool =
+proc verify*(v: SphincsVariant, msg, sig, pk: openArray[byte]): bool {.role: {actor}.} =
   ## v/msg/sig/pk: variant, the signed bytes, the signature, signer's public key.
   result = sphincsTyrVerify(v, msg, sig, pk)

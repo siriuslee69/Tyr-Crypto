@@ -14,6 +14,7 @@
 ## Each algorithm also answers to a `...Tyr...` public name on its own
 ## surface, e.g. `tyr/kdfs/argon2` gives `argon2idTyrHash`.
 
+import metaPragmas
 import ./hashes/types
 import ./hashes/blake3
 import ./hashes/sha256
@@ -25,7 +26,8 @@ export types
 export blake3, sha256, sha512, sha3
 export material
 
-proc digest*(f: HashFamily, data: openArray[byte], outLen: int = 0): seq[byte] =
+proc digest*(f: HashFamily, data: openArray[byte], outLen: int = 0): seq[byte]
+    {.role: {math}.} =
   ## f/data/outLen: family, bytes to fingerprint, and the wanted length.
   ## `outLen = 0` means "this family's natural length". SHA-256 and SHA-512
   ## have only one length and ignore any other request.

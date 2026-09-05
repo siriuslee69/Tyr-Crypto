@@ -13,6 +13,7 @@
 ## ⚠ Read `types.nim` before choosing. Feeding a human password to a FAST
 ## KDF is the classic mistake; use `isPasswordSafe` to check.
 
+import metaPragmas
 import ./kdfs/types
 import ./kdfs/argon2
 import ./kdfs/blake3_gimli_kdf
@@ -23,7 +24,7 @@ export argon2, blake3_gimli_kdf, kdf
 
 proc deriveKey*(f: KdfFamily, secret, salt: openArray[byte],
     outLen: int = 32, passCount: int = 3, memoryKiB: int = 65536,
-    laneCount: int = 1): seq[byte] =
+    laneCount: int = 1): seq[byte] {.role: {math}.} =
   ## f/secret/salt: family, the input secret or password, and a salt.
   ## outLen: how many key bytes you want back.
   ## passCount/memoryKiB/laneCount: cost knobs, used by the Argon2 families
