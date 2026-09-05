@@ -1,4 +1,4 @@
-Commit Message: Complete AEAD state validation and share the GCM nonce guard
+Commit Message: Restore the liboqs test matrix and pin the KEM seed contract
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -72,6 +72,29 @@ Validation and release gates:
   pure-Nim path is described as production ready.
 
 Implemented:
+- The liboqs random-source callback is now `gcsafe`: caller entropy of any
+  length is squeezed into a fixed 64-byte array with SHAKE256, so the C
+  callback never reads garbage-collected memory. This unblocked every
+  liboqs-backed test group, which had stopped compiling.
+- One shared deterministic liboqs generator (`tests/oqs_random_hook.nim`)
+  replaces nine near-identical per-test copies. Its feed lives in
+  hand-managed memory, which is what makes the callback contract holdable.
+- `genKeypair`/`encaps` now refuse a `seed` on the library-backed KEM tiers
+  instead of silently returning a fresh key pair each call; a separate
+  `extraEntropy` argument carries the "stir this in" case. Pinned by
+  `tests/test_kem_seed_contract.nim`.
+- Falcon signatures now cross-verify against liboqs in both directions for
+  512 and 1024, and McEliece interoperates in both directions for all three
+  tiers. Both families previously only checked their own work.
+- Dilithium gamma1 sampling wipes its sponge state and raw output on the
+  scalar and AVX2 4x paths, matching what the eta paths already did.
+- The asymmetric citation gate walked a directory removed in an earlier
+  restructure and so checked nothing; it now covers 95 modules, and ECDSA
+  P-256 is cited against a hash-pinned FIPS 186-5.
+- Shared pragmas moved to `meta/metaPragmas.nim` from the repository
+  template; the information-free `tag: {other}` pragmas were dropped.
+- The constant-time timing checks compare the fastest run instead of the
+  median, so they no longer fail under parallel test load.
 - Normal Tyr builds now use `--opt:speed` and automatically enable target-safe SSE2, AVX2, AES-NI, or NEON paths when the configured native compiler reports them; explicit scalar controls, cross-target builds, and Otter selections remain deterministic.
 - Falcon degree-8/16 NTRU reduction now follows the existing reference-shaped FFT/NTT path instead of repeated exact big-integer matrix solves, reducing local release keygen from about `12.09 s` to `51 ms` for Falcon-512 and from about `86.85 s` to `322 ms` for Falcon-1024.
 - Tyr's Otter config now defaults to every host-supported safe compiler capability without enabling external-library flags; ARC/ORC remain at Nim's configured default unless selected.

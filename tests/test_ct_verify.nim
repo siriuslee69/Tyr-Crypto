@@ -1,6 +1,6 @@
 {.define: tyrCryptoTestHooks.}
 
-import std/[algorithm, monotimes, unittest]
+import std/[monotimes, unittest]
 
 import ./helpers
 import ../src/tyr/helpers/common/ct_compare
@@ -14,57 +14,62 @@ proc fillSeed(seed: var seq[byte], base: int) =
     seed[i] = uint8((base + i) mod 256)
     i = i + 1
 
-proc medianNanos(samples: openArray[int64]): int64 =
-  var sorted = newSeq[int64](samples.len)
-  for i in 0 ..< samples.len:
-    sorted[i] = samples[i]
-  algorithm.sort(sorted)
-  result = sorted[sorted.len div 2]
-
 const
   timingWarmupIterations = 4
   dilithium44DigestLateOffset = 31
   sphincsShake128fTreeTailBytes = 66 * 16
 
-proc measureDilithiumVerifyAtOffset(msg, sig, pk: openArray[byte], flipOffset: int,
-    iterations: int): int64 =
+proc fastestNanos(A: openArray[int64]): int64 =
+  ## A: measured run times, in nanoseconds.
+  ##
+  ## Reports the fastest run rather than the middle one. Everything the
+  ## operating system does to a timed run - handing the core to another
+  ## process, a page fault, a clock change - only ever makes that run
+  ## longer. So the fastest run is the one closest to the true cost of
+  ## the work, and it is the only summary that stays steady while the
+  ## rest of the test suite is running beside it.
+  ##
+  ##   samples:  ###  #  ############   #####
+  ##             ^
+  ##             +-- taken: nothing has been added to this one
   var
-    badSig = newSeq[byte](sig.len)
-  for i in 0 ..< sig.len:
-    badSig[i] = sig[i]
-  badSig[flipOffset] = badSig[flipOffset] xor 0x01'u8
-  var warmup = 0
-  while warmup < timingWarmupIterations:
-    discard custom_dilithium.dilithiumTyrVerify(custom_dilithium.dilithium44, msg, badSig, pk)
-    warmup = warmup + 1
-  var samples = newSeq[int64](iterations)
-  var run = 0
-  while run < iterations:
-    let t0 = getMonoTime()
-    discard custom_dilithium.dilithiumTyrVerify(custom_dilithium.dilithium44, msg, badSig, pk)
-    samples[run] = getMonoTime().ticks - t0.ticks
-    run = run + 1
-  result = medianNanos(samples)
+    i: int = 0
+  result = 0
+  while i < A.len:
+    if A[i] > 0 and (result == 0 or A[i] < result):
+      result = A[i]
+    i = i + 1
 
-proc measureSphincsVerifyAtOffset(msg, sig, pk: openArray[byte], flipOffset: int,
-    iterations: int): int64 =
+proc fastestVerifyNanos(S: openArray[byte], flipOffset, iterations: int,
+    verify: proc (B: seq[byte]): bool): int64 =
+  ## S: a valid signature, copied and then corrupted.
+  ## flipOffset: which byte to flip, which decides how early the
+  ##   verification is able to notice the signature is wrong.
+  ## iterations: how many timed runs to take.
+  ## verify: the verification under measurement.
+  ##
+  ## A verification that leaks nothing takes the same time whether the
+  ## wrong byte sits at the front or at the back.
   var
-    badSig = newSeq[byte](sig.len)
-  for i in 0 ..< sig.len:
-    badSig[i] = sig[i]
+    badSig: seq[byte] = newSeq[byte](S.len)
+    samples: seq[int64] = newSeq[int64](iterations)
+    t0: MonoTime
+    i: int = 0
+  while i < S.len:
+    badSig[i] = S[i]
+    i = i + 1
   badSig[flipOffset] = badSig[flipOffset] xor 0x01'u8
-  var warmup = 0
-  while warmup < timingWarmupIterations:
-    discard custom_sphincs.sphincsTyrVerify(custom_sphincs.sphincsShake128fSimple, msg, badSig, pk)
-    warmup = warmup + 1
-  var samples = newSeq[int64](iterations)
-  var run = 0
-  while run < iterations:
-    let t0 = getMonoTime()
-    discard custom_sphincs.sphincsTyrVerify(custom_sphincs.sphincsShake128fSimple, msg, badSig, pk)
-    samples[run] = getMonoTime().ticks - t0.ticks
-    run = run + 1
-  result = medianNanos(samples)
+  i = 0
+  while i < timingWarmupIterations:
+    discard verify(badSig)
+    i = i + 1
+  i = 0
+  while i < iterations:
+    t0 = getMonoTime()
+    discard verify(badSig)
+    samples[i] = getMonoTime().ticks - t0.ticks
+    i = i + 1
+  result = fastestNanos(samples)
 
 proc timingRatioWithin(a, b: int64; maxRatio: float): bool =
   if a <= 0 or b <= 0:
@@ -143,7 +148,7 @@ suite "constant-time verify regressions":
 
   test "dilithium verify timing is stable across early vs late digest mismatch":
     const
-      iterations = 64
+      iterations = 256
       maxRatio = 1.35
     let msg = toBytes("ct-verify dilithium timing message")
     var seed = newSeq[byte](32)
@@ -151,13 +156,19 @@ suite "constant-time verify regressions":
     let
       kp = custom_dilithium.dilithiumTyrKeypair(custom_dilithium.dilithium44, seed)
       sig = custom_dilithium.dilithiumTyrSign(custom_dilithium.dilithium44, msg, kp.secretKey)
-      earlyNs = measureDilithiumVerifyAtOffset(msg, sig, kp.publicKey, 0, iterations)
-      lateNs = measureDilithiumVerifyAtOffset(msg, sig, kp.publicKey, dilithium44DigestLateOffset, iterations)
+      earlyNs = fastestVerifyNanos(sig, 0, iterations, proc (B: seq[byte]): bool =
+        custom_dilithium.dilithiumTyrVerify(custom_dilithium.dilithium44, msg, B,
+          kp.publicKey))
+      lateNs = fastestVerifyNanos(sig, dilithium44DigestLateOffset, iterations,
+        proc (B: seq[byte]): bool =
+          custom_dilithium.dilithiumTyrVerify(custom_dilithium.dilithium44, msg, B,
+            kp.publicKey))
+    checkpoint("fastest early=" & $earlyNs & "ns late=" & $lateNs & "ns")
     check timingRatioWithin(earlyNs, lateNs, maxRatio)
 
   test "sphincs verify timing is stable across early vs late root mismatch":
     const
-      iterations = 16
+      iterations = 256
       maxRatio = 1.40
     let msg = toBytes("ct-verify sphincs timing message")
     var seed = newSeq[byte](48)
@@ -165,6 +176,13 @@ suite "constant-time verify regressions":
     let
       kp = custom_sphincs.sphincsTyrKeypair(custom_sphincs.sphincsShake128fSimple, seed)
       sig = custom_sphincs.sphincsTyrSign(custom_sphincs.sphincsShake128fSimple, msg, kp.secretKey)
-      earlyNs = measureSphincsVerifyAtOffset(msg, sig, kp.publicKey, sig.len - sphincsShake128fTreeTailBytes, iterations)
-      lateNs = measureSphincsVerifyAtOffset(msg, sig, kp.publicKey, sig.len - 1, iterations)
+      earlyNs = fastestVerifyNanos(sig, sig.len - sphincsShake128fTreeTailBytes,
+        iterations, proc (B: seq[byte]): bool =
+          custom_sphincs.sphincsTyrVerify(custom_sphincs.sphincsShake128fSimple,
+            msg, B, kp.publicKey))
+      lateNs = fastestVerifyNanos(sig, sig.len - 1, iterations,
+        proc (B: seq[byte]): bool =
+          custom_sphincs.sphincsTyrVerify(custom_sphincs.sphincsShake128fSimple,
+            msg, B, kp.publicKey))
+    checkpoint("fastest early=" & $earlyNs & "ns late=" & $lateNs & "ns")
     check timingRatioWithin(earlyNs, lateNs, maxRatio)

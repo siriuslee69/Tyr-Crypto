@@ -13,6 +13,11 @@ import ../src/tyr/signatures/falcon/format
 import ../src/tyr/signatures/falcon/pure_verify
 import ../src/tyr/signatures/falcon/sign
 
+import metaPragmas
+
+when defined(hasLibOqs):
+  import ../src/tyr/bindings/liboqs
+
 var
   falconDeterministicBase: int = 0
   falconDeterministicOffset: int = 0
@@ -368,3 +373,110 @@ suite "falcon tyr":
       check sigScalar == sigSimd
       check falconTyrVerify(falcon512, msg, sigScalar, kpScalar.publicKey, falconScalar)
       check falconTyrVerify(falcon512, msg, sigSimd, kpSimd.publicKey, falconSimd)
+
+## ╭⟢ Cross-checking Falcon against the reference library
+##
+## Every test above compares Tyr's Falcon with itself: it signs, then
+## verifies with its own verifier. A self-consistent mistake - a swapped
+## constant, a differently ordered encoding - would pass all of them and
+## still be unreadable to every other Falcon in the world.
+##
+## The tests below close that hole by making the two implementations
+## check each other's work:
+##
+##   Tyr  --signs-->  signature  --checked by-->  liboqs
+##   liboqs --signs-->  signature  --checked by-->  Tyr
+##
+## Both directions must hold. One direction alone would only prove that
+## one side is lenient.
+
+when defined(hasLibOqs):
+  proc oqsFalconAlgId(v: FalconVariant): string {.role: {parser}.} =
+    ## v: which Falcon size is being cross-checked.
+    case v
+    of falcon512:
+      result = oqsSigFalcon512
+    of falcon1024:
+      result = oqsSigFalcon1024
+
+  proc openOqsFalcon(v: FalconVariant): ptr OqsSig {.role: {dataFetcher}.} =
+    ## v: which Falcon size is being cross-checked.
+    ## Returns nil when this liboqs build left the algorithm out.
+    if not ensureLibOqsLoaded():
+      return nil
+    result = OQS_SIG_new(oqsFalconAlgId(v).cstring)
+
+  proc oqsAcceptsFalcon(S: ptr OqsSig, msg, sig, pk: openArray[byte]): bool
+      {.role: {actor}.} =
+    ## S: the opened liboqs Falcon handle.
+    ## msg, sig, pk: the message, signature, and public key to check.
+    var
+      msgPtr: ptr uint8 = nil
+    if msg.len > 0:
+      msgPtr = cast[ptr uint8](unsafeAddr msg[0])
+    result = OQS_SIG_verify(S, msgPtr, csize_t(msg.len),
+      cast[ptr uint8](unsafeAddr sig[0]), csize_t(sig.len),
+      cast[ptr uint8](unsafeAddr pk[0])) == oqsSuccess
+
+  template falconInteropCase(v: FalconVariant) =
+    ## v: the Falcon size under test.
+    ## Signs on each side and hands the result to the other side.
+    block:
+      var
+        p = params(v)
+        msg = newSeq[byte](128)
+        kp: FalconTyrKeypair
+        sig: seq[byte] = @[]
+        tampered: seq[byte] = @[]
+        handle: ptr OqsSig = nil
+        oqsPk: seq[byte] = @[]
+        oqsSk: seq[byte] = @[]
+        oqsSig: seq[byte] = @[]
+        oqsSigLen: csize_t = 0
+      fillPattern(msg, 0x5B)
+      handle = openOqsFalcon(v)
+      if handle == nil:
+        checkpoint("liboqs " & oqsFalconAlgId(v) & " unavailable; skipping")
+      else:
+        defer:
+          OQS_SIG_free(handle)
+          falconTyrClearKeypair(kp)
+
+        # The two sides must agree on sizes before they can agree on bytes.
+        check int(handle[].length_public_key) == p.publicKeyBytes
+        check int(handle[].length_secret_key) == p.secretKeyBytes
+        check int(handle[].length_signature) == p.signatureBytes
+
+        # Direction one: Tyr signs, liboqs checks.
+        kp = falconTyrKeypair(v, falconScalar)
+        sig = falconTyrSign(v, msg, kp.secretKey, falconScalar)
+        check falconTyrVerify(v, msg, sig, kp.publicKey, falconScalar)
+        check oqsAcceptsFalcon(handle, msg, sig, kp.publicKey)
+        tampered = sig
+        tampered[tampered.len - 1] = tampered[tampered.len - 1] xor 0x01'u8
+        check not oqsAcceptsFalcon(handle, msg, tampered, kp.publicKey)
+
+        # Direction two: liboqs signs, Tyr checks.
+        oqsPk = newSeq[byte](p.publicKeyBytes)
+        oqsSk = newSeq[byte](p.secretKeyBytes)
+        oqsSig = newSeq[byte](p.signatureBytes)
+        oqsSigLen = csize_t(oqsSig.len)
+        requireSuccess(OQS_SIG_keypair(handle, addr oqsPk[0], addr oqsSk[0]),
+          "OQS_SIG_keypair(" & oqsFalconAlgId(v) & ")")
+        requireSuccess(OQS_SIG_sign(handle, addr oqsSig[0], addr oqsSigLen,
+          addr msg[0], csize_t(msg.len), addr oqsSk[0]),
+          "OQS_SIG_sign(" & oqsFalconAlgId(v) & ")")
+        oqsSig.setLen(int(oqsSigLen))
+        check falconTyrVerify(v, msg, oqsSig, oqsPk, falconScalar)
+        tampered = oqsSig
+        tampered[tampered.len - 1] = tampered[tampered.len - 1] xor 0x01'u8
+        check not falconTyrVerify(v, msg, tampered, oqsPk, falconScalar)
+
+  suite "falcon liboqs interop":
+    # {.testKind: tkIntegration, covers: "falconTyrSign, falconTyrVerify".}
+    falcon512Test "falcon512 signatures cross-verify with liboqs":
+      falconInteropCase(falcon512)
+
+    # {.testKind: tkIntegration, covers: "falconTyrSign, falconTyrVerify".}
+    falcon1024Test "falcon1024 signatures cross-verify with liboqs":
+      falconInteropCase(falcon1024)

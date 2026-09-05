@@ -172,6 +172,17 @@
       "gitPolicy": "ignored-local-cache"
     },
     {
+      "id": "FIPS-186-5",
+      "title": "Digital Signature Standard (DSS)",
+      "sourceUrl": "https://doi.org/10.6028/NIST.FIPS.186-5",
+      "downloadUrl": "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.186-5.pdf",
+      "sha256": "fbb9c7c2ba442f03c57b63b43c888311903c9d0f29f89b06efdebd9b619140c5",
+      "bytes": 1844414,
+      "licenseExpression": "NIST-Technical-Series-Notice",
+      "gitPolicy": "hash-pin-only",
+      "note": "Pinned by hash only; ECDSA P-256 is cited against section 6 and appendix D.1.2."
+    },
+    {
       "id": "PQ-SUPPORT",
       "title": "Cross-family constant-time and random-source support",
       "sourceIds": ["FIPS-202", "SP800-90A-R1"],

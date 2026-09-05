@@ -80,13 +80,26 @@ proc sphincsDrbgRandomBytes(S: var SphincsNistDrbgState, n: int): seq[byte] =
   S.reseedCounter = S.reseedCounter + 1
 
 when defined(hasLibOqs):
-  proc oqsSphincsKatCallback(random_array: ptr uint8, bytes_to_read: csize_t) {.cdecl.} =
-    let outBytes = cast[ptr UncheckedArray[uint8]](random_array)
-    let bytesBuf = sphincsDrbgRandomBytes(oqsSphincsKatDrbgState, int(bytes_to_read))
-    if not oqsSphincsKatDrbgReady:
+  proc oqsSphincsKatCallback(random_array: ptr uint8,
+      bytes_to_read: csize_t) {.cdecl, gcsafe.} =
+    ## random_array: buffer the library wants filled.
+    ## bytes_to_read: its size in bytes.
+    ## Stays silent until the reference generator is seeded. An unseeded
+    ## call is answered with zeros rather than with whatever the buffer
+    ## happened to hold, and it does not advance the generator.
+    var
+      outBytes: ptr UncheckedArray[uint8] = cast[ptr UncheckedArray[uint8]](random_array)
+      bytesBuf: seq[byte] = @[]
+      i: int = 0
+    if random_array == nil or bytes_to_read == 0:
       return
-    for i in 0 ..< bytesBuf.len:
+    if not oqsSphincsKatDrbgReady:
+      zeroMem(random_array, int(bytes_to_read))
+      return
+    bytesBuf = sphincsDrbgRandomBytes(oqsSphincsKatDrbgState, int(bytes_to_read))
+    while i < bytesBuf.len:
       outBytes[i] = bytesBuf[i]
+      i = i + 1
 
 proc appendSphincsHexUpper(dst: var string, A: openArray[byte]) =
   const lut = "0123456789ABCDEF"

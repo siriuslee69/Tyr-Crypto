@@ -8,6 +8,7 @@ import ../src/tyr
 
 when defined(hasLibOqs):
   import ../src/tyr/bindings/liboqs
+  import ./oqs_random_hook
 
 proc fillBikeSeed(seed: var seq[byte], base: int) =
   var
@@ -16,42 +17,6 @@ proc fillBikeSeed(seed: var seq[byte], base: int) =
   while i < seed.len:
     seed[i] = byte((base + i) mod 256)
     i = i + 1
-
-when defined(hasLibOqs):
-  var
-    bikeOqsDeterministicFeed: seq[uint8] = @[]
-    bikeOqsDeterministicOffset: int = 0
-    bikeOqsDeterministicShortRead: bool = false
-
-  proc bikeOqsDeterministicCallback(random_array: ptr uint8,
-      bytes_to_read: csize_t) {.cdecl.} =
-    var
-      outBytes = cast[ptr UncheckedArray[uint8]](random_array)
-      n: int = int(bytes_to_read)
-      i: int = 0
-    i = 0
-    while i < n:
-      if bikeOqsDeterministicOffset < bikeOqsDeterministicFeed.len:
-        outBytes[i] = bikeOqsDeterministicFeed[bikeOqsDeterministicOffset]
-        bikeOqsDeterministicOffset = bikeOqsDeterministicOffset + 1
-      else:
-        outBytes[i] = 0'u8
-        bikeOqsDeterministicShortRead = true
-      i = i + 1
-
-  proc withBikeDeterministicOqsRandom(feed: openArray[byte], body: proc ()) =
-    bikeOqsDeterministicFeed = newSeq[uint8](feed.len)
-    for i in 0 ..< feed.len:
-      bikeOqsDeterministicFeed[i] = feed[i]
-    bikeOqsDeterministicOffset = 0
-    bikeOqsDeterministicShortRead = false
-    OQS_randombytes_custom_algorithm(bikeOqsDeterministicCallback)
-    try:
-      body()
-    finally:
-      discard OQS_randombytes_switch_algorithm(oqsRandAlgSystem.cstring)
-      bikeOqsDeterministicFeed.setLen(0)
-      bikeOqsDeterministicOffset = 0
 
 suite "bike tyr":
   test "pure-nim BIKE roundtrip matches shared secret":
@@ -256,20 +221,20 @@ suite "bike tyr":
         let nimKp = custom_bike.bikeTyrKeypairDerand(custom_bike.bikeL1, keypairRandom)
         pk = newSeq[uint8](int kem[].length_public_key)
         sk = newSeq[uint8](int kem[].length_secret_key)
-        withBikeDeterministicOqsRandom(keypairRandom, proc () =
+        withOqsFeed(keypairRandom, proc () =
           requireSuccess(OQS_KEM_keypair(kem, addr pk[0], addr sk[0]), "OQS_KEM_keypair(BIKE)")
         )
-        check not bikeOqsDeterministicShortRead
+        check not oqsFeedRanShort()
         check pk == nimKp.publicKey
         check sk == nimKp.secretKey
 
         let nimEnv = custom_bike.bikeTyrEncapsDerand(custom_bike.bikeL1, nimKp.publicKey, encapsRandom)
         ct = newSeq[uint8](int kem[].length_ciphertext)
         shared = newSeq[uint8](int kem[].length_shared_secret)
-        withBikeDeterministicOqsRandom(encapsRandom, proc () =
+        withOqsFeed(encapsRandom, proc () =
           requireSuccess(OQS_KEM_encaps(kem, addr ct[0], addr shared[0], addr pk[0]), "OQS_KEM_encaps(BIKE)")
         )
-        check not bikeOqsDeterministicShortRead
+        check not oqsFeedRanShort()
         check ct == nimEnv.ciphertext
         check shared == nimEnv.sharedSecret
 

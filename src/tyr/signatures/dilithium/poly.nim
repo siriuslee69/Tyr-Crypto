@@ -1181,6 +1181,10 @@ proc polyUniformGamma1Seed*(p: DilithiumParams, a: var DilithiumPoly,
   initShake256NonceState(S, seed, nonce)
   shake256SqueezeBlocksIntoUnchecked(S, buf.toOpenArray(0, outLen - 1))
   polyZUnpack(p, a, buf.toOpenArray(0, p.polyZPackedBytes - 1))
+  # y is the masking vector; its raw sponge output and state must not
+  # outlive this call.
+  clearSensitivePlainData(S)
+  clearSensitivePlainData(buf)
 
 when defined(avx2):
   ## Paper note: gamma1 sampling is batched only at the SHAKE/output-unpack layer,
@@ -1203,6 +1207,9 @@ when defined(avx2):
     polyZUnpack(p, a1, bufs[1].toOpenArray(0, p.polyZPackedBytes - 1))
     polyZUnpack(p, a2, bufs[2].toOpenArray(0, p.polyZPackedBytes - 1))
     polyZUnpack(p, a3, bufs[3].toOpenArray(0, p.polyZPackedBytes - 1))
+    clearSensitivePlainData(states)
+    clearSensitivePlainData(bufs)
+    clearSensitivePlainData(msgs)
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformGamma12xSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.

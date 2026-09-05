@@ -9,6 +9,7 @@ import ../src/tyr/hashes/sha3 as tyr_sha3
 
 when defined(hasLibOqs):
   import ../src/tyr/bindings/liboqs
+  import ./oqs_random_hook
 
 proc buildSeed(start: int): seq[byte] =
   result = newSeq[byte](32)
@@ -26,37 +27,6 @@ proc buildEncapsRandom(v: custom_mceliece.McElieceVariant): seq[byte] =
     result[2 * i + 1] = byte((uint16(i) shr 8) and 0xff'u16)
 
 when defined(hasLibOqs):
-  var
-    mcelieceOqsDeterministicFeed: seq[uint8] = @[]
-    mcelieceOqsDeterministicOffset: int = 0
-    mcelieceOqsDeterministicShortRead: bool = false
-
-  proc mcelieceOqsDeterministicCallback(random_array: ptr uint8,
-      bytes_to_read: csize_t) {.cdecl.} =
-    var
-      outBytes = cast[ptr UncheckedArray[uint8]](random_array)
-    for i in 0 ..< int(bytes_to_read):
-      if mcelieceOqsDeterministicOffset < mcelieceOqsDeterministicFeed.len:
-        outBytes[i] = mcelieceOqsDeterministicFeed[mcelieceOqsDeterministicOffset]
-        mcelieceOqsDeterministicOffset = mcelieceOqsDeterministicOffset + 1
-      else:
-        outBytes[i] = 0'u8
-        mcelieceOqsDeterministicShortRead = true
-
-  proc withMcelieceDeterministicOqsRandom(feed: openArray[byte], body: proc ()) =
-    mcelieceOqsDeterministicFeed = newSeq[uint8](feed.len)
-    for i in 0 ..< feed.len:
-      mcelieceOqsDeterministicFeed[i] = feed[i]
-    mcelieceOqsDeterministicOffset = 0
-    mcelieceOqsDeterministicShortRead = false
-    OQS_randombytes_custom_algorithm(mcelieceOqsDeterministicCallback)
-    try:
-      body()
-    finally:
-      discard OQS_randombytes_switch_algorithm(oqsRandAlgSystem.cstring)
-      mcelieceOqsDeterministicFeed.setLen(0)
-      mcelieceOqsDeterministicOffset = 0
-
   proc checkDerandEncapsMatchesLiboqs(v: custom_mceliece.McElieceVariant,
       algId: string, seedBase: int) =
     var
@@ -76,13 +46,68 @@ when defined(hasLibOqs):
     nimEnv = custom_mceliece.mcelieceTyrEncapsDerand(v, kp.publicKey, randomness)
     ct = newSeq[uint8](int kem[].length_ciphertext)
     shared = newSeq[uint8](int kem[].length_shared_secret)
-    withMcelieceDeterministicOqsRandom(randomness, proc () =
+    withOqsFeed(randomness, proc () =
       requireSuccess(OQS_KEM_encaps(kem, addr ct[0], addr shared[0],
         unsafeAddr kp.publicKey[0]), "OQS_KEM_encaps(" & algId & ")")
     )
-    check not mcelieceOqsDeterministicShortRead
+    check not oqsFeedRanShort()
     check ct == nimEnv.ciphertext
     check shared == nimEnv.sharedSecret
+
+  ## ╭⟢ Cross-checking McEliece against the reference library
+  ##
+  ## The tests above only ever ask Tyr to undo its own work. A key pair
+  ## that is wrong in a self-consistent way would still round-trip.
+  ## These two exchanges make each implementation consume the other's
+  ## output, which is what proves the encodings and the decoder agree:
+  ##
+  ##   Tyr key    -> liboqs seals -> Tyr opens    -> same secret
+  ##   liboqs key -> Tyr seals    -> liboqs opens -> same secret
+  proc checkInteropBothDirections(v: custom_mceliece.McElieceVariant,
+      algId: string, seedBase: int) =
+    ## v: which McEliece size is being cross-checked.
+    ## algId: the same size under the library's own name.
+    ## seedBase: starting byte of the deterministic key seed.
+    var
+      kem = OQS_KEM_new(algId.cstring)
+      kp: custom_mceliece.McElieceTyrKeypair
+      ct: seq[uint8] = @[]
+      shared: seq[uint8] = @[]
+      opened: tuple[sharedSecret: seq[byte], ok: bool]
+      oqsPk: seq[uint8] = @[]
+      oqsSk: seq[uint8] = @[]
+      oqsShared: seq[uint8] = @[]
+      nimEnv: custom_mceliece.McElieceTyrCipher
+    if kem == nil:
+      checkpoint("liboqs " & algId & " unavailable; skipping interop")
+      return
+    defer:
+      OQS_KEM_free(kem)
+
+    # Direction one: Tyr owns the key pair, the library seals to it.
+    kp = custom_mceliece.mcelieceTyrKeypair(v, buildSeed(seedBase))
+    check kp.publicKey.len == int kem[].length_public_key
+    check kp.secretKey.len == int kem[].length_secret_key
+    ct = newSeq[uint8](int kem[].length_ciphertext)
+    shared = newSeq[uint8](int kem[].length_shared_secret)
+    requireSuccess(OQS_KEM_encaps(kem, addr ct[0], addr shared[0],
+      unsafeAddr kp.publicKey[0]), "OQS_KEM_encaps(" & algId & ")")
+    opened = custom_mceliece.mcelieceTyrTryDecaps(v, kp.secretKey, ct)
+    check opened.ok
+    check opened.sharedSecret == shared
+
+    # Direction two: the library owns the key pair, Tyr seals to it.
+    oqsPk = newSeq[uint8](int kem[].length_public_key)
+    oqsSk = newSeq[uint8](int kem[].length_secret_key)
+    oqsShared = newSeq[uint8](int kem[].length_shared_secret)
+    requireSuccess(OQS_KEM_keypair(kem, addr oqsPk[0], addr oqsSk[0]),
+      "OQS_KEM_keypair(" & algId & ")")
+    nimEnv = custom_mceliece.mcelieceTyrEncaps(v, oqsPk)
+    check nimEnv.ciphertext.len == int kem[].length_ciphertext
+    requireSuccess(OQS_KEM_decaps(kem, addr oqsShared[0],
+      unsafeAddr nimEnv.ciphertext[0], addr oqsSk[0]),
+      "OQS_KEM_decaps(" & algId & ")")
+    check oqsShared == nimEnv.sharedSecret
 
 suite "mceliece tyr":
   test "tier-0 pure-nim McEliece roundtrip matches shared secret":
@@ -251,3 +276,13 @@ suite "mceliece tyr":
         oqsAlgClassicMcEliece6960119f, 127)
       checkDerandEncapsMatchesLiboqs(custom_mceliece.mceliece8192128f,
         oqsAlgClassicMcEliece8192128f, 149)
+
+  when defined(hasLibOqs):
+    # {.testKind: tkIntegration, covers: "mcelieceTyrKeypair, mcelieceTyrEncaps, mcelieceTyrTryDecaps".}
+    test "pure-nim and liboqs McEliece interoperate both directions":
+      checkInteropBothDirections(custom_mceliece.mceliece6688128f,
+        oqsAlgClassicMcEliece6688128f, 163)
+      checkInteropBothDirections(custom_mceliece.mceliece6960119f,
+        oqsAlgClassicMcEliece6960119f, 179)
+      checkInteropBothDirections(custom_mceliece.mceliece8192128f,
+        oqsAlgClassicMcEliece8192128f, 191)

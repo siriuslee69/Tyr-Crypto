@@ -34,13 +34,13 @@ type
 when defined(avx2) or defined(sse2) or defined(neon) or defined(arm64) or
     defined(aarch64):
   proc loadBatchU32(A: openArray[uint8], o: int): uint32 {.inline,
-      role: {parser}, tag: {other}.} =
+      role: {parser}.} =
     ## A/o: one little-endian word from a validated key or nonce.
     result = uint32(A[o]) or (uint32(A[o + 1]) shl 8) or
       (uint32(A[o + 2]) shl 16) or (uint32(A[o + 3]) shl 24)
 
   proc storeBatchWord(A: var ByteSeq, o: int, v: uint32) {.inline,
-      role: {actor}, tag: {other}.} =
+      role: {actor}.} =
     ## A/o/v: destination, byte offset, and one possibly partial final word.
     var
       i: int = 0
@@ -53,7 +53,7 @@ when defined(avx2) or defined(sse2) or defined(neon) or defined(arm64) or
       i = i + 1
 
 proc requireBatchInputs(K, N: openArray[ByteSeq], l: int, c: uint32) {.
-    role: {parser}, tag: {other}.} =
+    role: {parser}.} =
   ## K/N/l/c: equal key/nonce rows, bytes per stream, and first block counter.
   var
     i: int = 0
@@ -67,12 +67,12 @@ proc requireBatchInputs(K, N: openArray[ByteSeq], l: int, c: uint32) {.
     i = i + 1
 
 when defined(avx2):
-  proc avxSet1(v: uint32): M256i {.inline, role: {helper}, tag: {other}.} =
+  proc avxSet1(v: uint32): M256i {.inline, role: {helper}.} =
     ## v: one word broadcast across eight independent streams.
     result = mm256_set1_epi32(cast[int32](v))
 
   proc avxLoadWord(A: array[8, ByteSeq], o: int): M256i {.inline,
-      role: {helper}, tag: {other}.} =
+      role: {helper}.} =
     ## A/o: one word from each of eight independent streams.
     result = mm256_setr_epi32(
       cast[int32](loadBatchU32(A[0], o)),
@@ -84,14 +84,12 @@ when defined(avx2):
       cast[int32](loadBatchU32(A[6], o)),
       cast[int32](loadBatchU32(A[7], o)))
 
-  proc avxRotl(v: M256i, n: int32): M256i {.inline, role: {math},
-      tag: {other}.} =
+  proc avxRotl(v: M256i, n: int32): M256i {.inline, role: {math}.} =
     ## v/n: eight words and one ChaCha rotation count.
     result = mm256_or_si256(mm256_slli_epi32(v, n),
       mm256_srli_epi32(v, 32'i32 - n))
 
-  proc avxQuarterRound(a, b, c, d: var M256i) {.inline, role: {math},
-      tag: {other}.} =
+  proc avxQuarterRound(a, b, c, d: var M256i) {.inline, role: {math}.} =
     ## a/b/c/d: one ChaCha quarter-round across eight streams.
     a = mm256_add_epi32(a, b)
     d = avxRotl(mm256_xor_si256(d, a), 16)
@@ -102,8 +100,7 @@ when defined(avx2):
     c = mm256_add_epi32(c, d)
     b = avxRotl(mm256_xor_si256(b, c), 7)
 
-  proc avxRounds(S: var array[16, M256i]) {.inline, role: {actor},
-      tag: {other}.} =
+  proc avxRounds(S: var array[16, M256i]) {.inline, role: {actor}.} =
     ## S: twenty ChaCha rounds over eight independent states.
     var
       i: int = 0
@@ -119,7 +116,7 @@ when defined(avx2):
       i = i + 1
 
   proc deriveBatchSubkeys8(K, N: array[8, ByteSeq]): array[8, M256i] {.
-      role: {truthBuilder}, tag: {other}.} =
+      role: {truthBuilder}.} =
     ## K/N: eight validated XChaCha20 keys and nonces.
     var
       S: array[16, M256i]
@@ -148,7 +145,7 @@ when defined(avx2):
     result[7] = S[15]
 
   proc storeAvxWord(v: M256i, A: var array[8, ByteSeq], o: int) {.inline,
-      role: {actor}, tag: {other}.} =
+      role: {actor}.} =
     ## v/A/o: one output word copied into each stream.
     var
       V: array[8, int32]
@@ -159,7 +156,7 @@ when defined(avx2):
       i = i + 1
 
   proc xchachaBlock8(H: array[8, M256i], N: array[8, ByteSeq], c: uint32,
-      A: var array[8, ByteSeq], o: int) {.role: {actor}, tag: {other}.} =
+      A: var array[8, ByteSeq], o: int) {.role: {actor}.} =
     ## H/N/c/A/o: subkeys, nonces, counter, outputs, and byte offset.
     var
       S: array[16, M256i]
@@ -188,7 +185,7 @@ when defined(avx2):
       i = i + 1
 
   proc prepareBatch8(K, N: array[8, ByteSeq], l: int,
-      c: uint32): array[8, ByteSeq] {.role: {truthBuilder}, tag: {other}.} =
+      c: uint32): array[8, ByteSeq] {.role: {truthBuilder}.} =
     ## K/N/l/c: eight streams, bytes per stream, and first block counter.
     var
       H: array[8, M256i]
@@ -215,13 +212,12 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
     type
       BatchVec4 = M128i
 
-  proc vec4Set1(v: uint32): BatchVec4 {.inline, role: {helper},
-      tag: {other}.} =
+  proc vec4Set1(v: uint32): BatchVec4 {.inline, role: {helper}.} =
     ## v: one word broadcast across four independent streams.
     result = set1U32[BatchVec4](v)
 
   proc vec4LoadWord(A: array[4, ByteSeq], o: int): BatchVec4 {.inline,
-      role: {helper}, tag: {other}.} =
+      role: {helper}.} =
     ## A/o: one word from each of four independent streams.
     var
       V: array[4, uint32]
@@ -231,8 +227,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
     V[3] = loadBatchU32(A[3], o)
     result = loadU32x4[BatchVec4](V)
 
-  proc vec4QuarterRound(a, b, c, d: var BatchVec4) {.inline, role: {math},
-      tag: {other}.} =
+  proc vec4QuarterRound(a, b, c, d: var BatchVec4) {.inline, role: {math}.} =
     ## a/b/c/d: one ChaCha quarter-round across four streams.
     a = a + b
     d = rotl32(d xor a, 16'i32)
@@ -243,8 +238,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
     c = c + d
     b = rotl32(b xor c, 7'i32)
 
-  proc vec4Rounds(S: var array[16, BatchVec4]) {.inline, role: {actor},
-      tag: {other}.} =
+  proc vec4Rounds(S: var array[16, BatchVec4]) {.inline, role: {actor}.} =
     ## S: twenty ChaCha rounds over four independent states.
     var
       i: int = 0
@@ -260,7 +254,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
       i = i + 1
 
   proc deriveBatchSubkeys4(K, N: array[4, ByteSeq]): array[8, BatchVec4] {.
-      role: {truthBuilder}, tag: {other}.} =
+      role: {truthBuilder}.} =
     ## K/N: four validated XChaCha20 keys and nonces.
     var
       S: array[16, BatchVec4]
@@ -289,7 +283,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
     result[7] = S[15]
 
   proc storeVec4Word(v: BatchVec4, A: var array[4, ByteSeq], o: int) {.
-      inline, role: {actor}, tag: {other}.} =
+      inline, role: {actor}.} =
     ## v/A/o: one output word copied into each stream.
     var
       V: array[4, uint32] = storeU32x4(v)
@@ -299,7 +293,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
       i = i + 1
 
   proc xchachaBlock4(H: array[8, BatchVec4], N: array[4, ByteSeq], c: uint32,
-      A: var array[4, ByteSeq], o: int) {.role: {actor}, tag: {other}.} =
+      A: var array[4, ByteSeq], o: int) {.role: {actor}.} =
     ## H/N/c/A/o: subkeys, nonces, counter, outputs, and byte offset.
     var
       S: array[16, BatchVec4]
@@ -328,7 +322,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
       i = i + 1
 
   proc prepareBatch4(K, N: array[4, ByteSeq], l: int,
-      c: uint32): array[4, ByteSeq] {.role: {truthBuilder}, tag: {other}.} =
+      c: uint32): array[4, ByteSeq] {.role: {truthBuilder}.} =
     ## K/N/l/c: four streams, bytes per stream, and first block counter.
     var
       H: array[8, BatchVec4]
@@ -349,8 +343,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
 
 when defined(avx2):
   proc loadBatch8(K, N: openArray[ByteSeq], o: int,
-      K8, N8: var array[8, ByteSeq]) {.inline, role: {helper},
-      tag: {other}.} =
+      K8, N8: var array[8, ByteSeq]) {.inline, role: {helper}.} =
     ## K/N/o/K8/N8: copy one complete eight-stream batch.
     var
       i: int = 0
@@ -360,7 +353,7 @@ when defined(avx2):
       i = i + 1
 
   proc storeBatch8(S: var seq[ByteSeq], o: int,
-      A: var array[8, ByteSeq]) {.inline, role: {actor}, tag: {other}.} =
+      A: var array[8, ByteSeq]) {.inline, role: {actor}.} =
     ## S/o/A: move one complete eight-stream result batch.
     var
       i: int = 0
@@ -370,8 +363,7 @@ when defined(avx2):
 
 when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
   proc loadBatch4(K, N: openArray[ByteSeq], o: int,
-      K4, N4: var array[4, ByteSeq]) {.inline, role: {helper},
-      tag: {other}.} =
+      K4, N4: var array[4, ByteSeq]) {.inline, role: {helper}.} =
     ## K/N/o/K4/N4: copy one complete four-stream batch.
     var
       i: int = 0
@@ -381,7 +373,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
       i = i + 1
 
   proc storeBatch4(S: var seq[ByteSeq], o: int,
-      A: var array[4, ByteSeq]) {.inline, role: {actor}, tag: {other}.} =
+      A: var array[4, ByteSeq]) {.inline, role: {actor}.} =
     ## S/o/A: move one complete four-stream result batch.
     var
       i: int = 0
@@ -389,7 +381,7 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
       S[o + i] = move(A[i])
       i = i + 1
 
-proc xchacha20BatchWidth*(): int {.role: {parser}, tag: {other}.} =
+proc xchacha20BatchWidth*(): int {.role: {parser}.} =
   ## Return the compiled independent-stream lane width.
   when defined(avx2):
     result = 8
@@ -399,7 +391,7 @@ proc xchacha20BatchWidth*(): int {.role: {parser}, tag: {other}.} =
     result = 1
 
 proc xchacha20BatchStreams*(K, N: openArray[ByteSeq], l: int,
-    c: uint32 = 0'u32): seq[ByteSeq] {.role: {truthBuilder}, tag: {other}.} =
+    c: uint32 = 0'u32): seq[ByteSeq] {.role: {truthBuilder}.} =
   ## K/N/l/c: independent keys, nonces, bytes per stream, and first counter.
   var
     i: int = 0

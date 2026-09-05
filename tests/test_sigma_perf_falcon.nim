@@ -14,6 +14,7 @@ import otter_repo_evaluation
 
 when defined(hasLibOqs):
   import ../src/tyr/bindings/liboqs
+  import ./oqs_random_hook
 
 const
   keypairLoops = 2
@@ -33,24 +34,6 @@ type
     loops: int
     warmup: int
     algos: seq[BenchAlgo]
-
-when defined(hasLibOqs):
-  var
-    oqsDeterministicBase: int = 0
-    oqsDeterministicOffset: int = 0
-
-  proc oqsDeterministicCallback(random_array: ptr uint8, bytes_to_read: csize_t) {.cdecl.} =
-    var
-      outBytes = cast[ptr UncheckedArray[uint8]](random_array)
-      i: int = 0
-    while i < int(bytes_to_read):
-      outBytes[i] = byte((oqsDeterministicBase + oqsDeterministicOffset + i) and 0xff)
-      i = i + 1
-    oqsDeterministicOffset = oqsDeterministicOffset + int(bytes_to_read)
-
-  proc resetOqsDeterministic(base: int) =
-    oqsDeterministicBase = base
-    oqsDeterministicOffset = 0
 
 var
   falconDeterministicBase: int = 0
@@ -294,7 +277,7 @@ when defined(hasLibOqs):
       counter: int = 0
     result.name = name
     result.run = proc() =
-      resetOqsDeterministic(seedBase + counter)
+      installOqsCounterFeed(seedBase + counter)
       requireSuccess(OQS_SIG_keypair(sig, addr pk[0], addr sk[0]), name & "_keypair")
       counter = counter + 1
 
@@ -312,11 +295,11 @@ when defined(hasLibOqs):
       signature = newSeq[uint8](int sig[].length_signature)
       sigLen: csize_t = 0
       counter: int = 0
-    resetOqsDeterministic(seedBase)
+    installOqsCounterFeed(seedBase)
     requireSuccess(OQS_SIG_keypair(sig, addr pk[0], addr sk[0]), name & "_setup_keypair")
     result.name = name
     result.run = proc() =
-      resetOqsDeterministic(rndBase + counter)
+      installOqsCounterFeed(rndBase + counter)
       sigLen = 0
       requireSuccess(OQS_SIG_sign(sig, addr signature[0], addr sigLen, unsafeAddr msgBuf[0],
         csize_t(msgBuf.len), addr sk[0]), name & "_sign")
@@ -335,9 +318,9 @@ when defined(hasLibOqs):
       sk = newSeq[uint8](int sig[].length_secret_key)
       signature = newSeq[uint8](int sig[].length_signature)
       sigLen: csize_t = 0
-    resetOqsDeterministic(seedBase)
+    installOqsCounterFeed(seedBase)
     requireSuccess(OQS_SIG_keypair(sig, addr pk[0], addr sk[0]), name & "_setup_keypair")
-    resetOqsDeterministic(rndBase)
+    installOqsCounterFeed(rndBase)
     requireSuccess(OQS_SIG_sign(sig, addr signature[0], addr sigLen, unsafeAddr msgBuf[0],
       csize_t(msgBuf.len), addr sk[0]), name & "_setup_sign")
     result.name = name
@@ -368,11 +351,11 @@ suite "Sigma Falcon performance":
       if not ensureLibOqsLoaded():
         checkpoint("liboqs runtime unavailable; skipping Sigma Falcon benchmark")
       else:
-        OQS_randombytes_custom_algorithm(oqsDeterministicCallback)
+        installOqsCounterFeed(0)
         falcon_randomness.falconSetRandombytesCallback(falconDeterministicCallback)
         defer:
           falcon_randomness.falconClearRandombytesCallback()
-          discard OQS_randombytes_switch_algorithm(oqsRandAlgSystem.cstring)
+          restoreOqsRandom()
           i = 0
           while i < sigHolders.len:
             if sigHolders[i] != nil:

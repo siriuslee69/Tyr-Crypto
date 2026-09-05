@@ -57,11 +57,13 @@ const
   p256GxHex = "6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296"
   p256GyHex = "4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5"
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `hexToBig`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc hexToBig(s: string): BigInt {.role: {parser}.} =
   ## s: even-length lowercase hex constant from this module.
   var
     b: seq[byte] = newSeq[byte](s.len div 2)
     i, hi, lo: int = 0
+  ## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `nib`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc nib(c: char): int =
     if c >= '0' and c <= '9': int(c) - int('0')
     elif c >= 'a' and c <= 'f': int(c) - int('a') + 10
@@ -84,43 +86,52 @@ const
   p256Gx* = hexToBig(p256GxHex)
   p256Gy* = hexToBig(p256GyHex)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `fMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fMul(a, b: BigInt): BigInt {.role: {math}.} =
   ## a/b: field elements reduced mod p.
   result = bigMod(bigMul(a, b), p256P)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `fAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fAdd(a, b: BigInt): BigInt {.role: {math}.} =
   ## a/b: field elements reduced mod p.
   result = bigModAdd(a, b, p256P)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `fSub`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fSub(a, b: BigInt): BigInt {.role: {math}.} =
   ## a/b: field elements reduced mod p.
   result = bigModSub(a, b, p256P)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `fSqr`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fSqr(a: BigInt): BigInt {.role: {math}.} =
   ## a: field element reduced mod p.
   result = fMul(a, a)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `fInv`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fInv(a: BigInt): BigInt {.role: {math}.} =
   ## a: non-zero field element.
   ## Inverts by Fermat exponentiation so the trace stays independent of `a`.
   result = bigModExp(a, bigSub(p256P, bigFromUint32(2'u32)), p256P).value
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `p256Infinity`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc p256Infinity*(): P256Point {.role: {helper}.} =
   ## Return the Jacobian point at infinity.
   result.x = bigFromUint32(1'u32)
   result.y = bigFromUint32(1'u32)
   result.z = bigZero()
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `isInfinity`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc isInfinity*(P: P256Point): bool {.role: {helper}.} =
   ## P: Jacobian point to test.
   result = bigIsZero(P.z)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `p256Generator`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc p256Generator*(): P256Point {.role: {helper}.} =
   ## Return the standard base point in Jacobian coordinates.
   result.x = p256Gx
   result.y = p256Gy
   result.z = bigFromUint32(1'u32)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `fromAffine`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fromAffine(A: P256AffinePoint): P256Point {.role: {helper}.} =
   ## A: affine point to lift into Jacobian coordinates.
   if A.infinity:
@@ -129,6 +140,7 @@ proc fromAffine(A: P256AffinePoint): P256Point {.role: {helper}.} =
   result.y = A.y
   result.z = bigFromUint32(1'u32)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `toAffine`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc toAffine*(P: P256Point): P256AffinePoint {.role: {math}.} =
   ## P: Jacobian point to normalize.
   var zInv, zInv2: BigInt
@@ -142,6 +154,7 @@ proc toAffine*(P: P256Point): P256AffinePoint {.role: {math}.} =
   result.x = fMul(P.x, zInv2)
   result.y = fMul(P.y, fMul(zInv2, zInv))
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `pointDouble`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc pointDouble*(P: P256Point): P256Point {.role: {math}.} =
   ## P: Jacobian point to double, using the a = -3 formulas.
   var delta, gamma, beta, alpha, t: BigInt
@@ -158,6 +171,7 @@ proc pointDouble*(P: P256Point): P256Point {.role: {math}.} =
     fMul(alpha, fSub(fMul(bigFromUint32(4'u32), beta), result.x)),
     fMul(bigFromUint32(8'u32), fSqr(gamma)))
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `pointAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc pointAdd*(P, Q: P256Point): P256Point {.role: {math}.} =
   ## P/Q: Jacobian points to add; handles the doubling and infinity cases.
   var
@@ -188,6 +202,7 @@ proc pointAdd*(P, Q: P256Point): P256Point {.role: {math}.} =
   t = fSub(fSqr(fAdd(P.z, Q.z)), z1z1)
   result.z = fMul(fSub(t, z2z2), h)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `scalarMulPublic`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc scalarMulPublic(k: BigInt, P: P256Point): P256Point {.role: {math}.} =
   ## k/P: public scalar and point; plain double-and-add is safe here.
   var i: int = bigBitLen(k) - 1
@@ -198,6 +213,7 @@ proc scalarMulPublic(k: BigInt, P: P256Point): P256Point {.role: {math}.} =
       result = pointAdd(result, P)
     i = i - 1
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `scalarMulSecret`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc scalarMulSecret(k: BigInt, P: P256Point): P256Point {.role: {math}.} =
   ## k/P: secret scalar and point.
   ## Computes both candidates per bit, but bigint normalization, point special
@@ -215,6 +231,7 @@ proc scalarMulSecret(k: BigInt, P: P256Point): P256Point {.role: {math}.} =
     i = i - 1
   result = acc
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `isOnCurve`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc isOnCurve*(A: P256AffinePoint): bool {.role: {math}.} =
   ## A: candidate affine point checked against y^2 = x^3 - 3x + b.
   var lhs, rhs: BigInt
@@ -226,6 +243,7 @@ proc isOnCurve*(A: P256AffinePoint): bool {.role: {math}.} =
   rhs = fAdd(fSub(fMul(fSqr(A.x), A.x), fMul(bigFromUint32(3'u32), A.x)), p256B)
   result = bigCmp(lhs, rhs) == 0
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `encodeUncompressedPoint`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
 proc encodeUncompressedPoint*(A: P256AffinePoint): seq[byte] {.
     role: {dataWriter}.} =
   ## A: affine point serialized as the SEC 1 uncompressed encoding.
@@ -235,6 +253,7 @@ proc encodeUncompressedPoint*(A: P256AffinePoint): seq[byte] {.
   result.add(bigToBytesBe(A.x, p256FieldBytes))
   result.add(bigToBytesBe(A.y, p256FieldBytes))
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `decodeUncompressedPoint`; pitfall: reject malformed or non-canonical input before indexed access.
 proc decodeUncompressedPoint*(A: openArray[byte]): P256PublicKeyResult {.
     role: {parser}.} =
   ## A: SEC 1 uncompressed point, validated against the curve equation.
@@ -251,6 +270,7 @@ proc decodeUncompressedPoint*(A: openArray[byte]): P256PublicKeyResult {.
     return
   result.ok = true
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `parseP256Spki`; pitfall: reject malformed or non-canonical input before indexed access.
 proc parseP256Spki*(A: openArray[byte]): P256PublicKeyResult {.
     role: {truthBuilder}.} =
   ## A: DER SubjectPublicKeyInfo carrying an `id-ecPublicKey` prime256v1 key.
@@ -308,6 +328,7 @@ proc parseP256Spki*(A: openArray[byte]): P256PublicKeyResult {.
   result = decodeUncompressedPoint(
     A[C.children[1].contentStart + 1 ..< C.children[1].endOffset])
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `parseP256PublicKeyPem`; pitfall: reject malformed or non-canonical input before indexed access.
 proc parseP256PublicKeyPem*(s: string): P256PublicKeyResult {.
     role: {orchestrator}.} =
   ## s: PEM text holding a `PUBLIC KEY` SPKI block.
@@ -317,6 +338,7 @@ proc parseP256PublicKeyPem*(s: string): P256PublicKeyResult {.
     return
   result = parseP256Spki(P.pemBlock.der)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `parseEcdsaSignatureDer`; pitfall: reject malformed or non-canonical input before indexed access.
 proc parseEcdsaSignatureDer*(A: openArray[byte]): tuple[
     ok: bool, sig: EcdsaSignature, err: string] {.role: {parser}.} =
   ## A: DER `Ecdsa-Sig-Value ::= SEQUENCE { r INTEGER, s INTEGER }`.
@@ -354,6 +376,7 @@ proc parseEcdsaSignatureDer*(A: openArray[byte]): tuple[
   result.sig.s = bigFromBytesBe(derContent(A, C.children[1]))
   result.ok = true
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `encodeDerInteger`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc encodeDerInteger(v: BigInt): seq[byte] {.role: {dataWriter}.} =
   ## v: non-negative value encoded as a minimal DER INTEGER.
   var
@@ -367,6 +390,7 @@ proc encodeDerInteger(v: BigInt): seq[byte] {.role: {dataWriter}.} =
   result = @[derTagInteger, byte(body.len)]
   result.add(body)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `encodeEcdsaSignatureDer`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc encodeEcdsaSignatureDer*(S: EcdsaSignature): seq[byte] {.
     role: {dataWriter}.} =
   ## S: signature serialized as a DER Ecdsa-Sig-Value.
@@ -375,6 +399,7 @@ proc encodeEcdsaSignatureDer*(S: EcdsaSignature): seq[byte] {.
   result = @[byte(0x30'u8), byte(body.len)]
   result.add(body)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `bitsToInt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc bitsToInt(digest: openArray[byte]): BigInt {.role: {math}.} =
   ## digest: hash converted to an integer per SEC 1 section 4.1.3.
   ## When the hash is wider than the 256-bit group order it is truncated to
@@ -383,6 +408,7 @@ proc bitsToInt(digest: openArray[byte]): BigInt {.role: {math}.} =
   if digest.len * 8 > 256:
     result = bigShrBitsPublic(result, digest.len * 8 - 256)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `ecdsaVerifyP256WithDigest`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc ecdsaVerifyP256WithDigest*(pub: P256AffinePoint, digest: openArray[byte],
     sig: EcdsaSignature): bool {.role: {math}.} =
   ## pub/digest/sig: public key, pre-computed message hash, and signature.
@@ -412,6 +438,7 @@ proc ecdsaVerifyP256WithDigest*(pub: P256AffinePoint, digest: openArray[byte],
   A = toAffine(R)
   result = bigCmp(bigMod(A.x, p256N), sig.r) == 0
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `ecdsaVerifyP256`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.
 proc ecdsaVerifyP256*(pub: P256AffinePoint, msg: openArray[byte],
     sig: EcdsaSignature): bool {.role: {math}.} =
   ## pub/msg/sig: public key, signed message, and candidate signature.
@@ -441,6 +468,7 @@ proc ecdsaVerifyP256*(pub: P256AffinePoint, msg: openArray[byte],
   A = toAffine(R)
   result = bigCmp(bigMod(A.x, p256N), sig.r) == 0
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `rfc6979Nonce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc rfc6979Nonce(d: BigInt, digest: Sha256Digest): BigInt {.role: {math}.} =
   ## d/digest: private scalar and message hash.
   ## Derives `k` with the RFC 6979 HMAC-SHA-256 construction so a repeated
@@ -479,6 +507,7 @@ proc rfc6979Nonce(d: BigInt, digest: Sha256Digest): BigInt {.role: {math}.} =
     K = hmacSha256(K, buf)
     V = hmacSha256(K, V)
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `ecdsaSignP256`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc ecdsaSignP256*(d: BigInt, msg: openArray[byte]): EcdsaSignResult {.
     role: {math}.} =
   ## d/msg: private scalar and the message to sign.
@@ -517,12 +546,14 @@ proc ecdsaSignP256*(d: BigInt, msg: openArray[byte]): EcdsaSignResult {.
     guard = guard + 1
   result.err = "failed to derive a usable ECDSA nonce"
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `p256PublicFromScalar`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc p256PublicFromScalar*(d: BigInt): P256AffinePoint {.role: {math}.} =
   ## d: private scalar whose public point is derived.
   if bigIsZero(d) or bigCmp(d, p256N) >= 0:
     raise newException(ValueError, "P-256 private scalar is out of range")
   result = toAffine(scalarMulSecret(d, p256Generator()))
 
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `p256Ecdh`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc p256Ecdh*(d: BigInt, peer: P256AffinePoint): tuple[
     ok: bool, secret: seq[byte]] {.role: {math}.} =
   ## d/peer: local private scalar and the validated peer public point.

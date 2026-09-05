@@ -5,34 +5,11 @@ import ../src/tyr
 
 when defined(hasLibOqs):
   import ../src/tyr/bindings/liboqs
+  import ./oqs_random_hook
 
 proc fillSphincsSeed(seed: var seq[byte], base: int) =
   for i in 0 ..< seed.len:
     seed[i] = byte((base + i) mod 256)
-
-when defined(hasLibOqs):
-  var
-    oqsDeterministicFeed: seq[uint8] = @[]
-    oqsDeterministicOffset: int = 0
-
-  proc oqsDeterministicCallback(random_array: ptr uint8, bytes_to_read: csize_t) {.cdecl.} =
-    let outBytes = cast[ptr UncheckedArray[uint8]](random_array)
-    for i in 0 ..< int(bytes_to_read):
-      outBytes[i] = oqsDeterministicFeed[oqsDeterministicOffset + i]
-    oqsDeterministicOffset = oqsDeterministicOffset + int(bytes_to_read)
-
-  proc withDeterministicOqsRandom(feed: openArray[byte], body: proc ()) =
-    oqsDeterministicFeed = newSeq[uint8](feed.len)
-    for i in 0 ..< feed.len:
-      oqsDeterministicFeed[i] = feed[i]
-    oqsDeterministicOffset = 0
-    OQS_randombytes_custom_algorithm(oqsDeterministicCallback)
-    try:
-      body()
-    finally:
-      discard OQS_randombytes_switch_algorithm(oqsRandAlgSystem.cstring)
-      oqsDeterministicFeed.setLen(0)
-      oqsDeterministicOffset = 0
 
 suite "sphincs tyr":
   test "pure-nim SPHINCS rejects a short secret key before dereferencing it":
@@ -151,7 +128,7 @@ suite "sphincs tyr":
           defer:
             OQS_SIG_free(oqs)
           feed = @seed & optrand
-          withDeterministicOqsRandom(feed, proc () =
+          withOqsFeed(feed, proc () =
             var pk = newSeq[uint8](int oqs[].length_public_key)
             var sk = newSeq[uint8](int oqs[].length_secret_key)
             requireSuccess(OQS_SIG_keypair(oqs, addr pk[0], addr sk[0]), "OQS_SIG_keypair(SPHINCS)")

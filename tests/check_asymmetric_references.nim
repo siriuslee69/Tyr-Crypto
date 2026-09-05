@@ -70,6 +70,7 @@ proc modulePart(path: string): string {.role: {parser}.} =
   of "encrypt": result = "encapsulation error generation and syndrome computation"
   of "benes", "controlbits": result = "Benes network and permutation-control-bit algorithms"
   of "bm", "root", "synd": result = "Goppa decoding and syndrome algorithms"
+  of "ecdsa_p256": result = "curve arithmetic, key generation, signing, and verification algorithms"
   of "sort": result = "fixed-schedule sorting used by key generation and sampling"
   of "transpose", "support", "common": result = "portable representation and constant-schedule support"
   else: result = "implementation support for the family algorithms"
@@ -78,37 +79,40 @@ proc ruleFor(path: string): ReferenceRule {.role: {parser}.} =
   ## Map each asymmetric family to the exact pinned normative baseline.
   var
     p: string = normalizedPath(path)
-  if p.contains("/none_pq/x25519"):
+  if p.contains("/signatures/ecdsa_p256"):
+    result = ReferenceRule(id: "FIPS-186-5", part: "section 6 and appendix D.1.2, ECDSA over P-256")
+    return
+  if p.contains("/kems/x25519"):
     result = ReferenceRule(id: "RFC-7748", part: "sections 5-6, X25519 and Diffie-Hellman")
     return
-  if p.contains("/none_pq/ed25519"):
+  if p.contains("/signatures/ed25519"):
     result = ReferenceRule(id: "RFC-8032", part: "sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification")
     return
-  if p.contains("/pq/kyber/"):
+  if p.contains("/kems/kyber/"):
     result = ReferenceRule(id: "KYBER-R3-20210804", part: "version 3.02 sections 1.3 and 4, algorithms 1-9")
     return
-  if p.contains("/pq/dilithium/"):
+  if p.contains("/signatures/dilithium/"):
     result = ReferenceRule(id: "FIPS-204", part: "sections 6-7 and algorithms 1-33")
     return
-  if p.contains("/pq/sphincs/"):
+  if p.contains("/signatures/sphincs/"):
     result = ReferenceRule(id: "SPHINCS-R3.1", part: "version 3.1 sections 3-4 and algorithms 1-23")
     return
-  if p.contains("/pq/falcon/"):
+  if p.contains("/signatures/falcon/"):
     result = ReferenceRule(id: "FALCON-SPEC", part: "sections 2-3 and the keygen, signing, verification, and encoding algorithms")
     return
-  if p.contains("/pq/frodo/"):
+  if p.contains("/kems/frodo/"):
     result = ReferenceRule(id: "FRODOKEM-20250929", part: "parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms")
     return
-  if p.contains("/pq/bike/"):
+  if p.contains("/kems/bike/"):
     result = ReferenceRule(id: "BIKE-5.2", part: "sections 2-4, BIKE KEM and BGF decoder algorithms")
     return
-  if p.contains("/pq/mceliece/"):
+  if p.contains("/kems/mceliece/"):
     result = ReferenceRule(id: "MCELIECE-20221023", part: "sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms")
     return
-  if p.contains("/pq/ntru/"):
+  if p.contains("/kems/ntru/"):
     result = ReferenceRule(id: "NTRU-20190330", part: "sections 1.8 and 2, DPKE and KEM algorithms")
     return
-  if p.contains("/pq/saber/"):
+  if p.contains("/kems/saber/"):
     result = ReferenceRule(id: "SABER-R3", part: "sections 4-6, algorithms 1-9")
     return
   result = ReferenceRule(id: "PQ-SUPPORT", part: "FIPS 202 XOF use and SP 800-90A deterministic KAT support")
@@ -153,11 +157,33 @@ proc referenceComment(path, declaration: string): string {.role: {dataWriter}.} 
   result = indent & "## Reference: [" & rule.id & "] " & rule.part & "; " &
     modulePart(path) & " for `" & name & "`; pitfall: " & pitfallFor(name, path) & "."
 
-proc asymmetricFiles(root: string): seq[string] {.role: {dataFetcher}.} =
+const
+  plumbingModules = ["material", "registry", "types", "dynamic", "single"]
+    ## Top-level modules that only wire the algorithms into Tyr's typed API.
+    ## They carry no specification arithmetic, so a citation on them would
+    ## point at a document that says nothing about their contents.
+
+proc isPlumbingModule(p: string): bool {.role: {parser}.} =
+  ## p: one module path below a source root.
+  ## True for the wiring modules that sit directly in `kems/` or
+  ## `signatures/`, false for everything inside an algorithm folder.
+  var
+    parts: seq[string] = normalizedPath(p).split('/')
+  if parts.len < 2:
+    return false
+  if parts[^2] notin ["kems", "signatures"]:
+    return false
+  result = splitFile(p).name in plumbingModules
+
+proc asymmetricFiles(R: openArray[string]): seq[string] {.role: {dataFetcher}.} =
+  ## R: the source roots that hold asymmetric algorithms.
   ## Return all asymmetric Nim modules in stable order.
-  for p in walkDirRec(root):
-    if p.endsWith(".nim"):
-      result.add(p)
+  for root in R:
+    if not dirExists(root):
+      continue
+    for p in walkDirRec(root):
+      if p.endsWith(".nim") and not isPlumbingModule(p):
+        result.add(p)
   result.sort()
 
 proc annotateFile(path: string): int {.role: {dataWriter}.} =
@@ -240,9 +266,10 @@ proc run(writeMode: bool) {.role: {orchestrator}.} =
   ## Coordinate annotation or strict verification for the asymmetric tree.
   var
     repoRoot: string = parentDir(parentDir(currentSourcePath()))
-    sourceRoot: string = joinPath(repoRoot, "src", "protocols", "custom_crypto", "asymmetric")
+    sourceRoots: seq[string] = @[joinPath(repoRoot, "src", "tyr", "kems"),
+      joinPath(repoRoot, "src", "tyr", "signatures")]
     lockPath: string = joinPath(repoRoot, "docs", "research", "asymmetric_verification", "references.lock.json")
-    files: seq[string] = asymmetricFiles(sourceRoot)
+    files: seq[string] = asymmetricFiles(sourceRoots)
     ids: HashSet[string] = referenceIds(lockPath)
     errors: seq[string] = @[]
     inserted: int = 0

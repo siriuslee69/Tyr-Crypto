@@ -120,6 +120,7 @@ proc applyTyrBuildDefaults() =
   enableX86Capability("aesni", "-maes", macros.contains("__AES__"), msvc)
 
 addPathIfExists(joinPath(repoRoot, "src"))
+addPathIfExists(joinPath(repoRoot, "meta"))
 addPathIfExists(joinPath(repoRoot, "tools", "meta"))
 addPathIfExists(joinPath(repoRoot, "tools"))
 addPathIfExists(joinPath(repoRoot, "submodules", "simd_nexus", "src"))

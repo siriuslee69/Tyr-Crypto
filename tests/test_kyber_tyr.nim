@@ -8,6 +8,7 @@ import ../src/tyr/kems/kyber/[
 when defined(hasLibOqs):
   import ../src/tyr/helpers/tiers
   import ../src/tyr/bindings/liboqs
+  import ./oqs_random_hook
 
 proc fillPatternSeed(seed: var seq[byte], base: int) =
   var
@@ -18,41 +19,6 @@ proc fillPatternSeed(seed: var seq[byte], base: int) =
     i = i + 1
 
 when defined(hasLibOqs):
-  var
-    oqsDeterministicFeed: seq[uint8] = @[]
-    oqsDeterministicOffset: int = 0
-    oqsDeterministicShortRead: bool = false
-
-  proc oqsDeterministicCallback(random_array: ptr uint8,
-      bytes_to_read: csize_t) {.cdecl.} =
-    var
-      outBytes: ptr UncheckedArray[uint8] = cast[ptr UncheckedArray[uint8]](random_array)
-      i: int = 0
-      n: int = int(bytes_to_read)
-    i = 0
-    while i < n:
-      if oqsDeterministicOffset < oqsDeterministicFeed.len:
-        outBytes[i] = oqsDeterministicFeed[oqsDeterministicOffset]
-        oqsDeterministicOffset = oqsDeterministicOffset + 1
-      else:
-        outBytes[i] = 0'u8
-        oqsDeterministicShortRead = true
-      i = i + 1
-
-  proc withDeterministicOqsRandom(feed: openArray[byte], body: proc ()) =
-    oqsDeterministicFeed = newSeq[uint8](feed.len)
-    for i in 0 ..< feed.len:
-      oqsDeterministicFeed[i] = feed[i]
-    oqsDeterministicOffset = 0
-    oqsDeterministicShortRead = false
-    OQS_randombytes_custom_algorithm(oqsDeterministicCallback)
-    try:
-      body()
-    finally:
-      discard OQS_randombytes_switch_algorithm(oqsRandAlgSystem.cstring)
-      oqsDeterministicFeed.setLen(0)
-      oqsDeterministicOffset = 0
-
   proc ensureLibOqsKemAvailable(algId: string): ptr OqsKem =
     let kem = OQS_KEM_new(algId)
     if kem == nil:
@@ -87,21 +53,21 @@ when defined(hasLibOqs):
     keypairFeed = hashG(keypairSeed)
     pk = newSeq[uint8](int kem[].length_public_key)
     sk = newSeq[uint8](int kem[].length_secret_key)
-    withDeterministicOqsRandom(keypairFeed, proc () =
+    withOqsFeed(keypairFeed, proc () =
       requireSuccess(OQS_KEM_keypair(kem, addr pk[0], addr sk[0]),
         "OQS_KEM_keypair(" & algId & ")")
     )
-    check not oqsDeterministicShortRead
+    check not oqsFeedRanShort()
     exactKeypair = (pk == nimKp.publicKey) and (sk == nimKp.secretKey)
 
     nimEnv = custom_kyber.kyberTyrEncaps(variant, nimKp.publicKey, encapsSeed)
     ct = newSeq[uint8](int kem[].length_ciphertext)
     shared = newSeq[uint8](int kem[].length_shared_secret)
-    withDeterministicOqsRandom(encapsSeed, proc () =
+    withOqsFeed(encapsSeed, proc () =
       requireSuccess(OQS_KEM_encaps(kem, addr ct[0], addr shared[0], addr pk[0]),
         "OQS_KEM_encaps(" & algId & ")")
     )
-    check not oqsDeterministicShortRead
+    check not oqsFeedRanShort()
     exactEncaps = (ct == nimEnv.ciphertext) and (shared == nimEnv.sharedSecret)
     result.exactKeypair = exactKeypair
     result.exactEncaps = exactEncaps

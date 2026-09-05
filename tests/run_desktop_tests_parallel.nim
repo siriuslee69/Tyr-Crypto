@@ -109,7 +109,8 @@ proc buildGroups(): seq[TestGroup] =
     "test_common.nim", "test_registry.nim", "test_libsodium.nim",
     "test_nimcrypto.nim", "test_quick_api.nim", "test_primitives_api.nim",
     "test_hybrid_kex_triple.nim", "test_hybrid_kex_duo.nim",
-    "test_signatures.nim", "test_liboqs.nim", "test_openssl.nim"])
+    "test_signatures.nim", "test_liboqs.nim", "test_openssl.nim",
+    "test_kem_seed_contract.nim"])
   addGroup(result, "custom_crypto", ["test_custom_crypto.nim"])
   addGroup(result, "cipher_runtime", ["test_cipher_runtime.nim"])
   addGroup(result, "sha3", ["test_sha3_custom.nim", "test_sha3_simd.nim"])

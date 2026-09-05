@@ -31,12 +31,14 @@
 ## built: one post-quantum KEM plus X25519, so breaking either alone is
 ## not enough.
 
-import std/[locks, monotimes, os, times]
+import std/[atomics, locks, monotimes, os, times]
 
 import ../helpers/errors
 import ../helpers/material
 import ../helpers/tiers
 import ../helpers/random
+import ../helpers/secure_memory
+import ../hashes/sha3
 import ../bindings/liboqs
 import ./x25519 as customX25519
 import ./bike as customBike
@@ -269,11 +271,41 @@ proc algorithmOf*(T: typedesc[bike0OpenM]): AlgorithmKind = akBike0Open
 ## liboqs draws its own randomness. These let Tyr mix extra entropy in
 ## for one call and put the default generator back afterwards, under a
 ## lock so two threads cannot interleave the swap.
+##
+## The C library reaches back into Nim through a plain function pointer.
+## Nim only accepts such a function pointer when the routine is marked
+## `gcsafe`, and a `gcsafe` routine may not read a global that the
+## garbage collector owns - a growable sequence is exactly that. So the
+## caller's entropy, which may be any length, is squeezed into a fixed
+## byte array before the swap, and the callback reads only that array:
+##
+##   caller bytes (any length) --SHAKE256--> oqsEntropySeed (64 bytes)
+##                                              |
+##                            callback reads ---+---> mix material
+##
+## Squeezing loses nothing that matters. Sixty-four bytes hold far more
+## unpredictability than any generator here consumes, and the operating
+## system generator is read on every call regardless, so this material
+## can only add to the result, never weaken it.
+##
+## One property of the library is worth stating out loud: its generator
+## is a single setting for the whole process, not a per-call argument.
+## While this swap is in effect, any other liboqs work running on
+## another thread - a signature key pair, for instance - draws from this
+## generator too. That is safe (this generator reads the operating
+## system on every call and only adds material on top), but it is a
+## shared setting, so the counter below is stepped atomically rather
+## than plainly.
+
+const
+  oqsEntropySeedBytes = 64
+    ## Width of the fixed callback seed, in bytes.
 
 var
   oqsEntropyLock: Lock
-  oqsEntropyExtra: seq[uint8] = @[]
-  oqsEntropyCounter: uint64 = 0
+  oqsEntropySeed: array[oqsEntropySeedBytes, uint8]
+  oqsEntropySeedLen: int = 0
+  oqsEntropyCounter: Atomic[uint64]
 
 discard block:
   initLock(oqsEntropyLock)
@@ -321,30 +353,51 @@ proc buildOqsEntropyMaterial(extraEntropy: openArray[uint8], bytesToRead: int,
   result.add(extraEntropy)
 
 proc oqsHybridRandomCallback(random_array: ptr uint8,
-    bytes_to_read: csize_t) {.cdecl.} =
+    bytes_to_read: csize_t) {.cdecl, gcsafe.} =
+  ## Called by liboqs, on the thread that entered liboqs, while the swap
+  ## lock is held. Only the fixed seed array is read from here.
+  var
+    counter: uint64 = 0
+    mixMaterial: seq[uint8] = @[]
+    randomBytes: seq[uint8] = @[]
   try:
-    let counter = oqsEntropyCounter
-    inc oqsEntropyCounter
-    let mixMaterial = buildOqsEntropyMaterial(oqsEntropyExtra, int(bytes_to_read),
-      counter)
-    let randomBytes = cryptoRandomBytes(int(bytes_to_read), mixMaterial)
+    counter = oqsEntropyCounter.fetchAdd(1)
+    mixMaterial = buildOqsEntropyMaterial(
+      oqsEntropySeed.toOpenArray(0, oqsEntropySeedLen - 1),
+      int(bytes_to_read), counter)
+    randomBytes = cryptoRandomBytes(int(bytes_to_read), mixMaterial)
     if random_array != nil and randomBytes.len > 0:
       copyMem(random_array, unsafeAddr randomBytes[0], randomBytes.len)
   except CatchableError:
     quit(1)
+  finally:
+    secureClearBytes(mixMaterial)
+    secureClearBytes(randomBytes)
+
+proc loadOqsEntropySeed(extraEntropy: openArray[uint8]) =
+  ## Squeezes caller entropy of any length into the fixed callback seed.
+  ## No caller entropy leaves the seed empty, and the callback then mixes
+  ## only its own timing and counter material.
+  secureClearBytes(oqsEntropySeed)
+  oqsEntropySeedLen = 0
+  if extraEntropy.len == 0:
+    return
+  shake256Into(oqsEntropySeed, extraEntropy)
+  oqsEntropySeedLen = oqsEntropySeed.len
 
 proc withOqsHybridEntropy[T](extraEntropy: openArray[uint8],
     body: proc (): T): T =
   acquire(oqsEntropyLock)
-  oqsEntropyExtra = @extraEntropy
-  oqsEntropyCounter = 0
+  loadOqsEntropySeed(extraEntropy)
+  oqsEntropyCounter.store(0)
   OQS_randombytes_custom_algorithm(oqsHybridRandomCallback)
   try:
     result = body()
   finally:
     discard OQS_randombytes_switch_algorithm(oqsRandAlgSystem.cstring)
-    oqsEntropyExtra.setLen(0)
-    oqsEntropyCounter = 0
+    secureClearBytes(oqsEntropySeed)
+    oqsEntropySeedLen = 0
+    oqsEntropyCounter.store(0)
     release(oqsEntropyLock)
 
 when defined(hasLibOqs):
@@ -372,9 +425,6 @@ proc kemKeypair(algId: string,
     discard extraEntropy
     raiseUnavailable("liboqs", "hasLibOqs")
     result = (pk: @[], sk: @[])
-
-proc kemKeypair(algId: string): tuple[pk, sk: seq[uint8]] =
-  result = kemKeypair(algId, newSeq[uint8](0))
 
 proc kemEncaps(algId: string,
     publicKey, extraEntropy: openArray[uint8]): tuple[ciphertext, shared: seq[uint8]] =
@@ -405,10 +455,6 @@ proc kemEncaps(algId: string,
     discard extraEntropy
     raiseUnavailable("liboqs", "hasLibOqs")
     result = (ciphertext: @[], shared: @[])
-
-proc kemEncaps(algId: string,
-    publicKey: openArray[uint8]): tuple[ciphertext, shared: seq[uint8]] =
-  result = kemEncaps(algId, publicKey, newSeq[uint8](0))
 
 proc kemDecaps(algId: string, ciphertext,
     secretKey: openArray[uint8]): seq[uint8] =
@@ -511,9 +557,40 @@ proc kemAlgIdForDispatch(alg: KemAlgorithm): string =
   else:
     raise newException(ValueError, "algorithm is not a KEM tier")
 
-proc genKeypair*(alg: KemAlgorithm, seed: seq[uint8] = @[]): AsymKeypair =
-  ## Build a KEM/X25519 keypair using the selected backend tier.
-  ## When `seed` is non-empty, the backend's deterministic seeded path is used.
+## ╭⟢ Two different things a caller can hand in
+##
+## `seed` and `extraEntropy` look alike and mean opposite things:
+##
+##   seed          "give me THIS key pair again"    -> reproducible
+##   extraEntropy  "stir this in as well"           -> still unpredictable
+##
+## Only the routes Tyr implements itself can keep the first promise. The
+## library-backed tiers draw their own randomness through liboqs, which
+## offers no way to hand a seed in, so a `seed` there is refused rather
+## than quietly ignored - a caller who asked for a reproducible key and
+## silently got a fresh one every call would not find out until much
+## later, and by then the key it was meant to reproduce would be gone.
+
+proc refuseSeedForLibraryTier(alg: KemAlgorithm, seed: seq[uint8]) {.inline.} =
+  ## alg: the tier the caller selected.
+  ## seed: the material the caller offered.
+  ## Fails closed when a reproducible key pair was asked of a tier that
+  ## cannot produce one.
+  if seed.len == 0:
+    return
+  raise newException(ValueError,
+    "reproducible generation from a seed is not available for " & $alg &
+    "; the library backend draws its own randomness. Use extraEntropy to " &
+    "add material, or a Tyr-implemented tier for reproducible keys.")
+
+proc genKeypair*(alg: KemAlgorithm, seed: seq[uint8] = @[],
+    extraEntropy: seq[uint8] = @[]): AsymKeypair =
+  ## alg: which key-exchange tier to build a key pair for.
+  ## seed: reproducible key material. Supported by the Tyr-implemented
+  ##   routes; the library-backed tiers refuse it.
+  ## extraEntropy: extra material folded into the system generator. It
+  ##   cannot weaken the result and helps on devices whose entropy pool is
+  ##   thin at boot. The result stays unpredictable.
   var
     kp0: tuple[pk, sk: seq[uint8]]
     algId: string = ""
@@ -528,11 +605,9 @@ proc genKeypair*(alg: KemAlgorithm, seed: seq[uint8] = @[]): AsymKeypair =
   of kaKyber0, kaKyber1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
       kaFrodo0Aes, kaFrodo0Shake, kaFrodo1Aes, kaFrodo1Shake, kaFrodo2Aes,
       kaFrodo2Shake, kaNtruPrime0, kaBike0:
+    refuseSeedForLibraryTier(alg, seed)
     algId = kemAlgIdForDispatch(alg)
-    if seed.len > 0:
-      kp0 = kemKeypair(algId, seed)
-    else:
-      kp0 = kemKeypair(algId)
+    kp0 = kemKeypair(algId, extraEntropy)
     result.publicKey = kp0.pk
     result.secretKey = kp0.sk
 
@@ -641,9 +716,13 @@ proc genKeypair*(T: typedesc[bike0TyrOpenM]): AsymKeypair =
 
 proc encaps*(alg: KemAlgorithm, receiverPublicKey: seq[uint8],
     senderPublicKey: seq[uint8] = @[], senderSecretKey: seq[uint8] = @[],
-    seed: seq[uint8] = @[]): AsymCipher =
+    seed: seq[uint8] = @[], extraEntropy: seq[uint8] = @[]): AsymCipher =
   ## Encapsulate or derive a shared secret for the selected KEM/X25519 backend.
   ## X25519 may either generate an ephemeral sender keypair or reuse the provided one.
+  ## seed: reproducible sender material, X25519 only. The library-backed
+  ##   tiers refuse it, for the reason stated above `genKeypair`.
+  ## extraEntropy: extra material folded into the system generator on the
+  ##   library-backed tiers. The result stays unpredictable.
   var
     kp0: tuple[pk, sk: seq[uint8]]
     kem0: tuple[ciphertext, shared: seq[uint8]]
@@ -668,11 +747,9 @@ proc encaps*(alg: KemAlgorithm, receiverPublicKey: seq[uint8],
   of kaKyber0, kaKyber1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
       kaFrodo0Aes, kaFrodo0Shake, kaFrodo1Aes, kaFrodo1Shake, kaFrodo2Aes,
       kaFrodo2Shake, kaNtruPrime0, kaBike0:
+    refuseSeedForLibraryTier(alg, seed)
     algId = kemAlgIdForDispatch(alg)
-    if seed.len > 0:
-      kem0 = kemEncaps(algId, receiverPublicKey, seed)
-    else:
-      kem0 = kemEncaps(algId, receiverPublicKey)
+    kem0 = kemEncaps(algId, receiverPublicKey, extraEntropy)
     result = initAsymCipher(kem0.ciphertext, @[], kem0.shared)
 
 proc decaps*(alg: KemAlgorithm, receiverSecretKey: seq[uint8],

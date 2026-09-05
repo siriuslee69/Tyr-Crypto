@@ -58,7 +58,7 @@ proc captureCommand(command: string; args: openArray[string]): string =
     quit(probe.exitCode)
 
 proc progressCommitMessage(): string =
-  let candidatePaths = @[".iron/PROGRESS.md", ".iron/progress.md", "iron/progress.md"]
+  let candidatePaths = @["agents/PROGRESS.md", "agents/progress.md"]
   var
     path: string = ""
     i: int = 0
@@ -439,7 +439,7 @@ task test_interop_processes, "Run retained native and WASM process isolation con
 task test_testui_wasm_catalog, "Compile-check every Test UI card for executable WASM":
   exec "nimble c -r -d:tyrTestWasmCatalogContract --out:build/" & hostExeName("test_testui_wasm_catalog") & " --nimcache:" & repoNimcacheDir("nimcache_test_testui_wasm_catalog").replace('\\', '/') & " tests/test_interop_contracts.nim"
 
-task autopush, "Add, commit, and push the current branch with message from .iron/PROGRESS.md":
+task autopush, "Add, commit, and push the current branch with message from agents/PROGRESS.md":
   var
     msg: string = progressCommitMessage()
     staged: string = ""

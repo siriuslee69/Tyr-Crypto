@@ -6,6 +6,7 @@ import ../src/tyr
 
 when defined(hasLibOqs):
   import ../src/tyr/bindings/liboqs
+  import ./oqs_random_hook
 
 proc fillDiliSeed(seed: var seq[byte], base: int) =
   var
@@ -14,34 +15,6 @@ proc fillDiliSeed(seed: var seq[byte], base: int) =
   while i < seed.len:
     seed[i] = byte((base + i) mod 256)
     i = i + 1
-
-when defined(hasLibOqs):
-  var
-    oqsDeterministicFeed: seq[uint8] = @[]
-    oqsDeterministicOffset: int = 0
-
-  proc oqsDeterministicCallback(random_array: ptr uint8, bytes_to_read: csize_t) {.cdecl.} =
-    var
-      outBytes = cast[ptr UncheckedArray[uint8]](random_array)
-      i: int = 0
-    i = 0
-    while i < int(bytes_to_read):
-      outBytes[i] = oqsDeterministicFeed[oqsDeterministicOffset + i]
-      i = i + 1
-    oqsDeterministicOffset = oqsDeterministicOffset + int(bytes_to_read)
-
-  proc withDeterministicOqsRandom(feed: openArray[byte], body: proc ()) =
-    oqsDeterministicFeed = newSeq[uint8](feed.len)
-    for i in 0 ..< feed.len:
-      oqsDeterministicFeed[i] = feed[i]
-    oqsDeterministicOffset = 0
-    OQS_randombytes_custom_algorithm(oqsDeterministicCallback)
-    try:
-      body()
-    finally:
-      discard OQS_randombytes_switch_algorithm(oqsRandAlgSystem.cstring)
-      oqsDeterministicFeed.setLen(0)
-      oqsDeterministicOffset = 0
 
 proc methodName(v: custom_dilithium.DilithiumVariant): string =
   case v
@@ -284,14 +257,14 @@ suite "dilithium tyr":
             OQS_SIG_free(oqs)
           var pk = newSeq[uint8](int oqs[].length_public_key)
           var sk = newSeq[uint8](int oqs[].length_secret_key)
-          withDeterministicOqsRandom(seed, proc () =
+          withOqsFeed(seed, proc () =
             requireSuccess(OQS_SIG_keypair(oqs, addr pk[0], addr sk[0]), "OQS_SIG_keypair(" & methodName(v) & ")")
           )
           check pk == kp.publicKey
           check sk == kp.secretKey
           var oqsSig = newSeq[uint8](int oqs[].length_signature)
           var sigLen: csize_t
-          withDeterministicOqsRandom(rnd, proc () =
+          withOqsFeed(rnd, proc () =
             requireSuccess(OQS_SIG_sign(oqs, addr oqsSig[0], addr sigLen, addr msg[0], csize_t(msg.len), addr sk[0]),
               "OQS_SIG_sign(" & methodName(v) & ")")
           )
