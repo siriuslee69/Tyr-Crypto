@@ -45,6 +45,7 @@ export composite, gcm
 
 proc seal*(plain: openArray[uint8], s: AeadState): AeadCiphertext
     {.role: {actor}.} =
+  validateAeadState(s)
   ## plain/s: the readable bytes, and a state that has not sealed yet.
   ## Returns the scrambled bytes plus the tag that proves them.
   ##
@@ -60,6 +61,8 @@ proc seal*(plain: openArray[uint8], s: AeadState): AeadCiphertext
   result.auth = tag.bytes
 
 proc open*(c: AeadCiphertext, s: AeadState): seq[uint8] {.role: {actor}.} =
+  validateAeadState(s)
+  validateAeadState(s)
   ## c/s: a sealed message, and a state built from the same suite, keys
   ## and nonce that sealed it.
   ##

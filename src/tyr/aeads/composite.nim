@@ -123,6 +123,7 @@ proc xorLayer(data, key, nonce: openArray[uint8], useAes: bool,
 
 proc compositeCipher*(data: openArray[uint8], s: AeadState): seq[uint8]
     {.role: {actor}.} =
+  validateAeadState(s)
   ## data/s: bytes and suite state. Runs this suite's cipher layers.
   ## One routine serves both directions: every layer is an xor, and xor
   ## undoes itself, so applying the same layers again decrypts.
@@ -147,6 +148,7 @@ proc compositeCipher*(data: openArray[uint8], s: AeadState): seq[uint8]
       "AES-256-GCM is not a composite suite; it is handled in aeads/gcm")
 
 proc compositeTag*(ct: openArray[uint8], s: AeadState): tuple[kind: AuthType,
+
     bytes: seq[uint8]] {.role: {actor}.} =
   ## ct/s: ciphertext and suite state. Produces the tag that proves the
   ## ciphertext arrived as it left, using the LAST key of the suite.

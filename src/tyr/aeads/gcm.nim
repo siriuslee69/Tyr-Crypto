@@ -34,6 +34,7 @@ proc gcmAvailable*(): bool =
   result = defined(hasNimcrypto)
 
 proc gcmSeal*(plain: openArray[uint8], s: AeadState): AeadCiphertext =
+
   ## plain/s: readable bytes and a state whose suite is `csAes256Gcm`.
   ## Returns the ciphertext and the primitive's own 16-byte tag.
   when defined(hasNimcrypto):
@@ -50,6 +51,7 @@ proc gcmSeal*(plain: openArray[uint8], s: AeadState): AeadCiphertext =
     raiseUnavailable("AES-256-GCM", "hasNimcrypto")
 
 proc gcmOpen*(c: AeadCiphertext, s: AeadState): seq[uint8] =
+
   ## c/s: a sealed message and the state that can open it.
   ## Raises if the tag does not match; never returns unverified bytes.
   if c.authType != atAeadTag or c.auth.len != int(gcmTagBytes):

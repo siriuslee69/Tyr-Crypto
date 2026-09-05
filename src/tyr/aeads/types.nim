@@ -234,6 +234,20 @@ proc initAeadState*(a: CipherSuite, keys: seq[seq[uint8]], nonce: seq[uint8],
   result.macSource = macSource
   result.sealed = false
 
+proc validateAeadState*(s: AeadState) =
+  ## Reject nil or externally mutated state before any key or nonce access.
+  if s == nil:
+    raise newException(ValueError, "cipher suite state is not initialized")
+  if s.keys.len != keyCount(s.suite):
+    raise newException(ValueError, "cipher suite key count mismatch")
+  for key in s.keys:
+    if key.len != suiteKeyBytes:
+      raise newException(ValueError, "cipher suite keys must be 32 bytes")
+  if s.nonce.len != nonceBytes(s.suite):
+    raise newException(ValueError, "cipher suite nonce length mismatch")
+  discard resolveTagBytes(s.suite, s.tagBytes)
+
+
 proc claimForSeal*(s: AeadState) =
   ## s: the state about to encrypt. Marks its nonce spent, and raises if
   ## it already was. Call this before doing any work, so a rejected reuse
