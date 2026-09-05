@@ -22,6 +22,7 @@
 ## ⚠ The tag is exactly 16 bytes. `resolveTagBytes` rejects any other
 ## request rather than silently ignoring it.
 
+import metaPragmas
 import ./types
 import ../helpers/errors
 when defined(hasNimcrypto):
@@ -33,10 +34,13 @@ proc gcmAvailable*(): bool =
   ## True when this build can actually run AES-256-GCM.
   result = defined(hasNimcrypto)
 
-proc gcmSeal*(plain: openArray[uint8], s: AeadState): AeadCiphertext =
-
+proc gcmSeal*(plain: openArray[uint8], s: AeadState): AeadCiphertext {.role: {encryptor}.} =
   ## plain/s: readable bytes and a state whose suite is `csAes256Gcm`.
   ## Returns the ciphertext and the primitive's own 16-byte tag.
+  validateAeadState(s)
+  if s.suite != csAes256Gcm:
+    raise newException(ValueError, "AES-256-GCM requires its own suite state")
+  claimForSeal(s)
   when defined(hasNimcrypto):
     var ctx: Aes256GcmContext
     defer:
@@ -50,10 +54,12 @@ proc gcmSeal*(plain: openArray[uint8], s: AeadState): AeadCiphertext =
     discard s
     raiseUnavailable("AES-256-GCM", "hasNimcrypto")
 
-proc gcmOpen*(c: AeadCiphertext, s: AeadState): seq[uint8] =
-
+proc gcmOpen*(c: AeadCiphertext, s: AeadState): seq[uint8] {.role: {decryptor}.} =
   ## c/s: a sealed message and the state that can open it.
   ## Raises if the tag does not match; never returns unverified bytes.
+  validateAeadState(s)
+  if s.suite != csAes256Gcm:
+    raise newException(ValueError, "AES-256-GCM requires its own suite state")
   if c.authType != atAeadTag or c.auth.len != int(gcmTagBytes):
     raise newException(ValueError, "AES-256-GCM authentication tag is invalid")
   when defined(hasNimcrypto):

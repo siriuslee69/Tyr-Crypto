@@ -4,7 +4,7 @@
 type
     MetaRole* = enum
         helper, math,
-        dataFetcher, decryptor, parser, truthBuilder, metaParser,
+        dataFetcher, decryptor, sanitizer, parser, truthBuilder, metaParser,
         actor, orchestrator, metaOrchestrator, encryptor, dataWriter,
         otherRole,
         rawData, preparedData,

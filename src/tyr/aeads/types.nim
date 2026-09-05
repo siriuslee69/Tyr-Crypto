@@ -56,6 +56,7 @@
 ## ⚠ There is no associated-data input yet. Everything you need bound to
 ## the ciphertext must be inside the message.
 
+import metaPragmas
 import ../ciphers/chacha/xchacha20_derive
 import ../macs/poly1305/derive
 
@@ -234,7 +235,7 @@ proc initAeadState*(a: CipherSuite, keys: seq[seq[uint8]], nonce: seq[uint8],
   result.macSource = macSource
   result.sealed = false
 
-proc validateAeadState*(s: AeadState) =
+proc validateAeadState*(s: AeadState) {.role: {sanitizer}.} =
   ## Reject nil or externally mutated state before any key or nonce access.
   if s == nil:
     raise newException(ValueError, "cipher suite state is not initialized")
@@ -245,15 +246,15 @@ proc validateAeadState*(s: AeadState) =
       raise newException(ValueError, "cipher suite keys must be 32 bytes")
   if s.nonce.len != nonceBytes(s.suite):
     raise newException(ValueError, "cipher suite nonce length mismatch")
-  discard resolveTagBytes(s.suite, s.tagBytes)
+  if s.tagBytes != resolveTagBytes(s.suite, s.tagBytes):
+    raise newException(ValueError, "cipher suite state requires a resolved tag length")
 
 
-proc claimForSeal*(s: AeadState) =
+proc claimForSeal*(s: AeadState) {.role: {actor}.} =
   ## s: the state about to encrypt. Marks its nonce spent, and raises if
   ## it already was. Call this before doing any work, so a rejected reuse
   ## never touches the cipher.
-  if s == nil:
-    raise newException(ValueError, "cipher suite state is not initialized")
+  validateAeadState(s)
   if s.sealed:
     raise newException(ValueError,
       "cipher suite nonce has already been used for encryption")

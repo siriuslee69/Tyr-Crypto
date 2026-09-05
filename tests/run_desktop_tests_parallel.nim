@@ -120,7 +120,7 @@ proc buildGroups(): seq[TestGroup] =
     "test_wrapper.nim", "test_pin_key.nim", "test_aes_gimli.nim",
     "test_xchacha20_gimli.nim", "test_xchacha20_aes_gimli.nim",
     "test_xchacha20_aes_gimli_poly1305.nim", "test_aead_runtime.nim",
-    "test_aead_sources.nim"])
+    "test_aead_sources.nim", "test_aead_state_boundaries.nim"])
   addGroup(result, "derive_sources", ["test_derive_sources.nim"])
   addGroup(result, "examples", ["test_examples_compile.nim"])
   addGroup(result, "tier_api", ["test_tier_api.nim"])

@@ -1,4 +1,4 @@
-Commit Message: own XChaCha20 batching and move CHUNKYAEAD to Bifrost
+Commit Message: Complete AEAD state validation and share the GCM nonce guard
 
 Features to implement:
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -171,6 +171,7 @@ Implemented:
   every built-in KDF generator with explicit memory/round/hash/block settings.
 
 Working on:
+- Migrating evaluation sources and shared metadata to the current repository layout.
 - Refreshing cross-device benchmark snapshots for the new Frodo, NTRU, SABER, McEliece, and ChaCha SIMD defaults.
 - Argon2 pure Nim implementation or dedicated binding wrapper.
 - Optional Poly1305 AEAD path for the wrapper-level XChaCha20 flow.
@@ -189,6 +190,7 @@ Fix attempt and result:
   separate CPU features. No secret-dependent branch was added.
 
 Verification:
+- Added public AEAD boundary regressions for mutated state, direct GCM calls, and nonce reuse.
 - `nimble tasks` passed and no longer lists `test_config`.
 - `nimble check_core` passed.
 - `nim check --nimcache:build/nimcache_check_test_all_no_config tests/test_all.nim` passed.

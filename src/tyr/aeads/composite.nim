@@ -96,6 +96,7 @@ proc authFrame*(ct: openArray[uint8], s: AeadState): seq[uint8]
   ##
   ## v3 of the domain marks exactly that change. Tags from v2 do not
   ## validate here, which is what a version bump is for.
+  validateAeadState(s)
   const domain = "Tyr-Crypto authenticated suite v3"
   var i: int = 0
   result = newSeqOfCap[uint8](domain.len + 3 + 16 + s.nonce.len + ct.len)
@@ -148,10 +149,10 @@ proc compositeCipher*(data: openArray[uint8], s: AeadState): seq[uint8]
       "AES-256-GCM is not a composite suite; it is handled in aeads/gcm")
 
 proc compositeTag*(ct: openArray[uint8], s: AeadState): tuple[kind: AuthType,
-
     bytes: seq[uint8]] {.role: {actor}.} =
   ## ct/s: ciphertext and suite state. Produces the tag that proves the
   ## ciphertext arrived as it left, using the LAST key of the suite.
+  validateAeadState(s)
   case s.suite
   of csXChaCha20Blake3:
     result.kind = atBlake3

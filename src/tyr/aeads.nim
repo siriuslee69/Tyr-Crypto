@@ -45,23 +45,21 @@ export composite, gcm
 
 proc seal*(plain: openArray[uint8], s: AeadState): AeadCiphertext
     {.role: {actor}.} =
-  validateAeadState(s)
   ## plain/s: the readable bytes, and a state that has not sealed yet.
   ## Returns the scrambled bytes plus the tag that proves them.
   ##
   ## Spends the state's nonce first, so a rejected reuse never reaches
   ## the cipher.
   var tag: tuple[kind: AuthType, bytes: seq[uint8]]
-  claimForSeal(s)
   if s.suite == csAes256Gcm:
     return gcmSeal(plain, s)
+  claimForSeal(s)
   result.ciphertext = compositeCipher(plain, s)
   tag = compositeTag(result.ciphertext, s)
   result.authType = tag.kind
   result.auth = tag.bytes
 
 proc open*(c: AeadCiphertext, s: AeadState): seq[uint8] {.role: {actor}.} =
-  validateAeadState(s)
   validateAeadState(s)
   ## c/s: a sealed message, and a state built from the same suite, keys
   ## and nonce that sealed it.

@@ -1,9 +1,10 @@
 ## AEAD state boundaries <- reject mutated state before using crypto keys.
 import std/unittest
+import metaPragmas
 
 import ../src/tyr/aeads
 
-proc stateFor(a: CipherSuite): AeadState =
+proc stateFor(a: CipherSuite): AeadState {.role: {truthBuilder}.} =
   ## a: suite whose correctly sized keys and nonce are needed by the test.
   var
     K = newSeq[seq[byte]](keyCount(a))
@@ -47,3 +48,29 @@ suite "AEAD state boundaries":
       discard gcmSeal(@[1'u8], S)
       expect ValueError:
         discard gcmSeal(@[2'u8], S)
+
+  # {.testKind: tkEdgeCase, covers: "validateAeadState".}
+  test "unresolved tags and mutated keys are rejected everywhere":
+    var
+      S: AeadState
+      C = AeadCiphertext()
+    for a in CipherSuite:
+      S = stateFor(a)
+      S.tagBytes = 0
+      expect ValueError: validateAeadState(S)
+      expect ValueError: discard seal(@[], S)
+      expect ValueError: discard open(C, S)
+      expect ValueError: discard compositeTag(@[], S)
+      expect ValueError: discard authFrame(@[], S)
+      S = stateFor(a)
+      S.keys[0] = @[]
+      expect ValueError: validateAeadState(S)
+
+  # {.testKind: tkEdgeCase, covers: "gcmSeal, gcmOpen".}
+  test "direct GCM rejects nil and non-GCM state":
+    var
+      C = AeadCiphertext(auth: newSeq[byte](16), authType: atAeadTag)
+    expect ValueError: discard gcmSeal(@[], nil)
+    expect ValueError: discard gcmOpen(C, nil)
+    expect ValueError: discard gcmSeal(@[], stateFor(csXChaCha20Blake3))
+    expect ValueError: discard gcmOpen(C, stateFor(csXChaCha20Blake3))
