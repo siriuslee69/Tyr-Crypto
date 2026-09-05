@@ -318,6 +318,16 @@ task bench_pq_profiles, "Build matched scalar/AVX2 liboqs profiles and run Otter
 task bench_custom_crypto, "Run the unified Tyr-only custom-crypto benchmark report":
   exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_bench_custom_crypto").replace('\\', '/') & " -d:release -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r tests/bench_custom_crypto_table.nim")
 
+task bench_custom_crypto_stress, "Run the threaded Tyr-owned AVX2 custom-crypto stress benchmark":
+  exec withRepoCaches("nim c --threads:on -d:release -d:sse2 -d:avx2 -d:aesni -d:danger --passC:\"-mavx2 -maes\" --passL:\"-mavx2 -maes\" --nimcache:" & repoNimcacheDir("nimcache_bench_custom_crypto_stress").replace('\\', '/') & " -r tests/bench_custom_crypto_stress.nim")
+
+task build_tyr_avx_stress, "Build the threaded Tyr AVX2 custom-crypto stress executable":
+  exec withRepoCaches("nim c --threads:on -d:release -d:sse2 -d:avx2 -d:aesni -d:danger --passC:\"-mavx2 -maes\" --passL:\"-mavx2 -maes\" --nimcache:" & repoNimcacheDir("nimcache_build_tyr_avx_stress").replace('\\', '/') & " --out:" & repoToolExe("tyr-avx-stress") & " tests/bench_custom_crypto_stress.nim")
+
+task run_tyr_avx_stress, "Build and run the threaded Tyr AVX2 custom-crypto stress executable":
+  exec "nimble build_tyr_avx_stress"
+  exec repoToolExe("tyr-avx-stress")
+
 task bench_curve25519_ed25519, "Benchmark pure Nim X25519 and Ed25519 implementations":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_bench_x25519").replace('\\', '/') & " -d:release -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_x25519_perf.nim")
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_bench_ed25519").replace('\\', '/') & " -d:release -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r tests/test_ed25519_perf.nim")
