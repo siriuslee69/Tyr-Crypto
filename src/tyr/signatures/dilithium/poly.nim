@@ -1243,6 +1243,9 @@ proc polyUniformGamma1*(p: DilithiumParams, a: var DilithiumPoly,
     fixedSeed[i] = seed[i]
     i = i + 1
   polyUniformGamma1Seed(p, a, fixedSeed, nonce)
+  # Same rule as the eta wrapper above: the copy made here is the masking
+  # seed, so it must not outlive the call that used it.
+  clearSensitivePlainData(fixedSeed)
 
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyChallengeSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyChallengeSeed*(p: DilithiumParams, c: var DilithiumPoly,

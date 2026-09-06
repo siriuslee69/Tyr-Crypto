@@ -296,6 +296,20 @@ proc algorithmOf*(T: typedesc[bike0OpenM]): AlgorithmKind = akBike0Open
 ## system on every call and only adds material on top), but it is a
 ## shared setting, so the counter below is stepped atomically rather
 ## than plainly.
+##
+## The seed array and its length are deliberately left plain, and that is
+## worth spelling out next to them. A callback on another thread can read
+## the pair while the cleanup path is wiping it, and both outcomes of that
+## race are harmless:
+##
+##   length reads as 64 -> slice covers the whole array   -> in bounds
+##   length reads as 0  -> slice is empty                 -> in bounds
+##   seed reads as zeroes -> nothing is added to the mix  -> no weakening
+##
+## The operating system generator is read on every call, so a seed that
+## arrives half-wiped can only fail to add material, never subtract it.
+## The counter is different: it must not hand out the same value twice,
+## which a plain read-modify-write could do.
 
 const
   oqsEntropySeedBytes = 64
@@ -385,19 +399,34 @@ proc loadOqsEntropySeed(extraEntropy: openArray[uint8]) =
   shake256Into(oqsEntropySeed, extraEntropy)
   oqsEntropySeedLen = oqsEntropySeed.len
 
+proc restoreOqsDefaultEntropy() =
+  ## Puts the library generator back and wipes the shared seed. Runs on the
+  ## cleanup path, so it never raises: an exception escaping here would skip
+  ## the lock release below it and strand every later caller on `acquire`.
+  ## A failed switch means the library became unreachable, in which case the
+  ## error that started the unwind is the one worth keeping.
+  try:
+    discard OQS_randombytes_switch_algorithm(oqsRandAlgSystem.cstring)
+  except CatchableError:
+    discard
+  secureClearBytes(oqsEntropySeed)
+  oqsEntropySeedLen = 0
+  oqsEntropyCounter.store(0)
+
 proc withOqsHybridEntropy[T](extraEntropy: openArray[uint8],
     body: proc (): T): T =
+  ## The seed load and the generator swap sit inside the `try` on purpose.
+  ## Both can raise - `OQS_randombytes_custom_algorithm` checks that the
+  ## shared library actually loaded - and a raise above the `try` would
+  ## carry the exception out past `release`, leaving the lock held forever.
   acquire(oqsEntropyLock)
-  loadOqsEntropySeed(extraEntropy)
-  oqsEntropyCounter.store(0)
-  OQS_randombytes_custom_algorithm(oqsHybridRandomCallback)
   try:
+    loadOqsEntropySeed(extraEntropy)
+    oqsEntropyCounter.store(0)
+    OQS_randombytes_custom_algorithm(oqsHybridRandomCallback)
     result = body()
   finally:
-    discard OQS_randombytes_switch_algorithm(oqsRandAlgSystem.cstring)
-    secureClearBytes(oqsEntropySeed)
-    oqsEntropySeedLen = 0
-    oqsEntropyCounter.store(0)
+    restoreOqsDefaultEntropy()
     release(oqsEntropyLock)
 
 when defined(hasLibOqs):

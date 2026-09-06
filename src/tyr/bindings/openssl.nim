@@ -166,9 +166,9 @@ when defined(hasOpenSSL3):
     if builderAttempted:
       return false
     builderAttempted = true
-    let sourceDir = defaultSourceDir()
-    let buildRoot = joinPath(repoRoot(),
-      "build", "openssl")
+    var
+      sourceDir: string = defaultSourceDir()
+      buildRoot: string = defaultBuildRoot()
     if promptAndBuildOpenSsl(extraLibCandidates, sourceDir, buildRoot):
       return true
     false

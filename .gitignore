@@ -48,6 +48,10 @@ evaluation/benchmarks/collect_*
 !evaluation/benchmarks/collect_*.nim
 evaluation/benchmarks/render_*
 !evaluation/benchmarks/render_*.nim
+evaluation/tests/run_*
+!evaluation/tests/run_*.nim
+evaluation/statistics/check_*
+!evaluation/statistics/check_*.nim
 .fuse_hidden*
 
 !evaluation/tests/android_harness/gradle/wrapper/gradle-wrapper.jar
