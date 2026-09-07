@@ -1,3 +1,5 @@
+## otter:vectors - the fixed keys and hex below are published test vectors.
+
 type
   AeadVector* = object
     keyHex*: string

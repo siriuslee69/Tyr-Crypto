@@ -77,6 +77,8 @@ proc normalizeRun(root: JsonNode, path: string): JsonNode =
 
 proc buildHtml(data: JsonNode): string =
   result = """<!doctype html>
+<!-- otter:vectors - the long identifiers below are routine names from a
+     benchmark run, not values anyone typed in. -->
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -435,7 +437,7 @@ proc buildHtml(data: JsonNode): string =
     const state = {
       kind: "summary",
       search: "",
-      sortKey: "avg_ns_per_op",
+      sortKey: "avg_ns_per_op",  // otter:allow
       sortDir: "desc",
       devices: new Set(),
       families: new Set(),
@@ -706,7 +708,7 @@ proc buildHtml(data: JsonNode): string =
       state.devices.clear();
       state.families.clear();
       state.kind = "summary";
-      state.sortKey = "avg_ns_per_op";
+      state.sortKey = "avg_ns_per_op";  // otter:allow
       state.sortDir = "desc";
       sortDirection.textContent = "Descending";
       render();

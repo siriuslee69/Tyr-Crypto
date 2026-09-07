@@ -1,3 +1,5 @@
+## otter:vectors - the fixed keys and hex below are published test vectors.
+
 import std/unittest
 import ../../src/tyr/ciphers/aes_ctr
 import ../../src/tyr/ciphers/aes/aes_core

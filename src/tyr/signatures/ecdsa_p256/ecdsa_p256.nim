@@ -53,9 +53,9 @@ const
   p256FieldBytes* = 32
   p256PHex = "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff"
   p256NHex = "ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551"
-  p256BHex = "5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b"
-  p256GxHex = "6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296"
-  p256GyHex = "4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5"
+  p256BHex = "5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b"  # otter:allow
+  p256GxHex = "6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296"  # otter:allow
+  p256GyHex = "4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5"  # otter:allow
 
 ## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `hexToBig`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc hexToBig(s: string): BigInt {.role: {parser}.} =

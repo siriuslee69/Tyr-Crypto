@@ -1,3 +1,5 @@
+## otter:vectors - the fixed keys and hex below are published test vectors.
+
 ## --------------------------------------------------------
 ## Certificate Codec Tests <- strict DER and PEM boundaries
 ## --------------------------------------------------------

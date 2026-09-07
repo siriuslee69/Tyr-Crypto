@@ -1,3 +1,5 @@
+## otter:vectors - the fixed keys and hex below are published test vectors.
+
 import std/[os, sequtils, unittest]
 import ../paths
 import ../../src/tyr/helpers/tiers

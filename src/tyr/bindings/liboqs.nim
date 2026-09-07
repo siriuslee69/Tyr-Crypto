@@ -183,16 +183,16 @@ when defined(hasLibOqs):
     if not loadSymbol("OQS_SIG_verify", oqsSigVerify): return false
     if not loadSymbol("OQS_randombytes_switch_algorithm", oqsRandombytesSwitch): return false
     if not loadSymbol("OQS_randombytes_custom_algorithm", oqsRandombytesCustom): return false
-    let initSym = symAddr(oqsHandle, "OQS_randombytes_nist_kat_init_256bit")
+    let initSym = symAddr(oqsHandle, "OQS_randombytes_nist_kat_init_256bit")  # otter:allow
     if not initSym.isNil:
       oqsRandombytesNistInit = cast[RandombytesNistInitProc](initSym)
     let nistSym = symAddr(oqsHandle, "OQS_randombytes_nist_kat")
     if not nistSym.isNil:
       oqsRandombytesNist = cast[RandombytesNistProc](nistSym)
-    let getStateSym = symAddr(oqsHandle, "OQS_randombytes_nist_kat_get_state")
+    let getStateSym = symAddr(oqsHandle, "OQS_randombytes_nist_kat_get_state")  # otter:allow
     if not getStateSym.isNil:
       oqsRandombytesNistGetState = cast[RandombytesNistGetStateProc](getStateSym)
-    let setStateSym = symAddr(oqsHandle, "OQS_randombytes_nist_kat_set_state")
+    let setStateSym = symAddr(oqsHandle, "OQS_randombytes_nist_kat_set_state")  # otter:allow
     if not setStateSym.isNil:
       oqsRandombytesNistSetState = cast[RandombytesNistSetStateProc](setStateSym)
     true

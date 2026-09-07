@@ -70,7 +70,7 @@ type
 
 const
   derivedSecretLenDefault = 32
-  kdfContextPasswordPinSecret* = "pw-pin-secret-v1"
+  kdfContextPasswordPinSecret* = "pw-pin-secret-v1"  # otter:allow
   kdfContextPatternFragment* = "pattern-fragment-v1"
 
 proc copyBytes(input: openArray[uint8]): seq[uint8] =
@@ -123,7 +123,7 @@ when defined(hasLibsodium):
     kdfContextXChaGimli = "sym-xchacha20-gimli-v1"
     kdfContextAesGimli = "sym-aes-gimli-v1"
     kdfContextXChaAesGimli = "sym-xchacha20-aes-gimli-v1"
-    kdfContextXChaAesGimliPoly1305 = "sym-xchacha20-aes-gimli-poly1305-v1"
+    kdfContextXChaAesGimliPoly1305 = "sym-xchacha20-aes-gimli-poly1305-v1"  # otter:allow
     kdfContextAes256 = "sym-aes256-v1"
     kdfContextKexDuo = "kex-duo-x25519-seed-v1"
     kdfContextKexTriple = "kex-triple-x25519-seed-v1"

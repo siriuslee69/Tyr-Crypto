@@ -1,3 +1,5 @@
+## otter:vectors - the fixed keys and hex below are published test vectors.
+
 import std/unittest
 import ../../src/tyr/macs/hmac
 import ../../src/tyr/hashes/blake3

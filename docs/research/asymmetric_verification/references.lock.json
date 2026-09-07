@@ -1,4 +1,5 @@
 {
+  "_otter": "otter:vectors",
   "schema": 1,
   "generated": "2026-07-12",
   "policy": "Tracked files have explicit redistribution terms. Candidate specifications without clear terms are URL/hash pins only or existing ignored local caches.",

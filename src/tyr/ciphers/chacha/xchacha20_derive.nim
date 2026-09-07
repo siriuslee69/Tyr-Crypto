@@ -51,7 +51,7 @@ import ../gimli/gimli_sponge
 import ../../helpers/secure_memory
 
 const
-  subkeyDeriveContext* = "Tyr-Crypto xchacha20 subkey v1"
+  subkeyDeriveContext* = "Tyr-Crypto xchacha20 subkey v1"  # otter:allow
     ## Domain separator, so a subkey can never collide with other key
     ## material derived from the same key.
 

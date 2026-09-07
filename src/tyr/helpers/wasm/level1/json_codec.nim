@@ -90,7 +90,7 @@ proc decodeKemKeypairRequest*(reqJson: string): WasmKemKeypairRequest =
 proc decodeKemEncapsRequest*(reqJson: string): WasmKemEncapsRequest =
   var n = requireObject(reqJson)
   result.algo = parseKemAlgo(requireStringField(n, "algo"))
-  result.receiverPublicKey = decodeBase64Field(n, "receiverPublicKey")
+  result.receiverPublicKey = decodeBase64Field(n, "receiverPublicKey")  # otter:allow
   result.seed = decodeOptionalBase64Field(n, "seed")
 
 proc decodeKemDecapsRequest*(reqJson: string): WasmKemDecapsRequest =

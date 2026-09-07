@@ -1,3 +1,5 @@
+## otter:vectors - the fixed keys and hex below are published test vectors.
+
 import std/[base64, strutils, unittest]
 import ../../src/tyr/kdfs/argon2
 import ../../src/tyr/hashes/blake3

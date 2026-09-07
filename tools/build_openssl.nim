@@ -137,7 +137,7 @@ proc patchMakefileForWindows*(a: string) =
   var
     text: string = ""
     oldToken: string = "CC=\"$(CC)\" $(PERL)"
-    newToken: string = "set CC=$(CC) && $(PERL)"
+    newToken: string = "set CC=$(CC) && $(PERL)"  # otter:allow
     rmToken: string = "rm -f "
     delToken: string = "del /f /q "
   if not fileExists(a):

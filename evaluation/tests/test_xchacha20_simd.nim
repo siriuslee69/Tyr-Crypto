@@ -1,3 +1,5 @@
+## otter:vectors - the fixed keys and hex below are published test vectors.
+
 import std/unittest
 import ../../src/tyr/ciphers/chacha20 as chacha
 import ../../src/tyr/ciphers/chacha/chacha20_scalar as scalar

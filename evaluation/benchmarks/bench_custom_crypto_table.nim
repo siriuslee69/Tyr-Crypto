@@ -756,7 +756,7 @@ proc falconRowName(v: FalconBenchVariant, b: custom_falcon.FalconBackend): strin
 
 proc falconBenchVariantEnabled(v: FalconBenchVariant): bool =
   var
-    token: string = getEnv("TYR_FALCON_BENCH_VARIANT").strip().toLowerAscii()
+    token: string = getEnv("TYR_FALCON_BENCH_VARIANT").strip().toLowerAscii()  # otter:allow
   if token.len == 0 or token == "all":
     return true
   if v.name == "falcon512":

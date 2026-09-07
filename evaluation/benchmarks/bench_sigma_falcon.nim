@@ -90,7 +90,7 @@ proc methodName(v: custom_falcon.FalconVariant): string =
 
 proc falconBenchVariantEnabled(v: custom_falcon.FalconVariant): bool =
   var
-    token: string = getEnv("TYR_FALCON_BENCH_VARIANT").strip().toLowerAscii()
+    token: string = getEnv("TYR_FALCON_BENCH_VARIANT").strip().toLowerAscii()  # otter:allow
   if token.len == 0 or token == "all":
     return true
   case v

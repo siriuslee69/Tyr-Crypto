@@ -1158,6 +1158,9 @@ when isMainModule:
     collectFunctionRows(rows, args.deviceLabel, args.deviceKind, args.profile,
       args.onlyFamilies, args.onlyImplementations, args.onlyBackends, args.verbose, args.loopScale)
   root = %*{
+    # Tells the repository statistics that the long identifiers below are
+    # routine names from a benchmark run, not values anyone typed in.
+    "_otter": "otter:vectors",
     "metadata": buildMetadata(args.deviceLabel, args.deviceKind, args.deviceModel, args.deviceOs, args.profile, args.loopScale, args.phase),
     "rows": rows
   }

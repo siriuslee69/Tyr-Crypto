@@ -1,4 +1,5 @@
 {
+  "_otter": "otter:vectors",
   "schema": 1,
   "generated": "2026-05-01",
   "policy": "Documents with explicit redistribution terms may stay tracked. Documents without clear redistribution terms are ignored local-cache files and can be restored with download_papers.nim.",

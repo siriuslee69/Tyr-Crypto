@@ -1,3 +1,5 @@
+## otter:vectors - the fixed keys and hex below are published test vectors.
+
 import std/[base64, json, unittest]
 
 import ../../src/tyr/helpers/wasm/level0/types

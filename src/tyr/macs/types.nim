@@ -38,7 +38,7 @@ type
 proc familyName*(f: MacFamily): string =
   ## f: which MAC family.
   case f
-  of mfBlake3Keyed: result = "blake3-keyed"
+  of mfBlake3Keyed: result = "blake3-keyed"  # otter:allow
   of mfGimli:       result = "gimli"
   of mfPoly1305:    result = "poly1305"
   of mfHmacSha3:    result = "hmac-sha3"
