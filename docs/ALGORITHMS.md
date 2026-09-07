@@ -285,4 +285,4 @@ SPHINCS+         32 + 17,088 = 17,120 B  │ smallest PK
 - `docs/research/pq_non_ntru_saber/README.md` — Paper index for Kyber, Dilithium, Falcon, Frodo, BIKE, McEliece, SPHINCS+
 - `docs/research/ntru_saber/README.md` — Paper index for NTRU and SABER, optimization history, benchmark tables
 - `docs/benchmarks/` — Curated benchmark JSON snapshots (desktop + 3 phones)
-- `.iron/PROGRESS.md` — Full implementation history: what was implemented, bugs found/fixed, performance changes
+- `agents/PROGRESS.md` — Full implementation history: what was implemented, bugs found/fixed, performance changes

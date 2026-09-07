@@ -15,7 +15,7 @@ proc repoRootFromHere(): string =
     sourceDir: string = parentDir(currentSourcePath())
     candidate: string = ""
   candidate = parentDir(appDir)
-  if fileExists(joinPath(candidate, "tyr_crypto.nimble")):
+  if fileExists(joinPath(candidate, "tyr.nimble")):
     return candidate
   candidate = parentDir(sourceDir)
   result = candidate

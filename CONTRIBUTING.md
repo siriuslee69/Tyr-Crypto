@@ -20,19 +20,19 @@ Tyr-Crypto is the workspace crypto primitive repo. Keep changes inside this boun
 Before changing behavior, read:
 
 - [README.md](README.md)
-- [src/tyr_crypto.nim](src/tyr_crypto.nim)
-- [basic_api.nim](src/protocols/wrapper/basic_api.nim)
+- [src/tyr.nim](src/tyr.nim)
+- [helpers/material.nim](src/tyr/helpers/material.nim)
 - [CODE_LAYOUT.md](docs/CODE_LAYOUT.md)
 - [TESTS.md](docs/TESTS.md)
-- [.iron/conventions/PROJECTS.md](.iron/conventions/PROJECTS.md)
-- [.iron/meta/registry.nim](.iron/meta/registry.nim)
+- [meta/metaPragmas.nim](meta/metaPragmas.nim)
+- [tools/meta/registry.nim](tools/meta/registry.nim)
 
 If the change touches wasm/JS, also read:
 
-- [json_api.nim](src/protocols/wrapper/wasm/level2/json_api.nim)
-- [exports.nim](src/protocols/wrapper/wasm/exports.nim)
-- [tyr_crypto.mjs](bindings/js/tyr_crypto.mjs)
-- [tyr_crypto.d.ts](bindings/js/tyr_crypto.d.ts)
+- [json_api.nim](src/tyr/helpers/wasm/level2/json_api.nim)
+- [exports.nim](src/tyr/helpers/wasm/exports.nim)
+- [tools/build_wasm.nim](tools/build_wasm.nim) - emits the loader and the
+  `.wasm` payload into `bindings/js/dist/`, which is generated, not tracked.
 
 ## Architecture Rules
 ```text
@@ -51,7 +51,9 @@ small primitive or wrapper operation
 explicit output bytes/tag/signature/envelope
 ```
 
-- [basic_api.nim](src/protocols/wrapper/basic_api.nim) is the canonical public wrapper surface.
+- The typed material surface is the canonical public API: one `material.nim`
+  per family over the shared [helpers/material.nim](src/tyr/helpers/material.nim),
+  all re-exported by [src/tyr.nim](src/tyr.nim).
 - `Tyr`-suffixed material names identify local pure-Nim implementations.
 - Unsuffixed backend-backed materials may coexist where a pure-Nim alternative also exists.
 - Keep optional backend paths optional. Missing libraries should fail with a descriptive error.
@@ -69,13 +71,13 @@ explicit output bytes/tag/signature/envelope
 +-----------------------------------------------------------+----------------------+
 | Path                                                      | Risk                 |
 +-----------------------------------------------------------+----------------------+
-| src/protocols/wrapper/basic_api.nim                       | public API behavior  |
-| src/protocols/custom_crypto/asymmetric/pq/mceliece/       | large KEM internals  |
-| src/protocols/custom_crypto/asymmetric/pq/falcon/         | slow signature path  |
-| src/protocols/custom_crypto/symmetric/sha3/               | hash/XOF core        |
-| src/protocols/custom_crypto/symmetric/poly1305/           | authenticator core   |
-| src/protocols/bindings/                                  | native ABI loading   |
-| src/protocols/wrapper/wasm/                               | public wasm ABI      |
+| src/tyr/helpers/material.nim                              | public API behavior  |
+| src/tyr/kems/mceliece/                                    | large KEM internals  |
+| src/tyr/signatures/falcon/                                | slow signature path  |
+| src/tyr/hashes/sha3.nim                                   | hash/XOF core        |
+| src/tyr/macs/poly1305.nim                                 | authenticator core   |
+| src/tyr/bindings/                                         | native ABI loading   |
+| src/tyr/helpers/wasm/                                     | public wasm ABI      |
 +-----------------------------------------------------------+----------------------+
 ```
 
@@ -111,7 +113,7 @@ Use [test_primitives_api.nim](evaluation/tests/test_primitives_api.nim) when dis
 - Remove stale references instead of leaving temporary legacy notes.
 
 ## Native Builders
-Builder tasks live in [tyr_crypto.nimble](tyr_crypto.nimble) and [tools/](tools).
+Builder tasks live in [tyr.nimble](tyr.nimble) and [tools/](tools).
 
 ```bash
 nimble build_libsodium

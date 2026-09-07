@@ -18,7 +18,7 @@ proc findRepoRoot(startDir: string): string =
     dir: string = absolutePath(startDir)
     parent: string = ""
   while dir.len > 0:
-    if fileExists(joinPath(dir, "tyr_crypto.nimble")):
+    if fileExists(joinPath(dir, "tyr.nimble")):
       return dir
     parent = parentDir(dir)
     if parent == dir:

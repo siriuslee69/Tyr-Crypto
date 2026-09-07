@@ -157,17 +157,13 @@ The typed material surface is split per module - [hashes](src/tyr/hashes/materia
 - `genKeypair` / `encaps` / `decaps`
 - `cryptoRand`
 
-Compatibility aliases still exist in `basic_api.nim` for older callers:
-
-- `asymKeypair` / `asymEnc` / `asymDec` / `asymSign` / `asymVerify`
-
 Local pure-Nim implementations use `Tyr` suffixed names (e.g. `kyberTyrKeypair`, `blake3TyrHashM`). Unsuffixed names may resolve to native backend paths when available.
 
-`import tyr` is the supported all-in-one import and now exports the AES,
-Gimli, XChaCha20, NTRU, and SABER facades as well. The small
-`protocols/custom_crypto/*.nim` facades remain as compatibility imports for
-existing callers; they are intentionally not removed, because removing them
-would break direct imports without improving the canonical API.
+`import tyr` is the supported all-in-one import. It re-exports every family
+module - `tyr/hashes`, `tyr/macs`, `tyr/ciphers`, `tyr/aeads`, `tyr/kdfs`,
+`tyr/kems`, `tyr/signatures`, `tyr/otp`, `tyr/certs` - so a caller needs no
+other import. Importing one family directly also works when a smaller build
+matters, which is the point of keeping the families separate.
 
 ---
 
@@ -208,12 +204,12 @@ protocol purpose and put the public session/stage identifier in `context`.
 | [docs/NUGIMLI_CASCADE_VECTORS.md](docs/NUGIMLI_CASCADE_VECTORS.md) | Cascade format, input recipe, complete vector source, and 512-bit human-readable vector |
 | [docs/research/pq_non_ntru_saber/README.md](docs/research/pq_non_ntru_saber/README.md) | Papers: Kyber, Dilithium, Falcon, Frodo, BIKE, McEliece, SPHINCS+ |
 | [docs/research/ntru_saber/README.md](docs/research/ntru_saber/README.md) | Papers: NTRU, SABER — includes full optimization history with benchmark tables |
-| [.iron/PROGRESS.md](.iron/PROGRESS.md) | Full implementation history: bugs found/fixed, performance changes, decisions |
+| [agents/PROGRESS.md](agents/PROGRESS.md) | Full implementation history: bugs found/fixed, performance changes, decisions |
 | [docs/benchmarks/](docs/benchmarks/) | Curated benchmark JSON snapshots (desktop + 3 phones) |
 | [examples/](examples/readme.md) | Runnable usage examples |
 | [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) | Third-party license notes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contributor workflow and review checklist |
-| [.iron/conventions/](.iron/conventions) | Proto-RepoTemplate conventions |
+| [meta/metaPragmas.nim](meta/metaPragmas.nim) | Role, stage, and test pragmas the evaluation tools read |
 
 ---
 
@@ -292,12 +288,10 @@ Frodo does not probe or load `libcrypto` unless `-d:hasOpenSSL3` is present.
 | SIMD-Nexus | `submodules/simd_nexus` or `../SIMD-Nexus` |
 | Otter-RepoEvaluation | `submodules/otter_repo_evaluation` (timing, benchmarks, and statistical evaluation) |
 
-Local path overrides go in `.iron/.local.gitmodules.toml` (gitignored).
-
 PQClean is a vendored collection of standalone C implementations of
 post-quantum algorithms. Tyr uses it for reference vectors, interoperability,
-and selected bindings. It is not the same as Tyr's pure-Nim `custom_crypto`
-implementation, and merely having a PQClean AVX2 directory does not make that
+and selected bindings. It is not the same as Tyr's own pure-Nim
+implementations, and merely having a PQClean AVX2 directory does not make that
 code part of a Tyr call path. Upstream PQClean is no longer actively maintained,
 so its code should be treated as pinned reference/vendor code rather than an
 automatically updated security dependency.
@@ -351,7 +345,7 @@ interoperability, and benchmark entries. Every card can also be run by itself.
 
 The catalog contains more than 50 allowlisted groups, including the unified
 benchmark tables and every specialized Sigma/Otter benchmark entrypoint that
-imports `custom_crypto`.
+imports Tyr's pure-Nim implementations.
 
 Algorithm and API cards are paired target tests:
 
@@ -452,7 +446,7 @@ const shared = tyr.basic.kemDecaps({
 
 ## Maintainer Conventions
 
-This repo follows the [Proto conventions](.iron/conventions). Key rules:
+This repo follows the Proto conventions. Key rules:
 
 | Area | Rule |
 |------|------|

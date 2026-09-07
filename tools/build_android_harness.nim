@@ -203,7 +203,7 @@ when isMainModule:
     repoRoot: string = parentDir(parentDir(currentSourcePath()))
     config: BuildConfig = parseConfig()
     info: TargetInfo = targetInfo(config.harnessTarget)
-    harnessDir: string = joinPath(repoRoot, "tests", "android_harness")
+    harnessDir: string = joinPath(repoRoot, "evaluation", "tests", "android_harness")
     androidSdk: string = getEnv("ANDROID_SDK_ROOT")
     javaHome: string = getEnv("JAVA_HOME")
     nimsimdPath: string = getEnv("NIMSIMD_PATH")

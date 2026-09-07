@@ -22,7 +22,7 @@ let
         rel == "" || rel == "src" || lib.hasPrefix "src/" rel
       else
         (lib.hasPrefix "src/" rel && lib.hasSuffix ".nim" rel)
-        || rel == "tyr_crypto.nimble"
+        || rel == "tyr.nimble"
         || rel == "README.md"
         || rel == "UNLICENSE"
         || rel == "LICENSE"
@@ -35,9 +35,9 @@ pkgs.stdenvNoCC.mkDerivation {
   src = filteredSrc;
 
   installPhase = ''
-    mkdir -p "$out/share/nimble/pkgs/tyr_crypto"
-    cp -R src "$out/share/nimble/pkgs/tyr_crypto/"
-    cp tyr_crypto.nimble "$out/share/nimble/pkgs/tyr_crypto/"
-    cp README.md "$out/share/nimble/pkgs/tyr_crypto/"
+    mkdir -p "$out/share/nimble/pkgs/tyr"
+    cp -R src "$out/share/nimble/pkgs/tyr/"
+    cp tyr.nimble "$out/share/nimble/pkgs/tyr/"
+    cp README.md "$out/share/nimble/pkgs/tyr/"
   '';
 }
