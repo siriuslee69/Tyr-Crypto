@@ -3,7 +3,7 @@
 ## ---------------------------------------------------------------------
 
 import std/[algorithm, bitops, sets, strutils]
-import metaPragmas
+import tyrPragmas
 import otter_repo_evaluation
 import ./types
 import ./primitives

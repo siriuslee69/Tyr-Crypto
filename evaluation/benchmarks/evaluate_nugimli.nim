@@ -3,7 +3,7 @@
 ## -----------------------------------------------------------------
 
 import std/os
-import metaPragmas
+import tyrPragmas
 import otter_repo_evaluation
 import ../nugimli_analysis/types
 import ../nugimli_analysis/primitives

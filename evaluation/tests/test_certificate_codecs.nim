@@ -5,7 +5,7 @@
 ## --------------------------------------------------------
 
 import std/unittest
-import metaPragmas
+import tyrPragmas
 import ../../src/tyr/certs/chain
 import ../../src/tyr/certs/pem
 import ../../src/tyr/certs/der

@@ -4,7 +4,7 @@
 
 import std/[bitops, sets]
 import std/math as stdmath
-import metaPragmas
+import tyrPragmas
 import otter_repo_evaluation
 import ./stream_types
 

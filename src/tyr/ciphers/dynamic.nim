@@ -13,7 +13,7 @@
 ## Sizes, the nonce-reuse warning and the "no tamper detection" warning all
 ## live in `types.nim`; read them before choosing.
 
-import metaPragmas
+import tyrPragmas
 
 import ./types
 import ./aes_ctr

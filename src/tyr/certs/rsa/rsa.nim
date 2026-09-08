@@ -12,7 +12,7 @@
 ## bigint makes direct-import private signing variable-time until a dedicated
 ## fixed-width private-key backend replaces it.
 
-import metaPragmas
+import tyrPragmas
 import ../../helpers/bigint
 import ../../hashes/sha256
 import ../../hashes/sha512

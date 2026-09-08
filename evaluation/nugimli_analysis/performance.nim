@@ -2,7 +2,7 @@
 ## NuGimli Performance <- stable release-mode operation benchmarks
 ## -----------------------------------------------------------------
 
-import metaPragmas
+import tyrPragmas
 import otter_repo_evaluation
 import ../../src/tyr/ciphers/gimli
 import ./primitives

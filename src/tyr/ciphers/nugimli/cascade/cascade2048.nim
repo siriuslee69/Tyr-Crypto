@@ -2,7 +2,7 @@
 ## NuGimli Cascade-2048 <- 2048-bit overlapping-window permutation
 ## ----------------------------------------------------------------
 
-import metaPragmas
+import tyrPragmas
 import ../types
 import ../core
 

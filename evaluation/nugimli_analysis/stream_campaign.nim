@@ -3,7 +3,7 @@
 ## ----------------------------------------------------------------------
 
 import std/[bitops, monotimes, random]
-import metaPragmas
+import tyrPragmas
 import ../../src/tyr/helpers/random as tyrRandom
 import ./primitives
 import ./stream_types

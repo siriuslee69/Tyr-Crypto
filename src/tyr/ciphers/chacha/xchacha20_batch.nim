@@ -2,7 +2,7 @@
 ## XChaCha20 Batch <- independent streams across scalar or SIMD message lanes
 ## -------------------------------------------------------------------------
 
-import metaPragmas
+import tyrPragmas
 import ./chacha20_scalar as chacha_scalar
 import ./xchacha20 as scalar
 

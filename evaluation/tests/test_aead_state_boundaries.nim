@@ -1,6 +1,6 @@
 ## AEAD state boundaries <- reject mutated state before using crypto keys.
 import std/unittest
-import metaPragmas
+import tyrPragmas
 
 import ../../src/tyr/aeads
 

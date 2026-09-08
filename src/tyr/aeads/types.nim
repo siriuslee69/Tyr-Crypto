@@ -56,7 +56,7 @@
 ## ⚠ There is no associated-data input yet. Everything you need bound to
 ## the ciphertext must be inside the message.
 
-import metaPragmas
+import tyrPragmas
 import ../ciphers/chacha/xchacha20_derive
 import ../macs/poly1305/derive
 

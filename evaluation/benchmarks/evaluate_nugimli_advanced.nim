@@ -3,7 +3,7 @@
 ## ------------------------------------------------------------------
 
 import std/[os, strutils]
-import metaPragmas
+import tyrPragmas
 import ../nugimli_analysis/advanced_security
 
 proc row(R: AdvancedSecurityResult): string {.role: {dataWriter}.} =

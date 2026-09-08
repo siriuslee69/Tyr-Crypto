@@ -3,7 +3,7 @@
 ## ---------------------------------------------------------------
 
 import std/strutils
-import metaPragmas
+import tyrPragmas
 import ./der
 
 const

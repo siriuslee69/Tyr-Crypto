@@ -13,7 +13,7 @@
 ## ⚠ Read `types.nim` before choosing. Feeding a human password to a FAST
 ## KDF is the classic mistake; use `isPasswordSafe` to check.
 
-import metaPragmas
+import tyrPragmas
 import ./kdfs/types
 import ./kdfs/argon2
 import ./kdfs/blake3_gimli_kdf

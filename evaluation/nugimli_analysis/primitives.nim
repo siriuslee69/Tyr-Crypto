@@ -3,7 +3,7 @@
 ## ----------------------------------------------------------------------
 
 import std/bitops
-import metaPragmas
+import tyrPragmas
 import ../../src/tyr/ciphers/nugimli/types
 import ../../src/tyr/ciphers/nugimli/domain
 import ../../src/tyr/ciphers/nugimli/cascade

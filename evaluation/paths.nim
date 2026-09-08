@@ -34,7 +34,7 @@
 
 import std/os
 
-import metaPragmas
+import tyrPragmas
 
 const
   packageMarker = "tyr.nimble"

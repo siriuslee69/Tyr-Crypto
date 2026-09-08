@@ -2,7 +2,7 @@
 ## Custom HMAC <- generic two-pass HMAC over hash callbacks
 ## ---------------------------------------------------------
 
-import metaPragmas
+import tyrPragmas
 import ../../hashes/blake3
 import ../../ciphers/gimli_sponge
 import ../../hashes/sha3 as customSha3

@@ -14,7 +14,7 @@
 ## hold both halves of the contract in place.
 
 import std/unittest
-import metaPragmas
+import tyrPragmas
 
 import ../../src/tyr
 

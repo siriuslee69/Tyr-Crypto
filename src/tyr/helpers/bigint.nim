@@ -11,7 +11,7 @@
 ## public verification arithmetic, but private-key operations need a separate
 ## fixed-width, constant-time backend before production use.
 
-import metaPragmas
+import tyrPragmas
 
 type
   BigInt* {.role: {rawData}.} = object

@@ -24,7 +24,7 @@
 ## knows which code to call. The choice is settled while compiling and
 ## costs nothing at runtime.
 
-import metaPragmas
+import tyrPragmas
 import ./signatures/types
 import ./signatures/dilithium
 import ./signatures/falcon

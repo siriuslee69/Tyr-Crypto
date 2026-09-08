@@ -3,7 +3,7 @@
 ## ----------------------------------------------------------------------
 
 import std/[monotimes, os, strutils]
-import metaPragmas
+import tyrPragmas
 import otter_repo_evaluation
 import ../../src/tyr/ciphers/nugimli/types
 import ../../src/tyr/ciphers/nugimli/domain

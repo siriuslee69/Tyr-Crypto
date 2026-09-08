@@ -11,7 +11,7 @@
 ## suitable for public verification only until a fixed-width private backend
 ## replaces the direct-import signing and ECDH paths.
 
-import metaPragmas
+import tyrPragmas
 import ../../helpers/bigint
 import ../../hashes/sha256
 import ../../certs/der

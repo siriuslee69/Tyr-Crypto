@@ -3,7 +3,7 @@
 ## ----------------------------------------------------------------------
 
 import std/[cpuinfo, os, parseutils, strutils]
-import metaPragmas
+import tyrPragmas
 import ../nugimli_analysis/stream_types
 import ../nugimli_analysis/stream_campaign
 import ../nugimli_analysis/stream_report

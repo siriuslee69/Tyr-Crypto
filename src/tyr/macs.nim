@@ -11,7 +11,7 @@
 ## stops at the first differing byte, and the time it took leaks how much
 ## of the tag an attacker has guessed correctly.
 
-import metaPragmas
+import tyrPragmas
 import ./macs/types
 import ./macs/hmac
 import ./macs/poly1305

@@ -2,7 +2,7 @@
 ## NuGimli Types <- fixed-width states and contiguous 128-bit chunk swaps
 ## --------------------------------------------------------------------
 
-import metaPragmas
+import tyrPragmas
 
 const
   nugimliChunkWords* = 4

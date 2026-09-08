@@ -3,7 +3,7 @@
 ## -----------------------------------------------------------------------
 
 import std/[strutils, times]
-import metaPragmas
+import tyrPragmas
 import ./[der, keys, oid, pem]
 
 const

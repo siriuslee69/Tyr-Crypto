@@ -2,7 +2,7 @@
 ## DER Reader <- strict bounded ASN.1 tag-length-value byte perception
 ## ------------------------------------------------------------------
 
-import metaPragmas
+import tyrPragmas
 
 type
   DerClass* = enum

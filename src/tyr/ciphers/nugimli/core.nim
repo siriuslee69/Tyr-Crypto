@@ -4,7 +4,7 @@
 ## overlapping boxes <- one-bit twist <- butterfly chunk exchanges
 
 import std/bitops
-import metaPragmas
+import tyrPragmas
 import ./types
 import ./scalar_box
 
