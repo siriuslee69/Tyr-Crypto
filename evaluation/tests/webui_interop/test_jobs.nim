@@ -5,7 +5,7 @@
 import std/[json, monotimes, os, osproc, sets, strutils, tables, times]
 import ../../paths
 
-import tyrPragmas
+import runePragmas
 import ./test_catalog
 
 const

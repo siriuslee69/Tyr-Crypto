@@ -2,7 +2,7 @@
 ## NuGimli Domain <- tagged SHAKE256 derivation for independent key/state
 ## -----------------------------------------------------------------------
 
-import tyrPragmas
+import runePragmas
 import ../../hashes/sha3
 import ../../helpers/secure_memory
 import ./types

@@ -34,7 +34,7 @@
 
 import std/os
 
-import tyrPragmas
+import runePragmas
 
 const
   packageMarker = "tyr.nimble"

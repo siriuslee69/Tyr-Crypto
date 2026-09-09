@@ -14,7 +14,7 @@
 ## Each algorithm also answers to a `...Tyr...` public name on its own
 ## surface, e.g. `tyr/kdfs/argon2` gives `argon2idTyrHash`.
 
-import tyrPragmas
+import runePragmas
 import ./hashes/types
 import ./hashes/blake3
 import ./hashes/sha256

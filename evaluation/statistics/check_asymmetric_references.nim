@@ -4,7 +4,7 @@
 
 import std/[algorithm, json, os, sets, strutils]
 import ../paths
-import tyrPragmas
+import runePragmas
 import ../../tools/research_paper_downloader
 
 const

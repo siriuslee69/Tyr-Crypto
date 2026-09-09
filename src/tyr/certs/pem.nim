@@ -3,7 +3,7 @@
 ## ---------------------------------------------------------------
 
 import std/[base64, strutils]
-import tyrPragmas
+import runePragmas
 
 type
   PemBlock* = object

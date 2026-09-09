@@ -29,7 +29,7 @@
 ## import reaches them too: `tyr/ciphers/chacha20` gives `chacha20TyrXor`,
 ## `tyr/hashes/blake3` gives `blake3TyrHash`. They are re-exported here.
 
-import tyrPragmas
+import runePragmas
 import ./ciphers/types
 import ./ciphers/aes_ctr
 import ./ciphers/chacha20

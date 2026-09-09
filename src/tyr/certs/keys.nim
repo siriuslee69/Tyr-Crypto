@@ -2,7 +2,7 @@
 ## Certificate Keys <- RFC 8410 Ed25519 SPKI and PKCS#8 strict readers
 ## --------------------------------------------------------------------
 
-import tyrPragmas
+import runePragmas
 import ./[der, oid, pem]
 
 type

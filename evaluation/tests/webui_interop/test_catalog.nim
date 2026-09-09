@@ -5,7 +5,7 @@
 import std/[algorithm, json, os, osproc, strutils, times]
 import ../../paths
 
-import tyrPragmas
+import runePragmas
 
 type
   TestCommandKind* = enum

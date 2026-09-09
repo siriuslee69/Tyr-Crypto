@@ -31,7 +31,7 @@
 ##
 ## Every routine here is for tests only. Nothing in `src/` uses it.
 
-import tyrPragmas
+import runePragmas
 import ../src/tyr/bindings/liboqs
 
 type

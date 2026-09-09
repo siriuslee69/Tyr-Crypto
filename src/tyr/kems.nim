@@ -38,7 +38,7 @@
 ## It cannot be driven by a value read from a file - for that, use
 ## `dynamic.nim`, which is the only tier that can.
 
-import tyrPragmas
+import runePragmas
 import ./kems/types
 import ./kems/kyber
 import ./kems/mceliece

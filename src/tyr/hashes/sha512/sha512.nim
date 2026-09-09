@@ -6,7 +6,7 @@
 ## `ecdsa-with-SHA384`; SHA-384 is SHA-512 with a different initial state
 ## and a truncated output.
 
-import tyrPragmas
+import runePragmas
 import ../../kems/x25519/x25519_common
 
 const

@@ -3,7 +3,7 @@
 ## ------------------------------------------------------------------
 
 import std/unittest
-import tyrPragmas
+import runePragmas
 import ../../src/tyr/ciphers/nugimli/types
 import ../../src/tyr/ciphers/nugimli/domain
 import ../../src/tyr/ciphers/nugimli/cascade

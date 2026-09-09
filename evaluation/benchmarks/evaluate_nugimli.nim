@@ -3,7 +3,7 @@
 ## -----------------------------------------------------------------
 
 import std/os
-import tyrPragmas
+import runePragmas
 import otter_repo_evaluation
 import ../nugimli_analysis/types
 import ../nugimli_analysis/primitives

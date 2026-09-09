@@ -3,7 +3,7 @@
 ## ---------------------------------------------------------------
 
 import std/strutils
-import tyrPragmas
+import runePragmas
 import ./der
 
 const

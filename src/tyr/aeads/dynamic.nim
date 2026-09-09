@@ -20,7 +20,7 @@
 ## same nonce will both succeed. When you are sealing more than one
 ## message, prefer the default tier, where the state catches it.
 
-import tyrPragmas
+import runePragmas
 
 import ./types
 import ../aeads

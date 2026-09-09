@@ -2,7 +2,7 @@
 ## NuGimli Cascade-512 <- 512-bit overlapping-window permutation
 ## --------------------------------------------------------------
 
-import tyrPragmas
+import runePragmas
 import ../types
 import ../core
 

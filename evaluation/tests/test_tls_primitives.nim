@@ -1,5 +1,5 @@
 import std/[strutils, unittest]
-import tyrPragmas
+import runePragmas
 import ../../src/tyr/hashes/sha256
 import ./helpers
 

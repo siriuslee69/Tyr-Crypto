@@ -4,7 +4,7 @@
 
 import std/[os, strutils]
 
-import tyrPragmas
+import runePragmas
 
 const
   sourceDir = "bindings/js"

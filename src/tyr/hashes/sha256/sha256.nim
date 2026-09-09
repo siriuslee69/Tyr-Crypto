@@ -3,7 +3,7 @@
 ## ---------------------------------------------------------------------
 
 import std/bitops
-import tyrPragmas
+import runePragmas
 import ../../helpers/secure_memory
 
 const

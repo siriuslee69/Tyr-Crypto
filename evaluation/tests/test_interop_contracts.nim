@@ -8,7 +8,7 @@ import ../paths
 import webui
 import webui/bindings as webuiBindings
 
-import tyrPragmas
+import runePragmas
 import ./webui_interop/[interop_backend, test_catalog, test_jobs]
 
 var

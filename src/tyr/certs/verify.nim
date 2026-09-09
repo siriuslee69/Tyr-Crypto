@@ -3,7 +3,7 @@
 ## -----------------------------------------------------------------------
 
 import std/[net, strutils]
-import tyrPragmas
+import runePragmas
 import ../signatures/ed25519
 import ./x509
 

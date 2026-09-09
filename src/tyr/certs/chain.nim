@@ -13,7 +13,7 @@
 ##    every name. Keep the trust store narrow.
 
 
-import tyrPragmas
+import runePragmas
 import ./[oid, x509, verify]
 import ./rsa
 import ../signatures/ecdsa_p256

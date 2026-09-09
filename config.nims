@@ -120,7 +120,6 @@ proc applyTyrBuildDefaults() =
   enableX86Capability("aesni", "-maes", macros.contains("__AES__"), msvc)
 
 addPathIfExists(joinPath(repoRoot, "src"))
-addPathIfExists(joinPath(repoRoot, "meta"))
 addPathIfExists(joinPath(repoRoot, "tools", "meta"))
 addPathIfExists(joinPath(repoRoot, "tools"))
 addPathIfExists(joinPath(repoRoot, "submodules", "simd_nexus", "src"))
@@ -141,3 +140,10 @@ if dirExists(nimblePkgs):
         break
 
 applyTyrBuildDefaults()
+
+## Shared pragma module: one file for the whole workspace, so there is no
+## per-repository copy to drift or to collide on the Nim path.
+if dirExists(thisDir() & "/../Rune-Pragmas/meta"):
+  switch("path", thisDir() & "/../Rune-Pragmas/meta")
+if dirExists(thisDir() & "/submodules/Rune-Pragmas/meta"):
+  switch("path", thisDir() & "/submodules/Rune-Pragmas/meta")

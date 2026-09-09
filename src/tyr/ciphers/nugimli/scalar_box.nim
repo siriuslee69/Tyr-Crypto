@@ -3,7 +3,7 @@
 ## -----------------------------------------------------------------
 
 import std/bitops
-import tyrPragmas
+import runePragmas
 import ./types
 
 proc gimliBoxAtScalar*[N: static[int]](S: var array[N, uint32], a, b,

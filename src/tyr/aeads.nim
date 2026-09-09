@@ -33,7 +33,7 @@
 ## `-d:hasNimcrypto`, and Nim's dead-code elimination drops the arms a
 ## program never reaches. A flag would add a layer without removing code.
 
-import tyrPragmas
+import runePragmas
 
 import ./aeads/types
 import ./aeads/composite

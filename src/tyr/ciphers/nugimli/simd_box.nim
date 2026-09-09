@@ -2,7 +2,7 @@
 ## NuGimli SIMD Box <- one Gimli box in SSE2 or NEON registers
 ## --------------------------------------------------------------
 
-import tyrPragmas
+import runePragmas
 import simd_nexus/simd/base_operations
 import simd_nexus/simd/generic_u32
 import ./types

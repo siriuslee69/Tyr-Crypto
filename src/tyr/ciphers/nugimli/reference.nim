@@ -3,7 +3,7 @@
 ## ----------------------------------------------------------------------
 
 import std/bitops
-import tyrPragmas
+import runePragmas
 import ./types
 import ./scalar_box
 

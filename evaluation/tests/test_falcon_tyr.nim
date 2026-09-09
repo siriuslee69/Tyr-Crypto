@@ -13,7 +13,7 @@ import ../../src/tyr/signatures/falcon/format
 import ../../src/tyr/signatures/falcon/pure_verify
 import ../../src/tyr/signatures/falcon/sign
 
-import tyrPragmas
+import runePragmas
 
 when defined(hasLibOqs):
   import ../../src/tyr/bindings/liboqs

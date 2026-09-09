@@ -66,7 +66,7 @@
 ## Merkle-Damgard hash, or interoperability with something that expects
 ## RFC 2104 bytes.
 
-import tyrPragmas
+import runePragmas
 
 import ./types
 import ../ciphers/aes_ctr

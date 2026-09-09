@@ -4,7 +4,7 @@
 
 import std/[base64, json, strutils]
 
-import tyrPragmas
+import runePragmas
 import ../../../src/tyr/kems/kyber as kyber
 import ../../../src/tyr/kems/x25519 as x25519
 import ../../../src/tyr

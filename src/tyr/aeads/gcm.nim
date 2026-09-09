@@ -22,7 +22,7 @@
 ## ⚠ The tag is exactly 16 bytes. `resolveTagBytes` rejects any other
 ## request rather than silently ignoring it.
 
-import tyrPragmas
+import runePragmas
 import ./types
 import ../helpers/errors
 when defined(hasNimcrypto):
