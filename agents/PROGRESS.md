@@ -1,6 +1,6 @@
 Commit Message: Name the roles on the public dispatch API
 
-Features to implement:
+Commit Message: Bump the Otter pin off the dead Fylgia reference
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
 - Native bindings for libsodium, OpenSSL, and liboqs.
