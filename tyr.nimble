@@ -219,6 +219,13 @@ task test_ntru_saber_avx2, "Run NTRU/SABER tests with AVX2 enabled where support
 task test_frodo_native_fast, "Run Frodo with AVX2 matrix math and native AES-NI":
   exec withRepoCaches("nim c -d:release -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-mavx2\" --nimcache:" & repoNimcacheDir("nimcache_test_frodo_native_fast").replace('\\', '/') & " -r evaluation/tests/test_frodo_tyr.nim")
 
+task test_hqc, "Run HQC roundtrip and single known-answer tests":
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_hqc_tyr").replace('\\', '/') & " -r evaluation/tests/test_hqc_tyr.nim")
+  exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_hqc_kat").replace('\\', '/') & " -r evaluation/tests/test_hqc_kat.nim")
+
+task test_hqc_kat_full, "Run all 100 published HQC known-answer records per parameter set":
+  exec withRepoCaches("nim c -d:release -d:tyrHqcFullKat --nimcache:" & repoNimcacheDir("nimcache_test_hqc_kat_full").replace('\\', '/') & " -r evaluation/tests/test_hqc_kat.nim")
+
 task test_neon_checks, "Compile-check the ARM64/NEON SIMD coverage matrix":
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_xchacha20").replace('\\', '/') & " evaluation/tests/test_xchacha20_simd.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_blake3").replace('\\', '/') & " evaluation/tests/test_blake3_simd.nim")

@@ -29,6 +29,7 @@ import ./frodo
 import ./bike
 import ./ntru
 import ./saber
+import ./hqc
 
 export types
 
@@ -42,6 +43,7 @@ type
     of kfBike:     bike*: BikeVariant
     of kfNtru:     ntru*: NtruVariant
     of kfSaber:    saber*: SaberVariant
+    of kfHqc:      hqc*: HqcVariant
 
 proc keypairOf*(a: AnyKem, seed: seq[byte] = @[]): KemKeypair =
   ## a/seed: the runtime choice, and optional fixed randomness for tests.
@@ -65,6 +67,9 @@ proc keypairOf*(a: AnyKem, seed: seq[byte] = @[]): KemKeypair =
   of kfSaber:
     var t = saberTyrKeypair(a.saber, seed)
     result = KemKeypair(family: kfSaber, public: t.publicKey, secret: t.secretKey)
+  of kfHqc:
+    var t = hqcTyrKeypair(a.hqc, seed)
+    result = KemKeypair(family: kfHqc, public: t.publicKey, secret: t.secretKey)
 
 proc encapsOf*(a: AnyKem, pk: openArray[byte], seed: seq[byte] = @[]): KemCiphertext =
   ## a/pk/seed: the runtime choice, recipient's public key, optional randomness.
@@ -90,6 +95,9 @@ proc encapsOf*(a: AnyKem, pk: openArray[byte], seed: seq[byte] = @[]): KemCipher
   of kfSaber:
     var t = saberTyrEncaps(a.saber, pk, seed)
     result = KemCiphertext(family: kfSaber, ciphertext: t.ciphertext, shared: t.sharedSecret)
+  of kfHqc:
+    var t = hqcTyrEncaps(a.hqc, pk, seed)
+    result = KemCiphertext(family: kfHqc, ciphertext: t.ciphertext, shared: t.sharedSecret)
 
 proc decapsOf*(a: AnyKem, sk, ct: openArray[byte]): seq[byte] =
   ## a/sk/ct: the runtime choice, your secret key, the ciphertext received.
@@ -101,3 +109,4 @@ proc decapsOf*(a: AnyKem, sk, ct: openArray[byte]): seq[byte] =
   of kfBike:     result = bikeTyrDecaps(a.bike, sk, ct)
   of kfNtru:     result = ntruTyrDecaps(a.ntru, sk, ct)
   of kfSaber:    result = saberTyrDecaps(a.saber, sk, ct)
+  of kfHqc:      result = hqcTyrDecaps(a.hqc, sk, ct)

@@ -1,4 +1,4 @@
-Commit Message: Name the roles on the public dispatch API
+Commit Message: Add a pure-Nim HQC KEM that reproduces the published vectors
 
 Commit Message: Bump the Otter pin off the dead Fylgia reference
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
@@ -245,6 +245,68 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
+- HQC was missing entirely. It is the fifth KEM NIST picked (March 2025, as the
+  backup beside ML-KEM) and the only code-based family with moderate sizes at
+  both ends, so the library had no non-lattice option between BIKE's small keys
+  and McEliece's half-megabyte ones.
+
+Fix attempt and result:
+- Added `src/tyr/kems/hqc/` as a pure-Nim port of the 2025-08-22 specification,
+  following the reference implementation vendored in
+  `submodules/cNimWrapper/submodules/liboqs/src/kem/hqc/pqc-hqc_hqc-*_ref`.
+  Sixteen modules: parameters, parsing, GF(2^8), additive FFT and its radix
+  split, Reed-Solomon locate/repair, Reed-Muller, the concatenated code,
+  Karatsuba GF(2) multiplication, the SHAKE-256 stream and four hashes,
+  fixed-weight sampling, the PKE, and the KEM wrapper.
+- One bug cost most of the debugging time: the duplicate check in the
+  encryption sampler was inverted. `compare_u32` in the reference returns 1
+  when two values are EQUAL, and the first Nim version used a not-equal mask.
+  The effect was that every repair step replaced its position with the loop
+  index, so the sampled support collapsed to 0, 1, 2, ... The weight was still
+  exactly right, every algebraic identity below it still held, and only the
+  per-block noise distribution gave it away: one Reed-Muller block carried 321
+  flipped bits out of 384 where the expected figure was about 137.
+- The three `alpha_ij_pow` tables the reference ships (1350, 1760 and 5162
+  entries) are not copied. They were checked to be exactly
+  `gf_exp[((i+1)*(j+1)) mod 255]` for all three parameter sets, so the
+  syndrome loop reads the power table directly. The index depends only on loop
+  counters, so this stays as constant-time as the lookup it replaces.
+- HQC does not use the AES DRBG the other KEMs use for vectors; its generator
+  is a SHAKE-256 stream. `evaluation/tests/test_hqc_kat.nim` rebuilds that
+  stream and compares the transcript hash against the pinned liboqs corpus.
+
+Verification:
+- All 300 published known-answer records reproduce byte for byte: the `single`
+  and `all` hashes for HQC-1, HQC-3 and HQC-5 in
+  `submodules/cNimWrapper/submodules/liboqs/tests/KATs/kem/kats.json`.
+  `nimble test_hqc_kat_full` passed.
+- `nimble test_hqc` passed: 14 unit, edge-case, property and integration tests
+  covering GF(2^8) against the logarithm tables, Reed-Solomon at exactly delta
+  errors, Reed-Muller at a third of its bits flipped, Karatsuba against the
+  slow definition of the product, the published lengths, seed determinism,
+  implicit rejection on a damaged body and on a damaged salt, wrong-length
+  refusal, and the default/dynamic tier wiring.
+- `nim r evaluation/tests/run_desktop_tests_parallel.nim -- --only:hqc` passed.
+- `nim-check.sh src/tyr/kems/hqc/*.nim evaluation/tests/test_hqc_*.nim
+  examples/kem_hqc.nim` reports nothing.
+- `otter-gate.sh --force .` reports nothing against any HQC file.
+- `nim check evaluation/tests/test_all.nim` adds no error beyond the 18 that
+  were already there; those come from `test_mceliece_tyr.nim` reaching for a
+  `-d:tyrCryptoTestHooks` routine that the aggregate include cannot provide,
+  and predate this work.
+- Local release timings, 20 runs each: HQC-1 keygen 1.60 ms, encaps 3.28 ms,
+  decaps 4.87 ms; HQC-3 4.84 / 9.64 / 14.52 ms; HQC-5 12.45 / 25.56 / 38.38 ms.
+
+Known gaps, deliberately left:
+- No SIMD. A carry-less multiply instruction would speed up the whole scheme
+  several times over and is the obvious next step.
+- Not on the typed-material surface in `kems/material.nim`, which currently
+  covers X25519, Kyber, Frodo, BIKE and McEliece.
+- Key generation timing varies with the draws, because its sampler rejects
+  biased values and repeats. This matches the reference implementation and is
+  confined to key generation; encryption uses the fixed-cost sampler.
+
+Previous big change or problem:
 - Frodo SHAKE allocated the complete public matrix and copied columns before
   multiplication, while normal AVX2 benchmark builds omitted the separate
   Tyr-native AES-NI capability and exposed the slow portable AES path.

@@ -82,6 +82,24 @@ All symmetric primitives are **pure Nim** implementations under `src/tyr/ciphers
 - **Decoder:** Constant-time black-gray decoder (BGF)
 - **GF(2) multiplication:** Karatsuba + 128-bit word helpers
 
+### HQC
+
+**Files:** `src/tyr/kems/hqc.nim`, `src/tyr/kems/hqc/`
+
+| Variant | NIST Level | PK bytes | SK bytes | CT bytes | Shared Secret |
+|---------|-----------|----------|----------|----------|---------------|
+| HQC-1 | 1 | 2,241 | 2,321 | 4,433 | 32 |
+| HQC-3 | 3 | 4,514 | 4,602 | 8,978 | 32 |
+| HQC-5 | 5 | 7,237 | 7,333 | 14,421 | 32 |
+
+- **Security foundation:** Syndrome decoding of quasi-cyclic Hamming codes — the same family of hard problems as BIKE and Classic McEliece, and unrelated to every lattice assumption above
+- **Specification:** the 2025-08-22 revision. NIST picked HQC in March 2025 as the backup KEM it intends to standardise beside ML-KEM; the standard itself is not published yet. These parameter sets are NOT interchangeable with the older `HQC-128/192/256` names, which came from a superseded revision
+- **Error correction:** Reed-Solomon over GF(2^8) wrapped around a duplicated Reed-Muller RM(1,7) code, decoded with a fast Hadamard transform and an additive FFT root search
+- **GF(2) multiplication:** Karatsuba down to 16 words, then a masked schoolbook product, all in one flat scratch buffer so no recursion level allocates
+- **Sampling:** Key generation uses unbiased rejection sampling; encryption uses the fixed-cost sampler of [ePrint 2021/1631](https://eprint.iacr.org/2021/1631), because that one runs on attacker-influenced data
+- **Decaps:** Fujisaki-Okamoto transform with implicit rejection — a bad ciphertext yields a different but equally normal-looking secret rather than an error
+- **KAT validated:** All 300 published known-answer records (100 per parameter set) reproduce byte for byte; run `nimble test_hqc_kat_full`
+
 ### NTRU
 
 **Files:** `src/tyr/kems/ntru.nim`, `src/tyr/kems/ntru/`
@@ -216,7 +234,9 @@ NTRU 509      ~2.5  ms  │  PK: 699 B   CT: 699 B    Level 1
 SABER         ~0.15 ms  │  PK: 672 B   CT: 736 B    Level 1
 BIKE-L1       ~3.0  ms  │  PK: 1.5 KB  CT: 1.5 KB   Level 1
 Frodo-640     ~8.0  ms  │  PK: 9.4 KB  CT: 9.5 KB   Level 1
+HQC-1         ~9.8  ms  │  PK: 2.2 KB  CT: 4.3 KB   Level 1
 McEliece      ~40   ms  │  PK: ~0.5 MB CT: 224 B    Level 3 (keygen dominates)
+HQC-5         ~76   ms  │  PK: 7.1 KB  CT: 14 KB    Level 5
 ```
 
 ### Signatures (current local profile)
@@ -252,6 +272,7 @@ and malformed-input rejection can still change runtime.
 | Kyber / SABER / Frodo | reviewed | FO checks use masks; no newly identified secret-dependent branch in the reviewed KEM paths |
 | NTRU | reviewed with sampler caveat | The default is fixed-work sort sampling; do not re-enable the ISO rejection sampler for secret material |
 | BIKE | reviewed with decoder caveat | GF(2) multiplication no longer branches on secret bits; the decoder still needs dedicated timing measurement on each target |
+| HQC | reviewed with keygen-sampler caveat | Decoding, the FO check and the encryption sampler are mask-driven with fixed loop bounds; the key-generation sampler rejects biased draws and scans for repeats, so its running time varies with the draws — this matches the reference implementation and is confined to key generation |
 | McEliece / SPHINCS+ | reviewed | Masked helpers / deterministic hash-based paths; not formally verified |
 | **Dilithium signing** | **not constant-time** | Fiat-Shamir-with-aborts rejection count remains observable; do not use where signing timing is attacker-observable |
 | **Falcon signing/keygen** | **not constant-time** | Gaussian sampling is variable-time; default FPR code avoids native floating point, but this does not make the scheme CT |
@@ -267,6 +288,7 @@ NTRU 509        699 B
 SABER           672 B   (LightSaber)
 Kyber512        800 B
 BIKE-L1       1,540 B
+HQC-1         2,241 B
 NTRU 677        930 B
 Frodo-640     9,616 B
 McEliece      ~525 KB
@@ -283,6 +305,7 @@ SPHINCS+         32 + 17,088 = 17,120 B  │ smallest PK
 ## Research & Reference Documents
 
 - `docs/research/pq_non_ntru_saber/README.md` — Paper index for Kyber, Dilithium, Falcon, Frodo, BIKE, McEliece, SPHINCS+
+- `docs/research/pq_non_ntru_saber/papers/2021-1631_secure_sampling_constant_weight_words.pdf` — Sendrier, the fixed-cost constant-weight sampler HQC uses during encryption
 - `docs/research/ntru_saber/README.md` — Paper index for NTRU and SABER, optimization history, benchmark tables
 - `docs/benchmarks/` — Curated benchmark JSON snapshots (desktop + 3 phones)
 - `agents/PROGRESS.md` — Full implementation history: what was implemented, bugs found/fixed, performance changes

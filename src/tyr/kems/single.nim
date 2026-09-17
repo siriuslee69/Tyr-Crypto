@@ -31,6 +31,7 @@
 ##   bike                 BIKE              bikeTyrKeypair(bikeL1)
 ##   ntru                 NTRU              ntruTyrKeypair(...)
 ##   saber                SABER             saberTyrKeypair(...)
+##   hqc                  HQC               hqcTyrKeypair(hqc1)
 ##
 ## Why a build flag and not a call in your code
 ## --------------------------------------------
@@ -55,7 +56,8 @@ when tyrKem == "":
   import ./bike
   import ./ntru
   import ./saber
-  export kyber, mceliece, frodo, bike, ntru, saber
+  import ./hqc
+  export kyber, mceliece, frodo, bike, ntru, saber, hqc
 elif tyrKem == "kyber":
   import ./kyber
   export kyber
@@ -74,9 +76,12 @@ elif tyrKem == "ntru":
 elif tyrKem == "saber":
   import ./saber
   export saber
+elif tyrKem == "hqc":
+  import ./hqc
+  export hqc
 else:
   {.error: "unknown -d:tyrKem=" & tyrKem &
-    " (expected: kyber, mceliece, frodo, bike, ntru, saber, or omit the flag for all)".}
+    " (expected: kyber, mceliece, frodo, bike, ntru, saber, hqc, or omit the flag for all)".}
 
 proc keypairSingle*(f: static KemFamily, seed: seq[byte] = @[]): KemKeypair =
   ## f/seed: family named as a COMPILE-TIME value, plus optional fixed
@@ -121,3 +126,9 @@ proc keypairSingle*(f: static KemFamily, seed: seq[byte] = @[]): KemKeypair =
     else:
       var t = saberTyrKeypair(saber, seed)
       result = KemKeypair(family: kfSaber, public: t.publicKey, secret: t.secretKey)
+  elif f == kfHqc:
+    when not declared(hqcTyrKeypair):
+      {.error: "HQC is not in this build; use -d:tyrKem=hqc or omit the flag".}
+    else:
+      var t = hqcTyrKeypair(hqc1, seed)
+      result = KemKeypair(family: kfHqc, public: t.publicKey, secret: t.secretKey)

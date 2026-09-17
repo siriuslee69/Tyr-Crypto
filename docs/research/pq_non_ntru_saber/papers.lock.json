@@ -200,6 +200,19 @@
       "gitPolicy": "tracked"
     },
     {
+      "id": "iacr-eprint-2021-1631",
+      "title": "Secure Sampling of Constant-Weight Words - Application to BIKE",
+      "kind": "paper",
+      "localPath": "docs/research/pq_non_ntru_saber/papers/2021-1631_secure_sampling_constant_weight_words.pdf",
+      "sourceUrl": "https://eprint.iacr.org/2021/1631",
+      "pdfUrl": "https://eprint.iacr.org/2021/1631.pdf",
+      "sha256": "eca916ea43f2940e177d82e3cec303aee4d34caf88a6e22bc999fb24fdcafdca",
+      "bytes": 598513,
+      "licenseExpression": "CC-BY-4.0",
+      "licenseSource": "https://eprint.iacr.org/2021/1631",
+      "gitPolicy": "tracked"
+    },
+    {
       "id": "bike-spec-2024-10-10-v5-2",
       "title": "BIKE specification v5.2",
       "kind": "spec",
@@ -260,6 +273,19 @@
       "pdfUrl": "https://classic.mceliece.org/mceliece-impl-20221023.pdf",
       "sha256": "86225992a73a2dc986b2ef5edfcfa3e28d49684fffd8be281237e1e5af2757a3",
       "bytes": 279687,
+      "licenseExpression": "NOASSERTION",
+      "licenseSource": "No explicit redistribution license found in the local PDF text during review.",
+      "gitPolicy": "ignored-local-cache"
+    },
+    {
+      "id": "hqc-specifications-2025-08-22",
+      "title": "HQC specification 2025-08-22",
+      "kind": "spec",
+      "localPath": "docs/research/pq_non_ntru_saber/papers/hqc_specifications_2025_08_22.pdf",
+      "sourceUrl": "https://pqc-hqc.org/doc/hqc_specifications_2025_08_22.pdf",
+      "pdfUrl": "https://pqc-hqc.org/doc/hqc_specifications_2025_08_22.pdf",
+      "sha256": "174186cb5fdc0108aad914391360c222f52ea533bfb406146fac124b3a25406d",
+      "bytes": 876126,
       "licenseExpression": "NOASSERTION",
       "licenseSource": "No explicit redistribution license found in the local PDF text during review.",
       "gitPolicy": "ignored-local-cache"

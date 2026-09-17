@@ -41,6 +41,7 @@ benchmarks use liboqs rather than compiling this Falcon reference submodule.
 | Kyber/Dilithium | Faster AVX2 optimized NTT implementations | [2018-0039_vectorized_ntt_implementations.pdf](papers/2018-0039_vectorized_ntt_implementations.pdf) | https://eprint.iacr.org/2018/039 |
 | Falcon | Falcon Gaussian sampling and precision analysis | [2019-0267_falcon_gaussian_sampling_precision.pdf](papers/2019-0267_falcon_gaussian_sampling_precision.pdf) | https://eprint.iacr.org/2019/267 |
 | BIKE | BIKE constant-time decoder work | [2020-0117_bike_constant_time_decoder.pdf](papers/2020-0117_bike_constant_time_decoder.pdf) | https://eprint.iacr.org/2020/117 |
+| HQC / BIKE | Secure Sampling of Constant-Weight Words (Algorithm 5, the HQC encryption sampler) | [2021-1631_secure_sampling_constant_weight_words.pdf](papers/2021-1631_secure_sampling_constant_weight_words.pdf) | https://eprint.iacr.org/2021/1631 |
 | Kyber/Dilithium/SABER | Neon NTT: Faster Dilithium, Kyber, and Saber | [2021-0986_neon_ntt_dilithium_kyber_saber.pdf](papers/2021-0986_neon_ntt_dilithium_kyber_saber.pdf) | https://eprint.iacr.org/2021/986 |
 | Kyber/Dilithium | Speed and memory optimizations on Cortex-M4 | [2022-0112_kyber_dilithium_speed_memory_cortex_m4.pdf](papers/2022-0112_kyber_dilithium_speed_memory_cortex_m4.pdf) | https://eprint.iacr.org/2022/112 |
 | SPHINCS+ | Optimization for SPHINCS+ using Intel SHA extensions | [2022-1726_sphincs_sha_extensions.pdf](papers/2022-1726_sphincs_sha_extensions.pdf) | https://eprint.iacr.org/2022/1726 |
@@ -56,6 +57,7 @@ benchmarks use liboqs rather than compiling this Falcon reference submodule.
 | Falcon | Falcon specification | cache only, ignored | https://falcon-sign.info/falcon.pdf |
 | Classic McEliece | Classic McEliece specification | cache only, ignored | https://classic.mceliece.org/mceliece-spec-20221023.pdf |
 | Classic McEliece | Classic McEliece implementation guide | cache only, ignored | https://classic.mceliece.org/mceliece-impl-20221023.pdf |
+| HQC | HQC specification 2025-08-22 | cache only, ignored | https://pqc-hqc.org/doc/hqc_specifications_2025_08_22.pdf |
 
 ### Applied Mapping
 

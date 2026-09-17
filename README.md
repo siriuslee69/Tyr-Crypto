@@ -83,6 +83,7 @@ Curated benchmark snapshots currently focus on the asymmetric and key-agreement 
 | **KEM** | CRYSTALS-Kyber round 3 (512/768/1024; not FIPS 203 ML-KEM) | SSE2/NEON four-pair and AVX2 eight-pair polynomial accumulation; coefficient helpers | Fastest PQ KEM family in the current curated snapshots; sub-ms on desktop and the measured phones |
 | **KEM** | FrodoKEM (640/976/1344, AES + SHAKE) | Streamed matrix generation; SSE2/NEON 128-bit and AVX2 256-bit matrix products; optional Tyr-native AES-NI | Conservative, high-bandwidth path; AES-NI makes AES variants substantially faster, while streamed SHAKE avoids the full matrix allocation |
 | **KEM** | BIKE-L1 | SSE2/NEON 128-bit decoder word helpers; multiplication remains scalar/Karatsuba | Tens-of-ms KEM in the current snapshots |
+| **KEM** | HQC (HQC-1/3/5, 2025-08-22 specification) | None yet; multiplication is scalar Karatsuba and both decoders are scalar | Tens-of-ms KEM. Code-based like BIKE and McEliece, so it shares none of the lattice assumptions; keys stay small but ciphertexts are roughly three times the key |
 | **KEM** | NTRU (HPS-509/677/821, HRSS-701) | AVX2 16-lane and SSE2/NEON 8-lane cyclic multiplication selected automatically; scalar builds retain Toom-4 + K2 | Mid-latency KEM; current local AVX2 A/B is about 8-13% faster than K2 and needs refreshed cross-device snapshots |
 | **KEM** | SABER (LightSaber/Saber/FireSaber) | AVX2 16-lane and NEON 8-lane schoolbook multiplication; SSE2 reduction-only path | Same low-latency class as Kyber in the curated snapshots; current SIMD core needs refreshed cross-device snapshots |
 | **KEM** | Classic McEliece (6688128f/6960119f/8192128f) | AVX2 matrix fill, AVX2/SSE2/NEON masked keygen row XOR, and 8-lane AVX2 or 4-lane SSE2/NEON decoder root evaluation | Slowest measured KEM here; key generation dominates, but ciphertexts stay very small |
@@ -115,6 +116,7 @@ These numbers are not protocol guarantees. They are README-level guidance taken 
 | NTRU | historical snapshot: about `2.34-4.57 ms` | historical snapshot: about `6.54-20.85 ms` | Predates automatic AVX2/SSE2/NEON cyclic multiplication; local AVX2 A/B improved 8-13% over K2 |
 | FrodoKEM | current local native-fast: about `0.98-3.16 ms` AES and `5.01-19.50 ms` SHAKE | historical snapshots: about `21-133 ms` | AES requires AES-NI plus the C AES target flag; normal capable native builds now select both automatically; same-source A/B shows SHAKE row streaming about 18-23% faster |
 | BIKE-L1 | about `65 ms` | about `50-74 ms` | Decoder-heavy, sits in the tens-of-ms range in current snapshots |
+| HQC | local release run: about `9.8 ms` (HQC-1), `29 ms` (HQC-3), `76 ms` (HQC-5) | not yet measured | Scalar only so far; decapsulation costs about twice encapsulation because it re-encrypts to check |
 | Classic McEliece | about `186-214 ms` | about `495-892 ms` | Key generation dominates total runtime |
 
 ### Signatures
@@ -202,7 +204,8 @@ protocol purpose and put the public session/stage identifier in `context`.
 | [docs/TESTS.md](docs/TESTS.md) | Test groups, commands, Android harness, build defines |
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Benchmark entry points, measurement flow, interpretation |
 | [docs/NUGIMLI_CASCADE_VECTORS.md](docs/NUGIMLI_CASCADE_VECTORS.md) | Cascade format, input recipe, complete vector source, and 512-bit human-readable vector |
-| [docs/research/pq_non_ntru_saber/README.md](docs/research/pq_non_ntru_saber/README.md) | Papers: Kyber, Dilithium, Falcon, Frodo, BIKE, McEliece, SPHINCS+ |
+| [docs/HQC.md](docs/HQC.md) | HQC byte layouts, the two stacked codes, the module map, and the known-answer procedure |
+| [docs/research/pq_non_ntru_saber/README.md](docs/research/pq_non_ntru_saber/README.md) | Papers: Kyber, Dilithium, Falcon, Frodo, BIKE, HQC, McEliece, SPHINCS+ |
 | [docs/research/ntru_saber/README.md](docs/research/ntru_saber/README.md) | Papers: NTRU, SABER — includes full optimization history with benchmark tables |
 | [agents/PROGRESS.md](agents/PROGRESS.md) | Full implementation history: bugs found/fixed, performance changes, decisions |
 | [docs/benchmarks/](docs/benchmarks/) | Curated benchmark JSON snapshots (desktop + 3 phones) |
@@ -218,7 +221,7 @@ protocol purpose and put the public session/stage identifier in `context`.
 | Backend | Algorithms | Define |
 |---------|-----------|--------|
 | **libsodium** | X25519, Ed25519, AEAD helpers | `-d:hasLibsodium` |
-| **liboqs** | Kyber, Frodo, NTRU, BIKE, Dilithium, Falcon, SPHINCS+, McEliece | `-d:hasLibOqs` |
+| **liboqs** | Kyber, Frodo, NTRU, BIKE, Dilithium, Falcon, SPHINCS+, McEliece | `-d:hasLibOqs` (HQC is pure-Nim only; its vectors are checked against the pinned liboqs corpus, not its runtime) |
 | **OpenSSL** | Ed448, RSA/ECDSA verify, X.509 checks, optional Frodo public AES matrix generation | `-d:hasOpenSSL3` |
 | **nimcrypto** | AES-GCM | (import-time) |
 

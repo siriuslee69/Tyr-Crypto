@@ -98,6 +98,7 @@ docs/research/pq_non_ntru_saber/papers/*.pdf
 !docs/research/pq_non_ntru_saber/papers/2019-0267_falcon_gaussian_sampling_precision.pdf
 !docs/research/pq_non_ntru_saber/papers/2020-0117_bike_constant_time_decoder.pdf
 !docs/research/pq_non_ntru_saber/papers/2021-0986_neon_ntt_dilithium_kyber_saber.pdf
+!docs/research/pq_non_ntru_saber/papers/2021-1631_secure_sampling_constant_weight_words.pdf
 !docs/research/pq_non_ntru_saber/papers/2022-0112_kyber_dilithium_speed_memory_cortex_m4.pdf
 !docs/research/pq_non_ntru_saber/papers/2022-1726_sphincs_sha_extensions.pdf
 !docs/research/pq_non_ntru_saber/papers/2023-0636_multi_armed_sphincs.pdf

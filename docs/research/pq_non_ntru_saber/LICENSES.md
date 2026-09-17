@@ -26,6 +26,7 @@ and linking to Creative Commons Attribution 4.0:
 - `2019-0267_falcon_gaussian_sampling_precision.pdf`
 - `2020-0117_bike_constant_time_decoder.pdf`
 - `2021-0986_neon_ntt_dilithium_kyber_saber.pdf`
+- `2021-1631_secure_sampling_constant_weight_words.pdf`
 - `2022-0112_kyber_dilithium_speed_memory_cortex_m4.pdf`
 - `2022-1726_sphincs_sha_extensions.pdf`
 - `2023-0636_multi_armed_sphincs.pdf`
@@ -49,6 +50,7 @@ from the git index and ignored:
 - `papers/falcon_spec.pdf`
 - `papers/classic_mceliece_spec_2022_10_23.pdf`
 - `papers/classic_mceliece_implementation_guide_2022_10_23.pdf`
+- `papers/hqc_specifications_2025_08_22.pdf`
 
 These files are still reproducible from `papers.lock.json` and
 `download_papers.nim`.

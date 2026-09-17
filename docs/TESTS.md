@@ -14,6 +14,7 @@
 | x25519               | pure-Nim X25519 passes and SIMD batches               |
 | kyber/frodo/bike     | PQ KEM roundtrips and KAT coverage                    |
 | ntru/saber           | PQ KEM KAT and multiplier variant coverage            |
+| hqc                  | HQC roundtrips, coding-layer units, and KAT coverage  |
 | dilithium/falcon     | PQ signature roundtrips, KATs, and variant splits     |
 | sphincs/mceliece     | PQ signature/KEM roundtrips and KAT checks            |
 +----------------------+------------------------------------------------------+

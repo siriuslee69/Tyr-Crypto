@@ -24,7 +24,7 @@ src/
   tyr.nim                        Everything, one name per operation
   tyr/
     kems.nim  kems/              Key agreement
-      kyber/ mceliece/ frodo/ bike/ ntru/ saber/ x25519/
+      kyber/ mceliece/ frodo/ bike/ hqc/ ntru/ saber/ x25519/
     signatures.nim  signatures/  Proving authorship
       dilithium/ falcon/ sphincs/ ed25519/ ecdsa_p256/
     hashes.nim  hashes/          Fingerprints
@@ -240,6 +240,7 @@ that binding is what the `v3` in the frame's domain string marks.
 | x25519            | kems/x25519/                                |
 | kyber/frodo/bike  | kems/{kyber,frodo,bike}/                    |
 | ntru/saber        | kems/{ntru,saber}/                          |
+| hqc               | kems/hqc/                                   |
 | dilithium/falcon  | signatures/{dilithium,falcon}/              |
 | sphincs/mceliece  | signatures/sphincs/, kems/mceliece/         |
 | cipher_runtime    | ciphers/dynamic.nim                         |

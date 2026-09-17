@@ -46,11 +46,12 @@ import ./kems/frodo
 import ./kems/bike
 import ./kems/ntru
 import ./kems/saber
+import ./kems/hqc
 import ./kems/x25519
 import ./kems/material
 
 export types
-export kyber, mceliece, frodo, bike, ntru, saber
+export kyber, mceliece, frodo, bike, ntru, saber, hqc
 export x25519
 export material
 
@@ -85,6 +86,11 @@ proc keypair*(v: SaberVariant, seed: seq[byte] = @[]): KemKeypair {.role: {orche
   ## v/seed: variant, and optional fixed randomness for reproducible tests.
   var t = saberTyrKeypair(v, seed)
   result = KemKeypair(family: kfSaber, public: t.publicKey, secret: t.secretKey)
+
+proc keypair*(v: HqcVariant, seed: seq[byte] = @[]): KemKeypair {.role: {orchestrator}.} =
+  ## v/seed: variant, and optional 32 bytes of fixed randomness for tests.
+  var t = hqcTyrKeypair(v, seed)
+  result = KemKeypair(family: kfHqc, public: t.publicKey, secret: t.secretKey)
 
 ## ╭⟢ encapsulate
 
@@ -130,6 +136,14 @@ proc encaps*(v: SaberVariant, pk: openArray[byte], seed: seq[byte] = @[]): KemCi
   var t = saberTyrEncaps(v, pk, seed)
   result = KemCiphertext(family: kfSaber, ciphertext: t.ciphertext, shared: t.sharedSecret)
 
+proc encaps*(v: HqcVariant, pk: openArray[byte], seed: seq[byte] = @[]): KemCiphertext
+    {.role: {encryptor}.} =
+  ## v/pk/seed: variant, the recipient's public key, optional fixed randomness.
+  ## HQC wants `messageBytes + 16` bytes here, not 32: the message first,
+  ## then the salt.
+  var t = hqcTyrEncaps(v, pk, seed)
+  result = KemCiphertext(family: kfHqc, ciphertext: t.ciphertext, shared: t.sharedSecret)
+
 ## ╭⟢ decapsulate
 
 proc decaps*(v: KyberVariant, sk, ct: openArray[byte]): seq[byte] {.role: {decryptor}.} =
@@ -155,3 +169,7 @@ proc decaps*(v: NtruVariant, sk, ct: openArray[byte]): seq[byte] {.role: {decryp
 proc decaps*(v: SaberVariant, sk, ct: openArray[byte]): seq[byte] {.role: {decryptor}.} =
   ## v/sk/ct: variant, your secret key, the ciphertext you received.
   result = saberTyrDecaps(v, sk, ct)
+
+proc decaps*(v: HqcVariant, sk, ct: openArray[byte]): seq[byte] {.role: {decryptor}.} =
+  ## v/sk/ct: variant, your secret key, the ciphertext you received.
+  result = hqcTyrDecaps(v, sk, ct)

@@ -8,6 +8,7 @@
 | [kem_frodo.nim](kem_frodo.nim) | FrodoKEM-976-AES keypair / encaps / decaps |
 | [kem_bike.nim](kem_bike.nim) | BIKE-L1 KEM keypair / encaps / decaps |
 | [kem_ntru.nim](kem_ntru.nim) | NTRU-HPS-2048-509 KEM |
+| [kem_hqc.nim](kem_hqc.nim) | HQC KEM keypair / encaps / decaps, plus implicit rejection |
 | [signing_dilithium.nim](signing_dilithium.nim) | ML-DSA sign / verify |
 | [signing_falcon.nim](signing_falcon.nim) | Falcon sign / verify |
 | [signing_sphincs.nim](signing_sphincs.nim) | SPHINCS+ sign / verify |
