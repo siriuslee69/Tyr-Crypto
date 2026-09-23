@@ -1,4 +1,4 @@
-Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
+Commit Message: Add -d:saberMaxRank: size Saber buffers for LightSaber on tiny devices
 
 Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
 

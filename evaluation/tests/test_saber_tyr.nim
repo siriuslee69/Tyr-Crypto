@@ -123,8 +123,21 @@ template runSaberKatCase(variant: untyped, backend: untyped) =
 suite "saber tyr":
   test "clean SABER roundtrips for all variants":
     runSaberRoundtripCase(custom_saber.lightSaber, 23, 73)
-    runSaberRoundtripCase(custom_saber.saber, 29, 79)
-    runSaberRoundtripCase(custom_saber.fireSaber, 31, 83)
+    when custom_saber.saberMaxRank >= 3:
+      runSaberRoundtripCase(custom_saber.saber, 29, 79)
+    when custom_saber.saberMaxRank >= 4:
+      runSaberRoundtripCase(custom_saber.fireSaber, 31, 83)
+
+  # {.testKind: tkEdgeCase, covers: "requireSaberRank".}
+  test "a rank above -d:saberMaxRank is refused before any array is touched":
+    ## Bound checks are off inside the SABER core, so this refusal is the
+    ## only thing between a too-large parameter set and a buffer overrun.
+    check custom_saber.saberVariantBuilt(custom_saber.lightSaber)
+    check custom_saber.saberVariantBuilt(custom_saber.fireSaber) ==
+      (custom_saber.saberMaxRank >= 4)
+    when custom_saber.saberMaxRank < 4:
+      expect ValueError:
+        discard custom_saber.saberTyrKeypair(custom_saber.fireSaber)
 
   test "invalid SABER ciphertext uses deterministic implicit rejection":
     var
@@ -214,11 +227,15 @@ suite "saber tyr":
   else:
     test "clean SABER matches official reference KAT vectors":
       runSaberKatCase(custom_saber.lightSaber, custom_saber.saberClean)
-      runSaberKatCase(custom_saber.saber, custom_saber.saberClean)
-      runSaberKatCase(custom_saber.fireSaber, custom_saber.saberClean)
+      when custom_saber.saberMaxRank >= 3:
+        runSaberKatCase(custom_saber.saber, custom_saber.saberClean)
+      when custom_saber.saberMaxRank >= 4:
+        runSaberKatCase(custom_saber.fireSaber, custom_saber.saberClean)
 
   when defined(avx2):
     test "AVX2 multiplication core matches official reference KAT vectors":
       runSaberKatCase(custom_saber.lightSaber, custom_saber.saberAvx2)
-      runSaberKatCase(custom_saber.saber, custom_saber.saberAvx2)
-      runSaberKatCase(custom_saber.fireSaber, custom_saber.saberAvx2)
+      when custom_saber.saberMaxRank >= 3:
+        runSaberKatCase(custom_saber.saber, custom_saber.saberAvx2)
+      when custom_saber.saberMaxRank >= 4:
+        runSaberKatCase(custom_saber.fireSaber, custom_saber.saberAvx2)

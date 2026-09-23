@@ -101,6 +101,27 @@ const
     )
   ]
 
+const
+  saberMaxRank* {.intdefine.}: int = 4
+    ## Largest rank L this build can run: 2 = LightSaber only, 3 = up to
+    ## Saber, 4 = all three (default). Every matrix and vector is sized by it,
+    ## so on a small device `-d:saberMaxRank=2` saves about 14 KB of stack.
+
+when saberMaxRank < 2 or saberMaxRank > 4:
+  {.error: "-d:saberMaxRank must be 2, 3 or 4".}
+
+proc saberVariantBuilt*(v: SaberVariant): bool {.inline.} =
+  ## v: parameter set. True when this build's buffers are large enough for it.
+  result = saberParamsTable[v].l <= saberMaxRank
+
+proc requireSaberRank*(p: SaberParams) {.inline.} =
+  ## p: parameter set about to run. The arithmetic runs with bound checks
+  ## off, so a rank above `saberMaxRank` must be refused here, before any
+  ## array is touched.
+  if p.l > saberMaxRank:
+    raise newException(ValueError, "SABER " & p.katName & " needs rank " &
+      $p.l & " but this build has -d:saberMaxRank=" & $saberMaxRank)
+
 ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; parameter-set tables for `params`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc params*(v: SaberVariant): SaberParams {.inline.} =
   ## Return the fixed layout for one SABER parameter set.

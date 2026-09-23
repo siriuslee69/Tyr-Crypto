@@ -24,8 +24,15 @@ type
     coeffs*: array[saberN, uint16]
 
   ## SABER uses at most L=4; parameter sets select the active prefix.
-  SaberPolyVec* = array[4, SaberPoly]
-  SaberMatrix* = array[4, SaberPolyVec]
+  ## `-d:saberMaxRank=2` shrinks both to what LightSaber needs:
+  ##
+  ##   saberMaxRank   allows                     SaberMatrix   SaberPolyVec
+  ##   ------------   ------------------------   -----------   ------------
+  ##   4 (default)    LightSaber, Saber, Fire    8192 bytes    2048 bytes
+  ##   3              LightSaber, Saber          4608 bytes    1536 bytes
+  ##   2              LightSaber                 2048 bytes    1024 bytes
+  SaberPolyVec* = array[saberMaxRank, SaberPoly]
+  SaberMatrix* = array[saberMaxRank, SaberPolyVec]
 
 ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `u16Add`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc u16Add(a, b: uint16): uint16 {.inline.} =
@@ -1256,7 +1263,7 @@ proc matrixVectorMul(c: var SaberPolyVec, p: SaberParams, A: SaberMatrix,
     s: SaberPolyVec, transpose: bool) {.otterBench.} =
   when defined(saberMulToom4Cached):
     var
-      E: array[4, SaberToom4ModEval] = default(array[4, SaberToom4ModEval])
+      E: array[saberMaxRank, SaberToom4ModEval] = default(array[saberMaxRank, SaberToom4ModEval])
   var
     i: int = 0
     j: int = 0
@@ -1305,7 +1312,7 @@ proc matrixVectorMul(c: var SaberPolyVec, p: SaberParams, A: SaberMatrix,
 proc innerProd(c: var SaberPoly, p: SaberParams, b, s: SaberPolyVec) {.otterBench.} =
   when defined(saberMulToom4Cached):
     var
-      E: array[4, SaberToom4ModEval] = default(array[4, SaberToom4ModEval])
+      E: array[saberMaxRank, SaberToom4ModEval] = default(array[saberMaxRank, SaberToom4ModEval])
   var
     i: int = 1
   when defined(saberMulToom4Cached):
@@ -1330,7 +1337,7 @@ proc innerProd(c: var SaberPoly, p: SaberParams, b, s: SaberPolyVec) {.otterBenc
 
 when not defined(saberHeapBuffers):
   const
-    saberMaxMatrixBytes = 4 * 4 * saberPolyBytes
+    saberMaxMatrixBytes = saberMaxRank * saberMaxRank * saberPolyBytes
     saberMaxSecretBytes = 3 * saberN
 
 ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `genMatrix`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
@@ -1511,6 +1518,7 @@ proc saberKemKeypairInto*(pk, sk: var openArray[byte], p: SaberParams,
   var
     pkHash: array[saberHashBytes, byte] = default(array[saberHashBytes, byte])
     fallback: seq[byte] = @[]
+  requireSaberRank(p)
   indcpaKeypair(pk, sk.toOpenArray(0, p.indcpaSecretKeyBytes - 1), p, R)
   copyBytes(sk, p.indcpaSecretKeyBytes, pk)
   sha3_256Into(pkHash, pk.toOpenArray(0, p.indcpaPublicKeyBytes - 1))
@@ -1528,6 +1536,7 @@ proc saberKemEncInto*(ciphertext, sharedSecret: var openArray[byte],
     kr: array[64, byte] = default(array[64, byte])
     buf: array[64, byte] = default(array[64, byte])
     entropy: seq[byte] = @[]
+  requireSaberRank(p)
   entropy = pqRandomBytes(R, saberKeyBytes)
   copyBytes(buf, 0, entropy)
   sha3_256Into(buf.toOpenArray(0, 31), buf.toOpenArray(0, 31))
@@ -1550,6 +1559,7 @@ proc saberKemDecInto*(sharedSecret: var openArray[byte], sk, ciphertext: openArr
     buf: array[64, byte] = default(array[64, byte])
     kr: array[64, byte] = default(array[64, byte])
     pkOff: int = 0
+  requireSaberRank(p)
   cmp = newSeq[byte](p.ciphertextBytes)
   pkOff = p.indcpaSecretKeyBytes
   indcpaDec(buf.toOpenArray(0, 31), sk.toOpenArray(0, p.indcpaSecretKeyBytes - 1),
