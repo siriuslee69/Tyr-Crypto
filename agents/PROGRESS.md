@@ -1,3 +1,5 @@
+Commit Message: Check every Kyber, Frodo and BIKE variant against the published hashes without liboqs
+
 Commit Message: Wipe HQC encryption error positions and the rebuilt ciphertext
 
 Commit Message: Wipe every secret intermediate in Frodo key generation, encapsulation and decapsulation
