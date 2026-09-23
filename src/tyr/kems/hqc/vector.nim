@@ -146,6 +146,7 @@ proc generateRandomSupportEnc(S: var openArray[uint32], X: var HqcXof,
     S[i] = (mask and uint32(i)) xor ((not mask) and S[i])
     i = i - 1
   hqcWipeBytes(randBytes)
+  hqcWipeU32(randU32)
 
 ## Reference: [HQC-20250822] support-to-vector conversion; branch-free bit placement for `writeSupportToVector`; pitfall: the destination is ORed into, so it must start out zero.
 proc writeSupportToVector(V: var HqcVec, S: openArray[uint32], weight: int,
@@ -177,6 +178,7 @@ proc writeSupportToVector(V: var HqcVec, S: openArray[uint32], weight: int,
     V[i] = V[i] or val
     i = i + 1
   hqcWipeWords(bitTab)
+  hqcWipeU32(indexTab)
 
 ## Reference: [HQC-20250822] fixed-weight sampling for key generation; unbiased sampler for `sampleFixedWeightKey`; pitfall: only key generation may use this sampler.
 proc sampleFixedWeightKey*(V: var HqcVec, X: var HqcXof, weight: int,
@@ -196,10 +198,13 @@ proc sampleFixedWeightEnc*(V: var HqcVec, X: var HqcXof, weight: int,
   ## V/X/weight/p: the bit string to fill, the random stream, how many
   ## 1-bits are wanted, and the parameter set.
   ## Build a bit string with exactly `weight` bits set, at fixed cost.
+  ## The positions are r1, r2 or e of one encryption; anyone holding them
+  ## can strip the noise and read the message, so they are wiped too.
   var
     support = default(array[hqcMaxOmegaR, uint32])
   generateRandomSupportEnc(support, X, weight, p)
   writeSupportToVector(V, support, weight, p)
+  hqcWipeU32(support)
 
 ## Reference: [HQC-20250822] uniform vector generation; public-key expansion for `vecSetRandom`; pitfall: the bits above n must be cleared, or the public key stops round-tripping.
 proc vecSetRandom*(V: var HqcVec, X: var HqcXof, p: HqcParams)

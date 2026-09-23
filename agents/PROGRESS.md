@@ -1,3 +1,5 @@
+Commit Message: Wipe HQC encryption error positions and the rebuilt ciphertext
+
 Commit Message: Wipe every secret intermediate in Frodo key generation, encapsulation and decapsulation
 
 Commit Message: Refuse McEliece-6960119f keys and ciphertexts with padding bits set

@@ -252,6 +252,12 @@ proc hqcTyrTryDecapsInternal(v: HqcVariant, sk, ct: openArray[byte]):
       (kBar[i] and (not keepMask))
     i = i + 1
   result.ok = mismatch == 0'u8
+  ## The rebuilt ciphertext comes from m'; for a forged ciphertext it is
+  ## not public, so it goes with the rest.
+  hqcWipeWords(cPrime.u)
+  hqcWipeWords(cPrime.v)
+  hqcWipeBytes(uBytes)
+  hqcWipeBytes(vBytes)
   hqcWipeBytes(mPrime)
   hqcWipeBytes(kTheta)
   hqcWipeBytes(kBar)
