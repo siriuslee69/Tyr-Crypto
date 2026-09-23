@@ -2,7 +2,24 @@
 
 let
   cfg = config.programs.tyr-crypto;
+  project = (builtins.fromTOML (builtins.readFile ../configs/default.toml)).project;
   tomlFormat = pkgs.formats.toml { };
+
+  ## Presets: configs/<name>.toml. Tyr compiles nothing on its own, so the
+  ## chosen preset becomes the consumer profile: the build switches a
+  ## service that uses Tyr should compile with. default.toml first, the
+  ## named preset over it, `settings` over both.
+  presetNames = map (lib.removeSuffix ".toml")
+    (builtins.filter (lib.hasSuffix ".toml")
+      (builtins.attrNames (builtins.readDir ../configs)));
+
+  presetTable = name: builtins.removeAttrs
+    (builtins.fromTOML (builtins.readFile (../configs + "/${name}.toml")))
+    [ "project" "preset" ];
+
+  effectiveGlobalSettings = lib.recursiveUpdate
+    (lib.recursiveUpdate (presetTable "default") (presetTable cfg.preset))
+    cfg.settings;
 
   hasSettings = settings: settings != { };
 
@@ -13,7 +30,7 @@ let
     if profileCfg.mode == "replace" then
       profileCfg.settings
     else
-      lib.recursiveUpdate cfg.settings profileCfg.settings;
+      lib.recursiveUpdate effectiveGlobalSettings profileCfg.settings;
 
   mkProfileOptions = with lib; { name, ... }: {
     options = {
@@ -51,7 +68,14 @@ let
 in
 {
   options.programs.tyr-crypto = with lib; {
-    enable = mkEnableOption "Tyr-Crypto source package and declarative consumer profiles";
+    enable = mkEnableOption "${project.name} ${project.version}: ${project.description}";
+
+    preset = mkOption {
+      type = types.enum presetNames;
+      default = "default";
+      example = "iot";
+      description = "Build preset from configs/, written out as the consumer profile.";
+    };
 
     package = mkOption {
       type = types.package;
@@ -115,10 +139,11 @@ in
     environment.systemPackages = lib.mkIf cfg.installPackage [ cfg.package ];
 
     environment.etc =
-      (lib.optionalAttrs (cfg.configFile != null || hasSettings cfg.settings) {
+      {
         "${cfg.target}".source =
-          if cfg.configFile != null then cfg.configFile else generatedToml "global" cfg.settings;
-      })
+          if cfg.configFile != null then cfg.configFile
+          else generatedToml "global" effectiveGlobalSettings;
+      }
       //
       (lib.mapAttrs'
         (name: profileCfg:

@@ -1,0 +1,94 @@
+# ---------------------------------------------------------------------------
+# default <- every Tyr build switch, at the value a plain build uses
+# ---------------------------------------------------------------------------
+#
+# Applied to EVERY build started in Tyr that names no other preset:
+#
+#   nim c app.nim                    this file
+#   nim c -d:preset=iot app.nim      this file, then configs/iot.toml over it
+#   nim c -d:preset=iot -d:tyrSimd=avx2 app.nim   the command line wins
+#
+# Repositories that USE Tyr (Bifrost) have their own configs/ and pass the
+# Tyr switches below through them. Reader: Nimble-Tasks/src/preset.nims.
+#
+#   section    becomes              "" / false means
+#   ---------  -------------------  -----------------------------------
+#   [nim]      --key:value          (line left out: compiler default)
+#   [define]   -d:key=value         not set -> the built-in default
+#   [passC]    --passC:<each flag>
+#   [passL]    --passL:<each flag>
+
+[project]
+# Who this repository is. Read by tyr.nimble (projectValue) and by
+# nix/package.nix + nix/module.nix (builtins.fromTOML). Only default.toml
+# carries it: a preset changes how a build is made, not which project it is.
+name = "tyr-crypto"
+version = "0.1.0"
+description = "Bindings for classical and post-quantum cryptographic primitives."
+license = "Unlicense"
+author = "siriuslee69"
+
+[preset]
+name = "default"
+description = "Every family, vector code for the building machine (native)."
+
+[nim]
+# Left out on purpose: config.nims already defaults to opt = "speed".
+# opt = "speed"          # none | speed | size
+# mm = "orc"             # orc | arc | refc
+# panics = false
+# threads = true
+
+[define]
+# -- vector code (tyr_simd.nims)
+tyrSimd = "native"       # scalar native sse2 avx2 aesni neon (a,b combine)
+tyrExplicitCapabilities = false  # true: default becomes scalar; pass -d:avx2 ... yourself
+# -- one family per kind, for `tyr/<kind>/single` imports. "" = all.
+#    A family brings every parameter set it has; pick the set in code.
+#
+#    tyrKem     parameter sets (Tyr names)
+#    ---------  --------------------------------------------------------
+#    kyber      kyber512 kyber768 kyber1024          (round 3)
+#    saber      lightSaber saber fireSaber           (see saberMaxRank)
+#    ntru       ntruHps2048509 ntruHps2048677 ntruHps4096821 ntruHrss701
+#    frodo      frodo640aes frodo640shake frodo976aes frodo976shake
+#               frodo1344aes frodo1344shake
+#    mceliece   mceliece6688128f mceliece6960119f mceliece8192128f
+#    bike       bikeL1
+#    hqc        hqc1 hqc3 hqc5
+tyrKem = ""
+#    tyrSig     parameter sets
+#    ---------  --------------------------------------------------------
+#    ed25519    ed25519
+#    dilithium  dilithium44 dilithium65 dilithium87   (ML-DSA levels 2/3/5)
+#    falcon     falcon512 falcon1024
+#    sphincs    sphincsShake128fSimple
+tyrSig = ""
+tyrCipher = ""           # chacha20 xchacha20 aesctr gimli
+tyrHash = ""             # blake3 sha256 sha512 sha3
+tyrMac = ""              # poly1305 hmac
+tyrKdf = ""              # argon2 blake3gimli custom
+# -- memory
+saberMaxRank = 4         # largest Saber rank the arrays hold:
+                         #   2 = lightSaber only, 3 = + saber, 4 = + fireSaber
+                         # (Bifrost sets this itself from bifrostKems)
+saberHeapBuffers = false # true: Saber scratch on the heap, not the stack
+frodoMaterializeShakeMatrix = false  # true: whole Frodo matrix in memory (faster, larger)
+# -- native libraries (bindings; each needs the library installed)
+hasLibsodium = false
+hasOpenSSL3 = false
+hasLibOqs = false
+hasNimcrypto = false
+# -- risky switches: read the code before turning one on
+unsafeFastAes = false    # table-based AES: fast, NOT constant-time
+falconUnsafeNativeFloatSimd = false
+tyrWasm = false          # WebAssembly / JS target
+# -- internal multiplication strategies (benchmarking only; leave off)
+# saberMulToom4Cached, saberMulNttScalar, saberMulRows, ntruMulToom4K2,
+# ntruMulRows, frodoShakeSaSingleRow, frodoAvx2SaStripeSse, mcelieceScalarRoot
+
+[passC]
+flags = []
+
+[passL]
+flags = []

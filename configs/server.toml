@@ -1,0 +1,16 @@
+# ---------------------------------------------------------------------------
+# server <- speed first: native vector code, AES-NI when the CPU has it
+# ---------------------------------------------------------------------------
+#
+#   nim c -d:preset=server app.nim
+
+[preset]
+name = "server"
+description = "Native SIMD, speed-optimised, threads on."
+
+[nim]
+opt = "speed"
+threads = true
+
+[define]
+tyrSimd = "native"

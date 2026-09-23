@@ -116,6 +116,19 @@ Detailed parameter tables, key sizes, CT notes, and speed ranking: [docs/ALGORIT
 Both switches work the same whether the build starts in Tyr or in a
 repository that uses Tyr (Bifrost includes `tyr_simd.nims` from here).
 
+Every switch is also written down, at its default, in `configs/default.toml`
+-- with the parameter sets each family has. Other files there are presets
+laid over it:
+
+```text
+nim c app.nim                    configs/default.toml (native SIMD, rank 4)
+nim c -d:preset=iot app.nim      + configs/iot.toml   (scalar, rank 2, size)
+nim c -d:preset=server app.nim   + configs/server.toml
+```
+
+The same files give nix its name, version and profile (`nix/package.nix`,
+`nix/module.nix`).
+
 ```text
 +---------------------+-----------------------------+------------------------+
 | flag                | values                      | default                |

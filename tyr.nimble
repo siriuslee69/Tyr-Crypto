@@ -2,10 +2,19 @@ import std/[os, strutils]
 
 # Package descriptor for the crypto bindings sub-project.
 
-version       = "0.1.0"
-author        = "siriuslee69"
-description   = "Bindings for classical and post-quantum cryptographic primitives."
-license       = "Unlicense"
+## Name, version, description, license and author live in ONE place:
+## [project] in configs/default.toml. nix/package.nix reads the same table.
+when fileExists(thisDir() & "/../Nimble-Tasks/src/preset.nims"):
+  include "../Nimble-Tasks/src/preset.nims"
+elif fileExists(thisDir() & "/submodules/Nimble-Tasks/src/preset.nims"):
+  include "submodules/Nimble-Tasks/src/preset.nims"
+else:
+  {.error: "Nimble-Tasks/src/preset.nims not found: update the Nimble-Tasks submodule".}
+
+version       = projectValue("version")
+author        = projectValue("author")
+description   = projectValue("description")
+license       = projectValue("license")
 srcDir        = "src"
 bin           = @[]
 requires "nim >= 1.6.0", "nimcrypto >= 0.6.0", "nimsimd >= 1.3.2", "webui >= 2.5.0"

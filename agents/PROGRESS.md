@@ -1,4 +1,4 @@
-Commit Message: Shared tyr_simd.nims: -d:tyrSimd selects SIMD for Tyr and every repo that builds it
+Commit Message: configs/ presets: every Tyr switch listed once; tyr.nimble and nix read them
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).

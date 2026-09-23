@@ -16,16 +16,31 @@ proc addPathIfExists(pathArg: string) =
 
 include "tyr_simd.nims"
 
+## Build presets: configs/default.toml always, plus configs/<name>.toml when
+## the build says -d:preset=<name>. The reader is shared by every repo.
+when fileExists(thisDir() & "/../Nimble-Tasks/src/preset.nims"):
+  include "../Nimble-Tasks/src/preset.nims"
+elif fileExists(thisDir() & "/submodules/Nimble-Tasks/src/preset.nims"):
+  include "submodules/Nimble-Tasks/src/preset.nims"
+else:
+  proc presetValue(section, key, fallback: string): string = fallback
+  proc applyPreset() = echo "config.nims: Nimble-Tasks/src/preset.nims " &
+    "not found; configs/*.toml are ignored. Update the submodule."
+
 proc applyTyrBuildDefaults() =
-  ## Tyr on its own defaults to `native`: its tests and benchmarks run on
-  ## the machine that builds them. -d:tyrExplicitCapabilities (or an Otter
-  ## UI target) means "I pass the capability defines myself" and makes the
-  ## default `scalar`. An explicit -d:tyrSimd= always wins; see tyr_simd.nims.
+  ## Tyr on its own defaults to `native` (configs/default.toml): its tests
+  ## and benchmarks run on the machine that builds them.
+  ## -d:tyrExplicitCapabilities (or an Otter UI target) means "I pass the
+  ## capability defines myself" and makes the default `scalar`. An explicit
+  ## -d:tyrSimd= always wins; see tyr_simd.nims.
   var
     fallback: string = "native"
   if tyrSimdOption("opt").len == 0:
     switch("opt", "speed")
+  applyPreset()
+  fallback = presetValue("define", "tyrSimd", fallback)
   if tyrSimdDefine(tyrCapabilityOverride).len > 0 or
+      presetValue("define", tyrCapabilityOverride, "false") == "true" or
       tyrSimdDefine("OtterUiTarget").len > 0:
     fallback = "scalar"
   applyTyrSimd(fallback)

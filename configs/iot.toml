@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# iot <- small devices: plain code, LightSaber-sized buffers, size-optimised
+# ---------------------------------------------------------------------------
+#
+#   nim c -d:preset=iot app.nim
+#
+# Bifrost's configs/iot.toml sets the same Tyr switches when Tyr is built
+# as part of Bifrost.
+
+[preset]
+name = "iot"
+description = "Scalar code, Saber sized for LightSaber, size-optimised."
+
+[nim]
+opt = "size"
+panics = true
+threads = false
+
+[define]
+tyrSimd = "scalar"
+saberMaxRank = 2
+danger = true
+useMalloc = true
+noSignalHandler = true
+
+[passC]
+flags = ["-flto", "-ffunction-sections", "-fdata-sections",
+         "-fno-asynchronous-unwind-tables", "-fno-unwind-tables"]
+
+[passL]
+flags = ["-flto", "-Wl,--gc-sections"]
