@@ -105,7 +105,7 @@ proc encaps*(v: McElieceVariant, pk: openArray[byte], seed: seq[byte] = @[]): Ke
   ## v/pk/seed: variant, the recipient's public key, optional fixed randomness.
   ## McEliece splits these into two entry points, so pick by whether a seed
   ## was supplied. An empty seed means "use system randomness".
-  var t: McElieceTyrCipher
+  var t: McElieceTyrCipher = default(McElieceTyrCipher)
   if seed.len == 0:
     t = mcelieceTyrEncaps(v, pk)
   else:

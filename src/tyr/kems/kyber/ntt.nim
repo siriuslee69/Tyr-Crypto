@@ -56,14 +56,14 @@ when defined(avx2):
       zetaUpperVec: navx.M256i = navx.mm256_set1_epi32(int32(zetaUpper))
       zetaLower0Vec: navx.M256i = navx.mm256_set1_epi32(int32(zetaLower0))
       zetaLower1Vec: navx.M256i = navx.mm256_set1_epi32(int32(zetaLower1))
-      upper0: navx.M256i
-      upper1: navx.M256i
-      lo0: navx.M256i
-      hi0: navx.M256i
-      lo1: navx.M256i
-      hi1: navx.M256i
-      lower0: navx.M256i
-      lower1: navx.M256i
+      upper0: navx.M256i = default(navx.M256i)
+      upper1: navx.M256i = default(navx.M256i)
+      lo0: navx.M256i = default(navx.M256i)
+      hi0: navx.M256i = default(navx.M256i)
+      lo1: navx.M256i = default(navx.M256i)
+      hi1: navx.M256i = default(navx.M256i)
+      lower0: navx.M256i = default(navx.M256i)
+      lower1: navx.M256i = default(navx.M256i)
     upper0 = montgomeryReduceVec8(navx2.mm256_mullo_epi32(cVec, zetaUpperVec))
     upper1 = montgomeryReduceVec8(navx2.mm256_mullo_epi32(dVec, zetaUpperVec))
     lo0 = navx2.mm256_add_epi32(aVec, upper0)
@@ -100,14 +100,14 @@ when defined(avx2):
       zetaLower0Vec: navx.M256i = navx.mm256_set1_epi32(int32(zetaLower0))
       zetaLower1Vec: navx.M256i = navx.mm256_set1_epi32(int32(zetaLower1))
       zetaUpperVec: navx.M256i = navx.mm256_set1_epi32(int32(zetaUpper))
-      lowerSum0: navx.M256i
-      lowerSum1: navx.M256i
-      lowerDiff0: navx.M256i
-      lowerDiff1: navx.M256i
-      upperSum0: navx.M256i
-      upperSum1: navx.M256i
-      upperDiff0: navx.M256i
-      upperDiff1: navx.M256i
+      lowerSum0: navx.M256i = default(navx.M256i)
+      lowerSum1: navx.M256i = default(navx.M256i)
+      lowerDiff0: navx.M256i = default(navx.M256i)
+      lowerDiff1: navx.M256i = default(navx.M256i)
+      upperSum0: navx.M256i = default(navx.M256i)
+      upperSum1: navx.M256i = default(navx.M256i)
+      upperDiff0: navx.M256i = default(navx.M256i)
+      upperDiff1: navx.M256i = default(navx.M256i)
     lowerSum0 = barrettReduceVec8(navx2.mm256_add_epi32(aVec, bVec))
     lowerSum1 = barrettReduceVec8(navx2.mm256_add_epi32(cVec, dVec))
     lowerDiff0 = navx2.mm256_sub_epi32(bVec, aVec)
@@ -135,11 +135,17 @@ proc ntt*(R: var array[kyberN, int16]) {.inline.} =
     k: int = 1
     t: int16 = 0
     zeta: int16 = 0
+    zeta64Lo: int16 = 0 ## AVX2 path: the two zetas of the fused 64/32 layers
+    zeta64Hi: int16 = 0
+    zeta16Lo: int16 = 0 ## AVX2 path: the two zetas of the fused 16/8 layers
+    zeta16Hi: int16 = 0
+    k32: int = 4
+    k16: int = 8
   len = 128
   when defined(avx2):
     zeta = zetas[1]
-    let zeta64Lo = zetas[2]
-    let zeta64Hi = zetas[3]
+    zeta64Lo = zetas[2]
+    zeta64Hi = zetas[3]
     j = 0
     while j < 64:
       nttButterflyInterleavedChunk8(
@@ -150,16 +156,13 @@ proc ntt*(R: var array[kyberN, int16]) {.inline.} =
         zeta, zeta64Lo, zeta64Hi)
       j = j + 8
 
-    var
-      k32: int = 4
-      k16: int = 8
     start = 0
     while start < kyberN:
       zeta = zetas[k32]
       k32 = k32 + 1
-      let zeta16Lo = zetas[k16]
+      zeta16Lo = zetas[k16]
       k16 = k16 + 1
-      let zeta16Hi = zetas[k16]
+      zeta16Hi = zetas[k16]
       k16 = k16 + 1
       j = start
       while j < start + 16:
@@ -213,6 +216,10 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
     k: int = 127
     t: int16 = 0
     zeta: int16 = 0
+    blockIdx: int = 0   ## AVX2 path: which 32- or 128-coefficient block
+    zetaUpper: int16 = 0
+    zetaLower0: int16 = 0
+    zetaLower1: int16 = 0
   const f = 1441'i16 ## mont^2 / 128
   when defined(avx2):
     j = 0
@@ -239,10 +246,10 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
       len = len shl 1
     start = 0
     while start < kyberN:
-      let blockIdx = start shr 5
-      let zetaUpper = zetas[15 - blockIdx]
-      let zetaLower0 = zetas[31 - 2 * blockIdx]
-      let zetaLower1 = zetas[30 - 2 * blockIdx]
+      blockIdx = start shr 5
+      zetaUpper = zetas[15 - blockIdx]
+      zetaLower0 = zetas[31 - 2 * blockIdx]
+      zetaLower1 = zetas[30 - 2 * blockIdx]
       invNttButterflyInterleavedChunk8(
         unsafeAddr R[start],
         unsafeAddr R[start + 8],
@@ -252,10 +259,10 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
       start = start + 32
     start = 0
     while start < kyberN:
-      let blockIdx = start shr 7
-      let zetaUpper = zetas[3 - blockIdx]
-      let zetaLower0 = zetas[7 - 2 * blockIdx]
-      let zetaLower1 = zetas[6 - 2 * blockIdx]
+      blockIdx = start shr 7
+      zetaUpper = zetas[3 - blockIdx]
+      zetaLower0 = zetas[7 - 2 * blockIdx]
+      zetaLower1 = zetas[6 - 2 * blockIdx]
       j = start
       while j < start + 32:
         invNttButterflyInterleavedChunk8(

@@ -112,7 +112,7 @@ proc toIndexList(W: seq[uint32]): BikeIndexList =
 proc generateSecretKey*(seed0: BikeSeed): tuple[h0, h1: BikePadPoly, w0, w1: BikeIndexList] =
   ## Generate the BIKE-L1 secret polynomials from the first keypair seed.
   var
-    prf: BikePrfState
+    prf: BikePrfState = default(BikePrfState)
     w0Seq: seq[uint32] = @[]
     w1Seq: seq[uint32] = @[]
   prf = initPrfState(seed0)
@@ -130,7 +130,7 @@ proc generateSecretKey*(seed0: BikeSeed): tuple[h0, h1: BikePadPoly, w0, w1: Bik
 proc generateErrorVector*(seed: BikeSeed): BikeRawError =
   ## Generate the BIKE-L1 raw error vector from one message-sized seed.
   var
-    prf: BikePrfState
+    prf: BikePrfState = default(BikePrfState)
     w: seq[uint32] = @[]
     e0: BikePadPoly = @[]
     e1: BikePadPoly = @[]

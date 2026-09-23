@@ -143,8 +143,10 @@ proc gfInv*(den: GF): GF {.inline.} =
 proc GFmul*(p: McElieceParams; outp: var openArray[GF]; in0, in1: openArray[GF]) =
   ## Polynomial multiplication in GF(2^13)[x] / (x^t + x^7 + x^2 + x + 1).
   ## outp.len >= p.sysT, in0.len == in1.len == p.sysT.
-  assert outp.len >= p.sysT
-  assert in0.len >= p.sysT and in1.len >= p.sysT
+  if not (outp.len >= p.sysT):
+    raise newException(ValueError, "McEliece size check failed: outp.len >= p.sysT")
+  if not (in0.len >= p.sysT and in1.len >= p.sysT):
+    raise newException(ValueError, "McEliece size check failed: in0.len >= p.sysT and in1.len >= p.sysT")
 
   var
     prod: seq[GF] = newSeq[GF](p.sysT * 2 - 1)

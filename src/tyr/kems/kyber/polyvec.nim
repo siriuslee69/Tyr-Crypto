@@ -50,13 +50,13 @@ when defined(sse2):
       aData = cast[ptr UncheckedArray[int16]](aPtr)
       bData = cast[ptr UncheckedArray[int16]](bPtr)
       cacheData = cast[ptr UncheckedArray[int16]](cachePtr)
-      evenTerms: array[8, int16]
-      oddTerms: array[8, int16]
-      evenVec: nsse2.M128i
-      oddVec: nsse2.M128i
-      aVec: nsse2.M128i
-      tmp0: array[4, int32]
-      tmp1: array[4, int32]
+      evenTerms: array[8, int16] = default(array[8, int16])
+      oddTerms: array[8, int16] = default(array[8, int16])
+      evenVec: nsse2.M128i = default(nsse2.M128i)
+      oddVec: nsse2.M128i = default(nsse2.M128i)
+      aVec: nsse2.M128i = default(nsse2.M128i)
+      tmp0: array[4, int32] = default(array[4, int32])
+      tmp1: array[4, int32] = default(array[4, int32])
       lane: int = 0
     lane = 0
     while lane < 4:
@@ -98,8 +98,8 @@ when defined(neon) or defined(arm64) or defined(aarch64):
     var
       lo: int32x4 = vmull_s16(vget_low_s16(aVec), vget_low_s16(bVec))
       hi: int32x4 = vmull_s16(vget_high_s16(aVec), vget_high_s16(bVec))
-      loLanes: array[4, int32]
-      hiLanes: array[4, int32]
+      loLanes: array[4, int32] = default(array[4, int32])
+      hiLanes: array[4, int32] = default(array[4, int32])
     vst1q_s32(cast[pointer](unsafeAddr loLanes[0]), lo)
     vst1q_s32(cast[pointer](unsafeAddr hiLanes[0]), hi)
     acc[0] = acc[0] + loLanes[0] + loLanes[1]
@@ -113,11 +113,11 @@ when defined(neon) or defined(arm64) or defined(aarch64):
     var
       bData = cast[ptr UncheckedArray[int16]](bPtr)
       cacheData = cast[ptr UncheckedArray[int16]](cachePtr)
-      evenTerms: array[8, int16]
-      oddTerms: array[8, int16]
-      aVec: NeonI16x8
-      evenVec: NeonI16x8
-      oddVec: NeonI16x8
+      evenTerms: array[8, int16] = default(array[8, int16])
+      oddTerms: array[8, int16] = default(array[8, int16])
+      aVec: NeonI16x8 = default(NeonI16x8)
+      evenVec: NeonI16x8 = default(NeonI16x8)
+      oddVec: NeonI16x8 = default(NeonI16x8)
       lane: int = 0
     lane = 0
     while lane < 4:
@@ -143,8 +143,8 @@ when defined(avx2):
       bVec: navx.M256i = navx2.mm256_loadu_si256(cast[pointer](bPtr))
       cacheVec: navx.M256i = loadI16x8AsI32x8(cachePtr)
       evenMask: navx.M256i = navx.mm256_set1_epi32(0x0000ffff'i32)
-      evenCacheVec: navx.M256i
-      oddEvenVec: navx.M256i
+      evenCacheVec: navx.M256i = default(navx.M256i)
+      oddEvenVec: navx.M256i = default(navx.M256i)
     evenCacheVec = navx2.mm256_and_si256(bVec, evenMask)
     evenCacheVec = navx2.mm256_or_si256(evenCacheVec, navx2.mm256_slli_epi32(cacheVec, 16))
     oddEvenVec = navx2.mm256_or_si256(navx2.mm256_srli_epi32(bVec, 16),
@@ -484,8 +484,8 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
     t1: int32 = 0
   when defined(avx2):
     var
-      acc0: navx.M256i
-      acc1: navx.M256i
+      acc0: navx.M256i = default(navx.M256i)
+      acc1: navx.M256i = default(navx.M256i)
   i = 0
   case p.k
   of 2:
@@ -502,8 +502,8 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
     when defined(sse2):
       while i + 4 <= kyberN div 2:
         var
-          acc0x4: array[4, int32]
-          acc1x4: array[4, int32]
+          acc0x4: array[4, int32] = default(array[4, int32])
+          acc1x4: array[4, int32] = default(array[4, int32])
         baseMulCachedTermsChunk4Sse2(unsafeAddr a.vec[0].coeffs[2 * i], unsafeAddr b.vec[0].coeffs[2 * i],
           unsafeAddr bCache[0][i], acc0x4, acc1x4)
         baseMulCachedTermsChunk4Sse2(unsafeAddr a.vec[1].coeffs[2 * i], unsafeAddr b.vec[1].coeffs[2 * i],
@@ -513,8 +513,8 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
     when defined(neon) or defined(arm64) or defined(aarch64):
       while i + 4 <= kyberN div 2:
         var
-          acc0x4: array[4, int32]
-          acc1x4: array[4, int32]
+          acc0x4: array[4, int32] = default(array[4, int32])
+          acc1x4: array[4, int32] = default(array[4, int32])
         baseMulCachedTermsChunk4Neon(unsafeAddr a.vec[0].coeffs[2 * i], unsafeAddr b.vec[0].coeffs[2 * i],
           unsafeAddr bCache[0][i], acc0x4, acc1x4)
         baseMulCachedTermsChunk4Neon(unsafeAddr a.vec[1].coeffs[2 * i], unsafeAddr b.vec[1].coeffs[2 * i],
@@ -551,8 +551,8 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
     when defined(sse2):
       while i + 4 <= kyberN div 2:
         var
-          acc0x4: array[4, int32]
-          acc1x4: array[4, int32]
+          acc0x4: array[4, int32] = default(array[4, int32])
+          acc1x4: array[4, int32] = default(array[4, int32])
         baseMulCachedTermsChunk4Sse2(unsafeAddr a.vec[0].coeffs[2 * i], unsafeAddr b.vec[0].coeffs[2 * i],
           unsafeAddr bCache[0][i], acc0x4, acc1x4)
         baseMulCachedTermsChunk4Sse2(unsafeAddr a.vec[1].coeffs[2 * i], unsafeAddr b.vec[1].coeffs[2 * i],
@@ -564,8 +564,8 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
     when defined(neon) or defined(arm64) or defined(aarch64):
       while i + 4 <= kyberN div 2:
         var
-          acc0x4: array[4, int32]
-          acc1x4: array[4, int32]
+          acc0x4: array[4, int32] = default(array[4, int32])
+          acc1x4: array[4, int32] = default(array[4, int32])
         baseMulCachedTermsChunk4Neon(unsafeAddr a.vec[0].coeffs[2 * i], unsafeAddr b.vec[0].coeffs[2 * i],
           unsafeAddr bCache[0][i], acc0x4, acc1x4)
         baseMulCachedTermsChunk4Neon(unsafeAddr a.vec[1].coeffs[2 * i], unsafeAddr b.vec[1].coeffs[2 * i],
@@ -610,8 +610,8 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
     when defined(sse2):
       while i + 4 <= kyberN div 2:
         var
-          acc0x4: array[4, int32]
-          acc1x4: array[4, int32]
+          acc0x4: array[4, int32] = default(array[4, int32])
+          acc1x4: array[4, int32] = default(array[4, int32])
         baseMulCachedTermsChunk4Sse2(unsafeAddr a.vec[0].coeffs[2 * i], unsafeAddr b.vec[0].coeffs[2 * i],
           unsafeAddr bCache[0][i], acc0x4, acc1x4)
         baseMulCachedTermsChunk4Sse2(unsafeAddr a.vec[1].coeffs[2 * i], unsafeAddr b.vec[1].coeffs[2 * i],
@@ -625,8 +625,8 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
     when defined(neon) or defined(arm64) or defined(aarch64):
       while i + 4 <= kyberN div 2:
         var
-          acc0x4: array[4, int32]
-          acc1x4: array[4, int32]
+          acc0x4: array[4, int32] = default(array[4, int32])
+          acc1x4: array[4, int32] = default(array[4, int32])
         baseMulCachedTermsChunk4Neon(unsafeAddr a.vec[0].coeffs[2 * i], unsafeAddr b.vec[0].coeffs[2 * i],
           unsafeAddr bCache[0][i], acc0x4, acc1x4)
         baseMulCachedTermsChunk4Neon(unsafeAddr a.vec[1].coeffs[2 * i], unsafeAddr b.vec[1].coeffs[2 * i],

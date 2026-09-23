@@ -290,8 +290,9 @@ proc controlBitsFromPermutationUncheckedNim*(pi: openArray[int16]; gfbits: int):
   var
     n: int = 1 shl gfbits
     outLen: int = ((2 * gfbits - 1) * n div 2 + 7) div 8
-    temp: array[2 * 8192, int32]
-  assert pi.len == n, "pi length must be 2^gfbits"
+    temp: array[2 * 8192, int32] = default(array[2 * 8192, int32])
+  if not (pi.len == n):
+    raise newException(ValueError, "McEliece: pi length must be 2^gfbits")
 
   result = newSeq[byte](outLen)
   cbRecursion(result, 0, 1, cast[ptr UncheckedArray[int16]](unsafeAddr pi[0]),
@@ -312,11 +313,12 @@ proc controlBitsFromPermutation*(pi: openArray[int16]; gfbits: int): seq[byte] =
   ## Generate control bits for a Benes network for a permutation of size 2^gfbits.
   var
     n: int = 1 shl gfbits
-    piTest: seq[int16]
+    piTest: seq[int16] = default(seq[int16])
     offset: int = 0
     i: int = 0
     diff: int16 = 0
-  assert pi.len == n, "pi length must be 2^gfbits"
+  if not (pi.len == n):
+    raise newException(ValueError, "McEliece: pi length must be 2^gfbits")
 
   piTest = newSeq[int16](n)
   result = controlBitsFromPermutationUnchecked(pi, gfbits)
@@ -344,12 +346,13 @@ proc controlBitsFromPermutation*(pi: openArray[int16]; gfbits: int): seq[byte] =
   while i < n:
     diff = diff or (pi[i] xor piTest[i])
     i = i + 1
-  assert ctNonZero16(diff) == 0, "control bits verification failed"
+  if not (ctNonZero16(diff) == 0):
+    raise newException(ValueError, "McEliece: control bits verification failed")
 
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `controlBitsFromPermutation`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc controlBitsFromPermutation*(pi: openArray[uint16]; gfbits: int): seq[byte] =
   var
-    piSigned: seq[int16]
+    piSigned: seq[int16] = default(seq[int16])
   piSigned = newSeq[int16](pi.len)
   for idx, val in pi:
     piSigned[idx] = int16(val)

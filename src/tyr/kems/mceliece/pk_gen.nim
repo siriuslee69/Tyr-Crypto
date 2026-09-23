@@ -74,7 +74,7 @@ proc loadColumnBlock(mat: openArray[byte], rowStart, blockIdx, tail: int): uint6
   if tail == 0:
     return load64At(mat, rowStart + blockIdx)
 
-  var tmp: array[9, byte]
+  var tmp: array[9, byte] = default(array[9, byte])
   for j in 0 ..< 9:
     tmp[j] = mat[rowStart + blockIdx + j]
   for j in 0 ..< 8:
@@ -87,7 +87,7 @@ proc storeColumnBlock(mat: var openArray[byte], rowStart, blockIdx, tail: int, v
     store64At(mat, rowStart + blockIdx, v)
     return
 
-  var tmp: array[9, byte]
+  var tmp: array[9, byte] = default(array[9, byte])
   for j in 0 ..< 9:
     tmp[j] = mat[rowStart + blockIdx + j]
   for j in 0 ..< 8:
@@ -133,9 +133,9 @@ when defined(avx2):
     ## Paper note: public-key generation follows the Classic McEliece bit-matrix
     ## layout, but AVX2 fills 64 support positions through a 64x64 transpose.
     var
-      inRows: array[64, uint64]
-      outRows: array[64, uint64]
-      tailBytes: array[8, byte]
+      inRows: array[64, uint64] = default(array[64, uint64])
+      outRows: array[64, uint64] = default(array[64, uint64])
+      tailBytes: array[8, byte] = default(array[8, byte])
       blockCount: int = p.sysN div 64
       rem: int = p.sysN mod 64
       i: int = 0
@@ -345,8 +345,8 @@ proc xorRowMasked(mat: var seq[byte], dstStart, srcStart, fullRowBytes: int,
 proc movColumns(mat: var seq[byte], pi: var seq[int16], pivots: var uint64,
     p: McElieceParams, fullRowBytes: int): bool =
   var
-    buf: array[32, uint64]
-    ctzList: array[32, int]
+    buf: array[32, uint64] = default(array[32, uint64])
+    ctzList: array[32, int] = default(array[32, int])
     t: uint64 = 0
     d: int16 = 0
     mask: uint64 = 0

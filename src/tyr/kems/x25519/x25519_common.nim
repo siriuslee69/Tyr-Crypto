@@ -79,7 +79,7 @@ proc load4*(input: openArray[byte], offset: int): int64 {.inline.} =
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `secureZeroMem`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc secureZeroMem*(p: pointer, len: int) =
   var
-    bytes: ptr UncheckedArray[byte]
+    bytes: ptr UncheckedArray[byte] = default(ptr UncheckedArray[byte])
     i: int = 0
   if p.isNil or len <= 0:
     return
@@ -136,7 +136,7 @@ proc isAllZero*(input: openArray[byte]): bool =
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `hasSmallOrder`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc hasSmallOrder*(input: X25519Bytes32): bool {.inline.} =
   var
-    compare: array[7, byte]
+    compare: array[7, byte] = default(array[7, byte])
     j: int = 0
     i: int = 0
     folded: uint32 = 0

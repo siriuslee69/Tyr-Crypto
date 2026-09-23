@@ -74,23 +74,23 @@ proc mcelieceTyrKeypair*(v: McElieceVariant; seed: seq[byte] = @[]): McElieceTyr
   ## Generate a McEliece keypair (optionally seeded for reproducibility).
   var
     p = params(v)
-    seedBytes: seq[byte]
-    seedMaterial: seq[byte]
-    stream: seq[byte]
+    seedBytes: seq[byte] = default(seq[byte])
+    seedMaterial: seq[byte] = default(seq[byte])
+    stream: seq[byte] = default(seq[byte])
     perm = newSeq[uint32](1 shl p.gfBits)
     pi = newSeq[int16](1 shl p.gfBits)
     irr = newSeq[GF](p.sysT)
     g = newSeq[GF](p.sysT + 1)
     storedSeed = newSeq[byte](32)
-    controlBits: seq[byte]
+    controlBits: seq[byte] = default(seq[byte])
     pivots: uint64 = 0
-    fWords: seq[GF]
+    fWords: seq[GF] = default(seq[GF])
     seedOffset = 0
     permOffset = 0
     fOffset = 0
     nextSeedOffset = 0
-    pk: seq[byte]
-    irrBytes: seq[byte]
+    pk: seq[byte] = default(seq[byte])
+    irrBytes: seq[byte] = default(seq[byte])
   defer:
     clearSensitiveWords(seedBytes)
     clearSensitiveWords(seedMaterial)

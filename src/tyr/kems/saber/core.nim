@@ -322,10 +322,10 @@ when defined(sse2):
       accumulate: bool) =
     var
       i: int = 0
-      a: i16x8
-      b: i16x8
-      r: i16x8
-      old: i16x8
+      a: i16x8 = default(i16x8)
+      b: i16x8 = default(i16x8)
+      r: i16x8 = default(i16x8)
+      old: i16x8 = default(i16x8)
     i = 0
     while i + 8 <= saberN:
       a = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr C[i])))
@@ -343,10 +343,10 @@ when defined(avx2):
       accumulate: bool) =
     var
       i: int = 0
-      a: i16x16
-      b: i16x16
-      r: i16x16
-      old: i16x16
+      a: i16x16 = default(i16x16)
+      b: i16x16 = default(i16x16)
+      r: i16x16 = default(i16x16)
+      old: i16x16 = default(i16x16)
     i = 0
     while i + 16 <= saberN:
       a = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr C[i])))
@@ -364,10 +364,10 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       accumulate: bool) =
     var
       i: int = 0
-      a: uint16x8
-      b: uint16x8
-      r: uint16x8
-      old: uint16x8
+      a: uint16x8 = default(uint16x8)
+      b: uint16x8 = default(uint16x8)
+      r: uint16x8 = default(uint16x8)
+      old: uint16x8 = default(uint16x8)
     i = 0
     while i + 8 <= saberN:
       a = loadI16x8At[uint16x8](C, i)
@@ -382,7 +382,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
 ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulIntoTmp`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulIntoTmp(c: var SaberPoly, a, b: SaberPoly, accumulate: bool) {.inline.} =
   var
-    C: array[2 * saberN, uint16]
+    C: array[2 * saberN, uint16] = default(array[2 * saberN, uint16])
     i: int = 0
     j: int = 0
     prod: uint16 = 0
@@ -490,9 +490,9 @@ when defined(avx2):
       i: int = 0
       j: int = 0
       k: int = 0
-      av: i16x16
-      bv: i16x16
-      cv: i16x16
+      av: i16x16 = default(i16x16)
+      bv: i16x16 = default(i16x16)
+      cv: i16x16 = default(i16x16)
     if not accumulate:
       clearPoly(c)
     i = 0
@@ -534,9 +534,9 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       i: int = 0
       j: int = 0
       k: int = 0
-      av: uint16x8
-      bv: uint16x8
-      cv: uint16x8
+      av: uint16x8 = default(uint16x8)
+      bv: uint16x8 = default(uint16x8)
+      cv: uint16x8 = default(uint16x8)
     if not accumulate:
       clearPoly(c)
     i = 0
@@ -813,7 +813,7 @@ when defined(saberMulNttScalar):
   proc secureClearNttPoly(a: var SaberNttPoly) {.raises: [].} =
     var
       i: int = 0
-      p: ptr UncheckedArray[int32]
+      p: ptr UncheckedArray[int32] = default(ptr UncheckedArray[int32])
     p = cast[ptr UncheckedArray[int32]](addr a[0])
     i = 0
     while i < saberN:
@@ -824,9 +824,9 @@ when defined(saberMulNttScalar):
   proc polyMulIntoNttSmallB(c: var SaberPoly, a, b: SaberPoly,
       accumulate: bool) {.inline.} =
     var
-      x: SaberNttPoly
-      y: SaberNttPoly
-      r1: SaberNttPoly
+      x: SaberNttPoly = default(SaberNttPoly)
+      y: SaberNttPoly = default(SaberNttPoly)
+      r1: SaberNttPoly = default(SaberNttPoly)
       i: int = 0
       coeff: uint16 = 0
     loadTwistedPositive(x, a, saberNttTwistQ1, saberNttQ1, saberNttQ1Recip)
@@ -922,8 +922,8 @@ proc mulSaberToomEvals(R: var SaberToomProd, A, B: SaberToomEval) {.inline.} =
 ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `mulSaberToomPoint`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc mulSaberToomPoint(R: var SaberToomProd, a, b: SaberPoly, point: int) {.inline.} =
   var
-    A: SaberToomEval
-    B: SaberToomEval
+    A: SaberToomEval = default(SaberToomEval)
+    B: SaberToomEval = default(SaberToomEval)
   evalSaberToomPoint(A, a, point)
   evalSaberToomPoint(B, b, point)
   mulSaberToomEvals(R, A, B)
@@ -981,8 +981,8 @@ proc interpolateSaberToom(C: var SaberToomWide, W: SaberToomProducts) {.inline.}
 ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulIntoToom4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulIntoToom4(c: var SaberPoly, a, b: SaberPoly, accumulate: bool) {.inline.} =
   var
-    W: SaberToomProducts
-    C: SaberToomWide
+    W: SaberToomProducts = default(SaberToomProducts)
+    C: SaberToomWide = default(SaberToomWide)
     i: int = 0
     red: uint16 = 0
   mulSaberToomPoint(W[0], a, b, 0)
@@ -1015,10 +1015,10 @@ type
 ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `karatsuba64Mod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc karatsuba64Mod(R: var SaberKaratsuba127, A, B: SaberKaratsuba64) {.inline.} =
   var
-    d01: array[31, uint16]
-    d0123: array[31, uint16]
-    d23: array[31, uint16]
-    resultD01: array[63, uint16]
+    d01: array[31, uint16] = default(array[31, uint16])
+    d0123: array[31, uint16] = default(array[31, uint16])
+    d23: array[31, uint16] = default(array[31, uint16])
+    resultD01: array[63, uint16] = default(array[63, uint16])
     i: int = 0
     j: int = 0
     acc1: uint16 = 0
@@ -1192,21 +1192,21 @@ proc interpolateSaberToom4Mod(C: var SaberToomModWide, W1, W2, W3, W4, W5,
 proc polyMulIntoToom4ModEval(c: var SaberPoly, a: SaberPoly, B: SaberToom4ModEval,
     accumulate: bool) {.inline.} =
   var
-    aw1: SaberKaratsuba64
-    aw2: SaberKaratsuba64
-    aw3: SaberKaratsuba64
-    aw4: SaberKaratsuba64
-    aw5: SaberKaratsuba64
-    aw6: SaberKaratsuba64
-    aw7: SaberKaratsuba64
-    w1: SaberKaratsuba127
-    w2: SaberKaratsuba127
-    w3: SaberKaratsuba127
-    w4: SaberKaratsuba127
-    w5: SaberKaratsuba127
-    w6: SaberKaratsuba127
-    w7: SaberKaratsuba127
-    C: SaberToomModWide
+    aw1: SaberKaratsuba64 = default(SaberKaratsuba64)
+    aw2: SaberKaratsuba64 = default(SaberKaratsuba64)
+    aw3: SaberKaratsuba64 = default(SaberKaratsuba64)
+    aw4: SaberKaratsuba64 = default(SaberKaratsuba64)
+    aw5: SaberKaratsuba64 = default(SaberKaratsuba64)
+    aw6: SaberKaratsuba64 = default(SaberKaratsuba64)
+    aw7: SaberKaratsuba64 = default(SaberKaratsuba64)
+    w1: SaberKaratsuba127 = default(SaberKaratsuba127)
+    w2: SaberKaratsuba127 = default(SaberKaratsuba127)
+    w3: SaberKaratsuba127 = default(SaberKaratsuba127)
+    w4: SaberKaratsuba127 = default(SaberKaratsuba127)
+    w5: SaberKaratsuba127 = default(SaberKaratsuba127)
+    w6: SaberKaratsuba127 = default(SaberKaratsuba127)
+    w7: SaberKaratsuba127 = default(SaberKaratsuba127)
+    C: SaberToomModWide = default(SaberToomModWide)
     i: int = 0
     red: uint16 = 0
   evalSaberToom4Mod(aw1, aw2, aw3, aw4, aw5, aw6, aw7, a)
@@ -1228,7 +1228,7 @@ proc polyMulIntoToom4ModEval(c: var SaberPoly, a: SaberPoly, B: SaberToom4ModEva
 proc polyMulIntoToom4Mod(c: var SaberPoly, a, b: SaberPoly,
     accumulate: bool) {.inline.} =
   var
-    B: SaberToom4ModEval
+    B: SaberToom4ModEval = default(SaberToom4ModEval)
   evalSaberToom4Mod(B, b)
   polyMulIntoToom4ModEval(c, a, B, accumulate)
 
@@ -1256,7 +1256,7 @@ proc matrixVectorMul(c: var SaberPolyVec, p: SaberParams, A: SaberMatrix,
     s: SaberPolyVec, transpose: bool) {.otterBench.} =
   when defined(saberMulToom4Cached):
     var
-      E: array[4, SaberToom4ModEval]
+      E: array[4, SaberToom4ModEval] = default(array[4, SaberToom4ModEval])
   var
     i: int = 0
     j: int = 0
@@ -1305,7 +1305,7 @@ proc matrixVectorMul(c: var SaberPolyVec, p: SaberParams, A: SaberMatrix,
 proc innerProd(c: var SaberPoly, p: SaberParams, b, s: SaberPolyVec) {.otterBench.} =
   when defined(saberMulToom4Cached):
     var
-      E: array[4, SaberToom4ModEval]
+      E: array[4, SaberToom4ModEval] = default(array[4, SaberToom4ModEval])
   var
     i: int = 1
   when defined(saberMulToom4Cached):
@@ -1337,7 +1337,7 @@ when not defined(saberHeapBuffers):
 proc genMatrix(A: var SaberMatrix, p: SaberParams, seed: openArray[byte]) {.otterBench.} =
   when not defined(saberHeapBuffers):
     var
-      buf: array[saberMaxMatrixBytes, byte]
+      buf: array[saberMaxMatrixBytes, byte] = default(array[saberMaxMatrixBytes, byte])
       i: int = 0
       o: int = 0
       n: int = 0
@@ -1367,7 +1367,7 @@ proc genMatrix(A: var SaberMatrix, p: SaberParams, seed: openArray[byte]) {.otte
 proc genSecret(s: var SaberPolyVec, p: SaberParams, seed: openArray[byte]) {.otterBench.} =
   when not defined(saberHeapBuffers):
     var
-      buf: array[saberMaxSecretBytes, byte]
+      buf: array[saberMaxSecretBytes, byte] = default(array[saberMaxSecretBytes, byte])
       i: int = 0
       o: int = 0
       n: int = 0
@@ -1408,11 +1408,11 @@ proc indcpaKeypair*(pk, sk: var openArray[byte], p: SaberParams,
     R: var PqRandomContext) {.otterBench.} =
   ## Generate a SABER IND-CPA keypair into caller-owned buffers.
   var
-    A: SaberMatrix
-    s: SaberPolyVec
-    res: SaberPolyVec
+    A: SaberMatrix = default(SaberMatrix)
+    s: SaberPolyVec = default(SaberPolyVec)
+    res: SaberPolyVec = default(SaberPolyVec)
     seedA: seq[byte] = @[]
-    seedHash: array[saberSeedBytes, byte]
+    seedHash: array[saberSeedBytes, byte] = default(array[saberSeedBytes, byte])
     rand: seq[byte] = @[]
     i: int = 0
     j: int = 0
@@ -1442,12 +1442,12 @@ proc indcpaEnc*(ciphertext: var openArray[byte], m, noiseseed, pk: openArray[byt
     p: SaberParams) {.otterBench.} =
   ## Encrypt one SABER IND-CPA message.
   var
-    A: SaberMatrix
-    res: SaberPolyVec
-    s: SaberPolyVec
-    temp: SaberPolyVec
-    vprime: SaberPoly
-    message: SaberPoly
+    A: SaberMatrix = default(SaberMatrix)
+    res: SaberPolyVec = default(SaberPolyVec)
+    s: SaberPolyVec = default(SaberPolyVec)
+    temp: SaberPolyVec = default(SaberPolyVec)
+    vprime: SaberPoly = default(SaberPoly)
+    message: SaberPoly = default(SaberPoly)
     seedAOff: int = 0
     msgOff: int = 0
     i: int = 0
@@ -1484,10 +1484,10 @@ proc indcpaDec*(m: var openArray[byte], sk, ciphertext: openArray[byte],
     p: SaberParams) {.otterBench.} =
   ## Decrypt one SABER IND-CPA ciphertext.
   var
-    temp: SaberPolyVec
-    s: SaberPolyVec
-    v: SaberPoly
-    cm: SaberPoly
+    temp: SaberPolyVec = default(SaberPolyVec)
+    s: SaberPolyVec = default(SaberPolyVec)
+    v: SaberPoly = default(SaberPoly)
+    cm: SaberPoly = default(SaberPoly)
     packedCmOff: int = 0
     i: int = 0
   packedCmOff = p.polyVecCompressedBytes
@@ -1509,7 +1509,7 @@ proc saberKemKeypairInto*(pk, sk: var openArray[byte], p: SaberParams,
     R: var PqRandomContext) {.otterBench.} =
   ## Generate a SABER CCA KEM keypair.
   var
-    pkHash: array[saberHashBytes, byte]
+    pkHash: array[saberHashBytes, byte] = default(array[saberHashBytes, byte])
     fallback: seq[byte] = @[]
   indcpaKeypair(pk, sk.toOpenArray(0, p.indcpaSecretKeyBytes - 1), p, R)
   copyBytes(sk, p.indcpaSecretKeyBytes, pk)
@@ -1525,8 +1525,8 @@ proc saberKemEncInto*(ciphertext, sharedSecret: var openArray[byte],
     pk: openArray[byte], p: SaberParams, R: var PqRandomContext) {.otterBench.} =
   ## Encapsulate with pure-Nim SABER.
   var
-    kr: array[64, byte]
-    buf: array[64, byte]
+    kr: array[64, byte] = default(array[64, byte])
+    buf: array[64, byte] = default(array[64, byte])
     entropy: seq[byte] = @[]
   entropy = pqRandomBytes(R, saberKeyBytes)
   copyBytes(buf, 0, entropy)
@@ -1547,8 +1547,8 @@ proc saberKemDecInto*(sharedSecret: var openArray[byte], sk, ciphertext: openArr
   var
     fail: int = 0
     cmp: seq[byte] = @[]
-    buf: array[64, byte]
-    kr: array[64, byte]
+    buf: array[64, byte] = default(array[64, byte])
+    kr: array[64, byte] = default(array[64, byte])
     pkOff: int = 0
   cmp = newSeq[byte](p.ciphertextBytes)
   pkOff = p.indcpaSecretKeyBytes

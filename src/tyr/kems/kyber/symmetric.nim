@@ -48,7 +48,7 @@ proc kdf*(A: openArray[byte]): seq[byte] =
 proc prfInto*(dst: var openArray[byte], key: openArray[byte], nonce: byte) =
   ## Kyber SHAKE256 PRF over `key || nonce` into a caller-provided buffer.
   var
-    material: array[kyberSymBytes + 1, byte]
+    material: array[kyberSymBytes + 1, byte] = default(array[kyberSymBytes + 1, byte])
     i: int = 0
   if key.len != kyberSymBytes:
     raise newException(ValueError, "Kyber PRF key must be 32 bytes")
@@ -71,7 +71,7 @@ proc prf*(key: openArray[byte], nonce: byte, outLen: int): seq[byte] =
 proc xofBytesInto*(dst: var openArray[byte], seed: openArray[byte], x, y: byte) =
   ## Kyber SHAKE128 XOF over `seed || x || y` into a caller-provided buffer.
   var
-    material: array[kyberSymBytes + 2, byte]
+    material: array[kyberSymBytes + 2, byte] = default(array[kyberSymBytes + 2, byte])
     i: int = 0
   if seed.len != kyberSymBytes:
     raise newException(ValueError, "Kyber XOF seed must be 32 bytes")

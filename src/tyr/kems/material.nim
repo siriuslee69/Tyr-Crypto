@@ -316,10 +316,10 @@ const
     ## Width of the fixed callback seed, in bytes.
 
 var
-  oqsEntropyLock: Lock
-  oqsEntropySeed: array[oqsEntropySeedBytes, uint8]
+  oqsEntropyLock: Lock = default(Lock)
+  oqsEntropySeed: array[oqsEntropySeedBytes, uint8] = default(array[oqsEntropySeedBytes, uint8])
   oqsEntropySeedLen: int = 0
-  oqsEntropyCounter: Atomic[uint64]
+  oqsEntropyCounter: Atomic[uint64] = default(Atomic[uint64])
 
 discard block:
   initLock(oqsEntropyLock)
@@ -431,7 +431,8 @@ proc withOqsHybridEntropy[T](extraEntropy: openArray[uint8],
 
 when defined(hasLibOqs):
   proc newKem(algId: string): ptr OqsKem =
-    let kem = OQS_KEM_new(algId.cstring)
+    var
+      kem: ptr OqsKem = OQS_KEM_new(algId.cstring)
     if kem == nil:
       raiseOperation("liboqs", "KEM " & algId & " unavailable")
     result = kem
@@ -440,11 +441,12 @@ proc kemKeypair(algId: string,
     extraEntropy: openArray[uint8]): tuple[pk, sk: seq[uint8]] =
   when defined(hasLibOqs):
     result = withOqsHybridEntropy(extraEntropy, proc (): tuple[pk, sk: seq[uint8]] =
-      let kem = newKem(algId)
+      var
+        kem: ptr OqsKem = newKem(algId)
+        pk: seq[uint8] = newSeq[uint8](int kem[].length_public_key)
+        sk: seq[uint8] = newSeq[uint8](int kem[].length_secret_key)
       defer:
         OQS_KEM_free(kem)
-      var pk = newSeq[uint8](int kem[].length_public_key)
-      var sk = newSeq[uint8](int kem[].length_secret_key)
       requireSuccess(OQS_KEM_keypair(kem, addr pk[0], addr sk[0]),
         "OQS_KEM_keypair(" & algId & ")")
       result = (pk: pk, sk: sk)
@@ -458,15 +460,19 @@ proc kemKeypair(algId: string,
 proc kemEncaps(algId: string,
     publicKey, extraEntropy: openArray[uint8]): tuple[ciphertext, shared: seq[uint8]] =
   when defined(hasLibOqs):
-    let publicKeyBytes = @publicKey
+    var
+      publicKeyBytes: seq[uint8] = @publicKey
     result = withOqsHybridEntropy(extraEntropy, proc (): tuple[ciphertext, shared: seq[uint8]] =
-      let kem = newKem(algId)
+      var
+        kem: ptr OqsKem = newKem(algId)
+        ciphertext: seq[uint8] = @[]
+        shared: seq[uint8] = @[]
       defer:
         OQS_KEM_free(kem)
       if publicKeyBytes.len != int kem[].length_public_key:
         raise newException(ValueError, "invalid " & algId & " public key length")
-      var ciphertext = newSeq[uint8](int kem[].length_ciphertext)
-      var shared = newSeq[uint8](int kem[].length_shared_secret)
+      ciphertext = newSeq[uint8](int kem[].length_ciphertext)
+      shared = newSeq[uint8](int kem[].length_shared_secret)
       requireSuccess(
         OQS_KEM_encaps(
           kem,
@@ -488,14 +494,16 @@ proc kemEncaps(algId: string,
 proc kemDecaps(algId: string, ciphertext,
     secretKey: openArray[uint8]): seq[uint8] =
   when defined(hasLibOqs):
-    let kem = newKem(algId)
+    var
+      kem: ptr OqsKem = newKem(algId)
+      shared: seq[uint8] = @[]
     defer:
       OQS_KEM_free(kem)
     if secretKey.len != int kem[].length_secret_key:
       raise newException(ValueError, "invalid " & algId & " secret key length")
     if ciphertext.len != int kem[].length_ciphertext:
       raise newException(ValueError, "invalid " & algId & " ciphertext length")
-    var shared = newSeq[uint8](int kem[].length_shared_secret)
+    shared = newSeq[uint8](int kem[].length_shared_secret)
     requireSuccess(
       OQS_KEM_decaps(
         kem,
@@ -518,7 +526,7 @@ proc x25519Keypair(): tuple[pk, sk: seq[uint8]] =
   result = (pk: kp.publicKey, sk: kp.secretKey)
 
 proc x25519KeypairFromSeed(seed: openArray[uint8]): tuple[pk, sk: seq[uint8]] =
-  var kp: customX25519.X25519TyrKeypair
+  var kp: customX25519.X25519TyrKeypair = default(customX25519.X25519TyrKeypair)
   if seed.len != x25519KeyBytes:
     raise newException(ValueError, "invalid X25519 seed length")
   kp = customX25519.x25519TyrKeypairFromSeed(seed)
@@ -621,7 +629,7 @@ proc genKeypair*(alg: KemAlgorithm, seed: seq[uint8] = @[],
   ##   cannot weaken the result and helps on devices whose entropy pool is
   ##   thin at boot. The result stays unpredictable.
   var
-    kp0: tuple[pk, sk: seq[uint8]]
+    kp0: tuple[pk, sk: seq[uint8]] = default(tuple[pk, sk: seq[uint8]])
     algId: string = ""
   case alg
   of kaX25519:
@@ -753,9 +761,10 @@ proc encaps*(alg: KemAlgorithm, receiverPublicKey: seq[uint8],
   ## extraEntropy: extra material folded into the system generator on the
   ##   library-backed tiers. The result stays unpredictable.
   var
-    kp0: tuple[pk, sk: seq[uint8]]
-    kem0: tuple[ciphertext, shared: seq[uint8]]
+    kp0: tuple[pk, sk: seq[uint8]] = default(tuple[pk, sk: seq[uint8]])
+    kem0: tuple[ciphertext, shared: seq[uint8]] = default(tuple[ciphertext, shared: seq[uint8]])
     algId: string = ""
+    derivedPublicKey: seq[uint8] = @[]
   case alg
   of kaX25519:
     if senderPublicKey.len == 0 and senderSecretKey.len == 0:
@@ -764,7 +773,7 @@ proc encaps*(alg: KemAlgorithm, receiverPublicKey: seq[uint8],
       else:
         kp0 = x25519Keypair()
     elif senderPublicKey.len > 0 and senderSecretKey.len > 0:
-      let derivedPublicKey = x25519PublicKeyFromSecret(senderSecretKey)
+      derivedPublicKey = x25519PublicKeyFromSecret(senderSecretKey)
       if not constantTimeEqual(derivedPublicKey, senderPublicKey):
         raise newException(ValueError,
           "x25519 senderPublicKey does not match senderSecretKey")

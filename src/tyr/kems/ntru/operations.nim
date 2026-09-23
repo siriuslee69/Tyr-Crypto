@@ -56,7 +56,7 @@ proc ntruKeypairWithActiveFeed*(v: NtruVariant,
     backend: NtruBackend = ntruAuto): NtruTyrKeypair {.otterBench, otterTrace.} =
   ## Compatibility helper; pure Nim code uses a system-random context here.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   R = initPqSystemRandomContext()
   try:
     result = ntruKeypairWithContext(v, R, backend)
@@ -68,7 +68,7 @@ proc ntruEncapsWithActiveFeed*(v: NtruVariant, pk: openArray[byte],
     backend: NtruBackend = ntruAuto): NtruTyrCipher {.otterBench, otterTrace.} =
   ## Compatibility helper; pure Nim code uses a system-random context here.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   R = initPqSystemRandomContext()
   try:
     result = ntruEncapsWithContext(v, pk, R, backend)
@@ -80,7 +80,7 @@ proc ntruTyrKeypairDerand*(v: NtruVariant, seed: openArray[byte],
     backend: NtruBackend = ntruAuto): NtruTyrKeypair {.otterBench, otterTrace.} =
   ## Generate an NTRU keypair from a 48-byte NIST KAT seed.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   R = initPqKatRandomContext(seed)
   try:
     result = ntruKeypairWithContext(v, R, backend)
@@ -92,7 +92,7 @@ proc ntruTyrKeypair*(v: NtruVariant, seed: seq[byte] = @[],
     backend: NtruBackend = ntruAuto): NtruTyrKeypair {.otterBench, otterTrace.} =
   ## Generate a pure-Nim NTRU keypair, optionally from a 48-byte KAT seed.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   if seed.len == 0:
     R = initPqSystemRandomContext()
   else:
@@ -107,7 +107,7 @@ proc ntruTyrEncapsDerand*(v: NtruVariant, pk: openArray[byte], seed: openArray[b
     backend: NtruBackend = ntruAuto): NtruTyrCipher {.otterBench, otterTrace.} =
   ## Encapsulate from a 48-byte NIST KAT seed.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   R = initPqKatRandomContext(seed)
   try:
     result = ntruEncapsWithContext(v, pk, R, backend)
@@ -119,7 +119,7 @@ proc ntruTyrEncaps*(v: NtruVariant, pk: openArray[byte], seed: seq[byte] = @[],
     backend: NtruBackend = ntruAuto): NtruTyrCipher {.otterBench, otterTrace.} =
   ## Encapsulate against an NTRU public key.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   if seed.len == 0:
     R = initPqSystemRandomContext()
   else:
@@ -149,7 +149,7 @@ proc ntruTyrKatKemFromSeed*(v: NtruVariant, seed: openArray[byte],
     cipher: NtruTyrCipher] {.otterBench, otterTrace.} =
   ## Replay the NIST KAT sequence: one seed feeds keypair, then encapsulation.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   R = initPqKatRandomContext(seed)
   try:
     result.keypair = ntruKeypairWithContext(v, R, backend)

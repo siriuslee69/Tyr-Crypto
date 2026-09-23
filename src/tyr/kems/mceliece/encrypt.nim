@@ -99,7 +99,7 @@ proc genErrorVectorDerand*(p: McElieceParams, randomness: openArray[byte]): seq[
   var
     blockBytes: int = mcelieceEncapsRandomBlockBytes(p)
     offset: int = 0
-    candidate: tuple[ok: bool, errorVec: seq[byte]]
+    candidate: tuple[ok: bool, errorVec: seq[byte]] = default(tuple[ok: bool, errorVec: seq[byte]])
   if randomness.len == 0 or (randomness.len mod blockBytes) != 0:
     raise newException(ValueError, "McEliece encaps randomness must be one or more " &
       $blockBytes & "-byte blocks")
@@ -117,7 +117,7 @@ proc genErrorVector*(p: McElieceParams): seq[byte] =
   ## Generate a bit-packed weight-`sysT` error vector for the selected McEliece tier.
   var
     buf: seq[byte] = @[]
-    candidate: tuple[ok: bool, errorVec: seq[byte]]
+    candidate: tuple[ok: bool, errorVec: seq[byte]] = default(tuple[ok: bool, errorVec: seq[byte]])
   defer:
     clearSensitiveWords(buf)
   while true:

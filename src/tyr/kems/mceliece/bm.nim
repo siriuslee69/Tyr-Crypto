@@ -24,7 +24,8 @@ proc berlekampMassey*(p: McElieceParams; s: openArray[GF]; outPoly: var seq[GF])
     clearSensitiveWords(C)
     clearSensitiveWords(B)
     clearSensitiveWords(T)
-  assert s.len >= 2 * p.sysT
+  if not (s.len >= 2 * p.sysT):
+    raise newException(ValueError, "McEliece size check failed: s.len >= 2 * p.sysT")
   outPoly.setLen(p.sysT + 1)
   C[0] = 1
   B[1] = 1

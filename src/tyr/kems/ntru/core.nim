@@ -259,7 +259,7 @@ proc polyS3FromBytes*(r: var NtruPoly, p: NtruParams, src: openArray[byte]) =
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polySqToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polySqToBytes*(dst: var openArray[byte], p: NtruParams, a: NtruPoly) =
   var
-    T: array[ntruMaxN, uint16]
+    T: array[ntruMaxN, uint16] = default(array[ntruMaxN, uint16])
     i: int = 0
   i = 0
   while i < p.packDeg:
@@ -343,9 +343,9 @@ when defined(sse2):
       C: array[2 * ntruMaxN, uint16]) =
     var
       i: int = 0
-      a: i16x8
-      b: i16x8
-      v: i16x8
+      a: i16x8 = default(i16x8)
+      b: i16x8 = default(i16x8)
+      v: i16x8 = default(i16x8)
     i = 0
     while i + 8 <= p.n:
       a = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr C[i])))
@@ -363,9 +363,9 @@ when defined(avx2):
       C: array[2 * ntruMaxN, uint16]) =
     var
       i: int = 0
-      a: i16x16
-      b: i16x16
-      v: i16x16
+      a: i16x16 = default(i16x16)
+      b: i16x16 = default(i16x16)
+      v: i16x16 = default(i16x16)
     i = 0
     while i + 16 <= p.n:
       a = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr C[i])))
@@ -386,9 +386,9 @@ when defined(sse2) and not defined(avx2):
       i: int = 0
       j: int = 0
       k: int = 0
-      av: i16x8
-      bv: i16x8
-      rv: i16x8
+      av: i16x8 = default(i16x8)
+      bv: i16x8 = default(i16x8)
+      rv: i16x8 = default(i16x8)
     clearNtruPolyActive(r, p)
     i = 0
     while i < p.n:
@@ -426,8 +426,8 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       C: array[2 * ntruMaxN, uint16]) =
     var
       i: int = 0
-      a: uint16x8
-      b: uint16x8
+      a: uint16x8 = default(uint16x8)
+      b: uint16x8 = default(uint16x8)
     i = 0
     while i + 8 <= p.n:
       a = loadI16x8At[uint16x8](C, i)
@@ -441,7 +441,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqMulTmp`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqMulTmp(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.} =
   var
-    C: array[2 * ntruMaxN, uint16]
+    C: array[2 * ntruMaxN, uint16] = default(array[2 * ntruMaxN, uint16])
     i: int = 0
     j: int = 0
     prod: uint16 = 0
@@ -568,9 +568,9 @@ when defined(avx2):
       i: int = 0
       j: int = 0
       k: int = 0
-      av: i16x16
-      bv: i16x16
-      rv: i16x16
+      av: i16x16 = default(i16x16)
+      bv: i16x16 = default(i16x16)
+      rv: i16x16 = default(i16x16)
     clearNtruPolyActive(r, p)
     i = 0
     while i < p.n:
@@ -611,9 +611,9 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       i: int = 0
       j: int = 0
       k: int = 0
-      av: uint16x8
-      bv: uint16x8
-      rv: uint16x8
+      av: uint16x8 = default(uint16x8)
+      bv: uint16x8 = default(uint16x8)
+      rv: uint16x8 = default(uint16x8)
     clearNtruPolyActive(r, p)
     i = 0
     while i < p.n:
@@ -752,8 +752,8 @@ proc mulNtruToomEvals(R: var NtruToomProd, A, B: NtruToomEval, m: int) {.inline.
 proc mulNtruToomPoint(R: var NtruToomProd, p: NtruParams, a, b: NtruPoly,
     point, m: int) {.inline.} =
   var
-    A: NtruToomEval
-    B: NtruToomEval
+    A: NtruToomEval = default(NtruToomEval)
+    B: NtruToomEval = default(NtruToomEval)
   evalNtruToomPoint(A, p, a, point, m)
   evalNtruToomPoint(B, p, b, point, m)
   mulNtruToomEvals(R, A, B, m)
@@ -813,8 +813,8 @@ proc interpolateNtruToom(C: var NtruToomWide, W: NtruToomProducts, l, m: int) {.
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqMulToom4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqMulToom4(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.} =
   var
-    W: NtruToomProducts
-    C: NtruToomWide
+    W: NtruToomProducts = default(NtruToomProducts)
+    C: NtruToomWide = default(NtruToomWide)
     l: int = 0
     m: int = 0
     i: int = 0
@@ -921,8 +921,8 @@ proc toomK2BaseMul(R: var NtruToomK2Prod, A, B: NtruToomK2Eval,
 proc toomK2PointMul(R: var NtruToomK2Prod, A, B: NtruToomK2Padded,
     point, m, k: int) {.inline.} =
   var
-    AE: NtruToomK2Eval
-    BE: NtruToomK2Eval
+    AE: NtruToomK2Eval = default(NtruToomK2Eval)
+    BE: NtruToomK2Eval = default(NtruToomK2Eval)
   evalNtruToomK2Point(AE, A, point, m, k)
   evalNtruToomK2Point(BE, B, point, m, k)
   toomK2BaseMul(R, AE, BE, k)
@@ -931,7 +931,7 @@ proc toomK2PointMul(R: var NtruToomK2Prod, A, B: NtruToomK2Padded,
 proc k2x2Interpolate(R: var NtruToomK2Chunk, A: NtruToomK2Prod,
     k: int) {.inline.} =
   var
-    tmp: NtruToomK2Tmp
+    tmp: NtruToomK2Tmp = default(NtruToomK2Tmp)
     i: int = 0
   i = 0
   while i < 2 * k:
@@ -989,12 +989,12 @@ proc interpolateNtruToomK2(C: var NtruToomK2Wide, W: NtruToomK2Products,
     inv3: uint16 = 43691
     inv5: uint16 = 52429
   var
-    c0: NtruToomK2Chunk
-    p1: NtruToomK2Chunk
-    pm1: NtruToomK2Chunk
-    p2: NtruToomK2Chunk
-    pm2: NtruToomK2Chunk
-    c6: NtruToomK2Chunk
+    c0: NtruToomK2Chunk = default(NtruToomK2Chunk)
+    p1: NtruToomK2Chunk = default(NtruToomK2Chunk)
+    pm1: NtruToomK2Chunk = default(NtruToomK2Chunk)
+    p2: NtruToomK2Chunk = default(NtruToomK2Chunk)
+    pm2: NtruToomK2Chunk = default(NtruToomK2Chunk)
+    c6: NtruToomK2Chunk = default(NtruToomK2Chunk)
     i: int = 0
     n: int = 0
     v0: uint16 = 0
@@ -1044,10 +1044,10 @@ proc interpolateNtruToomK2(C: var NtruToomK2Wide, W: NtruToomK2Products,
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqMulToom4K2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqMulToom4K2(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.inline.} =
   var
-    A: NtruToomK2Padded
-    B: NtruToomK2Padded
-    W: NtruToomK2Products
-    C: NtruToomK2Wide
+    A: NtruToomK2Padded = default(NtruToomK2Padded)
+    B: NtruToomK2Padded = default(NtruToomK2Padded)
+    W: NtruToomK2Products = default(NtruToomK2Products)
+    C: NtruToomK2Wide = default(NtruToomK2Wide)
     l: int = 0
     m: int = 0
     k: int = 0
@@ -1119,10 +1119,10 @@ proc polyS3Mul*(r: var NtruPoly, p: NtruParams, a, b: NtruPoly) {.otterBench.} =
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyR2Inv`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyR2Inv*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
   var
-    f: NtruPoly
-    g: NtruPoly
-    v: NtruPoly
-    w: NtruPoly
+    f: NtruPoly = default(NtruPoly)
+    g: NtruPoly = default(NtruPoly)
+    v: NtruPoly = default(NtruPoly)
+    w: NtruPoly = default(NtruPoly)
     i: int = 0
     loop: int = 0
     delta: int16 = 1
@@ -1181,10 +1181,10 @@ proc polyR2Inv*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyS3Inv`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyS3Inv*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
   var
-    f: NtruPoly
-    g: NtruPoly
-    v: NtruPoly
-    w: NtruPoly
+    f: NtruPoly = default(NtruPoly)
+    g: NtruPoly = default(NtruPoly)
+    v: NtruPoly = default(NtruPoly)
+    w: NtruPoly = default(NtruPoly)
     i: int = 0
     loop: int = 0
     delta: int16 = 1
@@ -1245,10 +1245,10 @@ proc polyS3Inv*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyRqInv`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyRqInv*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
   var
-    ai2: NtruPoly
-    b: NtruPoly
-    c: NtruPoly
-    s: NtruPoly
+    ai2: NtruPoly = default(NtruPoly)
+    b: NtruPoly = default(NtruPoly)
+    c: NtruPoly = default(NtruPoly)
+    s: NtruPoly = default(NtruPoly)
     i: int = 0
     iter: int = 0
   polyR2Inv(ai2, p, a)
@@ -1268,7 +1268,7 @@ proc polyRqInv*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `polyLift`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyLift*(r: var NtruPoly, p: NtruParams, a: NtruPoly) {.otterBench.} =
   var
-    b: NtruPoly
+    b: NtruPoly = default(NtruPoly)
     i: int = 0
     t: uint16 = 0
     zj: uint16 = 0
@@ -1451,14 +1451,14 @@ proc owcpaCheckM(p: NtruParams, m: NtruPoly): int =
 proc owcpaKeypair*(pk, sk: var openArray[byte], p: NtruParams, seed: openArray[byte]) {.otterBench.} =
   ## Generate an NTRU OWC-CPA keypair.
   var
-    f: NtruPoly
-    g: NtruPoly
-    invfMod3: NtruPoly
-    gf: NtruPoly
-    invgf: NtruPoly
-    tmp: NtruPoly
-    invh: NtruPoly
-    h: NtruPoly
+    f: NtruPoly = default(NtruPoly)
+    g: NtruPoly = default(NtruPoly)
+    invfMod3: NtruPoly = default(NtruPoly)
+    gf: NtruPoly = default(NtruPoly)
+    invgf: NtruPoly = default(NtruPoly)
+    tmp: NtruPoly = default(NtruPoly)
+    invh: NtruPoly = default(NtruPoly)
+    h: NtruPoly = default(NtruPoly)
     i: int = 0
   sampleFg(f, g, p, seed)
   polyS3Inv(invfMod3, p, f)
@@ -1499,9 +1499,9 @@ proc owcpaEnc*(c: var openArray[byte], p: NtruParams, r, m: NtruPoly,
     pk: openArray[byte]) {.otterBench.} =
   ## Encrypt one NTRU OWC-CPA message.
   var
-    h: NtruPoly
-    liftm: NtruPoly
-    ct: NtruPoly
+    h: NtruPoly = default(NtruPoly)
+    liftm: NtruPoly = default(NtruPoly)
+    ct: NtruPoly = default(NtruPoly)
     i: int = 0
   polyRqSumZeroFromBytes(h, p, pk)
   polyRqMul(ct, p, r, h)
@@ -1518,16 +1518,16 @@ proc owcpaDec*(rm: var openArray[byte], p: NtruParams, ciphertext,
     secretkey: openArray[byte]): int {.otterBench.} =
   ## Decrypt and validate one NTRU OWC-CPA ciphertext.
   var
-    c: NtruPoly
-    f: NtruPoly
-    cf: NtruPoly
-    mf: NtruPoly
-    finv3: NtruPoly
-    m: NtruPoly
-    liftm: NtruPoly
-    invh: NtruPoly
-    r: NtruPoly
-    b: NtruPoly
+    c: NtruPoly = default(NtruPoly)
+    f: NtruPoly = default(NtruPoly)
+    cf: NtruPoly = default(NtruPoly)
+    mf: NtruPoly = default(NtruPoly)
+    finv3: NtruPoly = default(NtruPoly)
+    m: NtruPoly = default(NtruPoly)
+    liftm: NtruPoly = default(NtruPoly)
+    invh: NtruPoly = default(NtruPoly)
+    r: NtruPoly = default(NtruPoly)
+    b: NtruPoly = default(NtruPoly)
     i: int = 0
   polyRqSumZeroFromBytes(c, p, ciphertext)
   polyS3FromBytes(f, p, secretkey.toOpenArray(0, p.packTrinaryBytes - 1))
@@ -1581,8 +1581,8 @@ proc ntruKemEncInto*(ciphertext, sharedSecret: var openArray[byte],
     pk: openArray[byte], p: NtruParams, R: var PqRandomContext) {.otterBench.} =
   ## Encapsulate with pure-Nim NTRU.
   var
-    r: NtruPoly
-    m: NtruPoly
+    r: NtruPoly = default(NtruPoly)
+    m: NtruPoly = default(NtruPoly)
     rm: seq[byte] = @[]
     rmSeed: seq[byte] = @[]
   rm = newSeq[byte](p.owcpaMsgBytes)

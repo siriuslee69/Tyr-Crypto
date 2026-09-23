@@ -31,7 +31,7 @@ proc gf2xMulBasePort(C: var seq[uint64], cOff: int, a, b: uint64) =
     l: uint64 = 0
     g1: uint64 = 0
     g2: uint64 = 0
-    u: array[8, uint64]
+    u: array[8, uint64] = default(array[8, uint64])
     i: int = 0
     j: int = 0
     b0m: uint64 = b and ((1'u64 shl 61) - 1'u64)
@@ -223,8 +223,8 @@ proc gf2xModMul*(A, B: BikePadPoly): BikePadPoly =
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; finite-field, ring, and transform arithmetic for `kSqrPort`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc kSqrPort*(A: BikePadPoly, lParam: int): BikePadPoly =
   var
-    rawA: BikeRawPoly
-    rawC: BikeRawPoly
+    rawA: BikeRawPoly = default(BikeRawPoly)
+    rawC: BikeRawPoly = default(BikeRawPoly)
     idx: int = 0
     pos: int = 0
   rawA = padPolyToRaw(A)

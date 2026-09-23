@@ -25,9 +25,9 @@ when defined(sse2):
   proc polyAddSimdSse(r: var Poly, a, b: Poly) =
     var
       i: int = 0
-      va: i16x8
-      vb: i16x8
-      vr: i16x8
+      va: i16x8 = default(i16x8)
+      vb: i16x8 = default(i16x8)
+      vr: i16x8 = default(i16x8)
     i = 0
     while i + 8 <= kyberN:
       va = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr a.coeffs[i])))
@@ -43,9 +43,9 @@ when defined(sse2):
   proc polySubSimdSse(r: var Poly, a, b: Poly) =
     var
       i: int = 0
-      va: i16x8
-      vb: i16x8
-      vr: i16x8
+      va: i16x8 = default(i16x8)
+      vb: i16x8 = default(i16x8)
+      vr: i16x8 = default(i16x8)
     i = 0
     while i + 8 <= kyberN:
       va = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr a.coeffs[i])))
@@ -65,9 +65,9 @@ when defined(avx2):
   proc polyAddSimdAvx2(r: var Poly, a, b: Poly) =
     var
       i: int = 0
-      va: i16x16
-      vb: i16x16
-      vr: i16x16
+      va: i16x16 = default(i16x16)
+      vb: i16x16 = default(i16x16)
+      vr: i16x16 = default(i16x16)
     i = 0
     while i + 16 <= kyberN:
       va = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr a.coeffs[i])))
@@ -83,9 +83,9 @@ when defined(avx2):
   proc polySubSimdAvx2(r: var Poly, a, b: Poly) =
     var
       i: int = 0
-      va: i16x16
-      vb: i16x16
-      vr: i16x16
+      va: i16x16 = default(i16x16)
+      vb: i16x16 = default(i16x16)
+      vr: i16x16 = default(i16x16)
     i = 0
     while i + 16 <= kyberN:
       va = i16x16(mm256_loadu_si256(cast[pointer](unsafeAddr a.coeffs[i])))
@@ -104,8 +104,8 @@ when defined(neon) or defined(arm64) or defined(aarch64):
   proc polyAddSimdNeon(r: var Poly, a, b: Poly) =
     var
       i: int = 0
-      va: uint16x8
-      vb: uint16x8
+      va: uint16x8 = default(uint16x8)
+      vb: uint16x8 = default(uint16x8)
     i = 0
     while i + 8 <= kyberN:
       va = loadI16x8At[uint16x8](a.coeffs, i)
@@ -120,8 +120,8 @@ when defined(neon) or defined(arm64) or defined(aarch64):
   proc polySubSimdNeon(r: var Poly, a, b: Poly) =
     var
       i: int = 0
-      va: uint16x8
-      vb: uint16x8
+      va: uint16x8 = default(uint16x8)
+      vb: uint16x8 = default(uint16x8)
     i = 0
     while i + 8 <= kyberN:
       va = loadI16x8At[uint16x8](a.coeffs, i)

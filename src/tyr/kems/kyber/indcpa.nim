@@ -135,7 +135,7 @@ proc rejUniformFill(coeffs: var array[kyberN, int16], start, len: int, buf: open
 ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; public-key encryption key generation, encryption, and decryption algorithms for `sampleUniformPoly`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc sampleUniformPoly(p: KyberParams, r: var Poly, seed: openArray[byte], x, y: byte) =
   var
-    S: Sha3State
+    S: Sha3State = default(Sha3State)
     material {.noinit.}: array[kyberSymBytes + 2, byte]
     buf {.noinit.}: array[kyberGenMatrixBufBytes, byte]
     filled: int = 0

@@ -82,7 +82,7 @@ proc secureZeroMem*(p: pointer, l: int) =
   ## Volatile zeroization for secret-bearing POD scratch.
   var
     i: int = 0
-    B: ptr UncheckedArray[byte]
+    B: ptr UncheckedArray[byte] = default(ptr UncheckedArray[byte])
   if p.isNil or l <= 0:
     return
   B = cast[ptr UncheckedArray[byte]](p)

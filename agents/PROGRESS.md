@@ -1,3 +1,5 @@
+Commit Message: Bring the KEM sources to the declaration rules and drop their runtime asserts
+
 Commit Message: Check every Kyber, Frodo and BIKE variant against the published hashes without liboqs
 
 Commit Message: Wipe HQC encryption error positions and the rebuilt ciphertext

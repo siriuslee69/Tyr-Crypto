@@ -150,9 +150,9 @@ when defined(sse2):
       i: int = 0
       laneIdx: int = 0
       acc = i16x8(mm_setzero_si128())
-      va: i16x8
-      vb: i16x8
-      lanes: array[8, uint16]
+      va: i16x8 = default(i16x8)
+      vb: i16x8 = default(i16x8)
+      lanes: array[8, uint16] = default(array[8, uint16])
       sum: uint16 = 0
     i = 0
     while i + 8 <= n:
@@ -179,9 +179,9 @@ when defined(avx2):
       i: int = 0
       laneIdx: int = 0
       acc = i16x16(mm256_setzero_si256())
-      va: i16x16
-      vb: i16x16
-      lanes: array[16, uint16]
+      va: i16x16 = default(i16x16)
+      vb: i16x16 = default(i16x16)
+      lanes: array[16, uint16] = default(array[16, uint16])
       sum: uint16 = 0
     i = 0
     while i + 16 <= n:
@@ -203,7 +203,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
   ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sumLanes8Neon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc sumLanes8Neon(v: uint16x8): uint16 =
     var
-      partial: array[4, int32]
+      partial: array[4, int32] = default(array[4, int32])
       i: int = 0
       acc: uint32 = 0
     partial = storeI32x4[uint32x4](vpaddlq_u16(v))
@@ -220,8 +220,8 @@ when defined(neon) or defined(arm64) or defined(aarch64):
     var
       i: int = 0
       acc: uint16x8 = vmovq_n_u16(0'u16)
-      va: uint16x8
-      vb: uint16x8
+      va: uint16x8 = default(uint16x8)
+      vb: uint16x8 = default(uint16x8)
       sum: uint16 = 0
     i = 0
     while i + 8 <= n:
@@ -239,7 +239,7 @@ when defined(sse2):
   ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sumDwords4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc sumDwords4(v: nsse2.M128i): uint16 =
     var
-      lanes: array[4, uint32]
+      lanes: array[4, uint32] = default(array[4, uint32])
       i: int = 0
       acc: uint32 = 0
     nsse2.mm_storeu_si128(cast[pointer](unsafeAddr lanes[0]), v)
@@ -252,7 +252,7 @@ when defined(sse2):
   ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sumLanes8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc sumLanes8(v: i16x8): uint16 =
     var
-      lanes: array[8, uint16]
+      lanes: array[8, uint16] = default(array[8, uint16])
       i: int = 0
     lanes = storeI16x8(v)
     i = 0
@@ -264,11 +264,11 @@ when defined(sse2):
   proc dot4RowsStripe8(rowStripes: openArray[array[8, uint16]], s: openArray[uint16],
       sOff: int, outSums: var array[4, uint16]) =
     var
-      sVec: i16x8
-      r0: i16x8
-      r1: i16x8
-      r2: i16x8
-      r3: i16x8
+      sVec: i16x8 = default(i16x8)
+      r0: i16x8 = default(i16x8)
+      r1: i16x8 = default(i16x8)
+      r2: i16x8 = default(i16x8)
+      r3: i16x8 = default(i16x8)
     sVec = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr s[sOff])))
     r0 = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr rowStripes[0][0])))
     r1 = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr rowStripes[1][0])))
@@ -283,7 +283,7 @@ when defined(sse2):
   proc dot4RowsStripe8Vec(rowVecs: openArray[i16x8], s: openArray[uint16],
       sOff: int, outSums: var array[4, uint16]) =
     var
-      sVec: i16x8
+      sVec: i16x8 = default(i16x8)
     sVec = i16x8(mm_loadu_si128(cast[pointer](unsafeAddr s[sOff])))
     outSums[0] = sumLanes8(mulLoI16(rowVecs[0], sVec))
     outSums[1] = sumLanes8(mulLoI16(rowVecs[1], sVec))
@@ -304,11 +304,11 @@ when defined(sse2):
       acc1 = nsse2.mm_setzero_si128()
       acc2 = nsse2.mm_setzero_si128()
       acc3 = nsse2.mm_setzero_si128()
-      sVec: nsse2.M128i
-      a0: nsse2.M128i
-      a1: nsse2.M128i
-      a2: nsse2.M128i
-      a3: nsse2.M128i
+      sVec: nsse2.M128i = default(nsse2.M128i)
+      a0: nsse2.M128i = default(nsse2.M128i)
+      a1: nsse2.M128i = default(nsse2.M128i)
+      a2: nsse2.M128i = default(nsse2.M128i)
+      a3: nsse2.M128i = default(nsse2.M128i)
       j: int = 0
     j = 0
     while j < strideN:
@@ -331,8 +331,8 @@ when defined(sse2):
   proc dot8ColsSse(s: openArray[uint16], sOff, strideN: int,
       aColsT: openArray[uint16], outSums: var array[8, uint16]) =
     var
-      first4: array[4, uint16]
-      last4: array[4, uint16]
+      first4: array[4, uint16] = default(array[4, uint16])
+      last4: array[4, uint16] = default(array[4, uint16])
     dot4ColsSse(s, sOff, strideN, 0, aColsT, first4)
     dot4ColsSse(s, sOff, strideN, 4, aColsT, last4)
     outSums[0] = first4[0]
@@ -352,11 +352,11 @@ when defined(sse2):
       acc1 = nsse2.mm_setzero_si128()
       acc2 = nsse2.mm_setzero_si128()
       acc3 = nsse2.mm_setzero_si128()
-      sVec: nsse2.M128i
-      r0: nsse2.M128i
-      r1: nsse2.M128i
-      r2: nsse2.M128i
-      r3: nsse2.M128i
+      sVec: nsse2.M128i = default(nsse2.M128i)
+      r0: nsse2.M128i = default(nsse2.M128i)
+      r1: nsse2.M128i = default(nsse2.M128i)
+      r2: nsse2.M128i = default(nsse2.M128i)
+      r3: nsse2.M128i = default(nsse2.M128i)
       j: int = 0
     j = 0
     while j < strideN:
@@ -380,8 +380,8 @@ when defined(sse2):
       outSums: var array[8, uint16]) =
     var
       acc = nsse2.mm_setzero_si128()
-      aVec: nsse2.M128i
-      sVec: nsse2.M128i
+      aVec: nsse2.M128i = default(nsse2.M128i)
+      sVec: nsse2.M128i = default(nsse2.M128i)
       j: int = 0
     j = 0
     while j < strideN:
@@ -395,7 +395,7 @@ when defined(avx2):
   ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sumDwords8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc sumDwords8(v: navx.M256i): uint16 =
     var
-      lanes: array[8, uint32]
+      lanes: array[8, uint32] = default(array[8, uint32])
       i: int = 0
       acc: uint32 = 0
     navx.mm256_storeu_si256(cast[pointer](unsafeAddr lanes[0]), v)
@@ -415,11 +415,11 @@ when defined(avx2):
       acc1 = navx.mm256_setzero_si256()
       acc2 = navx.mm256_setzero_si256()
       acc3 = navx.mm256_setzero_si256()
-      sVec: navx.M256i
-      a0: navx.M256i
-      a1: navx.M256i
-      a2: navx.M256i
-      a3: navx.M256i
+      sVec: navx.M256i = default(navx.M256i)
+      a0: navx.M256i = default(navx.M256i)
+      a1: navx.M256i = default(navx.M256i)
+      a2: navx.M256i = default(navx.M256i)
+      a3: navx.M256i = default(navx.M256i)
       j: int = 0
     j = 0
     while j < strideN:
@@ -442,8 +442,8 @@ when defined(avx2):
   proc dot8ColsAvx2(s: openArray[uint16], sOff, strideN: int,
       aColsT: openArray[uint16], outSums: var array[8, uint16]) =
     var
-      first4: array[4, uint16]
-      last4: array[4, uint16]
+      first4: array[4, uint16] = default(array[4, uint16])
+      last4: array[4, uint16] = default(array[4, uint16])
     dot4ColsAvx2(s, sOff, strideN, 0, aColsT, first4)
     dot4ColsAvx2(s, sOff, strideN, 4, aColsT, last4)
     outSums[0] = first4[0]
@@ -454,38 +454,6 @@ when defined(avx2):
     outSums[5] = last4[1]
     outSums[6] = last4[2]
     outSums[7] = last4[3]
-
-  ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dot4RowsAvx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
-  proc dot4RowsAvx2(aRows: openArray[uint16], s: openArray[uint16], sOff, strideN: int,
-      outSums: var array[4, uint16]) =
-    ## Paper note: this is the matching four-row AVX2 kernel for `A*s+e`.
-    var
-      acc0 = navx.mm256_setzero_si256()
-      acc1 = navx.mm256_setzero_si256()
-      acc2 = navx.mm256_setzero_si256()
-      acc3 = navx.mm256_setzero_si256()
-      sVec: navx.M256i
-      r0: navx.M256i
-      r1: navx.M256i
-      r2: navx.M256i
-      r3: navx.M256i
-      j: int = 0
-    j = 0
-    while j < strideN:
-      sVec = navx.mm256_loadu_si256(cast[pointer](unsafeAddr s[sOff + j]))
-      r0 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[0 * strideN + j]))
-      r1 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[1 * strideN + j]))
-      r2 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[2 * strideN + j]))
-      r3 = navx.mm256_loadu_si256(cast[pointer](unsafeAddr aRows[3 * strideN + j]))
-      acc0 = navx2.mm256_add_epi32(acc0, navx2.mm256_madd_epi16(r0, sVec))
-      acc1 = navx2.mm256_add_epi32(acc1, navx2.mm256_madd_epi16(r1, sVec))
-      acc2 = navx2.mm256_add_epi32(acc2, navx2.mm256_madd_epi16(r2, sVec))
-      acc3 = navx2.mm256_add_epi32(acc3, navx2.mm256_madd_epi16(r3, sVec))
-      j = j + 16
-    outSums[0] = sumDwords8(acc0)
-    outSums[1] = sumDwords8(acc1)
-    outSums[2] = sumDwords8(acc2)
-    outSums[3] = sumDwords8(acc3)
 
 ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dotModQ16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc dotModQ16(A, B: openArray[uint16], aOff, bOff, n: int): uint16 =
@@ -572,8 +540,8 @@ proc transposeColStripe8xN(src: openArray[uint16],
 ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateRowStripe`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc generateRowStripe(ctx: Aes128Ctx, row, colStart: int): array[8, uint16] =
   var
-    blk: AesBlock
-    enc: AesBlock
+    blk: AesBlock = default(AesBlock)
+    enc: AesBlock = default(AesBlock)
     i: int = 0
   blk = default(AesBlock)
   blk[0] = byte(row and 0xff)
@@ -925,8 +893,8 @@ when defined(aesni):
   ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateRowStripe`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc generateRowStripe(ctx: Aes128NiCtx, row, colStart: int): array[8, uint16] =
     var
-      blk: AesBlock
-      enc: AesBlock
+      blk: AesBlock = default(AesBlock)
+      enc: AesBlock = default(AesBlock)
       i: int = 0
     blk = default(AesBlock)
     blk[0] = byte(row and 0xff)
@@ -942,8 +910,8 @@ when defined(aesni):
   ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateFourRowStripes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc generateFourRowStripes(ctx: Aes128NiCtx, rowStart, colStart: int): array[4, array[8, uint16]] =
     var
-      blocks: array[4, AesBlock]
-      encs: array[4, AesBlock]
+      blocks: array[4, AesBlock] = default(array[4, AesBlock])
+      encs: array[4, AesBlock] = default(array[4, AesBlock])
       rowIdx: int = 0
       lane: int = 0
     rowIdx = 0
@@ -966,8 +934,8 @@ when defined(aesni):
   ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateEightRowStripes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc generateEightRowStripes(ctx: Aes128NiCtx, rowStart, colStart: int): array[8, array[8, uint16]] =
     var
-      blocks: array[8, AesBlock]
-      encs: array[8, AesBlock]
+      blocks: array[8, AesBlock] = default(array[8, AesBlock])
+      encs: array[8, AesBlock] = default(array[8, AesBlock])
       rowIdx: int = 0
       lane: int = 0
     rowIdx = 0
@@ -990,8 +958,8 @@ when defined(aesni):
   ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateFourRowStripeVecs`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc generateFourRowStripeVecs(ctx: Aes128NiCtx, rowStart, colStart: int): array[4, i16x8] =
     var
-      blocks: array[4, AesBlock]
-      encs: array[4, AesBlock]
+      blocks: array[4, AesBlock] = default(array[4, AesBlock])
+      encs: array[4, AesBlock] = default(array[4, AesBlock])
       rowIdx: int = 0
     rowIdx = 0
     while rowIdx < 4:
@@ -1018,15 +986,15 @@ when defined(avx2):
       col: int = 0
       sOff: int = 0
       j: int = 0
-      sVec: navx.M256i
-      r0: navx.M256i
-      r1: navx.M256i
-      r2: navx.M256i
-      r3: navx.M256i
-      acc0: navx.M256i
-      acc1: navx.M256i
-      acc2: navx.M256i
-      acc3: navx.M256i
+      sVec: navx.M256i = default(navx.M256i)
+      r0: navx.M256i = default(navx.M256i)
+      r1: navx.M256i = default(navx.M256i)
+      r2: navx.M256i = default(navx.M256i)
+      r3: navx.M256i = default(navx.M256i)
+      acc0: navx.M256i = default(navx.M256i)
+      acc1: navx.M256i = default(navx.M256i)
+      acc2: navx.M256i = default(navx.M256i)
+      acc3: navx.M256i = default(navx.M256i)
     col = 0
     while col < 8:
       sOff = col * strideN
@@ -1072,15 +1040,15 @@ when defined(avx2):
       rowOff: int = 0
       col: int = 0
       j: int = 0
-      sVec: navx.M256i
-      a0: navx.M256i
-      a1: navx.M256i
-      a2: navx.M256i
-      a3: navx.M256i
-      acc0: navx.M256i
-      acc1: navx.M256i
-      acc2: navx.M256i
-      acc3: navx.M256i
+      sVec: navx.M256i = default(navx.M256i)
+      a0: navx.M256i = default(navx.M256i)
+      a1: navx.M256i = default(navx.M256i)
+      a2: navx.M256i = default(navx.M256i)
+      a3: navx.M256i = default(navx.M256i)
+      acc0: navx.M256i = default(navx.M256i)
+      acc1: navx.M256i = default(navx.M256i)
+      acc2: navx.M256i = default(navx.M256i)
+      acc3: navx.M256i = default(navx.M256i)
     row = 0
     while row < 8:
       sOff = row * strideN
@@ -1123,7 +1091,7 @@ when defined(sse2):
   proc accumulateAsBlock4x8Sse(aRows: openArray[uint16],
       s: openArray[uint16], result: var openArray[uint16], outOff, strideN: int) =
     var
-      sums: array[4, uint16]
+      sums: array[4, uint16] = default(array[4, uint16])
       col: int = 0
       sOff: int = 0
     col = 0
@@ -1140,7 +1108,7 @@ when defined(sse2):
   proc accumulateSaStripe8Sse(aColsT: openArray[uint16],
       s: openArray[uint16], result: var openArray[uint16], colStart, strideN: int) =
     var
-      sums: array[8, uint16]
+      sums: array[8, uint16] = default(array[8, uint16])
       row: int = 0
       sOff: int = 0
       rowOff: int = 0
@@ -1172,8 +1140,8 @@ when defined(neon) or defined(arm64) or defined(aarch64):
   proc dot8ColsNeon(s: openArray[uint16], sOff, strideN: int,
       aColsT: openArray[uint16], outSums: var array[8, uint16]) =
     var
-      first4: array[4, uint16]
-      last4: array[4, uint16]
+      first4: array[4, uint16] = default(array[4, uint16])
+      last4: array[4, uint16] = default(array[4, uint16])
     dot4ColsNeon(s, sOff, strideN, 0, aColsT, first4)
     dot4ColsNeon(s, sOff, strideN, 4, aColsT, last4)
     outSums[0] = first4[0]
@@ -1197,7 +1165,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
   proc accumulateAsBlock4x8Neon(aRows: openArray[uint16],
       s: openArray[uint16], result: var openArray[uint16], outOff, strideN: int) =
     var
-      sums: array[4, uint16]
+      sums: array[4, uint16] = default(array[4, uint16])
       col: int = 0
       sOff: int = 0
     col = 0
@@ -1214,7 +1182,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
   proc accumulateSaStripe8Neon(aColsT: openArray[uint16],
       s: openArray[uint16], result: var openArray[uint16], colStart, strideN: int) =
     var
-      sums: array[8, uint16]
+      sums: array[8, uint16] = default(array[8, uint16])
       row: int = 0
       sOff: int = 0
       rowOff: int = 0
@@ -1328,9 +1296,9 @@ when defined(avx2):
       secretRow: int = 0
       col: int = 0
       outOff: int = 0
-      factor: navx.M256i
-      aVec: navx.M256i
-      outVec: navx.M256i
+      factor: navx.M256i = default(navx.M256i)
+      aVec: navx.M256i = default(navx.M256i)
+      outVec: navx.M256i = default(navx.M256i)
     secretRow = 0
     while secretRow < 8:
       outOff = secretRow * strideN
@@ -1353,15 +1321,15 @@ when defined(avx2):
       col: int = 0
       outOff: int = 0
       secretOff: int = 0
-      factor0: navx.M256i
-      factor1: navx.M256i
-      factor2: navx.M256i
-      factor3: navx.M256i
-      a0: navx.M256i
-      a1: navx.M256i
-      a2: navx.M256i
-      a3: navx.M256i
-      outVec: navx.M256i
+      factor0: navx.M256i = default(navx.M256i)
+      factor1: navx.M256i = default(navx.M256i)
+      factor2: navx.M256i = default(navx.M256i)
+      factor3: navx.M256i = default(navx.M256i)
+      a0: navx.M256i = default(navx.M256i)
+      a1: navx.M256i = default(navx.M256i)
+      a2: navx.M256i = default(navx.M256i)
+      a3: navx.M256i = default(navx.M256i)
+      outVec: navx.M256i = default(navx.M256i)
     secretRow = 0
     while secretRow < 8:
       outOff = secretRow * strideN
@@ -1393,9 +1361,9 @@ when defined(sse2):
       secretRow: int = 0
       col: int = 0
       outOff: int = 0
-      factor: nsse2.M128i
-      aVec: nsse2.M128i
-      outVec: nsse2.M128i
+      factor: nsse2.M128i = default(nsse2.M128i)
+      aVec: nsse2.M128i = default(nsse2.M128i)
+      outVec: nsse2.M128i = default(nsse2.M128i)
     secretRow = 0
     while secretRow < 8:
       outOff = secretRow * strideN
@@ -1417,9 +1385,9 @@ when defined(neon) or defined(arm64) or defined(aarch64):
       secretRow: int = 0
       col: int = 0
       outOff: int = 0
-      factor: uint16x8
-      aVec: uint16x8
-      outVec: uint16x8
+      factor: uint16x8 = default(uint16x8)
+      aVec: uint16x8 = default(uint16x8)
+      outVec: uint16x8 = default(uint16x8)
     secretRow = 0
     while secretRow < 8:
       outOff = secretRow * strideN
@@ -1534,9 +1502,9 @@ proc generateMatrixA(p: FrodoParams, seedA: openArray[byte]): seq[uint16] =
     case p.matrixGenerator
     of fmgAes128:
       var
-        ctx: Aes128Ctx
-        blk: AesBlock
-        enc: AesBlock
+        ctx: Aes128Ctx = default(Aes128Ctx)
+        blk: AesBlock = default(AesBlock)
+        enc: AesBlock = default(AesBlock)
       ctx.initPublicFast(seedA)
       i = 0
       while i < p.n:
@@ -1621,7 +1589,7 @@ proc mulAddAsPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
       copyMem(addr result[0], unsafeAddr e[0], result.len * sizeof(uint16))
     block openSslPath:
       var
-        ctx: Aes128OpenSslCtx
+        ctx: Aes128OpenSslCtx = default(Aes128OpenSslCtx)
         blocksIn: seq[AesBlock] = newSeq[AesBlock](frodoRowsPerBlock * (p.n div 8))
         blocksOut: seq[AesBlock] = newSeq[AesBlock](blocksIn.len)
         aRow: seq[uint16] = newSeq[uint16](frodoRowsPerBlock * p.n)
@@ -1641,7 +1609,7 @@ proc mulAddAsPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
       return result
     when defined(aesni):
       var
-        ctx: Aes128NiCtx
+        ctx: Aes128NiCtx = default(Aes128NiCtx)
         blocksIn: seq[AesBlock] = newSeq[AesBlock](frodoRowsPerBlock * (p.n div 8))
         blocksOut: seq[AesBlock] = newSeq[AesBlock](blocksIn.len)
         aRow: seq[uint16] = newSeq[uint16](frodoRowsPerBlock * p.n)
@@ -1656,7 +1624,7 @@ proc mulAddAsPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
         i = i + frodoRowsPerWideBlock
     else:
       var
-        ctx: Aes128Ctx
+        ctx: Aes128Ctx = default(Aes128Ctx)
         blocksIn: seq[AesBlock] = newSeq[AesBlock](frodoRowsPerBlock * (p.n div 8))
         blocksOut: seq[AesBlock] = newSeq[AesBlock](blocksIn.len)
         aRow: seq[uint16] = newSeq[uint16](frodoRowsPerBlock * p.n)
@@ -1724,7 +1692,7 @@ proc mulAddSaPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
       copyMem(addr result[0], unsafeAddr e[0], result.len * sizeof(uint16))
     block openSslPath:
       var
-        ctx: Aes128OpenSslCtx
+        ctx: Aes128OpenSslCtx = default(Aes128OpenSslCtx)
         blocksIn: seq[AesBlock] = newSeq[AesBlock](p.n)
         blocksOut: seq[AesBlock] = newSeq[AesBlock](p.n)
         aColsT: seq[uint16] = newSeq[uint16](p.n * p.stripeStep)
@@ -1743,7 +1711,7 @@ proc mulAddSaPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
       return result
     when defined(aesni):
       var
-        ctx: Aes128NiCtx
+        ctx: Aes128NiCtx = default(Aes128NiCtx)
         blocksIn: seq[AesBlock] = newSeq[AesBlock](p.n)
         blocksOut: seq[AesBlock] = newSeq[AesBlock](p.n)
         aColsT: seq[uint16] = newSeq[uint16](p.n * p.stripeStep)
@@ -1757,7 +1725,7 @@ proc mulAddSaPlusEStream(p: FrodoParams, seedA: openArray[byte], s, e: openArray
         kk = kk + p.stripeStep
     else:
       var
-        ctx: Aes128Ctx
+        ctx: Aes128Ctx = default(Aes128Ctx)
         blocksIn: seq[AesBlock] = newSeq[AesBlock](p.n)
         blocksOut: seq[AesBlock] = newSeq[AesBlock](p.n)
         aColsT: seq[uint16] = newSeq[uint16](p.n * p.stripeStep)

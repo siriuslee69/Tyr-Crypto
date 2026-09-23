@@ -17,7 +17,8 @@ proc genpolyGen*(p: McElieceParams; outPoly: var seq[GF]; f: openArray[GF]): boo
     mask: GF = 0
     inv: GF = 0
     t: GF = 0
-  assert f.len >= cols
+  if not (f.len >= cols):
+    raise newException(ValueError, "McEliece size check failed: f.len >= cols")
   outPoly.setLen(cols)
 
   var mat = newSeq[GF]((cols + 1) * cols)

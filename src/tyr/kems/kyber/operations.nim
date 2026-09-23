@@ -44,7 +44,7 @@ proc kyberTyrKeypairFromParts*(v: KyberVariant, indcpaSeed, zSeed: openArray[byt
   ## Generate a pure-Nim Kyber keypair from the two exact randomness draws used by the KEM.
   var
     p: KyberParams = params(v)
-    pkHash: array[kyberSymBytes, byte]
+    pkHash: array[kyberSymBytes, byte] = default(array[kyberSymBytes, byte])
   if indcpaSeed.len != 32:
     raise newException(ValueError, "Kyber indcpa keypair seed must be 32 bytes")
   if zSeed.len != 32:
@@ -67,7 +67,7 @@ proc kyberTyrKeypair*(v: KyberVariant, seed: seq[byte] = @[]): KyberTyrKeypair {
   ## Generate a pure-Nim Kyber keypair.
   var
     seedMaterial: seq[byte] = @[]
-    seedMaterialBuf: array[2 * kyberSymBytes, byte]
+    seedMaterialBuf: array[2 * kyberSymBytes, byte] = default(array[2 * kyberSymBytes, byte])
   if seed.len > 0 and seed.len != kyberSymBytes:
     raise newException(ValueError, "Kyber seeded keypair requires a 32-byte seed")
   if seed.len == 0:
@@ -88,11 +88,11 @@ proc kyberTyrEncaps*(v: KyberVariant, pk: openArray[byte], seed: seq[byte] = @[]
   var
     p: KyberParams = params(v)
     entropy: seq[byte] = @[]
-    entropyBuf: array[kyberSymBytes, byte]
-    buf: array[2 * kyberSymBytes, byte]
-    kr: array[2 * kyberSymBytes, byte]
-    pkHash: array[kyberSymBytes, byte]
-    ctHash: array[kyberSymBytes, byte]
+    entropyBuf: array[kyberSymBytes, byte] = default(array[kyberSymBytes, byte])
+    buf: array[2 * kyberSymBytes, byte] = default(array[2 * kyberSymBytes, byte])
+    kr: array[2 * kyberSymBytes, byte] = default(array[2 * kyberSymBytes, byte])
+    pkHash: array[kyberSymBytes, byte] = default(array[kyberSymBytes, byte])
+    ctHash: array[kyberSymBytes, byte] = default(array[kyberSymBytes, byte])
   if pk.len != p.publicKeyBytes:
     raise newException(ValueError, "invalid Kyber public key length")
   if seed.len > 0 and seed.len != kyberSymBytes:
@@ -130,10 +130,10 @@ proc kyberTyrTryDecaps(v: KyberVariant, sk, ct: openArray[byte]): tuple[sharedSe
   ## expose `ok` through the public API because it becomes a validity oracle.
   var
     p: KyberParams = params(v)
-    buf: array[2 * kyberSymBytes, byte]
-    kr: array[2 * kyberSymBytes, byte]
-    cmp: array[1568, byte]
-    hct: array[kyberSymBytes, byte]
+    buf: array[2 * kyberSymBytes, byte] = default(array[2 * kyberSymBytes, byte])
+    kr: array[2 * kyberSymBytes, byte] = default(array[2 * kyberSymBytes, byte])
+    cmp: array[1568, byte] = default(array[1568, byte])
+    hct: array[kyberSymBytes, byte] = default(array[kyberSymBytes, byte])
     fail: int = 0
   if sk.len != p.secretKeyBytes:
     raise newException(ValueError, "invalid Kyber secret key length")

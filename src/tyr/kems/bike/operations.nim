@@ -78,9 +78,9 @@ proc functionK(m: BikeMessage, ctBytes: openArray[byte]): BikeSharedSecret =
 proc encryptRaw(E: BikeRawError, pkRaw: BikeRawPoly, m: BikeMessage): BikeCiphertextRaw =
   var
     pk: BikePadPoly = @[]
-    ePad: array[bikeN0, BikePadPoly]
+    ePad: array[bikeN0, BikePadPoly] = default(array[bikeN0, BikePadPoly])
     c0: BikePadPoly = @[]
-    l: BikeMessage
+    l: BikeMessage = default(BikeMessage)
     i: int = 0
   pk = rawToPadPoly(pkRaw)
   ePad = rawErrorToPad(E)
@@ -96,7 +96,7 @@ proc encryptRaw(E: BikeRawError, pkRaw: BikeRawPoly, m: BikeMessage): BikeCipher
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `reencrypt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc reencrypt(E: BikeRawError, ct: BikeCiphertextRaw): BikeMessage =
   var
-    l: BikeMessage
+    l: BikeMessage = default(BikeMessage)
     i: int = 0
   l = functionL(E)
   i = 0
@@ -117,11 +117,11 @@ proc bikeTyrKeypairDerand*(v: BikeVariant, randomness: openArray[byte]): BikeTyr
 proc bikeTyrKeypairFromParts*(v: BikeVariant, seed0, seed1: openArray[byte]): BikeTyrKeypair {.gcsafe.} =
   ## Generate a BIKE keypair from the two exact 32-byte seeds used by the KEM.
   var
-    secret: tuple[h0, h1: BikePadPoly, w0, w1: BikeIndexList]
-    sigma: BikeMessage
+    secret: tuple[h0, h1: BikePadPoly, w0, w1: BikeIndexList] = default(tuple[h0, h1: BikePadPoly, w0, w1: BikeIndexList])
+    sigma: BikeMessage = default(BikeMessage)
     h0Inv: BikePadPoly = @[]
     h: BikePadPoly = @[]
-    skState: BikeSecretKeyState
+    skState: BikeSecretKeyState = default(BikeSecretKeyState)
   if seed0.len != bikeSeedBytes or seed1.len != bikeSeedBytes:
     raise newException(ValueError, "BIKE-L1 keypair seeds must both be 32 bytes")
   secret = generateSecretKey(toSeed(seed0))
@@ -166,11 +166,11 @@ proc bikeTyrEncapsDerand*(v: BikeVariant, pk: openArray[byte],
     randomness: openArray[byte]): BikeTyrCipher {.otterTrace.} =
   ## Encapsulate against a BIKE-L1 public key from explicit 64-byte randomness.
   var
-    pkRaw: BikeRawPoly
-    m: BikeMessage
-    E: BikeRawError
-    ct: BikeCiphertextRaw
-    ss: BikeSharedSecret
+    pkRaw: BikeRawPoly = default(BikeRawPoly)
+    m: BikeMessage = default(BikeMessage)
+    E: BikeRawError = default(BikeRawError)
+    ct: BikeCiphertextRaw = default(BikeCiphertextRaw)
+    ss: BikeSharedSecret = default(BikeSharedSecret)
   if pk.len != bikePublicKeyBytes:
     raise newException(ValueError, "invalid BIKE public key length")
   if randomness.len != bikeEncapsRandomBytes:
@@ -210,17 +210,17 @@ proc bikeTyrTryDecapsInternal(v: BikeVariant, sk,
   ## converts the decoder result into a ciphertext-validity oracle. Normal
   ## callers must use `bikeTyrDecaps` and consume its derived secret uniformly.
   var
-    skState: BikeSecretKeyState
-    ct: BikeCiphertextRaw
-    E: BikeRawError
-    ePrime: BikeRawError
-    mPrime: BikeMessage
-    eTmp: BikeRawError
+    skState: BikeSecretKeyState = default(BikeSecretKeyState)
+    ct: BikeCiphertextRaw = default(BikeCiphertextRaw)
+    E: BikeRawError = default(BikeRawError)
+    ePrime: BikeRawError = default(BikeRawError)
+    mPrime: BikeMessage = default(BikeMessage)
+    eTmp: BikeRawError = default(BikeRawError)
     successCond: uint32 = 0
     canonicalCt: uint32 = 0
     mask: uint32 = 0
     i: int = 0
-    ss: BikeSharedSecret
+    ss: BikeSharedSecret = default(BikeSharedSecret)
   if sk.len != bikeSecretKeyBytes:
     raise newException(ValueError, "invalid BIKE secret key length")
   if ctBytes.len != bikeCiphertextBytes:

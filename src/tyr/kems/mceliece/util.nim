@@ -8,21 +8,24 @@ type
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `storeGF`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc storeGF*(dest: var openArray[byte], a: GF) =
   ## Store a GF element to two bytes (little-endian).
-  assert dest.len >= 2
+  if not (dest.len >= 2):
+    raise newException(ValueError, "McEliece size check failed: dest.len >= 2")
   dest[0] = byte(a and 0xFF)
   dest[1] = byte((a shr 8) and 0xFF)
 
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `loadGF`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc loadGF*(src: openArray[byte]): GF =
   ## Load a GF element from two bytes (little-endian) and mask to the field size.
-  assert src.len >= 2
+  if not (src.len >= 2):
+    raise newException(ValueError, "McEliece size check failed: src.len >= 2")
   var a: uint16 = (uint16(src[1]) shl 8) or uint16(src[0])
   a and 0x1FFF'u16
 
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `load4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc load4*(src: openArray[byte]): uint32 =
   ## Load 4 bytes little-endian.
-  assert src.len >= 4
+  if not (src.len >= 4):
+    raise newException(ValueError, "McEliece size check failed: src.len >= 4")
   var ret = uint32(src[3])
   for i in countdown(2, 0):
     ret = (ret shl 8) or uint32(src[i])
@@ -31,7 +34,8 @@ proc load4*(src: openArray[byte]): uint32 =
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `store8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc store8*(dest: var openArray[byte], v: uint64) =
   ## Store 8 bytes little-endian.
-  assert dest.len >= 8
+  if not (dest.len >= 8):
+    raise newException(ValueError, "McEliece size check failed: dest.len >= 8")
   dest[0] = byte((v shr 0) and 0xFF)
   dest[1] = byte((v shr 8) and 0xFF)
   dest[2] = byte((v shr 16) and 0xFF)
@@ -44,7 +48,8 @@ proc store8*(dest: var openArray[byte], v: uint64) =
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `load8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc load8*(src: openArray[byte]): uint64 =
   ## Load 8 bytes little-endian.
-  assert src.len >= 8
+  if not (src.len >= 8):
+    raise newException(ValueError, "McEliece size check failed: src.len >= 8")
   var ret = uint64(src[7])
   for i in countdown(6, 0):
     ret = (ret shl 8) or uint64(src[i])

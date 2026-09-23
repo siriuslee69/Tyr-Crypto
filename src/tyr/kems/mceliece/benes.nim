@@ -1,7 +1,6 @@
 ## Benes network application and support generation for Classic McEliece.
 ## Pure-Nim port of the PQClean clean implementation.
 
-import std/assertions
 
 from ./support import GF, bitrev
 from ./util import load8, store8, clearSensitiveWords
@@ -61,7 +60,8 @@ proc layerEx(data: var array[128, uint64], bits: openArray[uint64], lgs: int) {.
 proc applyBenes*(r: var openArray[byte]; bits: openArray[byte]; gfbits: int;
     rev = false) =
   ## Apply a Benes network to a packed bitstring of length n = 2^gfbits.
-  assert gfbits == BenesGfBits, "applyBenes currently assumes gfbits=13"
+  if not (gfbits == BenesGfBits):
+    raise newException(ValueError, "McEliece: applyBenes currently assumes gfbits=13")
   var
     n: int = 1 shl gfbits
     blockBytes: int = n div 8
@@ -70,17 +70,19 @@ proc applyBenes*(r: var openArray[byte]; bits: openArray[byte]; gfbits: int;
     startOffset: int = 2 * (gfbits - 1) * stageBytes
     incVal: int = (if rev: -blockBytes else: 0)
     bitsPtr: int = (if rev: startOffset else: 0)
-    rIntV: array[2, array[64, uint64]]
-    rIntH0: array[64, uint64]
-    rIntH1: array[64, uint64]
-    rIntH: array[128, uint64]
-    bIntV: array[64, uint64]
-    bIntH: array[64, uint64]
+    rIntV: array[2, array[64, uint64]] = default(array[2, array[64, uint64]])
+    rIntH0: array[64, uint64] = default(array[64, uint64])
+    rIntH1: array[64, uint64] = default(array[64, uint64])
+    rIntH: array[128, uint64] = default(array[128, uint64])
+    bIntV: array[64, uint64] = default(array[64, uint64])
+    bIntH: array[64, uint64] = default(array[64, uint64])
     iter: int = 0
     localPtr: int = 0
     i: int = 0
-  assert r.len == blockBytes
-  assert bits.len >= totalBitsBytes
+  if not (r.len == blockBytes):
+    raise newException(ValueError, "McEliece size check failed: r.len == blockBytes")
+  if not (bits.len >= totalBitsBytes):
+    raise newException(ValueError, "McEliece size check failed: bits.len >= totalBitsBytes")
   defer:
     clearSensitiveWords(rIntV[0])
     clearSensitiveWords(rIntV[1])
@@ -188,11 +190,14 @@ proc applyBenes*(r: var openArray[byte]; bits: openArray[byte]; gfbits: int;
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `supportGen`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc supportGen*(outSupport: var openArray[GF]; bits: openArray[byte];
     gfbits, sysN: int) =
-  assert gfbits == BenesGfBits
-  assert outSupport.len == sysN
-  assert bits.len >= ((2 * gfbits - 1) * (1 shl gfbits) div 2 + 7) div 8
+  if not (gfbits == BenesGfBits):
+    raise newException(ValueError, "McEliece size check failed: gfbits == BenesGfBits")
+  if not (outSupport.len == sysN):
+    raise newException(ValueError, "McEliece size check failed: outSupport.len == sysN")
+  if not (bits.len >= ((2 * gfbits - 1) * (1 shl gfbits) div 2 + 7) div 8):
+    raise newException(ValueError, "McEliece size check failed: bits.len >= ((2 * gfbits - 1) * (1 shl gfbits) div 2 + 7) div 8")
 
-  var L: array[BenesGfBits, array[BenesPackedBytes, byte]]
+  var L: array[BenesGfBits, array[BenesPackedBytes, byte]] = default(array[BenesGfBits, array[BenesPackedBytes, byte]])
   defer:
     for i in 0 ..< BenesGfBits:
       clearSensitiveWords(L[i])

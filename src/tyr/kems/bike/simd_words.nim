@@ -18,8 +18,8 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
       i: int = 0
     when defined(neon) or defined(arm64) or defined(aarch64):
       var
-        va: uint64x2
-        vb: uint64x2
+        va: uint64x2 = default(uint64x2)
+        vb: uint64x2 = default(uint64x2)
       while i + 2 <= n:
         va = vld1q_u64(cast[pointer](unsafeAddr A[i]))
         vb = vld1q_u64(cast[pointer](unsafeAddr B[i]))
@@ -27,8 +27,8 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
         i = i + 2
     else:
       var
-        va: nsse2.M128i
-        vb: nsse2.M128i
+        va: nsse2.M128i = default(nsse2.M128i)
+        vb: nsse2.M128i = default(nsse2.M128i)
       while i + 2 <= n:
         va = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr A[i]))
         vb = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr B[i]))
@@ -47,9 +47,9 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
       i: int = 0
     when defined(neon) or defined(arm64) or defined(aarch64):
       var
-        uVec: uint64x2
-        rVec: uint64x2
-        carryVec: uint64x2
+        uVec: uint64x2 = default(uint64x2)
+        rVec: uint64x2 = default(uint64x2)
+        carryVec: uint64x2 = default(uint64x2)
       while i + 2 <= n:
         uVec = vld1q_u64(cast[pointer](unsafeAddr U[i]))
         rVec = vld1q_u64(cast[pointer](unsafeAddr rotated[i]))
@@ -59,9 +59,9 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
         i = i + 2
     else:
       var
-        uVec: nsse2.M128i
-        rVec: nsse2.M128i
-        carryVec: nsse2.M128i
+        uVec: nsse2.M128i = default(nsse2.M128i)
+        rVec: nsse2.M128i = default(nsse2.M128i)
+        carryVec: nsse2.M128i = default(nsse2.M128i)
       while i + 2 <= n:
         uVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr U[i]))
         rVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr rotated[i]))
@@ -84,12 +84,12 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
       var
         maskVec: uint64x2 = vmovq_n_u64(lsbMask)
         onesVec: uint64x2 = vmovq_n_u64(not 0'u64)
-        aVec: uint64x2
-        brVec: uint64x2
-        notA: uint64x2
-        notBr: uint64x2
-        tmpVec: uint64x2
-        uOut: uint64x2
+        aVec: uint64x2 = default(uint64x2)
+        brVec: uint64x2 = default(uint64x2)
+        notA: uint64x2 = default(uint64x2)
+        notBr: uint64x2 = default(uint64x2)
+        tmpVec: uint64x2 = default(uint64x2)
+        uOut: uint64x2 = default(uint64x2)
       while i + 2 <= n:
         aVec = vld1q_u64(cast[pointer](unsafeAddr U[i]))
         brVec = vld1q_u64(cast[pointer](unsafeAddr br[i]))
@@ -107,12 +107,12 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
       var
         maskVec: nsse2.M128i = nsse2.mm_set1_epi64x(cast[int64](lsbMask))
         onesVec: nsse2.M128i = nsse2.mm_set1_epi64x(cast[int64](not 0'u64))
-        aVec: nsse2.M128i
-        brVec: nsse2.M128i
-        notA: nsse2.M128i
-        notBr: nsse2.M128i
-        tmpVec: nsse2.M128i
-        uOut: nsse2.M128i
+        aVec: nsse2.M128i = default(nsse2.M128i)
+        brVec: nsse2.M128i = default(nsse2.M128i)
+        notA: nsse2.M128i = default(nsse2.M128i)
+        notBr: nsse2.M128i = default(nsse2.M128i)
+        tmpVec: nsse2.M128i = default(nsse2.M128i)
+        uOut: nsse2.M128i = default(nsse2.M128i)
       while i + 2 <= n:
         aVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr U[i]))
         brVec = nsse2.mm_loadu_si128(cast[pointer](unsafeAddr br[i]))

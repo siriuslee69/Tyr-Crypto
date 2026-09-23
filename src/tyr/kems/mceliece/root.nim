@@ -54,10 +54,10 @@ when defined(avx2) and not defined(mcelieceScalarRoot):
   proc rootEvalAvx2(p: McElieceParams, f: openArray[GF], L: openArray[GF],
       outVals: var seq[GF]) =
     var
-      points: array[8, uint32]
-      values: array[8, uint32]
-      a: M256i
-      r: M256i
+      points: array[8, uint32] = default(array[8, uint32])
+      values: array[8, uint32] = default(array[8, uint32])
+      a: M256i = default(M256i)
+      r: M256i = default(M256i)
       i: int = 0
       j: int = 0
       lane: int = 0
@@ -115,10 +115,10 @@ when defined(sse2) and not defined(avx2) and not defined(mcelieceScalarRoot):
   proc rootEvalSse2(p: McElieceParams, f: openArray[GF], L: openArray[GF],
       outVals: var seq[GF]) =
     var
-      points: array[4, uint32]
-      values: array[4, uint32]
-      a: M128i
-      r: M128i
+      points: array[4, uint32] = default(array[4, uint32])
+      values: array[4, uint32] = default(array[4, uint32])
+      a: M128i = default(M128i)
+      r: M128i = default(M128i)
       i: int = 0
       j: int = 0
       lane: int = 0
@@ -178,10 +178,10 @@ when (defined(neon) or defined(arm64) or defined(aarch64)) and
   proc rootEvalNeon(p: McElieceParams, f: openArray[GF], L: openArray[GF],
       outVals: var seq[GF]) =
     var
-      points: array[4, uint32]
-      values: array[4, uint32]
-      a: uint32x4
-      r: uint32x4
+      points: array[4, uint32] = default(array[4, uint32])
+      values: array[4, uint32] = default(array[4, uint32])
+      a: uint32x4 = default(uint32x4)
+      r: uint32x4 = default(uint32x4)
       i: int = 0
       j: int = 0
       lane: int = 0
@@ -209,9 +209,11 @@ when (defined(neon) or defined(arm64) or defined(aarch64)) and
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `evalPoly`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc evalPoly*(p: McElieceParams; f: openArray[GF]; a: GF): GF {.gcsafe.} =
   ## Evaluate polynomial f at point a (f[0] is constant term).
-  assert f.len >= p.sysT + 1
-  var r = f[p.sysT]
-  var i = p.sysT - 1
+  if not (f.len >= p.sysT + 1):
+    raise newException(ValueError, "McEliece size check failed: f.len >= p.sysT + 1")
+  var
+    r: GF = f[p.sysT]
+    i: int = p.sysT - 1
   while i >= 0:
     r = gfMul(r, a)
     r = gfAdd(r, f[i])
@@ -222,8 +224,10 @@ proc evalPoly*(p: McElieceParams; f: openArray[GF]; a: GF): GF {.gcsafe.} =
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Goppa decoding and syndrome algorithms for `rootEval`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc rootEval*(p: McElieceParams; f: openArray[GF]; L: openArray[GF]; outVals: var seq[GF]) =
   ## Evaluate polynomial f at every support element in L.
-  assert f.len >= p.sysT + 1
-  assert L.len >= p.sysN
+  if not (f.len >= p.sysT + 1):
+    raise newException(ValueError, "McEliece size check failed: f.len >= p.sysT + 1")
+  if not (L.len >= p.sysN):
+    raise newException(ValueError, "McEliece size check failed: L.len >= p.sysN")
   outVals.setLen(p.sysN)
   when defined(mcelieceScalarRoot):
     for i in 0 ..< p.sysN:

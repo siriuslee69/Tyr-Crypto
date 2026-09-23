@@ -79,7 +79,7 @@ proc encapsOf*(a: AnyKem, pk: openArray[byte], seed: seq[byte] = @[]): KemCipher
     var t = kyberTyrEncaps(a.kyber, pk, seed)
     result = KemCiphertext(family: kfKyber, ciphertext: t.ciphertext, shared: t.sharedSecret)
   of kfMcEliece:
-    var t: McElieceTyrCipher
+    var t: McElieceTyrCipher = default(McElieceTyrCipher)
     if seed.len == 0: t = mcelieceTyrEncaps(a.mceliece, pk)
     else: t = mcelieceTyrEncapsDerand(a.mceliece, pk, seed)
     result = KemCiphertext(family: kfMcEliece, ciphertext: t.ciphertext, shared: t.sharedSecret)

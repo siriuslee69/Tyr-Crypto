@@ -282,7 +282,7 @@ proc serializeSecretKey*(S: BikeSecretKeyState): seq[byte] =
 ## Reference: [BIKE-5.2] section 2.2, fixed-weight secret polynomial encoding; reject out-of-range, duplicate, or bin-inconsistent secret indices.
 proc validateSecretIndexList(W: BikeIndexList, R: BikeRawPoly) =
   var
-    expected: BikeRawPoly
+    expected: BikeRawPoly = default(BikeRawPoly)
     i: int = 0
     pos: int = 0
   defer:

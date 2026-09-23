@@ -56,7 +56,7 @@ proc saberKeypairWithActiveFeed*(v: SaberVariant,
     backend: SaberBackend = saberAuto): SaberTyrKeypair {.otterBench, otterTrace.} =
   ## Compatibility helper; pure Nim code uses a system-random context here.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   R = initPqSystemRandomContext()
   try:
     result = saberKeypairWithContext(v, R, backend)
@@ -68,7 +68,7 @@ proc saberEncapsWithActiveFeed*(v: SaberVariant, pk: openArray[byte],
     backend: SaberBackend = saberAuto): SaberTyrCipher {.otterBench, otterTrace.} =
   ## Compatibility helper; pure Nim code uses a system-random context here.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   R = initPqSystemRandomContext()
   try:
     result = saberEncapsWithContext(v, pk, R, backend)
@@ -80,7 +80,7 @@ proc saberTyrKeypairDerand*(v: SaberVariant, seed: openArray[byte],
     backend: SaberBackend = saberAuto): SaberTyrKeypair {.otterBench, otterTrace.} =
   ## Generate a SABER keypair from a 48-byte NIST KAT seed.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   R = initPqKatRandomContext(seed)
   try:
     result = saberKeypairWithContext(v, R, backend)
@@ -92,7 +92,7 @@ proc saberTyrKeypair*(v: SaberVariant, seed: seq[byte] = @[],
     backend: SaberBackend = saberAuto): SaberTyrKeypair {.otterBench, otterTrace.} =
   ## Generate a pure-Nim SABER keypair, optionally from a 48-byte KAT seed.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   if seed.len == 0:
     R = initPqSystemRandomContext()
   else:
@@ -107,7 +107,7 @@ proc saberTyrEncapsDerand*(v: SaberVariant, pk: openArray[byte], seed: openArray
     backend: SaberBackend = saberAuto): SaberTyrCipher {.otterBench, otterTrace.} =
   ## Encapsulate from a 48-byte NIST KAT seed.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   R = initPqKatRandomContext(seed)
   try:
     result = saberEncapsWithContext(v, pk, R, backend)
@@ -119,7 +119,7 @@ proc saberTyrEncaps*(v: SaberVariant, pk: openArray[byte], seed: seq[byte] = @[]
     backend: SaberBackend = saberAuto): SaberTyrCipher {.otterBench, otterTrace.} =
   ## Encapsulate against a SABER public key.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   if seed.len == 0:
     R = initPqSystemRandomContext()
   else:
@@ -149,7 +149,7 @@ proc saberTyrKatKemFromSeed*(v: SaberVariant, seed: openArray[byte],
     cipher: SaberTyrCipher] {.otterBench, otterTrace.} =
   ## Replay the NIST KAT sequence: one seed feeds keypair, then encapsulation.
   var
-    R: PqRandomContext
+    R: PqRandomContext = default(PqRandomContext)
   R = initPqKatRandomContext(seed)
   try:
     result.keypair = saberKeypairWithContext(v, R, backend)

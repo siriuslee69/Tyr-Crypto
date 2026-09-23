@@ -175,7 +175,7 @@ proc computeSyndrome(c0, h0: BikePadPoly): BikeSyndrome =
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `recomputeSyndrome`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc recomputeSyndrome(c0, h0, pk: BikePadPoly, E: BikeRawError): BikeSyndrome =
   var
-    ePad: array[bikeN0, BikePadPoly]
+    ePad: array[bikeN0, BikePadPoly] = default(array[bikeN0, BikePadPoly])
     tmpC0: BikePadPoly = @[]
   ePad = rawErrorToPad(E)
   tmpC0 = gf2xModMul(ePad[1], pk)
@@ -212,7 +212,7 @@ proc getThreshold(S: BikeSyndrome): int =
 proc updateErrorSlice(E: var BikeRawError, slot: int, lastSlice: BikePadPoly,
     sourceMask: BikeRawPoly) =
   var
-    rawSlice: BikeRawPoly
+    rawSlice: BikeRawPoly = default(BikeRawPoly)
     j: int = 0
     sumMsb: byte = 0
   rawSlice = padPolyToRaw(lastSlice)
@@ -226,7 +226,7 @@ proc updateErrorSlice(E: var BikeRawError, slot: int, lastSlice: BikePadPoly,
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; decoding, malformed-input rejection, and verification rules for `fillPotentialMask`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fillPotentialMask(dst: var BikeRawPoly, lastSlice: BikePadPoly) =
   var
-    rawSlice: BikeRawPoly
+    rawSlice: BikeRawPoly = default(BikeRawPoly)
     j: int = 0
   rawSlice = padPolyToRaw(lastSlice)
   j = 0
@@ -244,7 +244,7 @@ proc findErr1(E, blackE, grayE: var BikeRawError, S: BikeSyndrome,
     slot: int = 0
     j: int = 0
     rotated: BikeSyndrome = @[]
-    U: BikeUpc
+    U: BikeUpc = default(BikeUpc)
     lastSlice: BikePadPoly = @[]
     ones: BikeSyndrome = @[]
   slot = 0
@@ -284,7 +284,7 @@ proc findErr2(E: var BikeRawError, posE: BikeRawError, S: BikeSyndrome,
     slot: int = 0
     j: int = 0
     rotated: BikeSyndrome = @[]
-    U: BikeUpc
+    U: BikeUpc = default(BikeUpc)
     lastSlice: BikePadPoly = @[]
   slot = 0
   while slot < bikeN0:
@@ -308,8 +308,8 @@ proc decodeBike*(ct: BikeCiphertextRaw, sk: BikeSecretKeyState): BikeRawError =
       h0: BikePadPoly = @[]
       pk: BikePadPoly = @[]
       s: BikeSyndrome = @[]
-      blackE: BikeRawError
-      grayE: BikeRawError
+      blackE: BikeRawError = default(BikeRawError)
+      grayE: BikeRawError = default(BikeRawError)
       iter: int = 0
       threshold: int = 0
     c0 = rawToPadPoly(ct.c0)

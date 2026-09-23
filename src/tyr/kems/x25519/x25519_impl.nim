@@ -56,7 +56,7 @@ proc store64Le(output: var X25519Bytes32, offset: int, value: uint64) {.inline.}
 
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `mulWideFallback`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc mulWideFallback(a, b: uint64, lo, hi: var uint64) {.inline.} =
-  let
+  var
     a0 = a and 0xffff_ffff'u64
     a1 = a shr 32
     b0 = b and 0xffff_ffff'u64
@@ -65,7 +65,7 @@ proc mulWideFallback(a, b: uint64, lo, hi: var uint64) {.inline.} =
     p01 = a0 * b1
     p10 = a1 * b0
     p11 = a1 * b1
-  var middle = (p00 shr 32) + (p01 and 0xffff_ffff'u64) + (p10 and 0xffff_ffff'u64)
+    middle = (p00 shr 32) + (p01 and 0xffff_ffff'u64) + (p10 and 0xffff_ffff'u64)
   lo = (p00 and 0xffff_ffff'u64) or (middle shl 32)
   hi = p11 + (p01 shr 32) + (p10 shr 32) + (middle shr 32)
 
@@ -74,7 +74,7 @@ proc mulWide(a, b: uint64, lo, hi: var uint64) {.inline.} =
   when defined(sizeof_Int128):
     type
       uint128T = uint128
-    let p = uint128T(a) * uint128T(b)
+    var p = uint128T(a) * uint128T(b)
     lo = cast[uint64](p)
     hi = cast[uint64](p shr 64)
   else:
@@ -82,7 +82,8 @@ proc mulWide(a, b: uint64, lo, hi: var uint64) {.inline.} =
 
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `add64To128`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc add64To128(lo, hi: var uint64, value: uint64) {.inline.} =
-  let prev = lo
+  var
+    prev: uint64 = lo
   lo += value
   hi += uint64(lo < prev)
 
@@ -93,8 +94,9 @@ proc add128(lo, hi: var uint64, addLo, addHi: uint64) {.inline.} =
 
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `addMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc addMul(lo, hi: var uint64, a, b: uint64) {.inline.} =
-  var prodLo: uint64 = 0
-  var prodHi: uint64 = 0
+  var
+    prodLo: uint64 = 0
+    prodHi: uint64 = 0
   mulWide(a, b, prodLo, prodHi)
   add128(lo, hi, prodLo, prodHi)
 
@@ -161,8 +163,8 @@ template feCopy(h, f: untyped) =
 
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feCswap`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feCswap(f, g: var X25519Field, b: uint32) {.inline.} =
-  let mask = uint64(-int64(b))
   var
+    mask = uint64(-int64(b))
     x0 = (f[0] xor g[0]) and mask
     x1 = (f[1] xor g[1]) and mask
     x2 = (f[2] xor g[2]) and mask
@@ -219,7 +221,7 @@ proc reduceMulAcc(r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: ui
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feMulRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feMulRaw(h: ptr X25519Field, f, g: ptr X25519Field) {.inline.} =
   otterSpan(x25519BenchTag & ".feMul"):
-    let
+    var
       f0 = f[][0]
       f1 = f[][1]
       f2 = f[][2]
@@ -235,7 +237,7 @@ proc feMulRaw(h: ptr X25519Field, f, g: ptr X25519Field) {.inline.} =
       f3_19 = 19'u64 * f3
       f4_19 = 19'u64 * f4
     var
-      r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: uint64
+      r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: uint64 = default(uint64)
     addMul(r0lo, r0hi, f0, g0)
     addMul(r0lo, r0hi, f1_19, g4)
     addMul(r0lo, r0hi, f2_19, g3)
@@ -270,7 +272,7 @@ template feMul(h, f, g: untyped) =
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feSqRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feSqRaw(h: ptr X25519Field, f: ptr X25519Field) {.inline.} =
   otterSpan(x25519BenchTag & ".feSq"):
-    let
+    var
       f0 = f[][0]
       f1 = f[][1]
       f2 = f[][2]
@@ -284,7 +286,7 @@ proc feSqRaw(h: ptr X25519Field, f: ptr X25519Field) {.inline.} =
       f3_19 = 19'u64 * f3
       f4_19 = 19'u64 * f4
     var
-      r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: uint64
+      r0lo, r0hi, r1lo, r1hi, r2lo, r2hi, r3lo, r3hi, r4lo, r4hi: uint64 = default(uint64)
     addMul(r0lo, r0hi, f0, f0)
     addMul(r0lo, r0hi, f1_38, f4)
     addMul(r0lo, r0hi, f2_38, f3)
@@ -308,8 +310,8 @@ template feSq(h, f: untyped) =
 
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feMul32Raw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feMul32Raw(h: ptr X25519Field, f: ptr X25519Field, n: uint32) {.inline.} =
-  let sn = uint64(n)
   var
+    sn = uint64(n)
     lo: uint64 = 0
     hi: uint64 = 0
     carry: uint64 = 0
@@ -406,11 +408,11 @@ proc feReduce(h: var X25519Field, f: X25519Field) {.inline.} =
 
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc feToBytes(outBytes: var X25519Bytes32, h: X25519Field) {.inline.} =
-  var t: X25519Field
+  var t: X25519Field = default(X25519Field)
   defer:
     secureClearPod(t)
   feReduce(t, h)
-  let
+  var
     t0 = t[0] or (t[1] shl 51)
     t1 = (t[1] shr 13) or (t[2] shl 38)
     t2 = (t[2] shr 26) or (t[3] shl 25)
@@ -431,10 +433,10 @@ proc feSqRepeat(h: var X25519Field, count: int) {.inline.} =
 proc feInvert(outField: var X25519Field, z: X25519Field) {.inline.} =
   otterSpan(x25519BenchTag & ".feInvert"):
     var
-      t0: X25519Field
-      t1: X25519Field
-      t2: X25519Field
-      t3: X25519Field
+      t0: X25519Field = default(X25519Field)
+      t1: X25519Field = default(X25519Field)
+      t2: X25519Field = default(X25519Field)
+      t3: X25519Field = default(X25519Field)
     defer:
       secureClearPod(t0)
       secureClearPod(t1)
@@ -515,9 +517,9 @@ proc x25519ScalarmultRaw*(outShared: var X25519Bytes32, secretKey,
   secureClearPod(outShared)
   otterSpan(x25519BenchTag & ".scalarmult"):
     var
-      t: X25519Bytes32
-      x1, x2, x3, z2, z3: X25519Field
-      a, b, aa, bb, e, da, cb: X25519Field
+      t: X25519Bytes32 = default(X25519Bytes32)
+      x1, x2, x3, z2, z3: X25519Field = default(X25519Field)
+      a, b, aa, bb, e, da, cb: X25519Field = default(X25519Field)
       pos: int = 254
       swap: uint32 = 0
       bit: uint32 = 0
@@ -561,7 +563,7 @@ proc x25519TyrShared*(secretKey, publicKey: openArray[byte]): seq[byte] {.otterT
   var
     sk = toFixed32(secretKey)
     pk = toFixed32(publicKey)
-    shared: X25519Bytes32
+    shared: X25519Bytes32 = default(X25519Bytes32)
   defer:
     secureClearPod(sk)
     secureClearPod(pk)
@@ -574,7 +576,7 @@ proc x25519TyrShared*(secretKey, publicKey: openArray[byte]): seq[byte] {.otterT
 proc x25519TyrPublicKey*(secretKey: openArray[byte]): seq[byte] {.otterTrace.} =
   var
     sk = toFixed32(secretKey)
-    pk: X25519Bytes32
+    pk: X25519Bytes32 = default(X25519Bytes32)
   defer:
     secureClearPod(sk)
     secureClearPod(pk)
@@ -586,7 +588,7 @@ proc x25519TyrPublicKey*(secretKey: openArray[byte]): seq[byte] {.otterTrace.} =
 proc x25519TyrKeypair*(): X25519TyrKeypair {.otterTrace.} =
   var
     sk = randomSecret32()
-    pk: X25519Bytes32
+    pk: X25519Bytes32 = default(X25519Bytes32)
   defer:
     secureClearPod(sk)
     secureClearPod(pk)
@@ -599,7 +601,7 @@ proc x25519TyrKeypair*(): X25519TyrKeypair {.otterTrace.} =
 proc x25519TyrKeypairFromSeed*(seed: openArray[byte]): X25519TyrKeypair {.otterTrace.} =
   var
     sk = deriveSeedSecretCompat(seed)
-    pk: X25519Bytes32
+    pk: X25519Bytes32 = default(X25519Bytes32)
   defer:
     secureClearPod(sk)
     secureClearPod(pk)
@@ -648,7 +650,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
 
   ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `fe0Vec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc fe0Vec[T: SimdU64](h: var X25519FieldVec[T]) {.inline.} =
-    let zero = set1U64[T](0'u64)
+    var zero = set1U64[T](0'u64)
     h[0] = zero
     h[1] = zero
     h[2] = zero
@@ -657,7 +659,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
 
   ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `fe1Vec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc fe1Vec[T: SimdU64](h: var X25519FieldVec[T]) {.inline.} =
-    let
+    var
       zero = set1U64[T](0'u64)
       one = set1U64[T](1'u64)
     h[0] = one
@@ -670,7 +672,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
   proc packMaskVec[T: SimdU64](bits: openArray[uint32]): T {.inline.} =
     const lanes = lanesU64[T]()
     var
-      maskVals: array[lanes, uint64]
+      maskVals: array[lanes, uint64] = default(array[lanes, uint64])
       lane: int = 0
     if bits.len != lanes:
       raise newException(ValueError, "invalid X25519 SIMD mask lane count")
@@ -683,7 +685,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
   proc packFieldVec[T: SimdU64](fields: array[lanesU64[T](), X25519Field]): X25519FieldVec[T] {.inline.} =
     const lanes = lanesU64[T]()
     var
-      limbVals: array[lanes, uint64]
+      limbVals: array[lanes, uint64] = default(array[lanes, uint64])
       limb: int = 0
       lane: int = 0
     limb = 0
@@ -699,7 +701,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
   proc unpackFieldVec[T: SimdU64](v: X25519FieldVec[T]): array[lanesU64[T](), X25519Field] {.inline.} =
     const lanes = lanesU64[T]()
     var
-      limbVals: array[lanes, uint64]
+      limbVals: array[lanes, uint64] = default(array[lanes, uint64])
       limb: int = 0
       lane: int = 0
     limb = 0
@@ -721,11 +723,10 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
 
   ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feSubVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc feSubVec[T: SimdU64](h: var X25519FieldVec[T], f, g: X25519FieldVec[T]) {.inline.} =
-    let
+    var
       mask = set1U64[T](feMask)
       bias0 = set1U64[T](0x00ff_ffff_ffff_fda'u64)
       bias = set1U64[T](0x00ff_ffff_ffff_ffe'u64)
-    var
       h0 = g[0]
       h1 = g[1]
       h2 = g[2]
@@ -750,8 +751,8 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
   ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feCswapVec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc feCswapVec[T: SimdU64](f, g: var X25519FieldVec[T],
       bits: openArray[uint32]) {.inline.} =
-    let mask = packMaskVec[T](bits)
     var
+      mask = packMaskVec[T](bits)
       x0 = (f[0] xor g[0]) and mask
       x1 = (f[1] xor g[1]) and mask
       x2 = (f[2] xor g[2]) and mask
@@ -774,7 +775,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     var
       sf = unpackFieldVec(f)
       sg = unpackFieldVec(g)
-      sh: array[lanes, X25519Field]
+      sh: array[lanes, X25519Field] = default(array[lanes, X25519Field])
       lane: int = 0
     while lane < lanes:
       feMul(sh[lane], sf[lane], sg[lane])
@@ -786,7 +787,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     const lanes = lanesU64[T]()
     var
       sf = unpackFieldVec(f)
-      sh: array[lanes, X25519Field]
+      sh: array[lanes, X25519Field] = default(array[lanes, X25519Field])
       lane: int = 0
     while lane < lanes:
       feSq(sh[lane], sf[lane])
@@ -799,7 +800,7 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     const lanes = lanesU64[T]()
     var
       sf = unpackFieldVec(f)
-      sh: array[lanes, X25519Field]
+      sh: array[lanes, X25519Field] = default(array[lanes, X25519Field])
       lane: int = 0
     while lane < lanes:
       feMul32(sh[lane], sf[lane], n)
@@ -809,9 +810,9 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
   ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `feInvertBatchFields`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc feInvertBatchFields[L: static[int]](outInv, zs: var array[L, X25519Field]) {.inline.} =
     var
-      prefix: array[L, X25519Field]
-      running: X25519Field
-      invAll: X25519Field
+      prefix: array[L, X25519Field] = default(array[L, X25519Field])
+      running: X25519Field = default(X25519Field)
+      invAll: X25519Field = default(X25519Field)
       lane: int = 0
     defer:
       secureClearPod(prefix)
@@ -837,14 +838,14 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     otterSpan(x25519BenchTag & ".scalarmultBatch"):
       const lanes = lanesU64[T]()
       var
-        t: array[lanes, X25519Bytes32]
-        x1Fields: array[lanes, X25519Field]
-        x1, x2, x3, z2, z3: X25519FieldVec[T]
-        a, b, aa, bb, e, da, cb: X25519FieldVec[T]
-        swapBits: array[lanes, uint32]
-        bits: array[lanes, uint32]
-        x2Fields, z2Fields, invZ: array[lanes, X25519Field]
-        affine: X25519Field
+        t: array[lanes, X25519Bytes32] = default(array[lanes, X25519Bytes32])
+        x1Fields: array[lanes, X25519Field] = default(array[lanes, X25519Field])
+        x1, x2, x3, z2, z3: X25519FieldVec[T] = default(X25519FieldVec[T])
+        a, b, aa, bb, e, da, cb: X25519FieldVec[T] = default(X25519FieldVec[T])
+        swapBits: array[lanes, uint32] = default(array[lanes, uint32])
+        bits: array[lanes, uint32] = default(array[lanes, uint32])
+        x2Fields, z2Fields, invZ: array[lanes, X25519Field] = default(array[lanes, X25519Field])
+        affine: X25519Field = default(X25519Field)
         lane: int = 0
         pos: int = 254
         allValid: bool = true
@@ -965,10 +966,10 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrSharedSse2x`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
     proc x25519TyrSharedSse2x*(secretKeys, publicKeys: array[2, seq[byte]]): array[2, seq[byte]] =
       var
-        sk: array[2, X25519Bytes32]
-        pk: array[2, X25519Bytes32]
-        shared: array[2, X25519Bytes32]
-        ok: array[2, bool]
+        sk: array[2, X25519Bytes32] = default(array[2, X25519Bytes32])
+        pk: array[2, X25519Bytes32] = default(array[2, X25519Bytes32])
+        shared: array[2, X25519Bytes32] = default(array[2, X25519Bytes32])
+        ok: array[2, bool] = default(array[2, bool])
         lane: int = 0
       defer:
         secureClearPod(sk)
@@ -995,10 +996,10 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrSharedNeon2x`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
     proc x25519TyrSharedNeon2x*(secretKeys, publicKeys: array[2, seq[byte]]): array[2, seq[byte]] =
       var
-        sk: array[2, X25519Bytes32]
-        pk: array[2, X25519Bytes32]
-        shared: array[2, X25519Bytes32]
-        ok: array[2, bool]
+        sk: array[2, X25519Bytes32] = default(array[2, X25519Bytes32])
+        pk: array[2, X25519Bytes32] = default(array[2, X25519Bytes32])
+        shared: array[2, X25519Bytes32] = default(array[2, X25519Bytes32])
+        ok: array[2, bool] = default(array[2, bool])
         lane: int = 0
       defer:
         secureClearPod(sk)
@@ -1041,10 +1042,10 @@ when defined(amd64) or defined(i386) or defined(neon) or defined(arm64) or defin
     ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `x25519TyrSharedAvx4x`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
     proc x25519TyrSharedAvx4x*(secretKeys, publicKeys: array[4, seq[byte]]): array[4, seq[byte]] =
       var
-        sk: array[4, X25519Bytes32]
-        pk: array[4, X25519Bytes32]
-        shared: array[4, X25519Bytes32]
-        ok: array[4, bool]
+        sk: array[4, X25519Bytes32] = default(array[4, X25519Bytes32])
+        pk: array[4, X25519Bytes32] = default(array[4, X25519Bytes32])
+        shared: array[4, X25519Bytes32] = default(array[4, X25519Bytes32])
+        ok: array[4, bool] = default(array[4, bool])
         lane: int = 0
       defer:
         secureClearPod(sk)
