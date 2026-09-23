@@ -24,7 +24,6 @@ else:
 
 type
   WorkerState = object
-    workerId: int
     stopTicks: int64
     xchachaKey: array[32, byte]
     xchachaNonce: array[24, byte]
@@ -50,7 +49,6 @@ proc initWorker(S: var WorkerState, workerId: int, stopTicks: int64) =
   var
     i: int = 0
     j: int = 0
-  S.workerId = workerId
   S.stopTicks = stopTicks
   fillBytes(S.xchachaKey, 0x11 + workerId * 7)
   fillBytes(S.xchachaNonce, 0x31 + workerId * 7)
@@ -100,7 +98,7 @@ proc worker(S: ptr WorkerState) {.thread.} =
   var
     xchachaOut: seq[byte] = @[]
     aesOut: seq[byte] = @[]
-    blakeOut: array[8, Blake3Out]
+    blakeOut: array[8, Blake3Out] = default(array[8, Blake3Out])
     nowTicks: int64 = 0
   when defined(avx2):
     while true:
@@ -158,8 +156,8 @@ proc main() =
     startTicks: int64 = 0
     stopTicks: int64 = 0
     elapsedTicks: int64 = 0
-    states: seq[WorkerState]
-    threads: seq[Thread[ptr WorkerState]]
+    states: seq[WorkerState] = default(seq[WorkerState])
+    threads: seq[Thread[ptr WorkerState]] = default(seq[Thread[ptr WorkerState]])
     totalOperations: uint64 = 0
     totalBytes: uint64 = 0
     combinedChecksum: uint64 = 0

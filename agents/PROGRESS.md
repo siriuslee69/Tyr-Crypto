@@ -1,4 +1,4 @@
-Commit Message: Split X25519 API wrappers and SIMD routines into include files
+Commit Message: Reduce Otter findings with same-module splits and explicit defaults
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -1511,3 +1511,33 @@ Resolved blocker:
 - Emscripten and supported browsers are now available. The browser-WASM/native
   sweep is no longer an unexecuted path; it passes through the registered
   `nimble test_webui_interop` task.
+
+## 2026-09-23 Otter Follow-up Findings
+
+Implemented:
+- Moved contiguous top-level sections into same-module include files for typed
+  KEM material, Ed25519 signing and verification, X.509 extensions and public
+  parsers, AES block routines, OpenSSL verification, and the libsodium builder.
+  The included routine bodies retain their order and module access.
+- Made Nim's implicit default values explicit in the changed X.509, Ed25519,
+  AES, and stress benchmark declarations. Removed the private
+  `WorkerState.workerId` field and its unread write; the worker argument still
+  seeds each benchmark input.
+
+Verification:
+- `nimble test -y` passed all 34 desktop groups after each source edit.
+- `nimble build_tyr_avx_stress -y` passed, and the built benchmark completed a
+  one-second AVX2 run.
+- `nim c --out:/tmp/tyr-build-libsodium tools/build_libsodium.nim` passed.
+- Otter layout findings fell from 200 (5 seams) after the earlier X25519 split
+  to 191 (2 seams). Its unread-state count fell from 6 to 5. The targeted
+  X.509, OpenSSL verification, and libsodium builder oversized entries cleared.
+
+Reviewed findings:
+- The listed private routines under DEAD CODE have callers, including generic
+  instantiations and passed procedure values. `BenchJob.avgTicks` and
+  `FalconDecodedSignature.logn` are also read. They were retained.
+- The remaining libsodium and password layout seams sit in conditional blocks.
+  The earlier nested libsodium include attempt did not compile and was reverted.
+- The remaining reports include API and algorithm changes requiring separate
+  review; no cryptographic formulas or rejection behavior changed here.
