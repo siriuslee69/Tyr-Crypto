@@ -84,11 +84,13 @@ proc verifySignatureWithIssuer*(subject, issuer: X509Certificate): tuple[
   ## Dispatches on the issuer's key algorithm and the subject's signature
   ## algorithm, refusing any combination that is not explicitly supported.
   var
-    rsaKey: RsaPublicKeyResult
-    ecKey: P256PublicKeyResult
-    hash: tuple[ok: bool, hash: RsaHash]
-    digest: tuple[ok: bool, digest: seq[byte]]
-    parsedSig: tuple[ok: bool, sig: EcdsaSignature, err: string]
+    rsaKey: RsaPublicKeyResult = default(RsaPublicKeyResult)
+    ecKey: P256PublicKeyResult = default(P256PublicKeyResult)
+    hash: tuple[ok: bool, hash: RsaHash] = default(tuple[ok: bool, hash: RsaHash])
+    digest: tuple[ok: bool, digest: seq[byte]] = default(
+      tuple[ok: bool, digest: seq[byte]])
+    parsedSig: tuple[ok: bool, sig: EcdsaSignature, err: string] = default(
+      tuple[ok: bool, sig: EcdsaSignature, err: string])
   case issuer.publicKeyAlgorithm
   of oidEd25519:
     if subject.signatureAlgorithm != oidEd25519:
@@ -134,136 +136,6 @@ proc verifySignatureWithIssuer*(subject, issuer: X509Certificate): tuple[
     result = (ok: false, err: "issuer key algorithm is unsupported: " &
       issuer.publicKeyAlgorithm)
 
-proc verifyPinnedServerCertificate*(leaf, root: X509Certificate,
-    nowUnix: int64, host: string = ""): tuple[ok: bool, err: string] {.
-    role: {actor}.} =
-  ## leaf/root/nowUnix/host: pinned-root server-auth policy inputs.
-  ## The algorithm-agnostic counterpart of
-  ## `verifyPinnedEd25519ServerCertificate`, used when the pinned root or the
-  ## leaf carries an RSA or ECDSA key instead of Ed25519.
-  var
-    sig: tuple[ok: bool, err: string]
-    identity: X509VerifyResult
-  if nowUnix < leaf.notBeforeUnix or nowUnix > leaf.notAfterUnix:
-    return (ok: false, err: "leaf certificate is outside its validity period")
-  if nowUnix < root.notBeforeUnix or nowUnix > root.notAfterUnix:
-    return (ok: false, err: "pinned root is outside its validity period")
-  if not root.hasBasicConstraints or not root.isCa:
-    return (ok: false, err: "pinned root is not an X.509 CA")
-  if root.issuerDer != root.subjectDer:
-    return (ok: false, err: "pinned root is not self-issued")
-  if root.hasKeyUsage and not root.canKeyCertSign:
-    return (ok: false, err: "pinned root does not permit certificate signing")
-  sig = verifySignatureWithIssuer(root, root)
-  if not sig.ok:
-    return (ok: false, err: "pinned root self-signature is invalid: " & sig.err)
-  if leaf.issuerDer != root.subjectDer:
-    return (ok: false, err: "leaf issuer does not match pinned root subject")
-  if leaf.hasKeyUsage and not leaf.canDigitalSignature:
-    return (ok: false,
-      err: "leaf certificate does not permit digital signatures")
-  if leaf.hasExtendedKeyUsage and not leaf.hasServerAuth:
-    return (ok: false,
-      err: "leaf certificate does not permit server authentication")
-  sig = verifySignatureWithIssuer(leaf, root)
-  if not sig.ok:
-    return (ok: false, err: sig.err)
-  if host.len > 0:
-    identity = verifyCertificateIdentity(leaf, host)
-    if not identity.ok:
-      return (ok: false, err: identity.err)
-  result = (ok: true, err: "")
 
-proc findIssuer(subject: X509Certificate, pool: seq[X509Certificate],
-    used: seq[int]): int {.role: {dataFetcher}.} =
-  ## subject/pool/used: certificate needing an issuer, candidates, and the
-  ## indices already on the path (which prevents cycles).
-  var i: int = 0
-  result = -1
-  while i < pool.len:
-    if i notin used and pool[i].subjectDer == subject.issuerDer:
-      return i
-    i = i + 1
-
-proc verifyCertificateChain*(leaf: X509Certificate,
-    intermediates: seq[X509Certificate], trust: TrustStore, nowUnix: int64,
-    host: string = ""): ChainVerifyResult {.role: {orchestrator}.} =
-  ## leaf/intermediates/trust/nowUnix/host: the certificate to validate, any
-  ## untrusted chain certificates the peer supplied, the trust anchors, the
-  ## current time, and an optional hostname to match against the leaf.
-  ##
-  ## Walks from the leaf upward, checking validity, CA status, key usage and
-  ## the signature at each hop, and succeeds only when a trust anchor signs
-  ## the final certificate.
-  var
-    current: X509Certificate = leaf
-    used: seq[int] = @[]
-    depth, idx, i: int = 0
-    sig: tuple[ok: bool, err: string]
-    identity: X509VerifyResult
-  if trust.roots.len == 0:
-    result.err = "trust store is empty"
-    return
-  if nowUnix < leaf.notBeforeUnix or nowUnix > leaf.notAfterUnix:
-    result.err = "leaf certificate is outside its validity period"
-    return
-  if leaf.hasKeyUsage and not leaf.canDigitalSignature:
-    result.err = "leaf certificate does not permit digital signatures"
-    return
-  if leaf.hasExtendedKeyUsage and not leaf.hasServerAuth:
-    result.err = "leaf certificate does not permit server authentication"
-    return
-  if host.len > 0:
-    identity = verifyCertificateIdentity(leaf, host)
-    if not identity.ok:
-      result.err = identity.err
-      return
-  while depth < maxChainDepth:
-    # A trust anchor that issued the current certificate ends the walk.
-    i = 0
-    while i < trust.roots.len:
-      if trust.roots[i].subjectDer == current.issuerDer:
-        if nowUnix < trust.roots[i].notBeforeUnix or
-            nowUnix > trust.roots[i].notAfterUnix:
-          result.err = "trust anchor is outside its validity period"
-          return
-        sig = verifySignatureWithIssuer(current, trust.roots[i])
-        if not sig.ok:
-          result.err = sig.err
-          return
-        result.depth = depth + 1
-        result.ok = true
-        return
-      i = i + 1
-    # Otherwise continue through the supplied intermediates.
-    idx = findIssuer(current, intermediates, used)
-    if idx < 0:
-      result.err = "no issuer found for certificate at depth " & $depth
-      return
-    if nowUnix < intermediates[idx].notBeforeUnix or
-        nowUnix > intermediates[idx].notAfterUnix:
-      result.err = "intermediate certificate is outside its validity period"
-      return
-    if not intermediates[idx].hasBasicConstraints or not intermediates[idx].isCa:
-      result.err = "intermediate certificate is not a CA"
-      return
-    if intermediates[idx].hasKeyUsage and not intermediates[idx].canKeyCertSign:
-      result.err = "intermediate certificate does not permit certificate signing"
-      return
-    ## pathLenConstraint counts the CA certificates allowed BELOW this one,
-    ## not counting the leaf. `depth` is how many hops the walk has already
-    ## taken, so at depth 0 the certificate being signed is the leaf and no
-    ## CA sits below; at depth 1 exactly one does, and so on. An intermediate
-    ## marked pathlen:0 that signed another CA is a certificate being used
-    ## for more than it was issued for.
-    if intermediates[idx].hasPathLen and depth > intermediates[idx].pathLen:
-      result.err = "intermediate certificate exceeds its path length constraint"
-      return
-    sig = verifySignatureWithIssuer(current, intermediates[idx])
-    if not sig.ok:
-      result.err = sig.err
-      return
-    used.add(idx)
-    current = intermediates[idx]
-    depth = depth + 1
-  result.err = "certificate chain exceeds the maximum depth"
+include "chain_path_checks.nim"
+include "chain_path_building.nim"

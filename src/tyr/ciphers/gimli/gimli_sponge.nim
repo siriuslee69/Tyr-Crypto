@@ -40,8 +40,8 @@ type
     bufs: array[gimliBlockLen, uint8]
     ## l: buffered bytes for absorb.
     l: int
-    ## outOffset: current squeeze offset.
-    outOffset: int
+    ## outOffset: current squeeze offset, reset when absorption initializes.
+    outOffset: int ## otter:latest
     ## squeezing: whether state is in squeeze mode.
     squeezing: bool
 
@@ -157,7 +157,7 @@ proc absorbFramedInput(s: var GimliSpongeState, domain, ks, ns,
   ## Absorb standard unkeyed input directly. Keyed calls are length-framed so
   ## `(key, nonce, message)` tuples cannot alias one another.
   var
-    L: array[8, uint8]
+    L: array[8, uint8] = default(array[8, uint8])
     i: int = 0
     n: uint64 = 0
   if ks.len == 0 and ns.len == 0:
@@ -190,7 +190,7 @@ proc absorbFramedInput(s: var GimliSpongeState, domain, ks, ns,
 proc gimliXofWithDomain(ks, ns, ms, domain: openArray[uint8],
     outLen: int): ByteSeq =
   var
-    s: GimliSpongeState
+    s: GimliSpongeState = default(GimliSpongeState)
   defer:
     gimliClear(s)
   if outLen < 0:
@@ -214,9 +214,9 @@ proc gimliXof*(ks, ns, ms: openArray[uint8], outLen: int): ByteSeq =
 ## gimliXofDiscard: absorb key/nonce/message and discard output blocks.
 proc gimliXofDiscard*(ks, ns, ms: openArray[uint8], outLen: int) =
   var
-    s: GimliSpongeState
+    s: GimliSpongeState = default(GimliSpongeState)
     remaining: int = outLen
-    chunk: array[gimliBlockLen, uint8]
+    chunk: array[gimliBlockLen, uint8] = default(array[gimliBlockLen, uint8])
     take: int = 0
   defer:
     gimliClear(s)

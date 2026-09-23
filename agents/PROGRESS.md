@@ -1,4 +1,4 @@
-Commit Message: Reduce Otter findings with same-module splits and explicit defaults
+Commit Message: Continue behavior-preserving Otter cleanup
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -1541,3 +1541,42 @@ Reviewed findings:
   The earlier nested libsodium include attempt did not compile and was reverted.
 - The remaining reports include API and algorithm changes requiring separate
   review; no cryptographic formulas or rejection behavior changed here.
+
+## 2026-09-24 Otter Findings, Continued
+
+Implemented:
+- Continued same-module splits for X.509 path checks and extension dispatch,
+  HQC GF(2) multiplication, PKE parsing/encryption/decryption and KEM wrappers,
+  Kyber forward/inverse/AVX2 NTT code, McEliece key generation, Poly1305 API
+  and tag finalization, the Sigma benchmark phases, and the libsodium builder.
+- Extracted the McEliece scalar matrix fill into a row helper with the loop
+  order and operations preserved. The state checker no longer reports the
+  Gimli sponge's intentional reset because the field now carries
+  `## otter:latest`; state locals also have explicit defaults.
+- Kept changes structural and declarative. No cipher, KEM, signature, parsing,
+  rejection, or key-derivation formula changed.
+
+Verification:
+- `nimble test -y` passed all 34 desktop groups on the final tree.
+- Focused HQC, Kyber, McEliece, Poly1305, X.509 codec, and libsodium binding
+  checks passed after their respective edits; `nim check` passed on changed
+  entry modules and `nim-check.sh` reported no findings on changed Nim files.
+- The Sigma benchmark and libsodium builder compiled. `git diff --check`
+  passed.
+- The forced Otter gate was run with normal report logging. It returned exit 1
+  because it printed findings, as expected for this repository.
+
+Reviewed findings:
+- Otter's latest snapshot reports 191 layout placements (2 conditional seams,
+  189 groups apart), 126 routine families, 278 triple and 75 deeper nesting
+  sites, 15 secret candidates, 29 endings, 29 placeholders, 5 unread-state
+  candidates, 13 leftover and 302 unused-public routines, 3373 unnamed roles,
+  and 14 dead plus 3 never-set configurator fields. Coverage is 1485 of 3969
+  routines.
+- The remaining libsodium/password seams cross conditional implementations;
+  the libsodium split attempt was reverted after Nim rejected the included
+  indentation. The helper/API and algorithm reports still need individual
+  review, and changing their control flow or public surface would exceed the
+  behavior-preserving scope. Otter also now flags the 89-line X.509 extension
+  include as oversized; splitting that small dispatcher further would add
+  fragments without making the code easier to follow.

@@ -58,13 +58,13 @@ const
   ]
 
 var
-  benchInput: array[benchBytes, byte]
-  benchKey32: array[32, byte]
-  benchNonce24: array[24, byte]
-  benchAesNonce16: array[16, byte]
-  baseState: Gimli_Block
-  baseCv: Blake3Cv
-  baseBlock: Blake3Block
+  benchInput: array[benchBytes, byte] = default(array[benchBytes, byte])
+  benchKey32: array[32, byte] = default(array[32, byte])
+  benchNonce24: array[24, byte] = default(array[24, byte])
+  benchAesNonce16: array[16, byte] = default(array[16, byte])
+  baseState: Gimli_Block = default(Gimli_Block)
+  baseCv: Blake3Cv = default(Blake3Cv)
+  baseBlock: Blake3Block = default(Blake3Block)
 
 proc fillPattern(bs: var openArray[byte], start: int = 0) =
   var i: int = 0
@@ -97,82 +97,7 @@ proc initBenchData() =
     baseBlock[i] = 0x01020304'u32 + uint32(i) * 0x01010101'u32
     i = i + 1
 
-proc runAlgo(kind: AlgoKind) =
-  case kind
-  of akBlake3Xof:
-    discard blake3Hash(benchInput, benchBytes)
-  of akGimliXof:
-    gimliXofDiscard(benchKey32, benchNonce24, benchInput, benchBytes)
-  of akXChaCha20:
-    discard xchacha20Xor(benchKey32, benchNonce24, benchInput)
-  of akXChaCha20Sse2:
-    discard xchacha20StreamSimd(benchKey32, benchNonce24, benchBytes, b = xcbSse2)
-  of akXChaCha20Avx2:
-    discard xchacha20StreamSimd(benchKey32, benchNonce24, benchBytes, b = xcbAvx2)
-  of akAesCtrScalar:
-    discard aesCtrXor(benchKey32, benchAesNonce16, benchInput, acbScalar)
-  of akAesCtrSse2:
-    discard aesCtrXor(benchKey32, benchAesNonce16, benchInput, acbSse2)
-  of akAesCtrAvx2:
-    discard aesCtrXor(benchKey32, benchAesNonce16, benchInput, acbAvx2)
-  of akGimli:
-    var s = baseState
-    gimliPermute(s)
-  of akGimliSse:
-    when declared(gimliPermuteSse):
-      var s = baseState
-      gimliPermuteSse(s)
-    else:
-      discard
-  of akGimliSse4x:
-    when declared(gimliPermuteSse4x):
-      var ss: array[4, Gimli_Block]
-      var i: int = 0
-      i = 0
-      while i < ss.len:
-        ss[i] = baseState
-        i = i + 1
-      gimliPermuteSse4x(ss)
-    else:
-      discard
-  of akGimliAvx8x:
-    when declared(gimliPermuteAvx8x):
-      var ss: array[8, Gimli_Block]
-      var i: int = 0
-      i = 0
-      while i < ss.len:
-        ss[i] = baseState
-        i = i + 1
-      gimliPermuteAvx8x(ss)
-    else:
-      discard
-  of akBlake3Sse4:
-    when declared(blake3CompressSse4):
-      var cvs: array[4, Blake3Cv]
-      var blocks: array[4, Blake3Block]
-      var i: int = 0
-      i = 0
-      while i < cvs.len:
-        cvs[i] = baseCv
-        blocks[i] = baseBlock
-        i = i + 1
-      discard blake3CompressSse4(cvs, blocks, 0'u64, 64'u32, 0'u32)
-    else:
-      discard
-  of akBlake3Avx8:
-    when declared(blake3CompressAvx8):
-      var cvs: array[8, Blake3Cv]
-      var blocks: array[8, Blake3Block]
-      var i: int = 0
-      i = 0
-      while i < cvs.len:
-        cvs[i] = baseCv
-        blocks[i] = baseBlock
-        i = i + 1
-      discard blake3CompressAvx8(cvs, blocks, 0'u64, 64'u32, 0'u32)
-    else:
-      discard
-
+include "bench_sigma_algorithms.nim"
 proc makeJobs(): seq[BenchJob] =
   var jobs: seq[BenchJob] = @[]
   proc addJob(kind: AlgoKind) =
@@ -203,63 +128,18 @@ proc makeJobs(): seq[BenchJob] =
   result = jobs
 
 proc benchThread(arg: ptr BenchJob) {.thread.} =
-  var i: int = 0
-  let start = getMonoTime()
+  var
+    i: int = 0
+    start = getMonoTime()
+    stop: MonoTime = start
   i = 0
   while i < loops:
     runAlgo(arg.algo)
     i = i + 1
-  let stop = getMonoTime()
+  stop = getMonoTime()
   arg.totalTicks = stop.ticks - start.ticks
   if loops > 0:
     arg.avgTicks = arg.totalTicks div loops
 
-suite "Sigma performance":
-  test "compare crypto throughput over several thousand loops":
-    initBenchData()
 
-    when compileOption("threads"):
-      var jobs = makeJobs()
-      var threads: seq[Thread[ptr BenchJob]] = @[]
-      threads.setLen(jobs.len)
-      var i: int = 0
-      i = 0
-      while i < jobs.len:
-        createThread(threads[i], benchThread, addr jobs[i])
-        i = i + 1
-      i = 0
-      while i < threads.len:
-        joinThread(threads[i])
-        i = i + 1
-
-      var results: seq[BenchResult] = @[]
-      results.setLen(jobs.len)
-      i = 0
-      while i < jobs.len:
-        results[i] = BenchResult(
-          name: algoNames[jobs[i].algo],
-          loops: loops,
-          totalTicks: jobs[i].totalTicks,
-          avgTicks: jobs[i].avgTicks
-        )
-        i = i + 1
-      check results.len == jobs.len
-      for r in results:
-        check r.loops == loops
-        check r.totalTicks > 0
-        check r.avgTicks >= 0
-      echo formatBenchResults(results)
-    else:
-      var algos: seq[BenchAlgo] = @[]
-      for job in makeJobs():
-        let k = job.algo
-        algos.add(BenchAlgo(name: algoNames[k], run: proc() =
-          runAlgo(k)
-        ))
-      let results = compareAlgorithms(algos, loops = loops, warmup = 100)
-      check results.len == algos.len
-      for r in results:
-        check r.loops == loops
-        check r.totalTicks > 0
-        check r.avgTicks >= 0
-      echo formatBenchResults(results)
+include "bench_sigma_suite.nim"
