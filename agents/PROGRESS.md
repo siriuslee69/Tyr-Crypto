@@ -1,4 +1,8 @@
+Commit Message: Wipe every secret intermediate in Frodo key generation, encapsulation and decapsulation
+
 Commit Message: Refuse McEliece-6960119f keys and ciphertexts with padding bits set
+
+Commit Message: Add a pure-Nim HQC KEM that reproduces the published vectors
 
 Commit Message: Bump the Otter pin off the dead Fylgia reference
 - Stable high-level crypto wrapper API with predictable inputs/outputs.

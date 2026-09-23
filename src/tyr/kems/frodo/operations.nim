@@ -1936,6 +1936,7 @@ proc frodoTyrKeypairDerand*(v: FrodoVariant, randomness: openArray[byte]): Frodo
       pkSeedA: seq[byte] = @[]
       bWords: seq[uint16] = @[]
       seedSEWords: seq[uint16] = @[]
+      seedSEInput: seq[byte] = @[] ## 0x5f || seedSE, enough to rebuild S and E
       pkh: seq[byte] = @[]
     if randomness.len != p.keypairRandomBytes:
       raise newException(ValueError, p.name & " derand keypair requires " &
@@ -1943,7 +1944,7 @@ proc frodoTyrKeypairDerand*(v: FrodoVariant, randomness: openArray[byte]): Frodo
     pkSeedA = newSeq[byte](p.bytesSeedA)
     shakeIntoForParams(p, pkSeedA,
       randomness.toOpenArray(randomness.len - p.bytesSeedA, randomness.len - 1))
-    let seedSEInput = prefixedByte(0x5f'u8,
+    seedSEInput = prefixedByte(0x5f'u8,
       randomness.toOpenArray(p.sharedSecretBytes, 2 * p.sharedSecretBytes - 1))
     seedSEWords = newSeq[uint16](2 * wordCount)
     shakeWordsLeIntoForParams(p, seedSEWords, seedSEInput)
@@ -1968,8 +1969,10 @@ proc frodoTyrKeypairDerand*(v: FrodoVariant, randomness: openArray[byte]): Frodo
     )
     copyMem(addr result.secretKey[p.sharedSecretBytes + result.publicKey.len + 2 * wordCount],
       unsafeAddr pkh[0], pkh.len)
-    # seedSEWords holds the secret matrices S and E; volatile-clear it.
+    # seedSEWords holds the secret matrices S and E, and seedSEInput the
+    # seed that regrows them; volatile-clear both.
     secureClearWords(seedSEWords)
+    secureClearBytes(seedSEInput)
     clearWords(bWords)
     clearBytes(pkSeedA)
     clearBytes(pkh)
@@ -2004,32 +2007,35 @@ proc frodoTyrEncapsDerand*(v: FrodoVariant, pk: openArray[byte], mu: openArray[b
     bpWords: seq[uint16] = @[]
     bWords: seq[uint16] = @[]
     vWords: seq[uint16] = @[]
+    muWords: seq[uint16] = @[] ## mu spread over the nbar x nbar grid
     cWords: seq[uint16] = @[]
     fin: seq[byte] = @[]
+    g2Input: seq[byte] = @[]   ## pkh || mu
+    spInput: seq[byte] = @[]   ## 0x96 || seedSE', regrows S', E', E''
+    pkSeedA: seq[byte] = @[]
   if pk.len != p.publicKeyBytes:
     raise newException(ValueError, "invalid Frodo public key length")
   if mu.len != p.bytesMu:
     raise newException(ValueError, p.name & " encaps randomness must be " & $p.bytesMu & " bytes")
   pkh = newSeq[byte](p.bytesPkHash)
   shakeIntoForParams(p, pkh, pk)
-  let g2Input = concatByteSeq(pkh, mu)
+  g2Input = concatByteSeq(pkh, mu)
   g2Out = newSeq[byte](2 * p.sharedSecretBytes)
   shakeIntoForParams(p, g2Out, g2Input)
-  let spInput = prefixedByte(0x96'u8, g2Out.toOpenArray(0, p.sharedSecretBytes - 1))
+  spInput = prefixedByte(0x96'u8, g2Out.toOpenArray(0, p.sharedSecretBytes - 1))
   noiseWords = newSeq[uint16](noiseWordCount)
   shakeWordsLeIntoForParams(p, noiseWords, spInput)
   frodoSampleN(p, noiseWords.toOpenArray(0, wordCount - 1))
   frodoSampleN(p, noiseWords.toOpenArray(wordCount, 2 * wordCount - 1))
   frodoSampleN(p, noiseWords.toOpenArray(2 * wordCount, noiseWordCount - 1))
-  var
-    pkSeedA: seq[byte] = copyByteSeq(pk.toOpenArray(0, p.bytesSeedA - 1))
+  pkSeedA = copyByteSeq(pk.toOpenArray(0, p.bytesSeedA - 1))
   bpWords = mulAddSaPlusEStreamPair(p, pkSeedA, noiseWords, 0, wordCount)
   bWords = frodoUnpack(wordCount, pk.toOpenArray(p.bytesSeedA, pk.len - 1), p.logQ)
   vWords = mulAddSbPlusE(p, bWords,
     noiseWords.toOpenArray(0, wordCount - 1),
     noiseWords.toOpenArray(2 * wordCount, noiseWordCount - 1))
-  cWords = keyEncode(p, mu)
-  cWords = addWords(p, vWords, cWords)
+  muWords = keyEncode(p, mu)
+  cWords = addWords(p, vWords, muWords)
   result.variant = v
   result.ciphertext = newSeq[byte](p.ciphertextBytes)
   frodoPackInto(result.ciphertext.toOpenArray(0, ctC1Len - 1), bpWords, p.logQ)
@@ -2042,13 +2048,17 @@ proc frodoTyrEncapsDerand*(v: FrodoVariant, pk: openArray[byte], mu: openArray[b
   clearBytes(pkh)
   clearBytes(pkSeedA)
   # g2Out carries the seed for S'/E' and the KDF key k; fin embeds k;
-  # noiseWords/vWords are the secret ephemeral matrices.
+  # g2Input holds mu, spInput the seed; noiseWords/vWords are the secret
+  # ephemeral matrices and muWords is mu itself.
   secureClearBytes(g2Out)
   secureClearBytes(fin)
+  secureClearBytes(g2Input)
+  secureClearBytes(spInput)
   secureClearWords(noiseWords)
   clearWords(bpWords)
   clearWords(bWords)
   secureClearWords(vWords)
+  secureClearWords(muWords)
   clearWords(cWords)
 
 ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `frodoTyrEncaps`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
@@ -2070,24 +2080,39 @@ proc frodoTyrEncaps*(v: FrodoVariant, pk: openArray[byte], randomness: seq[byte]
 ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `frodoTyrDecaps`; pitfall: preserve implicit rejection and never expose a secret-dependent validity oracle.
 proc frodoTyrDecaps*(v: FrodoVariant, sk, ct: openArray[byte]): seq[byte] {.otterTrace.} =
   ## Decapsulate a Frodo ciphertext and return the shared secret.
+  ##
+  ##   ct -> B', C
+  ##   W   = C - B'S            (noisy picture of mu')
+  ##   mu' = decode(W)
+  ##   re-encrypt mu' -> B'', C''  and compare with B', C
+  ##   match    -> key from k'       mismatch -> key from the stored s
+  ##
+  ## Every intermediate below except B', C, B and B'' depends on S or on
+  ## mu', so each gets its own name and a volatile clear at the end.
   var
     p: FrodoParams = params(v)
     wordCount: int = p.n * p.nbar
     noiseWordCount: int = (2 * p.n + p.nbar) * p.nbar
-    ctC1Len = (p.logQ * p.n * p.nbar) div 8
+    ctC1Len: int = (p.logQ * p.n * p.nbar) div 8
     bpWords: seq[uint16] = @[]
     cWords: seq[uint16] = @[]
     sWords: seq[uint16] = @[]
-    wWords: seq[uint16] = @[]
+    bpsWords: seq[uint16] = @[]   ## B'S
+    wWords: seq[uint16] = @[]     ## C - B'S
     muPrime: seq[byte] = @[]
+    muPrimeWords: seq[uint16] = @[]
+    g2Input: seq[byte] = @[]      ## pkh || mu'
     g2Out: seq[byte] = @[]
+    spInput: seq[byte] = @[]      ## 0x96 || seedSE'
     noiseWords: seq[uint16] = @[]
+    decSeedA: seq[byte] = @[]
     bbpWords: seq[uint16] = @[]
     bWords: seq[uint16] = @[]
+    vWords: seq[uint16] = @[]     ## S'B + E''
     ccWords: seq[uint16] = @[]
-    skSOff = p.sharedSecretBytes + p.publicKeyBytes
-    skPkOff = p.sharedSecretBytes
-    skPkhOff = p.sharedSecretBytes + p.publicKeyBytes + 2 * p.n * p.nbar
+    skSOff: int = p.sharedSecretBytes + p.publicKeyBytes
+    skPkOff: int = p.sharedSecretBytes
+    skPkhOff: int = p.sharedSecretBytes + p.publicKeyBytes + 2 * p.n * p.nbar
     fin: seq[byte] = @[]
     selector: int8 = 0
     selected: seq[byte] = @[]
@@ -2098,27 +2123,27 @@ proc frodoTyrDecaps*(v: FrodoVariant, sk, ct: openArray[byte]): seq[byte] {.otte
   bpWords = frodoUnpack(wordCount, ct.toOpenArray(0, ctC1Len - 1), p.logQ)
   cWords = frodoUnpack(p.nbar * p.nbar, ct.toOpenArray(ctC1Len, ct.len - 1), p.logQ)
   sWords = bytesToWordsLe(sk.toOpenArray(skSOff, skSOff + 2 * p.n * p.nbar - 1))
-  wWords = mulBs(p, bpWords, sWords)
-  wWords = subWords(p, cWords, wWords)
+  bpsWords = mulBs(p, bpWords, sWords)
+  wWords = subWords(p, cWords, bpsWords)
   muPrime = keyDecode(p, wWords)
-  let g2Input = concatByteSeq(sk.toOpenArray(skPkhOff, skPkhOff + p.bytesPkHash - 1), muPrime)
+  g2Input = concatByteSeq(sk.toOpenArray(skPkhOff, skPkhOff + p.bytesPkHash - 1), muPrime)
   g2Out = newSeq[byte](2 * p.sharedSecretBytes)
   shakeIntoForParams(p, g2Out, g2Input)
-  let spInput = prefixedByte(0x96'u8, g2Out.toOpenArray(0, p.sharedSecretBytes - 1))
+  spInput = prefixedByte(0x96'u8, g2Out.toOpenArray(0, p.sharedSecretBytes - 1))
   noiseWords = newSeq[uint16](noiseWordCount)
   shakeWordsLeIntoForParams(p, noiseWords, spInput)
   frodoSampleN(p, noiseWords.toOpenArray(0, wordCount - 1))
   frodoSampleN(p, noiseWords.toOpenArray(wordCount, 2 * wordCount - 1))
   frodoSampleN(p, noiseWords.toOpenArray(2 * wordCount, noiseWordCount - 1))
-  var
-    decSeedA: seq[byte] = copyByteSeq(sk.toOpenArray(skPkOff, skPkOff + p.bytesSeedA - 1))
+  decSeedA = copyByteSeq(sk.toOpenArray(skPkOff, skPkOff + p.bytesSeedA - 1))
   bbpWords = mulAddSaPlusEStreamPair(p, decSeedA, noiseWords, 0, wordCount)
   bWords = frodoUnpack(wordCount,
     sk.toOpenArray(skPkOff + p.bytesSeedA, skPkOff + p.publicKeyBytes - 1), p.logQ)
-  wWords = mulAddSbPlusE(p, bWords,
+  vWords = mulAddSbPlusE(p, bWords,
     noiseWords.toOpenArray(0, wordCount - 1),
     noiseWords.toOpenArray(2 * wordCount, noiseWordCount - 1))
-  ccWords = addWords(p, wWords, keyEncode(p, muPrime))
+  muPrimeWords = keyEncode(p, muPrime)
+  ccWords = addWords(p, vWords, muPrimeWords)
   selector = ctVerifyWords(bpWords, bbpWords) or ctVerifyWords(cWords, ccWords)
   selected = newSeq[byte](p.sharedSecretBytes)
   ctSelectBytes(selected, g2Out.toOpenArray(p.sharedSecretBytes, g2Out.len - 1),
@@ -2128,19 +2153,23 @@ proc frodoTyrDecaps*(v: FrodoVariant, sk, ct: openArray[byte]): seq[byte] {.otte
   copyMem(addr fin[ct.len], unsafeAddr selected[0], selected.len)
   result = newSeq[byte](p.sharedSecretBytes)
   shakeIntoForParams(p, result, fin)
-  # muPrime, g2Out, selected, and fin carry decrypted-message/KDF-key
-  # material; sWords is the long-term secret S; noiseWords/wWords are the
-  # re-encryption secrets. All of those need the volatile clear.
+  # Secret-dependent: everything that saw S, mu', or the seed regrown from mu'.
   secureClearBytes(muPrime)
-  clearBytes(decSeedA)
+  secureClearBytes(g2Input)
   secureClearBytes(g2Out)
+  secureClearBytes(spInput)
   secureClearBytes(fin)
   secureClearBytes(selected)
+  secureClearWords(sWords)
+  secureClearWords(bpsWords)
+  secureClearWords(wWords)
+  secureClearWords(muPrimeWords)
+  secureClearWords(noiseWords)
+  secureClearWords(vWords)
+  secureClearWords(ccWords)
+  # Public: ciphertext and public-key parts.
+  clearBytes(decSeedA)
   clearWords(bpWords)
   clearWords(cWords)
-  secureClearWords(sWords)
-  secureClearWords(wWords)
-  secureClearWords(noiseWords)
   clearWords(bbpWords)
   clearWords(bWords)
-  clearWords(ccWords)
