@@ -1,4 +1,4 @@
-Commit Message: configs/ presets: every Tyr switch listed once; tyr.nimble and nix read them
+Commit Message: Split X25519 API wrappers and SIMD routines into include files
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -83,6 +83,10 @@ Validation and release gates:
   pure-Nim path is described as production ready.
 
 Implemented:
+- Split the X25519 public API wrappers and conditional SIMD routines into
+  `x25519_api.nim` and `x25519_simd.nim`, included by `x25519_impl.nim` so they
+  retain access to the same private helpers. Otter no longer reports the
+  X25519 layout seam; the moved routine bodies are unchanged.
 - The public dispatch API carries `role` pragmas: `encaps`/`encrypt` are
   encryptors, `decaps`/`decrypt` decryptors, `keypair` an orchestrator,
   matching the words `gcmSeal` and `gcmOpen` already used. The rest of the
