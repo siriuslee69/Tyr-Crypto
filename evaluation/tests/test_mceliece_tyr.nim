@@ -193,6 +193,55 @@ suite "mceliece tyr":
         @[], newSeq[byte](custom_mceliece.ciphertextBytes(
           custom_mceliece.mcParamsTable[custom_mceliece.mceliece6688128f])))
 
+  # {.testKind: tkRegression, covers: "mcelieceTyrEncaps, mcelieceTyrEncapsDerand, mcelieceTyrTryDecaps", pins: "6960119f accepted nonzero padding bits".}
+  test "McEliece 6960119f refuses nonzero padding bits like the reference":
+    ## 6960119f is the one size whose ciphertext (1547 bits in 194 bytes)
+    ## and public-key rows (5413 bits in 677 bytes) leave bits unused.
+    var
+      v = custom_mceliece.mceliece6960119f
+      p = custom_mceliece.mcParamsTable[v]
+      kp = custom_mceliece.mcelieceTyrKeypair(v, buildSeed(139))
+      env = custom_mceliece.mcelieceTyrEncaps(v, kp.publicKey)
+      badCt: seq[byte] = env.ciphertext
+      badPk: seq[byte] = kp.publicKey
+      opened: tuple[sharedSecret: seq[byte], ok: bool] = (@[], false)
+    check custom_mceliece.ciphertextPaddingIsZero(p, env.ciphertext)
+    check custom_mceliece.publicKeyPaddingIsZero(p, kp.publicKey)
+    opened = custom_mceliece.mcelieceTyrTryDecaps(v, kp.secretKey, env.ciphertext)
+    check opened.ok
+    check opened.sharedSecret == env.sharedSecret
+    badCt[^1] = badCt[^1] or 0x80'u8
+    expect(ValueError):
+      discard custom_mceliece.mcelieceTyrTryDecaps(v, kp.secretKey, badCt)
+    expect(ValueError):
+      discard custom_mceliece.mcelieceTyrDecaps(v, kp.secretKey, badCt)
+    badPk[p.pkRowBytes - 1] = badPk[p.pkRowBytes - 1] or 0x80'u8
+    expect(ValueError):
+      discard custom_mceliece.mcelieceTyrEncaps(v, badPk)
+    expect(ValueError):
+      discard custom_mceliece.mcelieceTyrEncapsDerand(v, badPk, buildEncapsRandom(v))
+    badPk = kp.publicKey
+    badPk[^1] = badPk[^1] or 0x20'u8
+    expect(ValueError):
+      discard custom_mceliece.mcelieceTyrEncaps(v, badPk)
+
+  # {.testKind: tkEdgeCase, covers: "ciphertextPaddingIsZero, publicKeyPaddingIsZero".}
+  test "McEliece sizes that fill every byte have no padding to refuse":
+    var
+      p = custom_mceliece.mcParamsTable[custom_mceliece.mceliece6688128f]
+      ct = newSeq[byte](custom_mceliece.ciphertextBytes(p))
+      pk = newSeq[byte](custom_mceliece.publicKeyBytes(p))
+      i: int = 0
+    while i < ct.len:
+      ct[i] = 0xff'u8
+      i = i + 1
+    i = 0
+    while i < pk.len:
+      pk[i] = 0xff'u8
+      i = i + 1
+    check custom_mceliece.ciphertextPaddingIsZero(p, ct)
+    check custom_mceliece.publicKeyPaddingIsZero(p, pk)
+
   test "invalid McEliece ciphertext keeps diagnostic and fallback secret aligned":
     var
       v = custom_mceliece.mceliece6688128f
@@ -276,6 +325,26 @@ suite "mceliece tyr":
         oqsAlgClassicMcEliece6960119f, 127)
       checkDerandEncapsMatchesLiboqs(custom_mceliece.mceliece8192128f,
         oqsAlgClassicMcEliece8192128f, 149)
+
+  when defined(hasLibOqs):
+    # {.testKind: tkIntegration, covers: "mcelieceTyrTryDecaps".}
+    test "liboqs also refuses a 6960119f ciphertext with padding bits set":
+      var
+        v = custom_mceliece.mceliece6960119f
+        kem = OQS_KEM_new(oqsAlgClassicMcEliece6960119f.cstring)
+        kp = custom_mceliece.mcelieceTyrKeypair(v, buildSeed(151))
+        badCt: seq[byte] = custom_mceliece.mcelieceTyrEncaps(v, kp.publicKey).ciphertext
+        oqsOut = newSeq[byte](32)
+        rc: int = 0
+      if kem == nil:
+        checkpoint("liboqs Classic-McEliece-6960119f unavailable; skipping")
+      else:
+        badCt[^1] = badCt[^1] or 0x80'u8
+        rc = int(OQS_KEM_decaps(kem, addr oqsOut[0], addr badCt[0], addr kp.secretKey[0]))
+        OQS_KEM_free(kem)
+        check rc != 0
+        expect(ValueError):
+          discard custom_mceliece.mcelieceTyrDecaps(v, kp.secretKey, badCt)
 
   when defined(hasLibOqs):
     # {.testKind: tkIntegration, covers: "mcelieceTyrKeypair, mcelieceTyrEncaps, mcelieceTyrTryDecaps".}

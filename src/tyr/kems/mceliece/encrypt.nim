@@ -1,5 +1,6 @@
 ## Niederreiter encryption helpers for the pure-Nim Classic McEliece backend.
 
+import runePragmas
 import ./params
 import ./util
 import ../../helpers/random
@@ -175,6 +176,46 @@ proc syndromeFromPublicKey*(p: McElieceParams, pk, e: openArray[byte]): seq[byte
     result[i div 8] = result[i div 8] or (b shl (i mod 8))
     pkPtr = pkPtr + p.pkRowBytes
     i = i + 1
+
+## ╭⟢ Padding bits
+##
+## Some sizes do not fill their last byte. For mceliece6960119f:
+##
+##   ciphertext   1547 bits in 194 bytes  ->  last byte: [ ppppp bbb ]
+##   pk row       5413 bits in 677 bytes  ->  last byte: [ ppp bbbbb ]
+##                                            p = padding, must be 0
+##
+## The reference refuses anything with a padding bit set. Without that
+## check, one key or ciphertext has several byte spellings. The bytes are
+## public, so refusing them tells an attacker nothing about the secret key.
+## The other sizes fill every byte, and both checks pass straight through.
+
+## Reference: [MCELIECE-20221023] section 3 encoding of the public key; padding rule for `publicKeyPaddingIsZero`; pitfall: every row has its own last byte, so all rows must be checked.
+proc publicKeyPaddingIsZero*(p: McElieceParams, pk: openArray[byte]): bool
+    {.role: {parser}.} =
+  ## p/pk: the parameter set, and a public key of the right length.
+  ## True when the unused top bits of every row's last byte are zero.
+  var
+    used: int = p.pkNCols mod 8
+    b: byte = 0
+    i: int = 0
+  if used == 0:
+    return true
+  while i < p.pkNRows:
+    b = b or pk[i * p.pkRowBytes + p.pkRowBytes - 1]
+    i = i + 1
+  result = (b shr used) == 0'u8
+
+## Reference: [MCELIECE-20221023] section 3 encoding of the ciphertext; padding rule for `ciphertextPaddingIsZero`; pitfall: the ciphertext holds pkNRows bits, not syndBytes * 8.
+proc ciphertextPaddingIsZero*(p: McElieceParams, ct: openArray[byte]): bool
+    {.role: {parser}.} =
+  ## p/ct: the parameter set, and a ciphertext of the right length.
+  ## True when the unused top bits of the last byte are zero.
+  var
+    used: int = p.pkNRows mod 8
+  if used == 0:
+    return true
+  result = (ct[p.syndBytes - 1] shr used) == 0'u8
 
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; encapsulation error generation and syndrome computation for `encryptError`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc encryptError*(p: McElieceParams, pk: openArray[byte]): tuple[syndrome, errorVec: seq[byte]] =

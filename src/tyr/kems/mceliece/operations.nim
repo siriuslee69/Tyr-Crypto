@@ -1,5 +1,6 @@
 ## Parameterized Classic McEliece KEM operations for the pure-Nim backend.
 
+import runePragmas
 import ./params
 export params
 import ./util
@@ -7,6 +8,7 @@ import ./sk_gen
 import ./pk_gen
 import ./controlbits
 import ./encrypt
+export encrypt.publicKeyPaddingIsZero, encrypt.ciphertextPaddingIsZero
 import ./decrypt
 import ../../helpers/otter_support
 import ../../hashes/sha3
@@ -197,18 +199,26 @@ proc buildDecapPreimage(p: McElieceParams; okMask: uint16; e, c, sk: openArray[b
     result[1 + p.sysN div 8 + i] = c[i]
     i = i + 1
 
+## Reference: [MCELIECE-20221023] section 3 public-key encoding; input rule for `requireValidPublicKey`; pitfall: a key with padding bits set must be refused, as the reference refuses it.
+proc requireValidPublicKey(p: McElieceParams, pk: openArray[byte]) {.role: {sanitizer}.} =
+  ## p/pk: the parameter set, and the public key a sender was handed.
+  ## Raise unless the key has the right length and its padding bits are zero.
+  if pk.len != publicKeyBytes(p):
+    raise newException(ValueError, "invalid McEliece public key length")
+  if not publicKeyPaddingIsZero(p, pk):
+    raise newException(ValueError, "McEliece public key has nonzero padding bits")
+
 ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `mcelieceTyrEncaps`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc mcelieceTyrEncaps*(v: McElieceVariant, pk: openArray[byte]): McElieceTyrCipher {.otterTrace.} =
   ## Encapsulate against a McEliece public key and derive the shared secret.
   var
     p = params(v)
-    enc: tuple[syndrome, errorVec: seq[byte]]
-    preimage: seq[byte]
+    enc: tuple[syndrome, errorVec: seq[byte]] = (@[], @[])
+    preimage: seq[byte] = @[]
   defer:
     clearSensitiveWords(enc.errorVec)
     clearSensitiveWords(preimage)
-  if pk.len != publicKeyBytes(p):
-    raise newException(ValueError, "invalid McEliece public key length")
+  requireValidPublicKey(p, pk)
   otterSpan("mceliece.encaps.encryptError"):
     enc = encryptError(p, pk)
   otterSpan("mceliece.encaps.buildPreimage"):
@@ -224,13 +234,12 @@ proc mcelieceTyrEncapsDerand*(v: McElieceVariant, pk, randomness: openArray[byte
   ## random block material.
   var
     p = params(v)
-    enc: tuple[syndrome, errorVec: seq[byte]]
-    preimage: seq[byte]
+    enc: tuple[syndrome, errorVec: seq[byte]] = (@[], @[])
+    preimage: seq[byte] = @[]
   defer:
     clearSensitiveWords(enc.errorVec)
     clearSensitiveWords(preimage)
-  if pk.len != publicKeyBytes(p):
-    raise newException(ValueError, "invalid McEliece public key length")
+  requireValidPublicKey(p, pk)
   otterSpan("mceliece.encaps.encryptErrorDerand"):
     enc = encryptErrorDerand(p, pk, randomness)
   otterSpan("mceliece.encaps.buildPreimage"):
@@ -248,8 +257,8 @@ proc mcelieceTyrTryDecapsInternal(v: McElieceVariant, sk,
   ## only and must not gate online use of `sharedSecret`.
   var
     p = params(v)
-    dec: tuple[ok: bool, okMask: uint16, errorVec: seq[byte]]
-    preimage: seq[byte]
+    dec: tuple[ok: bool, okMask: uint16, errorVec: seq[byte]] = (false, 0'u16, @[])
+    preimage: seq[byte] = @[]
   defer:
     clearSensitiveWords(dec.errorVec)
     clearSensitiveWords(preimage)
@@ -257,6 +266,10 @@ proc mcelieceTyrTryDecapsInternal(v: McElieceVariant, sk,
     raise newException(ValueError, "invalid McEliece ciphertext length")
   if sk.len != secretKeyBytes(p):
     raise newException(ValueError, "invalid McEliece secret key length")
+  ## Only the public ciphertext bytes decide this, never the secret key,
+  ## so refusing loudly cannot turn into a validity oracle.
+  if not ciphertextPaddingIsZero(p, ct):
+    raise newException(ValueError, "McEliece ciphertext has nonzero padding bits")
   otterSpan("mceliece.decaps.decodeErrorVector"):
     dec = decodeErrorVector(p, sk.toOpenArray(40, sk.len - 1), ct)
   otterSpan("mceliece.decaps.buildPreimage"):
