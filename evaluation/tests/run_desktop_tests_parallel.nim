@@ -145,6 +145,7 @@ proc buildGroups(): seq[TestGroup] =
   addGroup(result, "ntru", ["test_ntru_tyr.nim"])
   addGroup(result, "saber", ["test_saber_tyr.nim"])
   addGroup(result, "hqc", ["test_hqc_tyr.nim", "test_hqc_kat.nim"])
+  addGroup(result, "kem_material", ["test_kem_material_tyr.nim"])
   addGroup(result, "dilithium", ["test_dilithium_tyr.nim", "test_dilithium_kat.nim", "test_ct_verify.nim"])
   addGroup(result, "falcon512", ["test_falcon_tyr.nim"], ["falcon"],
     [("TYR_FALCON_TEST_VARIANT", "512")])

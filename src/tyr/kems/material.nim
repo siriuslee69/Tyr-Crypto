@@ -33,6 +33,8 @@
 
 import std/[atomics, locks, monotimes, os, times]
 
+import runePragmas
+
 import ../helpers/errors
 import ../helpers/material
 import ../helpers/tiers
@@ -45,6 +47,9 @@ import ./bike as customBike
 import ./frodo as customFrodo
 import ./kyber as customKyber
 import ./mceliece as customMcEliece
+import ./ntru as customNtru
+import ./saber as customSaber
+import ./hqc as customHqc
 
 export material
 
@@ -210,6 +215,65 @@ type
   ## Material for the pure-Nim Tyr BIKE tier-0 decapsulation path.
   bike0TyrOpenM* = object
     receiverSecretKey*: array[5223, byte]
+
+  ## ╭⟢ Tyr-only families
+  ##
+  ## These three have no library-backed route, only Tyr's own code. The
+  ## tier number counts up from the smallest size, as everywhere above:
+  ##
+  ##   type prefix   variant           public  secret
+  ##   ntru0Tyr      ntruHps2048509      699     935
+  ##   ntru1Tyr      ntruHps2048677      930    1234
+  ##   ntru2Tyr      ntruHps4096821     1230    1590
+  ##   ntruHrss0Tyr  ntruHrss701        1138    1450
+  ##   saber0Tyr     lightSaber          672    1568
+  ##   saber1Tyr     saber               992    2304
+  ##   saber2Tyr     fireSaber          1312    3040
+  ##   hqc0Tyr       hqc1 (HQC-1)       2241    2321
+  ##   hqc1Tyr       hqc3 (HQC-3)       4514    4602
+  ##   hqc2Tyr       hqc5 (HQC-5)       7237    7333
+  ##
+  ## Every shared secret is 32 bytes.
+  ntru0TyrSendM* = object
+    receiverPublicKey*: array[699, byte]
+  ntru0TyrOpenM* = object
+    receiverSecretKey*: array[935, byte]
+  ntru1TyrSendM* = object
+    receiverPublicKey*: array[930, byte]
+  ntru1TyrOpenM* = object
+    receiverSecretKey*: array[1234, byte]
+  ntru2TyrSendM* = object
+    receiverPublicKey*: array[1230, byte]
+  ntru2TyrOpenM* = object
+    receiverSecretKey*: array[1590, byte]
+  ntruHrss0TyrSendM* = object
+    receiverPublicKey*: array[1138, byte]
+  ntruHrss0TyrOpenM* = object
+    receiverSecretKey*: array[1450, byte]
+  saber0TyrSendM* = object
+    receiverPublicKey*: array[672, byte]
+  saber0TyrOpenM* = object
+    receiverSecretKey*: array[1568, byte]
+  saber1TyrSendM* = object
+    receiverPublicKey*: array[992, byte]
+  saber1TyrOpenM* = object
+    receiverSecretKey*: array[2304, byte]
+  saber2TyrSendM* = object
+    receiverPublicKey*: array[1312, byte]
+  saber2TyrOpenM* = object
+    receiverSecretKey*: array[3040, byte]
+  hqc0TyrSendM* = object
+    receiverPublicKey*: array[2241, byte]
+  hqc0TyrOpenM* = object
+    receiverSecretKey*: array[2321, byte]
+  hqc1TyrSendM* = object
+    receiverPublicKey*: array[4514, byte]
+  hqc1TyrOpenM* = object
+    receiverSecretKey*: array[4602, byte]
+  hqc2TyrSendM* = object
+    receiverPublicKey*: array[7237, byte]
+  hqc2TyrOpenM* = object
+    receiverSecretKey*: array[7333, byte]
 
 ## ╭⟢ Which layout entry each material type names
 
@@ -1016,6 +1080,77 @@ proc open*(env: AsymEnvelope, m: bike0TyrOpenM): seq[byte] =
   ## Decapsulate with the pure-Nim Tyr BIKE tier-0 backend.
   result = customBike.bikeTyrDecaps(customBike.bikeL1,
     toSeqBytes(m.receiverSecretKey), env.ciphertext)
+
+## ╭⟢ Tyr-only families, one template per variant
+##
+## Each call below writes the six routines a material pair needs:
+##
+##   algorithmOf(SendT)  algorithmOf(OpenT)   -> the layout-table entry
+##   genKeypair(SendT)   genKeypair(OpenT)    -> fresh keys from system entropy
+##   seal(SendT)                              -> ciphertext + shared secret
+##   open(envelope, OpenT)                    -> the same shared secret
+##
+## The family's own routines do the work; this only moves bytes between
+## the fixed-size material and the family's seq-based API.
+
+template tyrKemMaterial(SendT, OpenT: untyped, sendKind, openKind: AlgorithmKind,
+    variant: untyped, keypairFn, encapsFn, decapsFn: untyped) =
+  proc algorithmOf*(T: typedesc[SendT]): AlgorithmKind {.role: {helper}.} = sendKind
+  proc algorithmOf*(T: typedesc[OpenT]): AlgorithmKind {.role: {helper}.} = openKind
+
+  proc genKeypair*(T: typedesc[SendT]): AsymKeypair {.role: {orchestrator}.} =
+    ## T: the send-side material type. Keys come from system entropy.
+    var
+      kp = keypairFn(variant)
+    result.publicKey = kp.publicKey
+    result.secretKey = kp.secretKey
+
+  proc genKeypair*(T: typedesc[OpenT]): AsymKeypair {.role: {orchestrator}.} =
+    ## T: the open-side material type; same keys as the send side.
+    result = genKeypair(SendT)
+
+  proc seal*(m: SendT): AsymCipher {.role: {encryptor}.} =
+    ## m: the receiver's public key. Only `.envelope` goes on the wire.
+    var
+      env = encapsFn(variant, toSeqBytes(m.receiverPublicKey))
+    result.envelope.ciphertext = env.ciphertext
+    result.envelope.senderPublicKey = @[]
+    result.sharedSecret = env.sharedSecret
+
+  proc open*(env: AsymEnvelope, m: OpenT): seq[byte] {.role: {decryptor}.} =
+    ## env/m: the received envelope and your secret key.
+    result = decapsFn(variant, toSeqBytes(m.receiverSecretKey), env.ciphertext)
+
+tyrKemMaterial(ntru0TyrSendM, ntru0TyrOpenM, akNtru0TyrSend, akNtru0TyrOpen,
+  customNtru.ntruHps2048509, customNtru.ntruTyrKeypair,
+  customNtru.ntruTyrEncaps, customNtru.ntruTyrDecaps)
+tyrKemMaterial(ntru1TyrSendM, ntru1TyrOpenM, akNtru1TyrSend, akNtru1TyrOpen,
+  customNtru.ntruHps2048677, customNtru.ntruTyrKeypair,
+  customNtru.ntruTyrEncaps, customNtru.ntruTyrDecaps)
+tyrKemMaterial(ntru2TyrSendM, ntru2TyrOpenM, akNtru2TyrSend, akNtru2TyrOpen,
+  customNtru.ntruHps4096821, customNtru.ntruTyrKeypair,
+  customNtru.ntruTyrEncaps, customNtru.ntruTyrDecaps)
+tyrKemMaterial(ntruHrss0TyrSendM, ntruHrss0TyrOpenM, akNtruHrss0TyrSend, akNtruHrss0TyrOpen,
+  customNtru.ntruHrss701, customNtru.ntruTyrKeypair,
+  customNtru.ntruTyrEncaps, customNtru.ntruTyrDecaps)
+tyrKemMaterial(saber0TyrSendM, saber0TyrOpenM, akSaber0TyrSend, akSaber0TyrOpen,
+  customSaber.lightSaber, customSaber.saberTyrKeypair,
+  customSaber.saberTyrEncaps, customSaber.saberTyrDecaps)
+tyrKemMaterial(saber1TyrSendM, saber1TyrOpenM, akSaber1TyrSend, akSaber1TyrOpen,
+  customSaber.saber, customSaber.saberTyrKeypair,
+  customSaber.saberTyrEncaps, customSaber.saberTyrDecaps)
+tyrKemMaterial(saber2TyrSendM, saber2TyrOpenM, akSaber2TyrSend, akSaber2TyrOpen,
+  customSaber.fireSaber, customSaber.saberTyrKeypair,
+  customSaber.saberTyrEncaps, customSaber.saberTyrDecaps)
+tyrKemMaterial(hqc0TyrSendM, hqc0TyrOpenM, akHqc0TyrSend, akHqc0TyrOpen,
+  customHqc.hqc1, customHqc.hqcTyrKeypair,
+  customHqc.hqcTyrEncaps, customHqc.hqcTyrDecaps)
+tyrKemMaterial(hqc1TyrSendM, hqc1TyrOpenM, akHqc1TyrSend, akHqc1TyrOpen,
+  customHqc.hqc3, customHqc.hqcTyrKeypair,
+  customHqc.hqcTyrEncaps, customHqc.hqcTyrDecaps)
+tyrKemMaterial(hqc2TyrSendM, hqc2TyrOpenM, akHqc2TyrSend, akHqc2TyrOpen,
+  customHqc.hqc5, customHqc.hqcTyrKeypair,
+  customHqc.hqcTyrEncaps, customHqc.hqcTyrDecaps)
 
 proc open*[T](cipher: AsymCipher, m: T): seq[byte] =
   ## Recover a shared secret from the public envelope inside a local result.

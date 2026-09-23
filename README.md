@@ -161,6 +161,8 @@ The typed material surface is split per module - [hashes](src/tyr/hashes/materia
 
 Local pure-Nim implementations use `Tyr` suffixed names (e.g. `kyberTyrKeypair`, `blake3TyrHashM`). Unsuffixed names may resolve to native backend paths when available.
 
+Typed KEM material exists for X25519, Kyber, McEliece, Frodo and BIKE (both the library-backed and the `Tyr` route), and for NTRU, SABER and HQC (`Tyr` route only: `ntru0TyrSendM`..`ntru2TyrSendM`, `ntruHrss0TyrSendM`, `saber0TyrSendM`..`saber2TyrSendM`, `hqc0TyrSendM`..`hqc2TyrSendM`, each with its `OpenM` twin). The tier number counts up from the smallest size, so `hqc0Tyr` is HQC-1 and `hqc2Tyr` is HQC-5; the full table is at the top of that section in [src/tyr/kems/material.nim](src/tyr/kems/material.nim).
+
 `import tyr` is the supported all-in-one import. It re-exports every family
 module - `tyr/hashes`, `tyr/macs`, `tyr/ciphers`, `tyr/aeads`, `tyr/kdfs`,
 `tyr/kems`, `tyr/signatures`, `tyr/otp`, `tyr/certs` - so a caller needs no
@@ -275,6 +277,8 @@ Frodo does not probe or load `libcrypto` unless `-d:hasOpenSSL3` is present.
 | Falcon unexpectedly takes seconds per keygen | Rebuild the current source instead of reusing an old executable; the post-fix local release measurements are about `51 ms` for Falcon-512 and `322 ms` for Falcon-1024 |
 | NuGimli Cascade selected for production use | Keep it experimental until independent cryptographic review. Current Cascade widths pass the documented structural, stream, invariant, and timing bounds; run the `evaluate_nugimli*` tasks for current evidence. |
 | Ambiguous research PDF redistribution | Keep as ignored local cache and regenerate with `docs/research/*/download_papers.nim` |
+| liboqs 0.16+ renamed FrodoKEM | Tyr implements the unsalted FrodoKEM (640: 9720-byte ciphertext). liboqs 0.16 calls that `eFrodoKEM-*`; its plain `FrodoKEM-*` is the salted ISO version (640: 9752 bytes). The library-backed `frodo*SendM` routes use the plain names, which match only while `submodules/liboqs` stays on 0.15. Switch `oqsAlgFrodoKEM*` in `src/tyr/bindings/liboqs.nim` to the `eFrodoKEM-*` names before moving that submodule to 0.16, or the library route stops talking to the pure-Nim route. |
+| McEliece-6960119f input with padding bits set | Refused with `ValueError`, as the reference refuses it: a public key whose rows have any of their top 3 bits set, or a ciphertext whose top 5 bits are set. The other two sizes have no padding bits. Callers can test first with `publicKeyPaddingIsZero` / `ciphertextPaddingIsZero`. |
 
 ---
 

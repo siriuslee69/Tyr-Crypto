@@ -1,3 +1,5 @@
+Commit Message: Put NTRU, SABER and HQC on the typed KEM material surface
+
 Commit Message: Bring the KEM sources to the declaration rules and drop their runtime asserts
 
 Commit Message: Check every Kyber, Frodo and BIKE variant against the published hashes without liboqs
