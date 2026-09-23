@@ -1,18 +1,18 @@
-Commit Message: Put NTRU, SABER and HQC on the typed KEM material surface
+Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
 
-Commit Message: Bring the KEM sources to the declaration rules and drop their runtime asserts
+Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
 
-Commit Message: Check every Kyber, Frodo and BIKE variant against the published hashes without liboqs
+Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
 
-Commit Message: Wipe HQC encryption error positions and the rebuilt ciphertext
+Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
 
-Commit Message: Wipe every secret intermediate in Frodo key generation, encapsulation and decapsulation
+Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
 
-Commit Message: Refuse McEliece-6960119f keys and ciphertexts with padding bits set
+Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
 
-Commit Message: Add a pure-Nim HQC KEM that reproduces the published vectors
+Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
 
-Commit Message: Bump the Otter pin off the dead Fylgia reference
+Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
 - Native bindings for libsodium, OpenSSL, and liboqs.

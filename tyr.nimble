@@ -10,6 +10,16 @@ srcDir        = "src"
 bin           = @[]
 requires "nim >= 1.6.0", "nimcrypto >= 0.6.0", "nimsimd >= 1.3.2", "webui >= 2.5.0"
 
+## Tyr keeps its own `test` (the parallel desktop runner); every other
+## generic task comes from Nimble-Tasks, included at the end of this file.
+const
+  ownTasks: array[1, string] = ["test"]
+  ## third-party code: moved by hand after testing, never by updateSubmodules
+  frozenSubmodules: array[6, string] = ["submodules/libsodium",
+    "submodules/liboqs", "submodules/openssl", "submodules/pqclean",
+    "submodules/pqclean_falcon_ref_sources",
+    "submodules/ntru_sampling_ref_sources"]
+
 proc repoNimbleDir(): string =
   result = joinPath(getCurrentDir(), ".nimble_cache")
 
@@ -56,42 +66,6 @@ proc captureCommand(command: string; args: openArray[string]): string =
     if result.len > 0:
       echo result
     quit(probe.exitCode)
-
-proc progressCommitMessage(): string =
-  let candidatePaths = @["agents/PROGRESS.md", "agents/progress.md"]
-  var
-    path: string = ""
-    i: int = 0
-  while i < candidatePaths.len:
-    if fileExists(candidatePaths[i]):
-      path = candidatePaths[i]
-      break
-    inc i
-  if path.len > 0:
-    let content = readFile(path)
-    for line in content.splitLines:
-      if line.startsWith("Commit Message:"):
-        result = line["Commit Message:".len .. ^1].strip()
-        break
-  if result.len == 0:
-    result = "No specific commit message given."
-
-proc currentUpstreamBranch(): string =
-  let probe = probeCommand("git", @["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
-  if probe.exitCode == 0:
-    result = probe.output.strip()
-
-proc branchDivergenceCounts(): tuple[ahead: int, behind: int] =
-  let probe = probeCommand("git", @["rev-list", "--left-right", "--count", "HEAD...@{u}"])
-  if probe.exitCode != 0:
-    return
-  let parts = probe.output.strip().splitWhitespace()
-  if parts.len >= 2:
-    try:
-      result.ahead = parseInt(parts[0])
-      result.behind = parseInt(parts[1])
-    except ValueError:
-      discard
 
 proc requireRepoPath(candidates: openArray[string], label: string): string =
   var
@@ -446,90 +420,6 @@ task test_interop_processes, "Run retained native and WASM process isolation con
 task test_testui_wasm_catalog, "Compile-check every Test UI card for executable WASM":
   exec "nimble c -r -d:tyrTestWasmCatalogContract --out:build/" & hostExeName("test_testui_wasm_catalog") & " --nimcache:" & repoNimcacheDir("nimcache_test_testui_wasm_catalog").replace('\\', '/') & " evaluation/tests/test_interop_contracts.nim"
 
-task autopush, "Add, commit, and push the current branch with message from agents/PROGRESS.md":
-  var
-    msg: string = progressCommitMessage()
-    staged: string = ""
-    branch: string = ""
-    upstream: string = ""
-    diverged: tuple[ahead: int, behind: int]
-  runCommand("git", @["add", "-A", "."])
-  staged = captureCommand("git", @["diff", "--cached", "--name-only"]).strip()
-  if staged.len == 0:
-    echo "No staged changes. Skipping commit."
-  else:
-    runCommand("git", @["commit", "-m", msg])
-  branch = captureCommand("git", @["branch", "--show-current"]).strip()
-  if branch.len == 0:
-    quit "Refusing autopush from detached HEAD."
-  upstream = currentUpstreamBranch()
-  if upstream.len == 0:
-    ## First push of this branch: create origin/<branch> and track it.
-    runCommand("git", @["push", "--set-upstream", "origin", branch])
-    return
-  diverged = branchDivergenceCounts()
-  if diverged.behind > 0:
-    runCommand("git", @["pull", "--rebase", "--autostash"])
-  ## Push the current branch explicitly so the result never depends on
-  ## the local push.default setting.
-  runCommand("git", @["push", "origin", branch])
-
-task switch, "Toggle the working branch between nightly and main":
-  var
-    branch: string = captureCommand("git", @["branch", "--show-current"]).strip()
-    target: string = ""
-  ## nightly <-> main; from any other branch, land on nightly (the
-  ## active development branch).
-  if branch == "nightly":
-    target = "main"
-  else:
-    target = "nightly"
-  echo "Switching from '" & (if branch.len > 0: branch else: "(detached HEAD)") &
-    "' to '" & target & "'."
-  runCommand("git", @["checkout", target])
-
-task applynightly, "Promote the current nightly state onto main (fast-forward) and push, keeping nightly":
-  var
-    branch: string = captureCommand("git", @["branch", "--show-current"]).strip()
-  ## `git fetch` cannot update the currently checked-out branch, so this
-  ## must run from nightly (or any branch other than main). nightly is
-  ## never modified - main is the only ref that moves.
-  if branch == "main":
-    quit "On 'main'. Run `nimble switch` to move to nightly before applying."
-  ## Fast-forward local main to nightly. Fetching into a branch ref
-  ## refuses a non-fast-forward, so a diverged main fails loudly instead
-  ## of silently discarding its commits.
-  runCommand("git", @["fetch", ".", "nightly:main"])
-  ## Publish the promoted state; the remote enforces fast-forward too.
-  runCommand("git", @["push", "origin", "nightly:main"])
-  echo "main is now at the nightly state; nightly branch left intact."
-
-task find, "Use local clones for submodules in parent folder":
-  let modulesPath = ".gitmodules"
-  if not fileExists(modulesPath):
-    echo "No .gitmodules found."
-  else:
-    let root = parentDir(getCurrentDir())
-    var current = ""
-    for line in readFile(modulesPath).splitLines:
-      let s = line.strip()
-      if s.startsWith("[submodule"):
-        let start = s.find('"')
-        let stop = s.rfind('"')
-        if start >= 0 and stop > start:
-          current = s[start + 1 .. stop - 1]
-      elif current.len > 0 and s.startsWith("path"):
-        let parts = s.split("=", maxsplit = 1)
-        if parts.len == 2:
-          let subPath = parts[1].strip()
-          let tail = splitPath(subPath).tail
-          let localDir = joinPath(root, tail)
-          if dirExists(localDir):
-            let localUrl = localDir.replace('\\', '/')
-            exec "git config -f .gitmodules submodule." & current & ".url " & localUrl
-            exec "git config submodule." & current & ".url " & localUrl
-    exec "git submodule sync --recursive"
-
 task test_backend_matrix, "Run the backend matrix bench against liboqs and libsodium":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_test_backend_matrix").replace('\\', '/') & " -d:hasLibOqs -d:hasLibsodium -r evaluation/tests/test_backend_matrix.nim")
 
@@ -552,15 +442,12 @@ task test_single_select, "Compile-check every -d:tyr...=<name> single-family bui
         repoNimcacheDir("nimcache_single_" & spec[2] & "_" & v).replace('\\', '/') &
         " -d:" & spec[0] & "=" & v & " src/tyr/" & spec[2] & "/single.nim")
 
-task cleanbuild, "Delete generated build caches and test binaries":
-  ## Nim records the config it saw into each nimcache. If a cache was made
-  ## while `nimble.paths` existed and that file is later gone, every reused
-  ## build fails with "cannot open: nimble.paths". Clearing build/ fixes it.
-  ## Nothing here is tracked by git; it all regenerates on the next build.
-  var
-    buildDir: string = joinPath(getCurrentDir(), "build")
-  if dirExists(buildDir):
-    rmDir(buildDir)
-    echo "removed " & buildDir
-  else:
-    echo "nothing to clean"
+
+## Shared tasks (autopush, switch, applyNightly, updateSubmodules, clean, …):
+## the sibling clone wins, the submodule is the fallback. `nimble sharedTasks`
+when fileExists(thisDir() & "/../Nimble-Tasks/src/nimbleTasks.nims"):
+  include "../Nimble-Tasks/src/nimbleTasks.nims"
+elif fileExists(thisDir() & "/submodules/Nimble-Tasks/src/nimbleTasks.nims"):
+  include "submodules/Nimble-Tasks/src/nimbleTasks.nims"
+else:
+  {.error: "Nimble-Tasks not found: git submodule update --init submodules/Nimble-Tasks".}
