@@ -103,6 +103,55 @@ Detailed parameter tables, key sizes, CT notes, and speed ranking: [docs/ALGORIT
 
 ---
 
+## Build Switches 🌱
+
+**Definitions**
+
+- `SIMD` := one instruction working on several values at once (AVX2 and SSE2
+  on x86, NEON on ARM).
+- `scalar` := one value at a time. The smallest code; runs on every CPU.
+- `rank` := how many polynomials one Saber key is built from (LightSaber 2,
+  Saber 3, FireSaber 4).
+
+Both switches work the same whether the build starts in Tyr or in a
+repository that uses Tyr (Bifrost includes `tyr_simd.nims` from here).
+
+```text
++---------------------+-----------------------------+------------------------+
+| flag                | values                      | default                |
++---------------------+-----------------------------+------------------------+
+| -d:tyrSimd=<list>   | scalar native sse2 avx2     | native inside Tyr,     |
+|                     | aesni neon (combine: a,b)   | scalar inside Bifrost  |
+| -d:saberMaxRank=<n> | 2 (LightSaber only)         | 4 (all three)          |
+|                     | 3 (up to Saber), 4          |                        |
++---------------------+-----------------------------+------------------------+
+```
+
+What `-d:tyrSimd` switches on:
+
+```text
+  value    Nim defines                       C flags
+  -------  --------------------------------  -------------------------
+  scalar   (none)                            (none)
+  sse2     sse2                              -msse2
+  avx2     sse2 avx2 simdNexusEnableAvx2     -msse2 -mavx2
+  aesni    aesni                             -maes
+  neon     neon                              (none needed)
+  native   what this CPU reports under -march=native
+           (never on --os:any, js or wasm)
+```
+
+A bare `-d:avx2` (or `sse2`, `aesni`) still works: its C flag is added for
+it. `-d:tyrExplicitCapabilities` keeps its old meaning inside Tyr ("I pass
+the defines myself") by making the default `scalar`. An unknown value, or
+`avx2` on an ARM target, stops the build with a message naming the flag.
+
+`-d:saberMaxRank=2` sizes every Saber matrix for LightSaber: 8 KB -> 2 KB
+each, about 14 KB less stack. Saber and FireSaber are then refused with a
+`ValueError` naming the flag, before any array is touched (the Saber core
+runs with bound checks off, so this refusal matters). Ask with
+`saberVariantBuilt(v)`.
+
 ## Benchmark-Guided Performance
 
 These numbers are not protocol guarantees. They are README-level guidance taken from the curated benchmark snapshots under [docs/benchmarks/](docs/benchmarks/), meant to help with rough algorithm selection and expectation-setting.

@@ -1,18 +1,5 @@
-Commit Message: Add -d:saberMaxRank: size Saber buffers for LightSaber on tiny devices
+Commit Message: Shared tyr_simd.nims: -d:tyrSimd selects SIMD for Tyr and every repo that builds it
 
-Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
-
-Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
-
-Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
-
-Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
-
-Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
-
-Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
-
-Commit Message: Take the generic nimble tasks from Nimble-Tasks; pin own submodules to newest main
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
 - Native bindings for libsodium, OpenSSL, and liboqs.
@@ -257,6 +244,17 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
+- (2026-09-23) Building Tyr from another repository (Bifrost) ignored the CPU
+  feature detection in Tyr's config.nims, and a bare `-d:avx2` there failed in
+  the C compiler unless `--passC:-mavx2` was added by hand. Fixed: the
+  detection moved into `tyr_simd.nims` (one copy, included by Tyr's and
+  Bifrost's config.nims) with one flag, `-d:tyrSimd=scalar|native|sse2|avx2|
+  aesni|neon`; a bare `-d:avx2` now gets its C flag. Checked: every value sets
+  the defines it should, from both repos; saber/gimli/blake3 SIMD tests pass
+  native and scalar. Also added `-d:saberMaxRank` (Saber buffers sized for
+  LightSaber, ~14 KB less stack) with a refusal test.
+
+Earlier:
 - HQC was missing entirely. It is the fifth KEM NIST picked (March 2025, as the
   backup beside ML-KEM) and the only code-based family with moderate sizes at
   both ends, so the library had no non-lattice option between BIKE's small keys
