@@ -1,4 +1,4 @@
-Commit Message: NuGimli design review: restore public surface, pin key-layer relation, document reserve
+Commit Message: Wipe SHAKE state library-wide; port NuGimli reduced-round tools; measure the lane-swap fix
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -248,6 +248,11 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
+- (2026-10-11) SHAKE/SHA3 left its sponge state (a copy of the secret
+  input) on the stack after every call, library-wide. Now wiped in every
+  one-shot routine (scalar and SIMD), plus HQC, Falcon and Dilithium leftovers.
+  NuGimli review tools ported to evaluation/; the "every even chunk" lane
+  swap was measured and removes the width penalty (not in src/ yet).
 - (2026-10-10) NuGimli design review (docs/NUGIMLI_REVIEW.md). The public
   surface `tyr/ciphers/nugimli.nim` had been lost in 52ae317, so `import tyr`
   no longer reached NuGimli and the README example did not compile. Restored
@@ -1623,6 +1628,47 @@ Verification:
   test_nugimli_domain passes; test_all compiles with -d:tyrCryptoTestHooks.
 
 Still open (see docs/NUGIMLI_REVIEW.md chapter 14):
-- Lane bottleneck / round counts for 1024 and 2048.
-- SHAKE256 sponge state not wiped (library-wide).
-- Port the review tools into evaluation/nugimli_analysis/.
+- Lane bottleneck / round counts for 1024 and 2048 (fix measured 2026-10-11).
+- SHAKE256 sponge state not wiped (library-wide) - DONE 2026-10-11.
+- Port the review tools into evaluation/nugimli_analysis/ - DONE 2026-10-11.
+
+## 2026-10-11 SHAKE State Wiping + NuGimli Round Tools
+
+Problem:
+- The SHAKE/SHA3 sponge state is a copy of everything absorbed. Every
+  one-shot call (`shake256Into`, `sha3_256Into`, the SIMD batches, the
+  SPHINCS one-block template) left it on the stack, together with the last
+  input block, the squeeze copy and the lane bytes. Keys and seeds passed
+  through SHAKE therefore outlived the call.
+- Caller-owned streams: HQC `xofClear` used plain stores (a compiler may
+  delete those) and `xofInit` left the seed copy; Falcon never wiped its
+  seeded SHAKE reader after keygen or signing; Dilithium left the rho'
+  copy in `initShake256NonceState`.
+- The NuGimli review tools lived only in a scratch folder.
+
+Fix attempt and result:
+- `secure_memory`: volatile wipe now writes 8-byte words once aligned
+  (25 writes for a SHAKE state instead of 200). Every one-shot SHA3/SHAKE
+  routine wipes what it owns before returning. Cost on SHAKE256: <= 2 %
+  (32->32 B: 250 -> 252 ns; 4096 B: 7067 -> 7080 ns). Worked.
+- HQC, Falcon and Dilithium leftovers wiped. Worked; all 37 desktop test
+  groups pass.
+- New edge test: every start 0..15 x length 0..40 clears exactly its bytes.
+- Ported the review tools: `evaluation/nugimli_analysis/round_model.nim`,
+  `reduced_rounds.nim`, `trails.nim`, runner
+  `evaluation/benchmarks/evaluate_nugimli_rounds.nim`, test
+  `evaluation/tests/test_nugimli_model.nim` (model == src/). Tasks:
+  `nimble test_nugimli_model`, `evaluate_nugimli_rounds`,
+  `evaluate_nugimli_rounds_shipped`. Reproduces the review numbers exactly.
+- Lane-swap fix measured (docs/NUGIMLI_REVIEW.md 14.1): swapping every
+  EVEN chunk gives fwd+bwd worst diffusion 12/24, 11/28, 11/32 (was 13/24,
+  19/28, 23/32); 2048 backward zero-sum 9 -> 5. Swapping EVERY chunk mixes
+  nothing (a uniform lane swap only renames columns) - kept as a control.
+
+Still open:
+- Adopt "every even chunk" in src/ (new outputs -> new vectors and profile
+  name). Needs the owner's decision.
+- Duplicate wipe helpers: `clearSensitivePlainData` (Dilithium, Falcon,
+  SPHINCS), `clearSensitiveBytes` (Dilithium, SPHINCS), `secureZeroMem`
+  (Kyber, X25519, Falcon) all re-implement `secure_memory` byte by byte.
+  About 150 call sites; fold them into `secure_memory` in one pass.

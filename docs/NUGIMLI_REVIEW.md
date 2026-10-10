@@ -19,7 +19,7 @@ tools.
 ├─ ❧ 11 Speed                                     🐎
 ├─ ❧ 12 What the repo's own evidence can and cannot show
 ├─ ❧ 13 Findings and fixes                        🛠️
-├─ ❧ 14 Recommendations                           🧭
+├─ ❧ 14 Recommendations (14.1 lane-swap fix)      🧭
 ╰─ ❧ 15 How the numbers were made                 🧪
 ```
 
@@ -494,8 +494,10 @@ integrity check. Using it on several blocks of real data would be "ECB"
   proof.
 - Derived material and temporary byte buffers are wiped with volatile
   stores. ✔
-- The SHAKE256 sponge state (which held the secret source) is not wiped
-  after squeezing. This is library-wide, not NuGimli-specific.
+- The SHAKE256 sponge state (which held the secret source) is wiped after
+  squeezing, together with the last input block and the squeeze copy. This
+  was missing library-wide and was fixed for every SHA3/SHAKE call
+  (commit a11a551; cost on SHAKE256 at most 2 %). ✔
 - `encrypt`/`decrypt` return copies; intermediate states are not wiped
   (normal for Nim value semantics; mention in threat models that need it).
 
@@ -556,14 +558,14 @@ full count.
                not compile                                      exported from ciphers.nim
  2  evidence   related-key search blind to E(X^D,K^D)=E(X,K)^D  FIXED: test pins it;
                and reported 0                                   report states it
- 3  design     cross-lane mixing: 1 chunk per even round        OPEN (recommendation 2)
-               (6.25 % at 2048)
+ 3  design     cross-lane mixing: 1 chunk per even round        OPEN: fix measured (14.1),
+               (6.25 % at 2048)                                 not yet in src/
  4  design     round count grows slower than diffusion needs    OPEN (recommendation 2)
                (fwd+bwd worst = 54 / 68 / 72 % of the rounds)
  5  design     lane-swap target is always an even chunk         OPEN (minor)
  6  claim      "security" of 2048-bit derived material is       documented here
                capped at 256 bits by SHAKE256
- 7  hygiene    SHAKE256 sponge state not wiped                  OPEN (library-wide)
+ 7  hygiene    SHAKE256 sponge state not wiped                  FIXED library-wide (a11a551)
  8  speed      inverse 7-10x slower; per-round bound checks     OPEN (minor)
                in swapChunkBlocks; width checks at run time
                although the width is fixed at compile time
@@ -575,9 +577,10 @@ full count.
 
 1. **Keep it experimental.** No real data until an outside cryptanalyst
    has looked at it. Point them at chapters 4 and 5 first.
-2. **Fix the lane bottleneck before adding rounds.** For example: apply
-   the lane swap to EVERY even chunk (or every chunk) instead of one, or
-   add a word-level lane rotation each round. Then re-measure chapter 5.
+2. **Fix the lane bottleneck before adding rounds.** Measured in 14.1:
+   swapping the lanes of EVERY EVEN chunk instead of one brings the wide
+   profiles to the 512-bit level and beyond. Swapping EVERY chunk does
+   nothing at all (see 14.1) - do not use it.
    If the structure stays as it is, the round counts that keep the 512-bit
    ratio (rounds / worst fwd+bwd diffusion ≈ 1.85) are about 35 for 1024
    and 43 for 2048.
@@ -590,8 +593,46 @@ full count.
    linear trails, and the division property for integral attacks, on
    reduced rounds. Compare with the published Gimli results using the
    same tools.
-5. **Small clean-ups:** wipe the SHAKE sponge state; make width checks
+5. **Small clean-ups:** make width checks
    compile-time errors; remove run-time bound checks from the hot loop.
+
+### 14.1 The lane-swap fix, measured
+
+Step 2 of a round (the lane swap) is the only step that moves a bit to
+another lane. Three choices of WHICH chunks get it were measured with
+`nimble evaluate_nugimli_rounds` (all other steps unchanged):
+
+```
+ lane mix            bits  fwd+bwd worst   lane reach   zero-sum      greedy trail
+                           full diffusion  fwd / bwd    fwd / bwd     at 6 rounds
+ ──────────────────  ────  ──────────────  ───────────  ────────────  ────────────
+ one chunk (shipped)  512  13/24  (54 %)     5 / 6       7 / 5          204
+                     1024  19/28  (68 %)     7 / 8       6 / 5          504
+                     2048  23/32  (72 %)     8 / 10      6 / 9         1196
+ every even chunk     512  12/24  (50 %)     4 / 6       6 / 5          229
+                     1024  11/28  (39 %)     4 / 6       6 / 5          750
+                     2048  11/32  (34 %)     4 / 6       6 / 5         1994
+ every chunk          512  not reached       >12 / >12   >12 / >12      152
+ (control)           1024  not reached       >12 / >12   >12 / >12      487
+                     2048  not reached       >12 / >12   >12 / >12     1178
+```
+
+(lower is better in every column except the trail weight)
+
+What it shows:
+
+- **Every even chunk** removes the width penalty. The wide profiles now
+  need FEWER rounds than the 512-bit one, so their reserve grows with
+  width instead of shrinking. The weak 2048-bit backward zero-sum (9
+  rounds) drops to 5. Cost: a few extra word swaps on even rounds, small
+  next to the boxes.
+- **Every chunk** is a trap (ꐦ°᷄д°᷅): a swap applied the same way to every
+  chunk only renames the columns. Boxes, twist and butterfly all work
+  column by column, so no bit ever meets another lane. Gimli itself swaps
+  only one row for exactly this reason. Kept in the tool as a control.
+
+Adopting "every even chunk" changes every output, so it needs new
+vectors and a new profile name. It is NOT in `src/` yet.
 
 ---
 
@@ -615,7 +656,31 @@ vectors (chapter 3). Seeds were fixed; every run is deterministic.
  H       lane-symmetric starts                            2000 states per symmetry
 ```
 
-The model and the scripts live outside the repository. Porting them into
-`evaluation/nugimli_analysis/` (with the repo's conventions) would let
-every future change to the round function be re-checked against this
-table.
+The tools now live in the repository (methods C-H; A is covered by the
+tests, B by the own-start columns):
+
+```
+ command                                   what it does
+ ────────────────────────────────────────  ──────────────────────────────────────
+ nimble test_nugimli_model                 model == src/ at every width, both
+                                           inverses agree, every variant invertible
+ nimble evaluate_nugimli_rounds            all widths x all lane mixes, ~30 s,
+                                           writes build/nugimli_rounds.md
+ nimble evaluate_nugimli_rounds_shipped    the shipped design only
+```
+
+```
+ file (evaluation/nugimli_analysis/)  part
+ ───────────────────────────────────  ──────────────────────────────────────
+ round_model.nim                      independent model + LaneMix switch
+ reduced_rounds.nim                   diffusion, lane reach, zero-sums,
+                                      symmetry
+ trails.nim                           greedy trails, Gimli calibration,
+                                      check on real pairs
+```
+
+The repo tool uses cubes of d = 8 and 12 with 20 random fixed parts each
+(a bit survives 20 parts by chance with 2^-20, so chance survivors stay
+below 0.01 even at 2048 bits). After ANY change to the round function,
+run `test_nugimli_model` first: if the model no longer equals `src/`,
+every number in the report is about the wrong cipher.
