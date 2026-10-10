@@ -33,14 +33,18 @@ proc analyze2048(R: ptr AdvancedSecurityResult) {.thread, role: {orchestrator}.}
 
 proc runAdvancedEvaluation*() {.role: {metaOrchestrator}.} =
   var
-    Results: array[3, AdvancedSecurityResult]
+    Results: array[3, AdvancedSecurityResult] =
+      default(array[3, AdvancedSecurityResult])
     text: string = ""
     i: int = 0
   when compileOption("threads"):
     var
-      T0: Thread[ptr AdvancedSecurityResult]
-      T1: Thread[ptr AdvancedSecurityResult]
-      T2: Thread[ptr AdvancedSecurityResult]
+      T0: Thread[ptr AdvancedSecurityResult] =
+        default(Thread[ptr AdvancedSecurityResult])
+      T1: Thread[ptr AdvancedSecurityResult] =
+        default(Thread[ptr AdvancedSecurityResult])
+      T2: Thread[ptr AdvancedSecurityResult] =
+        default(Thread[ptr AdvancedSecurityResult])
     createThread(T0, analyze512, addr Results[0])
     createThread(T1, analyze1024, addr Results[1])
     createThread(T2, analyze2048, addr Results[2])
