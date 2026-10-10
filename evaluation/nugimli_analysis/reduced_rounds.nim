@@ -183,18 +183,19 @@ proc sumRounds[N: static[int]](Acc: var seq[array[N, uint32]], X: var array[N, u
     xorState(Acc[k], X)
     k = k + 1
 
-proc keepBalanced[N: static[int]](Z: var seq[array[N, uint32]],
+proc markUnbalanced[N: static[int]](Z: var seq[array[N, uint32]],
     Acc: seq[array[N, uint32]]) {.role: {math}.} =
-  ## Z: bits balanced in every base so far. Acc: sums of this base.
+  ## Z: bits whose sum was 1 in some base so far. Acc: sums of this base.
+  ## A bit stays "balanced" only while it was never marked.
   var
     i: int = 0
   while i < Z.len * N:
-    Z[i div N][i mod N] = Z[i div N][i mod N] and not Acc[i div N][i mod N]
+    Z[i div N][i mod N] = Z[i div N][i mod N] or Acc[i div N][i mod N]
     i = i + 1
 
 proc cubeOnce[N: static[int]](Z: var seq[array[N, uint32]], P: seq[int],
     start: int, backward: bool, m: LaneMix, seed: var uint64) {.role: {math}.} =
-  ## Z: balanced bits. P: cube positions. One random base, all 2^d members.
+  ## Z: unbalanced bits. P: cube positions. One random base, all 2^d members.
   var
     base, X: array[N, uint32] = default(array[N, uint32])
     Acc: seq[array[N, uint32]] = newSeq[array[N, uint32]](Z.len)
@@ -206,23 +207,15 @@ proc cubeOnce[N: static[int]](Z: var seq[array[N, uint32]], P: seq[int],
     setBits(X, P, mask)
     sumRounds(Acc, X, start, backward, m)
     mask = mask + 1
-  keepBalanced(Z, Acc)
+  markUnbalanced(Z, Acc)
 
 proc lastBalancedRound[N: static[int]](Z: seq[array[N, uint32]]): int {.role: {parser}.} =
-  ## Z: balanced bits per round. Returns the last round that still has one.
+  ## Z: unbalanced bits per round. Returns the last round with a balanced bit.
   var
     k: int = 0
   while k < Z.len:
-    if Z[k] != default(array[N, uint32]): result = k + 1
+    if not allFlipped(Z[k]): result = k + 1
     k = k + 1
-
-proc allOnes[N: static[int]](): array[N, uint32] {.inline, role: {helper}.} =
-  ## Every bit set: "balanced so far" before the first base is summed.
-  var
-    w: int = 0
-  while w < N:
-    result[w] = 0xffffffff'u32
-    w = w + 1
 
 proc zeroSumRounds*[N: static[int]](P: seq[int], backward: bool, m: LaneMix): int
     {.role: {orchestrator}.} =
@@ -233,10 +226,6 @@ proc zeroSumRounds*[N: static[int]](P: seq[int], backward: bool, m: LaneMix): in
     seed: uint64 = 777'u64
     b: int = 0
     start: int = (if backward: 1 else: fullRounds[N]())
-  while b < Z.len:
-    Z[b] = allOnes[N]()
-    b = b + 1
-  b = 0
   while b < zeroSumBases:
     cubeOnce(Z, P, start, backward, m, seed)
     b = b + 1
