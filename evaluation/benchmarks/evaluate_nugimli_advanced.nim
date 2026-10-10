@@ -53,7 +53,7 @@ proc runAdvancedEvaluation*() {.role: {metaOrchestrator}.} =
     analyze2048(addr Results[2])
   text.add("# NuGimli Cascade advanced security evidence\n\n")
   text.add("Full GF(2) rank is an exact certificate against nonzero linear/affine parity invariants. Other searches are bounded computational evidence.\n\n")
-  text.add("| Profile | Linear rank | Affine rank | Constant differentials | Constant related-key | Equivalent bits | Rotation matches | Slide matches | Structured invariant matches | Max linear correlation | Min differential identities | Max projected differential p | Degree lower bound |\n")
+  text.add("| Profile | Linear rank | Affine rank | Constant differentials | Constant related-key (block fixed, one key bit flipped) | Equivalent bits | Rotation matches | Slide matches | Structured invariant matches | Max linear correlation | Min differential identities | Max projected differential p | Degree lower bound |\n")
   text.add("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
   i = 0
   while i < Results.len:
@@ -69,6 +69,7 @@ proc runAdvancedEvaluation*() {.role: {metaOrchestrator}.} =
   text.add("- The Gimli column box is triangular from low to high bit because every nonlinear dependency is left-shifted. The inverse recurrence reconstructs `x`, then `y`, then `z` for each bit position; 32 fixed iterations recover the complete words.\n")
   text.add("- Rotations, lane exchanges, XOR constants, the one-bit Cascade twist, and chunk exchanges are individually bijective. Their round composition is therefore bijective, and reverse order with inverse rotations gives the implemented inverse.\n")
   text.add("- `E_K(X) = K xor P(X xor K)` is inverted exactly by `K xor P^-1(C xor K)`.\n")
+  text.add("- The key layer has a relation for EVERY difference `D` by construction: `E_(K xor D)(X xor D) = E_K(X) xor D`. The related-key column above only flips key bits with the block held fixed, so it cannot see this relation; `test_nugimli` pins it as a known property. Keys must therefore come from `deriveCascade*`, never from xoring labels or counters into one master key.\n")
   text.add("- Full GF(2) ranks above rule out every nonzero linear or affine parity invariant, since an invariant mask would need to be orthogonal to a full basis.\n")
   text.add("- The tagged derivation prefix is injectively length-encoded across version, purpose, source width, target width, output length, tag, and context. Distinct domains therefore become distinct SHAKE256 inputs; output separation then relies on SHAKE256's standard XOF security assumption.\n")
   text.add("\nThese arguments do not prove resistance to arbitrary nonlinear differential, integral, interpolation, or future cryptanalytic attacks.\n")

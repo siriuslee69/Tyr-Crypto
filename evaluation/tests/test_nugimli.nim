@@ -69,7 +69,7 @@ template profileChecks(label: string, State: typedesc, permuteFn, invertFn,
     encryptFn, decryptFn: untyped) =
   test label & " permutation inverse":
     var
-      original, state: State
+      original, state: State = default(State)
     fillNuGimliState(original, 0x12345678'u32)
     state = original
     permuteFn(state)
@@ -79,7 +79,7 @@ template profileChecks(label: string, State: typedesc, permuteFn, invertFn,
 
   test label & " keyed block transform":
     var
-      X, K, C, expected, recovered: State
+      X, K, C, expected, recovered: State = default(State)
     fillNuGimliState(X, 0x10203040'u32)
     fillNuGimliState(K, 0xa5a5a5a5'u32)
     C = encryptFn(X, K)
@@ -96,7 +96,7 @@ template backendChecks(label: string, State: typedesc, roundCount,
     referencePermute, referenceInvert: untyped) =
   test label & " optimized scalar and reference agree":
     var
-      optimized, scalar, window, reference, original: State
+      optimized, scalar, window, reference, original: State = default(State)
     fillNuGimliState(original, 0x89abcdef'u32)
     optimized = original
     scalar = original
@@ -120,7 +120,7 @@ template cascadeTrailCheck(label: string, State: typedesc, inputBit: int,
     permuteFn, encryptFn: untyped) =
   test label & " breaks the Gimli top-bit trail":
     var
-      X, Y, K, A, B: State
+      X, Y, K, A, B: State = default(State)
       word, shift: int = 0
     fillNuGimliState(X, 0x7357a11a'u32)
     fillNuGimliState(K, 0xc45cade5'u32)
@@ -139,11 +139,33 @@ template cascadeTrailCheck(label: string, State: typedesc, inputBit: int,
     check A != B
     check changedNuGimliWords(A, B) == A.len
 
+template relatedKeyShiftCheck(label: string, State: typedesc,
+    encryptFn: untyped) =
+  ## K xor P(X xor K) has a built-in relation for every difference D:
+  ##   encrypt(X xor D, K xor D) == encrypt(X, K) xor D
+  ## It holds by construction, so this test pins it as a known property.
+  ## A related-key search that only flips key bits never sees it.
+  # {.testKind: tkProperty, covers: "cascadeEncryptCore".}
+  test label & " key layer shifts with an equal key and block difference":
+    var
+      X, K, D, shiftedX, shiftedK, A, B: State = default(State)
+    fillNuGimliState(X, 0x0badf00d'u32)
+    fillNuGimliState(K, 0x5eed1234'u32)
+    fillNuGimliState(D, 0x00c0ffee'u32)
+    shiftedX = X
+    shiftedK = K
+    xorNuGimliState(shiftedX, D)
+    xorNuGimliState(shiftedK, D)
+    A = encryptFn(X, K)
+    B = encryptFn(shiftedX, shiftedK)
+    xorNuGimliState(A, D)
+    check A == B
+
 template vectorChecks(label: string, State: typedesc, expectedPermutation,
     expectedCiphertext, permuteFn, referenceFn, encryptFn, decryptFn: untyped) =
   test label & " complete published vectors":
     var
-      X, K, P, reference, C, recovered: State
+      X, K, P, reference, C, recovered: State = default(State)
     fillCascadeVectorInputs(X, K)
     P = X
     reference = X
@@ -159,7 +181,7 @@ template vectorChecks(label: string, State: typedesc, expectedPermutation,
 suite "nugimli":
   test "arbitrary contiguous chunk blocks swap":
     var
-      state, expected: NuGimli1024
+      state, expected: NuGimli1024 = default(NuGimli1024)
       i: int = 0
     i = 0
     while i < state.len:
@@ -199,6 +221,10 @@ suite "nugimli":
   cascadeTrailCheck("Cascade-2048", NuGimli2048, 1603,
     cascadePermute2048, cascadeEncrypt2048)
 
+  relatedKeyShiftCheck("Cascade-512", NuGimli512, cascadeEncrypt512)
+  relatedKeyShiftCheck("Cascade-1024", NuGimli1024, cascadeEncrypt1024)
+  relatedKeyShiftCheck("Cascade-2048", NuGimli2048, cascadeEncrypt2048)
+
   vectorChecks("Cascade-512", NuGimli512, cascadePermutation512Vector,
     cascadeCiphertext512Vector, cascadePermute512, cascadeReferencePermute512,
     cascadeEncrypt512, cascadeDecrypt512)
@@ -211,9 +237,9 @@ suite "nugimli":
 
   test "frozen scalar-independent regression outputs":
     var
-      S512: NuGimli512
-      S1024: NuGimli1024
-      S2048: NuGimli2048
+      S512: NuGimli512 = default(NuGimli512)
+      S1024: NuGimli1024 = default(NuGimli1024)
+      S2048: NuGimli2048 = default(NuGimli2048)
     fillNuGimliState(S512, 0x31415926'u32)
     cascadePermute512(S512)
     check nuGimliFingerprint(S512) == 8782100691334107046'u64

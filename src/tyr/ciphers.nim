@@ -7,6 +7,7 @@
 ##   import tyr/ciphers/dynamic    <- pick from a stored value at runtime
 ##   import tyr/ciphers/single     <- one family by build flag, for devices
 ##   import tyr/ciphers/material   <- typed key+nonce material surface
+##   import tyr/ciphers/nugimli    <- EXPERIMENTAL wide block scrambler
 ##
 ## Stream ciphers have no per-family variant type to overload on, so the
 ## family is named by its enum value rather than inferred from a type.
@@ -35,10 +36,12 @@ import ./ciphers/aes_ctr
 import ./ciphers/chacha20
 import ./ciphers/xchacha20
 import ./ciphers/gimli_sponge
+import ./ciphers/nugimli
 import ./ciphers/material
 
 export types
 export aes_ctr, chacha20, xchacha20, gimli_sponge
+export nugimli
 export material
 
 ## ╭⟢ Pick the cipher by its family value

@@ -257,6 +257,10 @@ password KDF before calling this API. Call `clearCascadeMaterial(target)` after
 the derived state and key are no longer needed. Keep the tag stable for one
 protocol purpose and put the public session/stage identifier in `context`.
 
+The derived material is never stronger than SHAKE256: a 2048-bit target is a
+256-bit secret spread over 2048 bits. NuGimli is experimental; read
+[docs/NUGIMLI_REVIEW.md](docs/NUGIMLI_REVIEW.md) before relying on it.
+
 ---
 
 ## Documentation Map
@@ -268,6 +272,7 @@ protocol purpose and put the public session/stage identifier in `context`.
 | [docs/TESTS.md](docs/TESTS.md) | Test groups, commands, Android harness, build defines |
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Benchmark entry points, measurement flow, interpretation |
 | [docs/NUGIMLI_CASCADE_VECTORS.md](docs/NUGIMLI_CASCADE_VECTORS.md) | Cascade format, input recipe, complete vector source, and 512-bit human-readable vector |
+| [docs/NUGIMLI_REVIEW.md](docs/NUGIMLI_REVIEW.md) | NuGimli design review: exact specification, diffusion, trails, zero-sums, key layer, derivation, findings and reserve per width |
 | [docs/HQC.md](docs/HQC.md) | HQC byte layouts, the two stacked codes, the module map, and the known-answer procedure |
 | [docs/research/pq_non_ntru_saber/README.md](docs/research/pq_non_ntru_saber/README.md) | Papers: Kyber, Dilithium, Falcon, Frodo, BIKE, HQC, McEliece, SPHINCS+ |
 | [docs/research/ntru_saber/README.md](docs/research/ntru_saber/README.md) | Papers: NTRU, SABER — includes full optimization history with benchmark tables |
@@ -337,7 +342,8 @@ Frodo does not probe or load `libcrypto` unless `-d:hasOpenSSL3` is present.
 | `emcc` missing for wasm build | Install and activate Emscripten before running `nimble build_wasm` |
 | Nimble user-cache permission errors | Use the repo-local cache tasks or an explicit `--nimcache:build/*` path |
 | Falcon unexpectedly takes seconds per keygen | Rebuild the current source instead of reusing an old executable; the post-fix local release measurements are about `51 ms` for Falcon-512 and `322 ms` for Falcon-1024 |
-| NuGimli Cascade selected for production use | Keep it experimental until independent cryptographic review. Current Cascade widths pass the documented structural, stream, invariant, and timing bounds; run the `evaluate_nugimli*` tasks for current evidence. |
+| NuGimli Cascade selected for production use | Keep it experimental until independent cryptographic review. The full-round statistics pass, but simple reduced-round tools already cover about 54 % (512), 68 % (1024) and 72 % (2048) of the rounds; the lanes mix through one chunk per even round. See [docs/NUGIMLI_REVIEW.md](docs/NUGIMLI_REVIEW.md). |
+| NuGimli keys built by xoring a label or counter into one master key | Never do this: `encrypt(X xor D, K xor D) == encrypt(X, K) xor D` holds for every `D` (built into `K xor P(X xor K)`). Derive every key with `deriveCascade512/1024/2048`. |
 | Ambiguous research PDF redistribution | Keep as ignored local cache and regenerate with `docs/research/*/download_papers.nim` |
 | liboqs 0.16+ renamed FrodoKEM | Tyr implements the unsalted FrodoKEM (640: 9720-byte ciphertext). liboqs 0.16 calls that `eFrodoKEM-*`; its plain `FrodoKEM-*` is the salted ISO version (640: 9752 bytes). The library-backed `frodo*SendM` routes use the plain names, which match only while `submodules/liboqs` stays on 0.15. Switch `oqsAlgFrodoKEM*` in `src/tyr/bindings/liboqs.nim` to the `eFrodoKEM-*` names before moving that submodule to 0.16, or the library route stops talking to the pure-Nim route. |
 | McEliece-6960119f input with padding bits set | Refused with `ValueError`, as the reference refuses it: a public key whose rows have any of their top 3 bits set, or a ciphertext whose top 5 bits are set. The other two sizes have no padding bits. Callers can test first with `publicKeyPaddingIsZero` / `ciphertextPaddingIsZero`. |

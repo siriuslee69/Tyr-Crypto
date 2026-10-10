@@ -1,4 +1,4 @@
-Commit Message: Continue behavior-preserving Otter cleanup
+Commit Message: NuGimli design review: restore public surface, pin key-layer relation, document reserve
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -248,6 +248,14 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
+- (2026-10-10) NuGimli design review (docs/NUGIMLI_REVIEW.md). The public
+  surface `tyr/ciphers/nugimli.nim` had been lost in 52ae317, so `import tyr`
+  no longer reached NuGimli and the README example did not compile. Restored
+  and exported from `ciphers.nim`. The related-key search missed the built-in
+  Even-Mansour relation; now pinned by a test. Open design issues: one chunk
+  of lane exchange per even round, and reserve shrinking with width.
+
+Earlier:
 - (2026-09-23) Building Tyr from another repository (Bifrost) ignored the CPU
   feature detection in Tyr's config.nims, and a bare `-d:avx2` there failed in
   the C compiler unless `--passC:-mavx2` was added by hand. Fixed: the
@@ -1580,3 +1588,41 @@ Reviewed findings:
   behavior-preserving scope. Otter also now flags the 89-line X.509 extension
   include as oversized; splitting that small dispatcher further would add
   fragments without making the code easier to follow.
+
+## 2026-10-10 NuGimli Design Review
+
+Problem:
+- NuGimli's evidence was black-box statistics on FULL rounds. Those cannot
+  show how many rounds a structural attack reaches, which is what decides
+  whether a cipher has reserve.
+- `import tyr` no longer exported NuGimli: the surface file
+  `custom_crypto/nugimli.nim` was deleted in b22f1f4 and its replacement was
+  dropped in the 52ae317 layout rebuild. The README example failed with
+  `undeclared identifier: 'NuGimli1024'`.
+- The advanced report's related-key column (block fixed, one key bit
+  flipped) reported 0, although `E(X^D, K^D) = E(X, K)^D` holds for every D.
+
+Fix attempt and result:
+- Independent model of the specification (butterfly as index xor distance,
+  inverse box as a bit-by-bit solve) agrees with both repo backends and all
+  published vectors. Worked.
+- Reduced-round measurements (diffusion, greedy differential trails with
+  exact per-column probabilities calibrated on Gimli-384, cube zero-sums,
+  lane-symmetry starts) are written up in docs/NUGIMLI_REVIEW.md.
+  Main result: forward+backward worst-case diffusion covers 13/24 (512),
+  19/28 (1024), 23/32 (2048) rounds; cross-lane exchange is one chunk per
+  even round. Differential trails and lane symmetries look fine.
+- Added `src/tyr/ciphers/nugimli.nim` (types, domain, cascade; reference
+  stays a test oracle) and exported it from `ciphers.nim`. Worked: the
+  README example compiles and runs via `import tyr`.
+- Added `relatedKeyShiftCheck` to test_nugimli for all three widths and a
+  note to the advanced report. Worked.
+
+Verification:
+- test_nugimli passes with -d:tyrSimd=scalar, sse2, native;
+  test_nugimli_domain passes; test_all compiles with -d:tyrCryptoTestHooks.
+
+Still open (see docs/NUGIMLI_REVIEW.md chapter 14):
+- Lane bottleneck / round counts for 1024 and 2048.
+- SHAKE256 sponge state not wiped (library-wide).
+- Port the review tools into evaluation/nugimli_analysis/.
