@@ -182,6 +182,23 @@ task evaluate_nugimli_advanced, "Run Cascade algebraic and structural searches":
     " --nimcache:" & repoNimcacheDir("nimcache_evaluate_nugimli_advanced").replace('\\', '/') &
     " evaluation/benchmarks/evaluate_nugimli_advanced.nim")
 
+task evaluate_nugimli_rounds, "Run Cascade reduced-round margins for the shipped design and lane-mix variants":
+  exec withRepoCaches("nim c -r --threads:on -d:release" &
+    " --out:" & repoToolExe("evaluate_nugimli_rounds") &
+    " --nimcache:" & repoNimcacheDir("nimcache_evaluate_nugimli_rounds").replace('\\', '/') &
+    " evaluation/benchmarks/evaluate_nugimli_rounds.nim")
+
+task evaluate_nugimli_rounds_shipped, "Run Cascade reduced-round margins for the shipped design only":
+  exec withRepoCaches("nim c -r --threads:on -d:release" &
+    " --out:" & repoToolExe("evaluate_nugimli_rounds") &
+    " --nimcache:" & repoNimcacheDir("nimcache_evaluate_nugimli_rounds").replace('\\', '/') &
+    " evaluation/benchmarks/evaluate_nugimli_rounds.nim -- --shipped")
+
+task test_nugimli_model, "Check the NuGimli analysis model against the shipped cipher":
+  exec withRepoCaches("nim c -r -d:release --out:" & repoToolExe("test_nugimli_model") &
+    " --nimcache:" & repoNimcacheDir("nimcache_test_nugimli_model").replace('\\', '/') &
+    " evaluation/tests/test_nugimli_model.nim")
+
 task evaluate_nugimli_leakage, "Run Cascade fixed-random timing leakage tests":
   exec withRepoCaches("nim c -r -d:release --path:" & otterSrcDir() &
     " --out:" & repoToolExe("evaluate_nugimli_leakage") &

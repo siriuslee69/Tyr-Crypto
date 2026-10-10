@@ -129,7 +129,8 @@ proc buildGroups(): seq[TestGroup] =
   addGroup(result, "kdf_prng", ["test_kdf_prng_memory.nim"])
   addGroup(result, "gimli", [
     "test_gimli_sse.nim", "test_gimli_vectors.nim", "test_nugimli.nim",
-    "test_nugimli_domain.nim", "test_nugimli_stream_campaign.nim"])
+    "test_nugimli_domain.nim", "test_nugimli_stream_campaign.nim",
+    "test_nugimli_model.nim"])
   addGroup(result, "blake3", ["test_blake3_simd.nim", "test_blake3_stream.nim"])
   addGroup(result, "argon2", ["test_argon2_simd.nim"])
   addGroup(result, "xchacha20", ["test_xchacha20_simd.nim"])
