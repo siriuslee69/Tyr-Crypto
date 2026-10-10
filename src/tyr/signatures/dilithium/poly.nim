@@ -893,6 +893,7 @@ proc initShake256NonceState(S: var Sha3State,
   input[dilithiumCrhBytes] = byte(nonce and 0xff'u16)
   input[dilithiumCrhBytes + 1] = byte((nonce shr 8) and 0xff'u16)
   shake256AbsorbOnce(S, input)
+  clearSensitivePlainData(input)
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `initShake256NonceMsg`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.

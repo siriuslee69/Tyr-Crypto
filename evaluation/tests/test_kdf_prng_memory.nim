@@ -155,3 +155,49 @@ suite "secure memory":
     check not allZero(k)
     secureClearBytes(k)
     check allZero(k)
+
+proc clearsExactly(o, n: int): bool =
+  ## o/n: start and length of the wiped window inside a 64-byte buffer.
+  ## True when the window is zero and every byte around it is untouched.
+  var
+    b: seq[byte] = newSeq[byte](64)
+    i: int = 0
+  i = 0
+  while i < b.len:
+    b[i] = 0xa5'u8
+    i = i + 1
+  secureClearBytes(b.toOpenArray(o, o + n - 1))
+  result = true
+  i = 0
+  while i < b.len:
+    result = result and (b[i] == (if i >= o and i < o + n: 0'u8 else: 0xa5'u8))
+    i = i + 1
+
+suite "secure memory edges":
+
+  # {.testKind: tkEdgeCase, covers: "secureClearBytes".}
+  test "every start and length clears exactly its own bytes":
+    ## The wipe runs in three parts: bytes up to an 8-byte boundary, whole
+    ## 8-byte words, then the last bytes. Starts 0..15 and lengths 0..40
+    ## hit every way those three parts can line up.
+    var
+      k: int = 0
+      bad: int = 0
+    k = 0
+    while k < 16 * 41:
+      if not clearsExactly(k div 41, k mod 41):
+        bad = bad + 1
+      k = k + 1
+    check bad == 0
+
+  # {.testKind: tkUnit, covers: "secureClearPod".}
+  test "secureClearPod erases a full SHAKE state":
+    var
+      S: array[25, uint64] = default(array[25, uint64])
+      i: int = 0
+    i = 0
+    while i < S.len:
+      S[i] = 0x0123456789abcdef'u64 xor uint64(i)
+      i = i + 1
+    secureClearPod(S)
+    check S == default(array[25, uint64])

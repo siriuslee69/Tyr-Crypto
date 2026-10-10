@@ -2202,9 +2202,13 @@ proc falconKeygenFromShake*(v: FalconVariant, rng: var FalconShake256): tuple[pu
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `falconKeygenFromSeed`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc falconKeygenFromSeed*(v: FalconVariant, seed: openArray[byte]): tuple[publicKey, secretKey: seq[byte]] {.otterBench.} =
-  var rng: FalconShake256
+  ## The reader below is seeded with the secret seed; wipe it on the way out.
+  var
+    rng: FalconShake256 = default(FalconShake256)
+  defer:
+    clearSensitivePlainData(rng)
   initFalconShake256(rng, seed)
-  falconKeygenFromShake(v, rng)
+  result = falconKeygenFromShake(v, rng)
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `falconKeygenPure`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc falconKeygenPure*(v: FalconVariant): tuple[publicKey, secretKey: seq[byte]] {.otterBench.} =

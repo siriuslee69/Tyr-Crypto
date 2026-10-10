@@ -589,11 +589,12 @@ proc falconSignPreparedDerand*(prepared: FalconExpandedSecret, msg, nonce, seed:
     raise newException(ValueError, "Falcon signing seed must be 48 bytes")
   var
     hm = newSeq[uint16](mkn(p.logn))
-    sig: seq[int16]
-    rng: FalconShake256
+    sig: seq[int16] = @[]
+    rng: FalconShake256 = default(FalconShake256)
   defer:
     secureClearSeqData(hm)
     secureClearSeqData(sig)
+    clearSensitivePlainData(rng)
   hashNonceMessageToPointCt(hm, nonce, msg, p.logn)
   initFalconShake256(rng, seed)
   while true:

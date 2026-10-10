@@ -1,11 +1,27 @@
 ## ---------------------------------------------------------
 ## SHA3 <- scalar Keccak-f[1600] hashing with fixed variants
 ## ---------------------------------------------------------
+##
+## Wiping: the sponge state is a copy of everything absorbed so far. When
+## the input is a key or a seed, the state IS secret. Every one-shot routine
+## here therefore overwrites what it owns before it returns:
+##
+##   owned by the routine            wiped when
+##   ------------------------------  -----------------------------------
+##   sponge state `S`                after the last squeeze
+##   last input block `blk`/`tail`   after it was absorbed
+##   squeeze copy of `S`, lane bytes after the output was written
+##
+## Streaming callers (`shake*AbsorbOnce` + `shake*SqueezeBlocksInto`) own
+## their state and wipe it themselves, e.g. `secureClearPod(S)`.
+## Not covered: temporaries inside `keccakF1600Ref` (registers and stack
+## spills the compiler chooses) - no portable code can reach those.
 
 import std/bitops
 when defined(tyrSha3OpenSslTestOnly):
   import std/[dynlib, os, strutils]
 import ../../helpers/otter_support
+import ../../helpers/secure_memory
 
 type
   ## Supported fixed-output SHA3 variants.
@@ -75,15 +91,15 @@ when defined(tyrSha3OpenSslTestOnly):
       len: csize_t): cint {.cdecl.}
 
   var
-    opensslShakeHandle: LibHandle
+    opensslShakeHandle: LibHandle = nil
     opensslShakeChecked: bool = false
     opensslShakeReady: bool = false
-    osslShake256: EvpShake256Proc
-    osslMdCtxNew: EvpMdCtxNewProc
-    osslMdCtxFree: EvpMdCtxFreeProc
-    osslDigestInitEx: EvpDigestInitExProc
-    osslDigestUpdate: EvpDigestUpdateProc
-    osslDigestFinalXof: EvpDigestFinalXofProc
+    osslShake256: EvpShake256Proc = nil
+    osslMdCtxNew: EvpMdCtxNewProc = nil
+    osslMdCtxFree: EvpMdCtxFreeProc = nil
+    osslDigestInitEx: EvpDigestInitExProc = nil
+    osslDigestUpdate: EvpDigestUpdateProc = nil
+    osslDigestFinalXof: EvpDigestFinalXofProc = nil
 
   proc appendOpenSslCandidates(candidates: var seq[string], dirPath: string) =
     var
@@ -163,7 +179,7 @@ when defined(tyrSha3OpenSslTestOnly):
 
   proc shake256OpenSslInto(dst: var openArray[byte], A: openArray[byte]): bool =
     var
-      ctx: ptr EVP_MD_CTX
+      ctx: ptr EVP_MD_CTX = nil
     if not ensureOpenSslShakeLoaded():
       return false
     ctx = osslMdCtxNew()
@@ -181,7 +197,7 @@ when defined(tyrSha3OpenSslTestOnly):
 
   proc shake256OpenSslInto(dst: var openArray[byte], A0, A1: openArray[byte]): bool =
     var
-      ctx: ptr EVP_MD_CTX
+      ctx: ptr EVP_MD_CTX = nil
     if not ensureOpenSslShakeLoaded():
       return false
     ctx = osslMdCtxNew()
@@ -201,7 +217,7 @@ when defined(tyrSha3OpenSslTestOnly):
 
   proc shake256OpenSslInto(dst: var openArray[byte], A0, A1, A2: openArray[byte]): bool =
     var
-      ctx: ptr EVP_MD_CTX
+      ctx: ptr EVP_MD_CTX = nil
     if not ensureOpenSslShakeLoaded():
       return false
     ctx = osslMdCtxNew()
@@ -223,7 +239,7 @@ when defined(tyrSha3OpenSslTestOnly):
 
   proc shake256OpenSslChunksInto(dst: var openArray[byte], A0, A1, A2: openArray[byte]): bool =
     var
-      ctx: ptr EVP_MD_CTX
+      ctx: ptr EVP_MD_CTX = nil
     if not ensureOpenSslShakeLoaded():
       return false
     ctx = osslMdCtxNew()
@@ -245,7 +261,7 @@ when defined(tyrSha3OpenSslTestOnly):
 
   proc shake256OpenSslWordsLeInto(dst: var openArray[uint16], A: openArray[byte]): bool =
     var
-      ctx: ptr EVP_MD_CTX
+      ctx: ptr EVP_MD_CTX = nil
       tmp: seq[byte] = @[]
       i: int = 0
     if not ensureOpenSslShakeLoaded():
@@ -350,7 +366,7 @@ proc absorbBlock(S: var Sha3State, A: openArray[byte], o, rateBytes: int) {.inli
 proc absorbFinalBlockWithDomain(S: var Sha3State, A: openArray[byte], o, rateBytes: int,
     domain: byte) {.inline, raises: [].} =
   var
-    blk: array[168, byte]
+    blk: array[168, byte] = default(array[168, byte])
     take: int = 0
     i: int = 0
   take = A.len - o
@@ -363,6 +379,7 @@ proc absorbFinalBlockWithDomain(S: var Sha3State, A: openArray[byte], o, rateByt
   blk[take] = blk[take] xor domain
   blk[rateBytes - 1] = blk[rateBytes - 1] xor 0x80'u8
   absorbBlock(S, blk, 0, rateBytes)
+  secureClearPod(blk)
 
 proc keccakF1600Ref*(S: var Sha3State) {.raises: [], gcsafe.}
 proc shake256Into*(dst: var openArray[byte], A: openArray[byte]) {.gcsafe.}
@@ -374,7 +391,7 @@ proc shake128Into*(dst: var openArray[byte], A: openArray[byte]) {.gcsafe.}
 proc squeezeBytesState(S: var Sha3State, dst: var openArray[byte], rateBytes: int) {.inline, raises: [].} =
   var
     i: int = 0
-    laneBytes {.noinit.}: array[8, byte]
+    laneBytes: array[8, byte] = default(array[8, byte])
     produced: int = 0
     take: int = 0
     blockBytes: int = 0
@@ -394,11 +411,7 @@ proc squeezeBytesState(S: var Sha3State, dst: var openArray[byte], rateBytes: in
     produced = produced + blockBytes
     if produced < dst.len:
       keccakF1600Ref(S)
-
-proc squeezeBytesInto(S0: Sha3State, dst: var openArray[byte], rateBytes: int) {.inline, raises: [].} =
-  var
-    S {.noinit.} = S0
-  squeezeBytesState(S, dst, rateBytes)
+  secureClearPod(laneBytes)
 
 proc squeezeWordsLeInto(S0: Sha3State, dst: var openArray[uint16], rateBytes: int) =
   var
@@ -430,10 +443,8 @@ proc squeezeWordsLeInto(S0: Sha3State, dst: var openArray[uint16], rateBytes: in
     produced = produced + blockWords
     if produced < dst.len:
       keccakF1600Ref(S)
-
-proc squeezeBytes(S0: Sha3State, outLen, rateBytes: int): seq[byte] =
-  result = newSeq[byte](outLen)
-  squeezeBytesInto(S0, result, rateBytes)
+  laneValue = 0
+  secureClearPod(S)
 
 proc absorbFinalBlock(S: var Sha3State, A: openArray[byte], o, rateBytes: int) =
   absorbFinalBlockWithDomain(S, A, o, rateBytes, sha3DomainSuffix)
@@ -470,7 +481,7 @@ proc absorbPartState(S: var Sha3State, tail: var array[168, byte], tailLen: var 
 proc absorbFinalPartsWithDomain(S: var Sha3State, rateBytes: int, domain: byte,
     A: openArray[byte]) {.inline, raises: [].} =
   var
-    tail: array[168, byte]
+    tail: array[168, byte] = default(array[168, byte])
     tailLen: int = 0
     i: int = 0
   absorbPartState(S, tail, tailLen, A, rateBytes)
@@ -481,11 +492,12 @@ proc absorbFinalPartsWithDomain(S: var Sha3State, rateBytes: int, domain: byte,
   tail[tailLen] = tail[tailLen] xor domain
   tail[rateBytes - 1] = tail[rateBytes - 1] xor 0x80'u8
   absorbBlock(S, tail, 0, rateBytes)
+  secureClearPod(tail)
 
 proc absorbFinalPartsWithDomain(S: var Sha3State, rateBytes: int, domain: byte,
     A0, A1: openArray[byte]) {.inline, raises: [].} =
   var
-    tail: array[168, byte]
+    tail: array[168, byte] = default(array[168, byte])
     tailLen: int = 0
     i: int = 0
   absorbPartState(S, tail, tailLen, A0, rateBytes)
@@ -497,11 +509,12 @@ proc absorbFinalPartsWithDomain(S: var Sha3State, rateBytes: int, domain: byte,
   tail[tailLen] = tail[tailLen] xor domain
   tail[rateBytes - 1] = tail[rateBytes - 1] xor 0x80'u8
   absorbBlock(S, tail, 0, rateBytes)
+  secureClearPod(tail)
 
 proc absorbFinalPartsWithDomain(S: var Sha3State, rateBytes: int, domain: byte,
     A0, A1, A2: openArray[byte]) {.inline, raises: [].} =
   var
-    tail: array[168, byte]
+    tail: array[168, byte] = default(array[168, byte])
     tailLen: int = 0
     i: int = 0
   absorbPartState(S, tail, tailLen, A0, rateBytes)
@@ -514,6 +527,7 @@ proc absorbFinalPartsWithDomain(S: var Sha3State, rateBytes: int, domain: byte,
   tail[tailLen] = tail[tailLen] xor domain
   tail[rateBytes - 1] = tail[rateBytes - 1] xor 0x80'u8
   absorbBlock(S, tail, 0, rateBytes)
+  secureClearPod(tail)
 
 proc keccakF1600Ref*(S: var Sha3State) {.raises: [], gcsafe.} =
   ## Apply the scalar Keccak-f[1600] permutation to a 25-lane state.
@@ -690,7 +704,7 @@ proc keccakF1600Ref*(S: var Sha3State) {.raises: [], gcsafe.} =
 proc sha3DigestInto*(dst: var openArray[byte], A: openArray[byte], v: Sha3Variant) =
   ## Shared fixed-length SHA3 helper for callers that already own the output buffer.
   var
-    S: Sha3State
+    S: Sha3State = default(Sha3State)
     rateBytes: int = 0
     offset: int = 0
   if dst.len != sha3DigestBytes(v):
@@ -703,7 +717,8 @@ proc sha3DigestInto*(dst: var openArray[byte], A: openArray[byte], v: Sha3Varian
     offset = offset + rateBytes
   absorbFinalBlock(S, A, offset, rateBytes)
   keccakF1600Ref(S)
-  squeezeBytesInto(S, dst, rateBytes)
+  squeezeBytesState(S, dst, rateBytes)
+  secureClearPod(S)
 
 proc sha3Digest*(A: openArray[byte], v: Sha3Variant): seq[byte] =
   ## Hash `A` with the selected fixed SHA3 variant.
@@ -731,7 +746,7 @@ template shake256OneBlockAlignedInto*(dst, msg: untyped) =
       doAssert msg.len < shake256RateBytes
       doAssert (msg.len mod 8) == 0
     var
-      S: Sha3State
+      S: Sha3State = default(Sha3State)
     when msg.len == 64:
       S[0] = load64Le(msg, 0)
       S[1] = load64Le(msg, 8)
@@ -768,7 +783,8 @@ template shake256OneBlockAlignedInto*(dst, msg: untyped) =
       store64Le(dst, 0, S[0])
       store64Le(dst, 8, S[1])
     else:
-      squeezeBytesInto(S, dst, shake256RateBytes)
+      squeezeBytesState(S, dst, shake256RateBytes)
+    secureClearPod(S)
 
 proc shake128SqueezeBlocksIntoUnchecked*(S: var Sha3State, dst: var openArray[byte]) {.inline, raises: [].} =
   var
@@ -846,8 +862,8 @@ proc shake256ChunksInto*(dst: var openArray[byte], A0, A1, A2: openArray[byte]) 
   ## so callers can avoid assembling temporary concatenation buffers.
   otterSpan("sha3.shake256ChunksInto"):
     var
-      S: Sha3State
-      blk: array[shake256RateBytes, byte]
+      S: Sha3State = default(Sha3State)
+      blk: array[shake256RateBytes, byte] = default(array[shake256RateBytes, byte])
       used: int = 0
 
     proc absorbPartialChunk(A: openArray[byte]) =
@@ -871,13 +887,14 @@ proc shake256ChunksInto*(dst: var openArray[byte], A0, A1, A2: openArray[byte]) 
 
     proc finalizePartial() =
       var
-        finalBlock: array[shake256RateBytes, byte]
+        finalBlock: array[shake256RateBytes, byte] = default(array[shake256RateBytes, byte])
       if used > 0:
         copyMem(addr finalBlock[0], addr blk[0], used)
       finalBlock[used] = finalBlock[used] xor shakeDomainSuffix
       finalBlock[shake256RateBytes - 1] = finalBlock[shake256RateBytes - 1] xor 0x80'u8
       absorbBlock(S, finalBlock, 0, shake256RateBytes)
       keccakF1600Ref(S)
+      secureClearPod(finalBlock)
 
     when defined(tyrSha3OpenSslTestOnly):
       if shake256OpenSslChunksInto(dst, A0, A1, A2):
@@ -886,23 +903,26 @@ proc shake256ChunksInto*(dst: var openArray[byte], A0, A1, A2: openArray[byte]) 
     absorbPartialChunk(A1)
     absorbPartialChunk(A2)
     finalizePartial()
-    squeezeBytesInto(S, dst, shake256RateBytes)
+    squeezeBytesState(S, dst, shake256RateBytes)
+    secureClearPod(S)
+    secureClearPod(blk)
 
 proc shake256Into*(dst: var openArray[byte], A: openArray[byte]) {.gcsafe.} =
   ## SHAKE256 XOF over `A` into a preallocated output buffer.
   otterSpan("sha3.shake256Into"):
     var
-      S: Sha3State
+      S: Sha3State = default(Sha3State)
     when defined(tyrSha3OpenSslTestOnly):
       if shake256OpenSslInto(dst, A):
         return
     shake256AbsorbOnce(S, A)
-    squeezeBytesInto(S, dst, shake256RateBytes)
+    squeezeBytesState(S, dst, shake256RateBytes)
+    secureClearPod(S)
 
 proc shake256Into*(dst: var openArray[byte], A0, A1: openArray[byte]) {.gcsafe.} =
   ## SHAKE256 XOF over `A0 || A1` without a temporary concatenation buffer.
   var
-    empty: array[0, byte]
+    empty: array[0, byte] = default(array[0, byte])
   shake256ChunksInto(dst, A0, A1, empty)
 
 proc shake256Into*(dst: var openArray[byte], A0, A1, A2: openArray[byte]) {.gcsafe.} =
@@ -913,7 +933,7 @@ proc shake256WordsLeInto*(dst: var openArray[uint16], A: openArray[byte]) {.gcsa
   ## SHAKE256 XOF over `A` into a preallocated little-endian word buffer.
   otterSpan("sha3.shake256WordsLeInto"):
     var
-      S: Sha3State
+      S: Sha3State = default(Sha3State)
       rateBytes = shake256RateBytes
       offset: int = 0
     when defined(tyrSha3OpenSslTestOnly):
@@ -926,13 +946,15 @@ proc shake256WordsLeInto*(dst: var openArray[uint16], A: openArray[byte]) {.gcsa
     absorbFinalBlockWithDomain(S, A, offset, rateBytes, shakeDomainSuffix)
     keccakF1600Ref(S)
     squeezeWordsLeInto(S, dst, rateBytes)
+    secureClearPod(S)
 
 proc shake128Into*(dst: var openArray[byte], A: openArray[byte]) {.gcsafe.} =
   ## SHAKE128 XOF over `A` into a preallocated output buffer.
   var
-    S: Sha3State
+    S: Sha3State = default(Sha3State)
   shake128AbsorbOnce(S, A)
   squeezeBytesState(S, dst, shake128RateBytes)
+  secureClearPod(S)
 
 proc shake128*(A: openArray[byte], outLen: int): seq[byte] =
   ## SHAKE128 XOF over `A` with arbitrary `outLen`.

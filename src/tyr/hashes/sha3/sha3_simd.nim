@@ -4,6 +4,7 @@
 
 import simd_nexus/simd/base_operations
 import simd_nexus/simd/generic_u64
+import ../../helpers/secure_memory
 
 when defined(avx2):
   {.passC: "-mavx2".}
@@ -140,10 +141,11 @@ proc absorbFinalBlock(S: var Sha3State, A: openArray[byte], o, rateBytes: int) =
   blk[take] = blk[take] xor sha3SimdDomainSuffix
   blk[rateBytes - 1] = blk[rateBytes - 1] xor 0x80'u8
   absorbBlock(S, blk, 0, rateBytes)
+  secureClearBytes(blk)
 
 proc absorbFinalBlockFixed(S: var Sha3State, A: openArray[byte], o, rateBytes: int, domain: byte) =
   var
-    blk: array[168, byte]
+    blk: array[168, byte] = default(array[168, byte])
     take: int = 0
     i: int = 0
   doAssert rateBytes > 0 and rateBytes <= blk.len,
@@ -160,11 +162,12 @@ proc absorbFinalBlockFixed(S: var Sha3State, A: openArray[byte], o, rateBytes: i
   blk[take] = blk[take] xor domain
   blk[rateBytes - 1] = blk[rateBytes - 1] xor 0x80'u8
   absorbBlock(S, blk, 0, rateBytes)
+  secureClearPod(blk)
 
 proc squeezeBlock(S: Sha3State, outLen: int): seq[byte] =
   var
     i: int = 0
-    laneBytes: array[8, byte]
+    laneBytes: array[8, byte] = default(array[8, byte])
     produced: int = 0
     take: int = 0
   result = newSeq[byte](outLen)
@@ -177,30 +180,33 @@ proc squeezeBlock(S: Sha3State, outLen: int): seq[byte] =
       result[produced + j] = laneBytes[j]
     produced = produced + take
     i = i + 1
+  secureClearPod(laneBytes)
 
 proc packState2(ss: array[2, Sha3State]): array[25, Sha3Vec2] =
   var
     i: int = 0
-    laneVals: array[2, uint64]
+    laneVals: array[2, uint64] = default(array[2, uint64])
   while i < 25:
     laneVals[0] = ss[0][i]
     laneVals[1] = ss[1][i]
     result[i] = loadU64x2[Sha3Vec2](laneVals)
     i = i + 1
+  secureClearPod(laneVals)
 
 proc unpackState2(vs: array[25, Sha3Vec2]): array[2, Sha3State] =
   var
     i: int = 0
-    laneVals: array[2, uint64]
+    laneVals: array[2, uint64] = default(array[2, uint64])
   while i < 25:
     laneVals = storeU64x2(vs[i])
     result[0][i] = laneVals[0]
     result[1][i] = laneVals[1]
     i = i + 1
+  secureClearPod(laneVals)
 
 proc packMsgU64x2[INBYTES: static[int]](msgs: array[2, array[INBYTES, byte]], o: int): Sha3Vec2 {.inline.} =
   var
-    laneVals: array[2, uint64]
+    laneVals: array[2, uint64] = default(array[2, uint64])
   laneVals[0] = load64Le(msgs[0], o)
   laneVals[1] = load64Le(msgs[1], o)
   result = loadU64x2[Sha3Vec2](laneVals)
@@ -384,11 +390,12 @@ proc keccakF1600Sse2x*(ss: var array[2, Sha3State]) =
     s = packState2(ss)
   keccakF1600Packed(s)
   ss = unpackState2(s)
+  secureClearPod(s)
 
 proc sha3HashSse2x*(msgs: array[2, seq[byte]], outLen: int = 32): array[2, seq[byte]] =
   ## Hash two equal-length messages in parallel with the same SHA3 output length.
   var
-    states: array[2, Sha3State]
+    states: array[2, Sha3State] = default(array[2, Sha3State])
     variant = sha3VariantFromOutLenSimd(outLen)
     rateBytes: int = sha3RateBytesSimd(variant)
     msgLen: int = msgs[0].len
@@ -412,6 +419,7 @@ proc sha3HashSse2x*(msgs: array[2, seq[byte]], outLen: int = 32): array[2, seq[b
   while lane < 2:
     result[lane] = squeezeBlock(states[lane], sha3DigestBytesSimd(variant))
     lane = lane + 1
+  secureClearPod(states)
 
 proc shake128AbsorbOnceSse2x*[INBYTES: static[int]](states: var array[2, Sha3State],
     msgs: array[2, array[INBYTES, byte]]) =
@@ -467,13 +475,13 @@ proc shake256Sse2xInto*[OUTBYTES: static[int], INBYTES: static[int]](
     dst: var array[2, array[OUTBYTES, byte]], msgs: array[2, array[INBYTES, byte]]) =
   ## SHAKE256 over two short equal-length inputs in parallel.
   var
-    states: array[2, Sha3State]
+    states: array[2, Sha3State] = default(array[2, Sha3State])
     produced: int = 0
     lane: int = 0
     blockBytes: int = 0
     i: int = 0
     take: int = 0
-    laneBytes: array[8, byte]
+    laneBytes: array[8, byte] = default(array[8, byte])
   static:
     doAssert INBYTES < 136
   lane = 0
@@ -500,6 +508,8 @@ proc shake256Sse2xInto*[OUTBYTES: static[int], INBYTES: static[int]](
     produced = produced + blockBytes
     if produced < OUTBYTES:
       keccakF1600Sse2x(states)
+  secureClearPod(states)
+  secureClearPod(laneBytes)
 
 proc squeezeFirst16Sse2x[OUTBYTES: static[int]](
     dst: var array[2, array[OUTBYTES, byte]], s: array[25, Sha3Vec2]) =
@@ -521,7 +531,7 @@ proc shake256OneBlock64Sse2xLanesInto*[OUTBYTES: static[int]](
   static:
     doAssert OUTBYTES == 16
   var
-    s: array[25, Sha3Vec2]
+    s: array[25, Sha3Vec2] = default(array[25, Sha3Vec2])
   s[0] = l0
   s[1] = l1
   s[2] = l2
@@ -535,6 +545,7 @@ proc shake256OneBlock64Sse2xLanesInto*[OUTBYTES: static[int]](
     set1U64[Sha3Vec2](0x80'u64 shl (8 * ((136 - 1) mod sha3SimdLaneBytes)))
   keccakF1600Packed(s)
   squeezeFirst16Sse2x(dst, s)
+  secureClearPod(s)
 
 proc shake256OneBlockAlignedSse2xInto*[OUTBYTES: static[int], INBYTES: static[int]](
     dst: var array[2, array[OUTBYTES, byte]], msgs: array[2, array[INBYTES, byte]]) =
@@ -545,7 +556,7 @@ proc shake256OneBlockAlignedSse2xInto*[OUTBYTES: static[int], INBYTES: static[in
     doAssert INBYTES < 136
     doAssert (INBYTES mod sha3SimdLaneBytes) == 0
   var
-    s: array[25, Sha3Vec2]
+    s: array[25, Sha3Vec2] = default(array[25, Sha3Vec2])
   when INBYTES == 64:
     s[0] = packMsgU64x2(msgs, 0)
     s[1] = packMsgU64x2(msgs, 8)
@@ -580,6 +591,7 @@ proc shake256OneBlockAlignedSse2xInto*[OUTBYTES: static[int], INBYTES: static[in
     set1U64[Sha3Vec2](0x80'u64 shl (8 * ((136 - 1) mod sha3SimdLaneBytes)))
   keccakF1600Packed(s)
   squeezeFirst16Sse2x(dst, s)
+  secureClearPod(s)
 
 when defined(neon) or defined(arm64) or defined(aarch64):
   proc keccakF1600Neon2x*(ss: var array[2, Sha3State]) =
@@ -600,7 +612,7 @@ when defined(avx2):
   proc packState4(ss: array[4, Sha3State]): array[25, u64x4] =
     var
       i: int = 0
-      laneVals: array[4, uint64]
+      laneVals: array[4, uint64] = default(array[4, uint64])
     while i < 25:
       laneVals[0] = ss[0][i]
       laneVals[1] = ss[1][i]
@@ -608,11 +620,12 @@ when defined(avx2):
       laneVals[3] = ss[3][i]
       result[i] = loadU64x4[u64x4](laneVals)
       i = i + 1
+    secureClearPod(laneVals)
 
   proc unpackState4(vs: array[25, u64x4]): array[4, Sha3State] =
     var
       i: int = 0
-      laneVals: array[4, uint64]
+      laneVals: array[4, uint64] = default(array[4, uint64])
     while i < 25:
       laneVals = storeU64x4(vs[i])
       result[0][i] = laneVals[0]
@@ -620,6 +633,7 @@ when defined(avx2):
       result[2][i] = laneVals[2]
       result[3][i] = laneVals[3]
       i = i + 1
+    secureClearPod(laneVals)
 
   proc keccakF1600Avx4x*(ss: var array[4, Sha3State]) =
     ## Apply Keccak-f[1600] to four independent states in parallel.
@@ -627,11 +641,12 @@ when defined(avx2):
       s = packState4(ss)
     keccakF1600Packed(s)
     ss = unpackState4(s)
+    secureClearPod(s)
 
   proc sha3HashAvx4x*(msgs: array[4, seq[byte]], outLen: int = 32): array[4, seq[byte]] =
     ## Hash four equal-length messages in parallel with the same SHA3 output length.
     var
-      states: array[4, Sha3State]
+      states: array[4, Sha3State] = default(array[4, Sha3State])
       variant = sha3VariantFromOutLenSimd(outLen)
       rateBytes: int = sha3RateBytesSimd(variant)
       msgLen: int = msgs[0].len
@@ -658,6 +673,7 @@ when defined(avx2):
     while lane < 4:
       result[lane] = squeezeBlock(states[lane], sha3DigestBytesSimd(variant))
       lane = lane + 1
+    secureClearPod(states)
 
   proc shake128AbsorbOnceAvx4x*[INBYTES: static[int]](states: var array[4, Sha3State],
       msgs: array[4, array[INBYTES, byte]]) {.raises: [].} =
@@ -759,13 +775,13 @@ when defined(avx2):
       dst: var array[4, array[OUTBYTES, byte]], msgs: array[4, array[INBYTES, byte]]) =
     ## SHAKE256 over four short equal-length inputs in parallel.
     var
-      states: array[4, Sha3State]
+      states: array[4, Sha3State] = default(array[4, Sha3State])
       produced: int = 0
       lane: int = 0
       blockBytes: int = 0
       i: int = 0
       take: int = 0
-      laneBytes: array[8, byte]
+      laneBytes: array[8, byte] = default(array[8, byte])
     static:
       doAssert INBYTES < 136
     lane = 0
@@ -792,6 +808,8 @@ when defined(avx2):
       produced = produced + blockBytes
       if produced < OUTBYTES:
         keccakF1600Avx4x(states)
+    secureClearPod(states)
+    secureClearPod(laneBytes)
 
   proc squeezeFirst16Avx4x[OUTBYTES: static[int]](
       dst: var array[4, array[OUTBYTES, byte]], s: array[25, u64x4]) =
@@ -813,7 +831,7 @@ when defined(avx2):
     static:
       doAssert OUTBYTES == 16
     var
-      s: array[25, u64x4]
+      s: array[25, u64x4] = default(array[25, u64x4])
     s[0] = l0
     s[1] = l1
     s[2] = l2
@@ -827,6 +845,7 @@ when defined(avx2):
       set1U64[u64x4](0x80'u64 shl (8 * ((136 - 1) mod sha3SimdLaneBytes)))
     keccakF1600Packed(s)
     squeezeFirst16Avx4x(dst, s)
+    secureClearPod(s)
 
   proc shake256OneBlockAlignedAvx4xInto*[OUTBYTES: static[int], INBYTES: static[int]](
       dst: var array[4, array[OUTBYTES, byte]], msgs: array[4, array[INBYTES, byte]]) =
@@ -837,7 +856,7 @@ when defined(avx2):
       doAssert INBYTES < 136
       doAssert (INBYTES mod sha3SimdLaneBytes) == 0
     var
-      s: array[25, u64x4]
+      s: array[25, u64x4] = default(array[25, u64x4])
     when INBYTES == 64:
       s[0] = packMsgU64x4(msgs, 0)
       s[1] = packMsgU64x4(msgs, 8)
@@ -872,3 +891,4 @@ when defined(avx2):
       set1U64[u64x4](0x80'u64 shl (8 * ((136 - 1) mod sha3SimdLaneBytes)))
     keccakF1600Packed(s)
     squeezeFirst16Avx4x(dst, s)
+    secureClearPod(s)

@@ -35,6 +35,7 @@
 
 import runePragmas
 import ../../hashes/sha3
+import ../../helpers/secure_memory
 import ./params
 
 const
@@ -67,6 +68,7 @@ proc xofInit*(X: var HqcXof, seed: openArray[byte])
   shake256AbsorbOnce(X.state, input)
   shake256SqueezeBlocksIntoUnchecked(X.state, X.buf)
   X.pos = 0
+  secureClearPod(input)
 
 ## Reference: [HQC-20250822] stretched random stream; stream read for `xofBytes`; pitfall: reads must continue where the last one stopped, not restart at a block edge.
 proc xofBytes*(X: var HqcXof, dst: var openArray[byte], o, count: int)
@@ -95,15 +97,10 @@ proc xofBytes*(X: var HqcXof, dst: var openArray[byte], o, count: int)
 proc xofClear*(X: var HqcXof) {.role: {helper}, raises: [].} =
   ## X: the stream to forget.
   ## Erase the sponge state and the block still waiting to be read.
-  var
-    i: int = 0
-  while i < X.state.len:
-    X.state[i] = 0'u64
-    i = i + 1
-  i = 0
-  while i < X.buf.len:
-    X.buf[i] = 0'u8
-    i = i + 1
+  ## Volatile writes: plain zero stores to a stream nobody reads again
+  ## may be deleted by the compiler.
+  secureClearPod(X.state)
+  secureClearPod(X.buf)
   X.pos = 0
 
 ## Reference: [HQC-20250822] hash function I; seed splitting for `hashI`; pitfall: the 64 bytes out are two independent 32-byte seeds, in that order.
