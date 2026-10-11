@@ -66,7 +66,7 @@ proc expandPointwiseRow(p: DilithiumParams, t: var DilithiumPoly, row: var Dilit
 proc matrixVectorPointwiseByRowsKeypair(p: DilithiumParams, t: var DilithiumPolyVecK,
     rho: array[dilithiumSeedBytes, byte], v: DilithiumPolyVecL) {.inline, otterBench.} =
   var
-    row: DilithiumPolyVecL
+    row: DilithiumPolyVecL = default(DilithiumPolyVecL)
     i: int = 0
   if p.k == 4:
     expandPointwiseRow(p, t.vec[0], row, rho, 0, v)
@@ -101,7 +101,7 @@ proc matrixVectorPointwiseByRowsKeypair(p: DilithiumParams, t: var DilithiumPoly
 proc matrixVectorPointwiseByRows(p: DilithiumParams, t: var DilithiumPolyVecK,
     rho: array[dilithiumSeedBytes, byte], v: DilithiumPolyVecL) {.inline, otterBench.} =
   var
-    row: DilithiumPolyVecL
+    row: DilithiumPolyVecL = default(DilithiumPolyVecL)
     i: int = 0
   if p.k == 4:
     polyvecMatrixExpandRowInto(p, row, rho, 0)
@@ -210,17 +210,17 @@ template signRejectHints(p, h, w0, w1, cp, t0: untyped): untyped =
 proc keypairFromRandomSeedInto(p: DilithiumParams, seed: openArray[byte], publicKey,
     secretKey: var openArray[byte]) {.otterBench.} =
   var
-    seedInput: array[dilithiumSeedBytes + 2, byte]
-    seedbuf: array[2 * dilithiumSeedBytes + dilithiumCrhBytes, byte]
-    rho: array[dilithiumSeedBytes, byte]
-    rhoprime: array[dilithiumCrhBytes, byte]
-    key: array[dilithiumSeedBytes, byte]
-    tr: array[dilithiumTrBytes, byte]
-    s1: DilithiumPolyVecL
-    s1hat: DilithiumPolyVecL
-    s2: DilithiumPolyVecK
-    t1: DilithiumPolyVecK
-    t0: DilithiumPolyVecK
+    seedInput: array[dilithiumSeedBytes + 2, byte] = default(array[dilithiumSeedBytes + 2, byte])
+    seedbuf: array[2 * dilithiumSeedBytes + dilithiumCrhBytes, byte] = default(array[2 * dilithiumSeedBytes + dilithiumCrhBytes, byte])
+    rho: array[dilithiumSeedBytes, byte] = default(array[dilithiumSeedBytes, byte])
+    rhoprime: array[dilithiumCrhBytes, byte] = default(array[dilithiumCrhBytes, byte])
+    key: array[dilithiumSeedBytes, byte] = default(array[dilithiumSeedBytes, byte])
+    tr: array[dilithiumTrBytes, byte] = default(array[dilithiumTrBytes, byte])
+    s1: DilithiumPolyVecL = default(DilithiumPolyVecL)
+    s1hat: DilithiumPolyVecL = default(DilithiumPolyVecL)
+    s2: DilithiumPolyVecK = default(DilithiumPolyVecK)
+    t1: DilithiumPolyVecK = default(DilithiumPolyVecK)
+    t0: DilithiumPolyVecK = default(DilithiumPolyVecK)
     i: int = 0
   defer:
     secureClearPod(seedInput)
@@ -280,7 +280,7 @@ proc dilithiumTyrKeypairInto*(v: DilithiumVariant, publicKey,
     secretKey: var openArray[byte]) =
   ## Generate a pure-Nim ML-DSA keypair into caller-owned buffers.
   var
-    randomness: seq[byte]
+    randomness: seq[byte] = default(seq[byte])
     p: DilithiumParams = params(v)
   defer:
     secureClearBytes(randomness)
@@ -295,7 +295,8 @@ proc dilithiumTyrKeypairInto*(v: DilithiumVariant, publicKey,
 proc dilithiumTyrKeypairInto*(v: DilithiumVariant, publicKey, secretKey: var openArray[byte],
     seed: openArray[byte]) =
   ## Generate a deterministic pure-Nim ML-DSA keypair into caller-owned buffers.
-  let p = params(v)
+  var
+    p: DilithiumParams = params(v)
   if seed.len != dilithiumSeedBytes:
     raise newException(ValueError, "Dilithium seeded keypair requires 32 bytes")
   if publicKey.len != p.publicKeyBytes:
@@ -321,32 +322,33 @@ proc dilithiumTyrKeypair*(v: DilithiumVariant, seed: seq[byte] = @[]): Dilithium
 proc dilithiumTyrSignDerandInto*(v: DilithiumVariant, sig: var openArray[byte], msg: openArray[byte],
     sk: openArray[byte], rnd: openArray[byte], ctx: openArray[byte] = @[]) {.otterBench.} =
   ## Sign a message with explicit ML-DSA randomness into a caller-owned buffer.
-  let p = params(v)
+  var
+    p: DilithiumParams = params(v)
+    skp: DilithiumSecretKeyState = default(DilithiumSecretKeyState)
+    pre: array[257, byte] = default(array[257, byte])
+    preLen: int = 0
+    mu: array[dilithiumCrhBytes, byte] = default(array[dilithiumCrhBytes, byte])
+    rhoprime: array[dilithiumCrhBytes, byte] = default(array[dilithiumCrhBytes, byte])
+    mat: DilithiumMatrix = default(DilithiumMatrix)
+    z: DilithiumPolyVecL = default(DilithiumPolyVecL)
+    tmpL: DilithiumPolyVecL = default(DilithiumPolyVecL)
+    s1: DilithiumPolyVecL = default(DilithiumPolyVecL)
+    w1: DilithiumPolyVecK = default(DilithiumPolyVecK)
+    w0: DilithiumPolyVecK = default(DilithiumPolyVecK)
+    h: DilithiumPolyVecK = default(DilithiumPolyVecK)
+    s2: DilithiumPolyVecK = default(DilithiumPolyVecK)
+    t0: DilithiumPolyVecK = default(DilithiumPolyVecK)
+    cp: DilithiumPoly = default(DilithiumPoly)
+    nonceBase: uint16 = 0
+    packedW1: array[dilithiumMaxK * 192, byte] = default(array[dilithiumMaxK * 192, byte])
+    cseed: array[dilithiumMaxCtildeBytes, byte] = default(array[dilithiumMaxCtildeBytes, byte])
   if sig.len != p.signatureBytes:
     raise newException(ValueError, "Dilithium signature buffer has wrong size for variant")
   if sk.len != p.secretKeyBytes:
     raise newException(ValueError, "Dilithium secret key has wrong size for variant")
   if rnd.len != dilithiumRndBytes:
     raise newException(ValueError, "Dilithium signing randomness must be 32 bytes")
-  var
-    skp: DilithiumSecretKeyState = unpackSk(p, sk)
-    pre: array[257, byte]
-    preLen: int = 0
-    mu: array[dilithiumCrhBytes, byte]
-    rhoprime: array[dilithiumCrhBytes, byte]
-    mat: DilithiumMatrix
-    z: DilithiumPolyVecL
-    tmpL: DilithiumPolyVecL
-    s1: DilithiumPolyVecL
-    w1: DilithiumPolyVecK
-    w0: DilithiumPolyVecK
-    h: DilithiumPolyVecK
-    s2: DilithiumPolyVecK
-    t0: DilithiumPolyVecK
-    cp: DilithiumPoly
-    nonceBase: uint16 = 0
-    packedW1: array[dilithiumMaxK * 192, byte]
-    cseed: array[dilithiumMaxCtildeBytes, byte]
+  skp = unpackSk(p, sk)
   defer:
     secureClearPod(skp)
     clearPlainData(pre)
@@ -402,7 +404,8 @@ proc dilithiumTyrSignDerandInto*(v: DilithiumVariant, sig: var openArray[byte], 
 proc dilithiumTyrSignDerand*(v: DilithiumVariant, msg: openArray[byte], sk: openArray[byte],
     rnd: openArray[byte], ctx: openArray[byte] = @[]): seq[byte] {.otterTrace.} =
   ## Sign a message with explicit ML-DSA randomness.
-  let p = params(v)
+  var
+    p: DilithiumParams = params(v)
   result = newSeq[byte](p.signatureBytes)
   dilithiumTyrSignDerandInto(v, result, msg, sk, rnd, ctx)
 
@@ -411,14 +414,15 @@ proc dilithiumTyrSignDeterministicInto*(v: DilithiumVariant, sig: var openArray[
     msg: openArray[byte], sk: openArray[byte], ctx: openArray[byte] = @[]) =
   ## Sign deterministically with zeroed ML-DSA randomness into a caller-owned buffer.
   var
-    rnd: array[dilithiumRndBytes, byte]
+    rnd: array[dilithiumRndBytes, byte] = default(array[dilithiumRndBytes, byte])
   dilithiumTyrSignDerandInto(v, sig, msg, sk, rnd, ctx)
 
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; key generation, encapsulation/signing, and decapsulation/verification algorithms for `dilithiumTyrSignDeterministic`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc dilithiumTyrSignDeterministic*(v: DilithiumVariant, msg: openArray[byte], sk: openArray[byte],
     ctx: openArray[byte] = @[]): seq[byte] {.otterTrace.} =
   ## Sign deterministically with zeroed ML-DSA randomness.
-  let p = params(v)
+  var
+    p: DilithiumParams = params(v)
   result = newSeq[byte](p.signatureBytes)
   dilithiumTyrSignDeterministicInto(v, result, msg, sk, ctx)
 
@@ -427,7 +431,7 @@ proc dilithiumTyrSignInto*(v: DilithiumVariant, sig: var openArray[byte], msg: o
     sk: openArray[byte], ctx: openArray[byte] = @[]) =
   ## Sign using liboqs-compatible randomized ML-DSA signing into a caller-owned buffer.
   var
-    rnd: seq[byte]
+    rnd: seq[byte] = default(seq[byte])
   defer:
     secureClearBytes(rnd)
   rnd = cryptoRandomBytes(dilithiumRndBytes)
@@ -437,7 +441,8 @@ proc dilithiumTyrSignInto*(v: DilithiumVariant, sig: var openArray[byte], msg: o
 proc dilithiumTyrSign*(v: DilithiumVariant, msg: openArray[byte], sk: openArray[byte],
     ctx: openArray[byte] = @[]): seq[byte] {.otterTrace.} =
   ## Sign using liboqs-compatible randomized ML-DSA signing.
-  let p = params(v)
+  var
+    p: DilithiumParams = params(v)
   result = newSeq[byte](p.signatureBytes)
   dilithiumTyrSignInto(v, result, msg, sk, ctx)
 
@@ -445,25 +450,27 @@ proc dilithiumTyrSign*(v: DilithiumVariant, msg: openArray[byte], sk: openArray[
 proc dilithiumTyrVerify*(v: DilithiumVariant, msg, sig, pk: openArray[byte],
     ctx: openArray[byte] = @[]): bool {.otterBench, otterTrace.} =
   ## Verify a signature with the pure-Nim ML-DSA backend.
-  let p: DilithiumParams = params(v)
+  var
+    p: DilithiumParams = params(v)
+    pkp: DilithiumPublicKeyState = default(DilithiumPublicKeyState)
+    sigp: DilithiumSignatureState = default(DilithiumSignatureState)
+    pre: array[257, byte] = default(array[257, byte])
+    preLen: int = 0
+    tr: array[dilithiumTrBytes, byte] = default(array[dilithiumTrBytes, byte])
+    mu: array[dilithiumCrhBytes, byte] = default(array[dilithiumCrhBytes, byte])
+    cp: DilithiumPoly = default(DilithiumPoly)
+    t1: DilithiumPolyVecK = default(DilithiumPolyVecK)
+    w1: DilithiumPolyVecK = default(DilithiumPolyVecK)
+    h: DilithiumPolyVecK = default(DilithiumPolyVecK)
+    z: DilithiumPolyVecL = default(DilithiumPolyVecL)
+    packedW1: array[dilithiumMaxK * 192, byte] = default(array[dilithiumMaxK * 192, byte])
+    c2: array[dilithiumMaxCtildeBytes, byte] = default(array[dilithiumMaxCtildeBytes, byte])
   if sig.len != p.signatureBytes:
     return false
   if pk.len != p.publicKeyBytes:
     return false
-  var
-    pkp: DilithiumPublicKeyState = unpackPk(p, pk)
-    sigp: DilithiumSignatureState = unpackSig(p, sig)
-    pre: array[257, byte]
-    preLen: int = 0
-    tr: array[dilithiumTrBytes, byte]
-    mu: array[dilithiumCrhBytes, byte]
-    cp: DilithiumPoly
-    t1: DilithiumPolyVecK
-    w1: DilithiumPolyVecK
-    h: DilithiumPolyVecK
-    z: DilithiumPolyVecL
-    packedW1: array[dilithiumMaxK * 192, byte]
-    c2: array[dilithiumMaxCtildeBytes, byte]
+  pkp = unpackPk(p, pk)
+  sigp = unpackSig(p, sig)
   if not sigp.ok:
     return false
   z = sigp.z

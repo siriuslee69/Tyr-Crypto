@@ -79,9 +79,9 @@ when defined(sse2):
   proc polyAddSimdSse(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
-      va: i32x4
-      vb: i32x4
-      vr: i32x4
+      va: i32x4 = default(i32x4)
+      vb: i32x4 = default(i32x4)
+      vr: i32x4 = default(i32x4)
     i = 0
     while i + 4 <= dilithiumN:
       va = i32x4(mm_loadu_si128(cast[pointer](unsafeAddr a.coeffs[i])))
@@ -97,9 +97,9 @@ when defined(sse2):
   proc polySubSimdSse(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
-      va: i32x4
-      vb: i32x4
-      vr: i32x4
+      va: i32x4 = default(i32x4)
+      vb: i32x4 = default(i32x4)
+      vr: i32x4 = default(i32x4)
     i = 0
     while i + 4 <= dilithiumN:
       va = i32x4(mm_loadu_si128(cast[pointer](unsafeAddr a.coeffs[i])))
@@ -115,7 +115,7 @@ when defined(sse2):
   proc polyShiftLSimdSse(a: var DilithiumPoly) {.inline.} =
     var
       i: int = 0
-      va: i32x4
+      va: i32x4 = default(i32x4)
     i = 0
     while i + 4 <= dilithiumN:
       va = i32x4(mm_loadu_si128(cast[pointer](unsafeAddr a.coeffs[i])))
@@ -133,8 +133,8 @@ when defined(neon) or defined(arm64) or defined(aarch64):
   proc polyAddSimdNeon(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
-      va: uint32x4
-      vb: uint32x4
+      va: uint32x4 = default(uint32x4)
+      vb: uint32x4 = default(uint32x4)
     i = 0
     while i + 4 <= dilithiumN:
       va = loadI32x4At[uint32x4](a.coeffs, i)
@@ -149,8 +149,8 @@ when defined(neon) or defined(arm64) or defined(aarch64):
   proc polySubSimdNeon(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
-      va: uint32x4
-      vb: uint32x4
+      va: uint32x4 = default(uint32x4)
+      vb: uint32x4 = default(uint32x4)
     i = 0
     while i + 4 <= dilithiumN:
       va = loadI32x4At[uint32x4](a.coeffs, i)
@@ -165,7 +165,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
   proc polyShiftLSimdNeon(a: var DilithiumPoly) {.inline.} =
     var
       i: int = 0
-      va: uint32x4
+      va: uint32x4 = default(uint32x4)
     i = 0
     while i + 4 <= dilithiumN:
       va = loadI32x4At[uint32x4](a.coeffs, i)
@@ -181,16 +181,16 @@ when defined(avx2):
   ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `montgomeryReduceProdVec8Avx2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc montgomeryReduceProdVec8Avx2(a, b: navx.M256i): navx.M256i {.inline.} =
     var
-      oddA: navx.M256i
-      oddB: navx.M256i
-      prodEven: navx.M256i
-      prodOdd: navx.M256i
-      tEven: navx.M256i
-      tOdd: navx.M256i
-      diffEven: navx.M256i
-      diffOdd: navx.M256i
-      evenHigh: navx.M256i
-      oddHigh: navx.M256i
+      oddA: navx.M256i = default(navx.M256i)
+      oddB: navx.M256i = default(navx.M256i)
+      prodEven: navx.M256i = default(navx.M256i)
+      prodOdd: navx.M256i = default(navx.M256i)
+      tEven: navx.M256i = default(navx.M256i)
+      tOdd: navx.M256i = default(navx.M256i)
+      diffEven: navx.M256i = default(navx.M256i)
+      diffOdd: navx.M256i = default(navx.M256i)
+      evenHigh: navx.M256i = default(navx.M256i)
+      oddHigh: navx.M256i = default(navx.M256i)
       qInvVec: navx.M256i = navx.mm256_set1_epi32(dilithiumMontgomeryQInv)
       qVec: navx.M256i = navx.mm256_set1_epi32(dilithiumQ)
     prodEven = navx2.mm256_mul_epi32(a, b)
@@ -210,8 +210,8 @@ when defined(avx2):
   proc polyPointwiseMontgomerySimdAvx2(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline, otterBench.} =
     var
       i: int = 0
-      va: navx.M256i
-      vb: navx.M256i
+      va: navx.M256i = default(navx.M256i)
+      vb: navx.M256i = default(navx.M256i)
     i = 0
     while i + 8 <= dilithiumN:
       va = navx2.mm256_loadu_si256(cast[pointer](unsafeAddr a.coeffs[i]))
@@ -228,7 +228,7 @@ when defined(avx2):
       v: DilithiumPolyVecL) {.inline, otterBench.} =
     var
       i: int = 0
-      acc: navx.M256i
+      acc: navx.M256i = default(navx.M256i)
     i = 0
     while i + 8 <= dilithiumN:
       acc = montgomeryReduceProdVec8Avx2(
@@ -264,7 +264,7 @@ when defined(avx2):
       v: DilithiumPolyVecL) {.inline, otterBench.} =
     var
       i: int = 0
-      acc: navx.M256i
+      acc: navx.M256i = default(navx.M256i)
     i = 0
     while i + 8 <= dilithiumN:
       acc = montgomeryReduceProdVec8Avx2(
@@ -306,7 +306,7 @@ when defined(avx2):
       v: DilithiumPolyVecL) {.inline, otterBench.} =
     var
       i: int = 0
-      acc: navx.M256i
+      acc: navx.M256i = default(navx.M256i)
     i = 0
     while i + 8 <= dilithiumN:
       acc = montgomeryReduceProdVec8Avx2(
@@ -370,8 +370,8 @@ when defined(avx2):
     var
       i: int = 0
       j: int = 0
-      acc: navx.M256i
-      mul: navx.M256i
+      acc: navx.M256i = default(navx.M256i)
+      mul: navx.M256i = default(navx.M256i)
     i = 0
     while i + 8 <= dilithiumN:
       acc = montgomeryReduceProdVec8Avx2(
@@ -402,10 +402,10 @@ when defined(avx2):
     var
       i: int = 0
       bad: int32 = 0
-      coeffVec: navx.M256i
-      signVec: navx.M256i
-      absVec: navx.M256i
-      cmpVec: navx.M256i
+      coeffVec: navx.M256i = default(navx.M256i)
+      signVec: navx.M256i = default(navx.M256i)
+      absVec: navx.M256i = default(navx.M256i)
+      cmpVec: navx.M256i = default(navx.M256i)
       badVec: navx.M256i = navx.mm256_setzero_si256()
       boundVec: navx.M256i = navx.mm256_set1_epi32(B - 1)
     if B > (dilithiumQ - 1) div 8:
@@ -433,9 +433,9 @@ when defined(avx2):
   proc polyAddSimdAvx2(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
-      va: i32x8
-      vb: i32x8
-      vr: i32x8
+      va: i32x8 = default(i32x8)
+      vb: i32x8 = default(i32x8)
+      vr: i32x8 = default(i32x8)
     i = 0
     while i + 8 <= dilithiumN:
       va = i32x8(mm256_loadu_si256(cast[pointer](unsafeAddr a.coeffs[i])))
@@ -451,9 +451,9 @@ when defined(avx2):
   proc polySubSimdAvx2(c: var DilithiumPoly, a, b: DilithiumPoly) {.inline.} =
     var
       i: int = 0
-      va: i32x8
-      vb: i32x8
-      vr: i32x8
+      va: i32x8 = default(i32x8)
+      vb: i32x8 = default(i32x8)
+      vr: i32x8 = default(i32x8)
     i = 0
     while i + 8 <= dilithiumN:
       va = i32x8(mm256_loadu_si256(cast[pointer](unsafeAddr a.coeffs[i])))
@@ -469,7 +469,7 @@ when defined(avx2):
   proc polyShiftLSimdAvx2(a: var DilithiumPoly) {.inline.} =
     var
       i: int = 0
-      va: i32x8
+      va: i32x8 = default(i32x8)
     i = 0
     while i + 8 <= dilithiumN:
       va = i32x8(mm256_loadu_si256(cast[pointer](unsafeAddr a.coeffs[i])))
@@ -625,7 +625,7 @@ proc polyPointwiseMontgomery*(c: var DilithiumPoly, a, b: DilithiumPoly) {.inlin
 proc polyPower2Round*(a1, a0: var DilithiumPoly, a: DilithiumPoly) {.raises: [].} =
   var
     i: int = 0
-    t: tuple[a1, a0: int32]
+    t: tuple[a1, a0: int32] = default(tuple[a1, a0: int32])
   i = 0
   while i < dilithiumN:
     t = power2round(a.coeffs[i])
@@ -637,7 +637,7 @@ proc polyPower2Round*(a1, a0: var DilithiumPoly, a: DilithiumPoly) {.raises: [].
 proc polyDecompose*(p: DilithiumParams, a1, a0: var DilithiumPoly, a: DilithiumPoly) {.raises: [].} =
   var
     i: int = 0
-    t: tuple[a1, a0: int32]
+    t: tuple[a1, a0: int32] = default(tuple[a1, a0: int32])
   if p.gamma2 == (dilithiumQ - 1) div 32:
     i = 0
     while i < dilithiumN:
@@ -841,7 +841,7 @@ proc finishEtaCtPrefix[INBYTES: static[int]](p: DilithiumParams, a: var Dilithiu
 proc initShake128NonceState(S: var Sha3State,
     seed: array[dilithiumSeedBytes, byte], nonce: uint16) {.inline, raises: [].} =
   var
-    input: array[dilithiumSeedBytes + 2, byte]
+    input: array[dilithiumSeedBytes + 2, byte] = default(array[dilithiumSeedBytes + 2, byte])
     i: int = 0
   while i < dilithiumSeedBytes:
     input[i] = seed[i]
@@ -866,7 +866,7 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
 proc initShake256NonceState(S: var Sha3State,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
   var
-    input: array[dilithiumCrhBytes + 2, byte]
+    input: array[dilithiumCrhBytes + 2, byte] = default(array[dilithiumCrhBytes + 2, byte])
     i: int = 0
   while i < dilithiumCrhBytes:
     input[i] = seed[i]
@@ -892,8 +892,8 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
 proc polyUniformSeed(a: var DilithiumPoly,
     seed: array[dilithiumSeedBytes, byte], nonce: uint16) {.inline, raises: [].} =
   var
-    S: Sha3State
-    buf: array[((768 + shake128RateBytes - 1) div shake128RateBytes) * shake128RateBytes + 2, byte]
+    S: Sha3State = default(Sha3State)
+    buf: array[((768 + shake128RateBytes - 1) div shake128RateBytes) * shake128RateBytes + 2, byte] = default(array[((768 + shake128RateBytes - 1) div shake128RateBytes) * shake128RateBytes + 2, byte])
     bufLen: int = ((768 + shake128RateBytes - 1) div shake128RateBytes) * shake128RateBytes
     ctr: int = 0
     off: int = 0
@@ -920,12 +920,12 @@ when defined(avx2):
       seed: array[dilithiumSeedBytes, byte], nonce0, nonce1, nonce2,
       nonce3: uint16) {.inline, otterBench, raises: [].} =
     var
-      states: array[4, Sha3State]
-      msgs: array[4, array[dilithiumSeedBytes + 2, byte]]
-      initBufs: array[4, array[dilithiumUniform4xInitBytes, byte]]
-      extraBufs: array[4, array[shake128RateBytes, byte]]
-      polys: array[4, ptr DilithiumPoly]
-      ctr: array[4, int]
+      states: array[4, Sha3State] = default(array[4, Sha3State])
+      msgs: array[4, array[dilithiumSeedBytes + 2, byte]] = default(array[4, array[dilithiumSeedBytes + 2, byte]])
+      initBufs: array[4, array[dilithiumUniform4xInitBytes, byte]] = default(array[4, array[dilithiumUniform4xInitBytes, byte]])
+      extraBufs: array[4, array[shake128RateBytes, byte]] = default(array[4, array[shake128RateBytes, byte]])
+      polys: array[4, ptr DilithiumPoly] = default(array[4, ptr DilithiumPoly])
+      ctr: array[4, int] = default(array[4, int])
       lane: int = 0
     polys = [addr a0, addr a1, addr a2, addr a3]
     initShake128NonceMsg(msgs[0], seed, nonce0)
@@ -954,12 +954,12 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
   proc polyUniform2xSeed(a0, a1: var DilithiumPoly,
       seed: array[dilithiumSeedBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
     var
-      states: array[2, Sha3State]
-      msgs: array[2, array[dilithiumSeedBytes + 2, byte]]
-      initBufs: array[2, array[dilithiumUniform4xInitBytes, byte]]
-      extraBufs: array[2, array[shake128RateBytes, byte]]
-      polys: array[2, ptr DilithiumPoly]
-      ctr: array[2, int]
+      states: array[2, Sha3State] = default(array[2, Sha3State])
+      msgs: array[2, array[dilithiumSeedBytes + 2, byte]] = default(array[2, array[dilithiumSeedBytes + 2, byte]])
+      initBufs: array[2, array[dilithiumUniform4xInitBytes, byte]] = default(array[2, array[dilithiumUniform4xInitBytes, byte]])
+      extraBufs: array[2, array[shake128RateBytes, byte]] = default(array[2, array[shake128RateBytes, byte]])
+      polys: array[2, ptr DilithiumPoly] = default(array[2, ptr DilithiumPoly])
+      ctr: array[2, int] = default(array[2, int])
       lane: int = 0
     polys = [addr a0, addr a1]
     initShake128NonceMsg(msgs[0], seed, nonce0)
@@ -991,7 +991,7 @@ proc polyUniform*(a: var DilithiumPoly,
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniform`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniform*(a: var DilithiumPoly, seed: openArray[byte], nonce: uint16) =
   var
-    fixedSeed: array[dilithiumSeedBytes, byte]
+    fixedSeed: array[dilithiumSeedBytes, byte] = default(array[dilithiumSeedBytes, byte])
     i: int = 0
   if seed.len != dilithiumSeedBytes:
     raise newException(ValueError, "Dilithium rho seed must be 32 bytes")
@@ -1005,8 +1005,8 @@ proc polyUniformEtaSeed*(p: DilithiumParams, a: var DilithiumPoly,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
   if p.eta == 2:
     var
-      S: Sha3State
-      buf: array[dilithiumEtaCtBytesEta2, byte]
+      S: Sha3State = default(Sha3State)
+      buf: array[dilithiumEtaCtBytesEta2, byte] = default(array[dilithiumEtaCtBytesEta2, byte])
     initShake256NonceState(S, seed, nonce)
     shake256SqueezeBlocksIntoUnchecked(S, buf.toOpenArray(0, dilithiumEtaCtBytesEta2 - 1))
     finishEtaCtPrefix(p, a, S, buf)
@@ -1014,8 +1014,8 @@ proc polyUniformEtaSeed*(p: DilithiumParams, a: var DilithiumPoly,
     secureClearPod(buf)
     return
   var
-    S: Sha3State
-    buf: array[dilithiumEtaCtBytesEta4, byte]
+    S: Sha3State = default(Sha3State)
+    buf: array[dilithiumEtaCtBytesEta4, byte] = default(array[dilithiumEtaCtBytesEta4, byte])
   initShake256NonceState(S, seed, nonce)
   shake256SqueezeBlocksIntoUnchecked(S, buf.toOpenArray(0, dilithiumEtaCtBytesEta4 - 1))
   finishEtaCtPrefix(p, a, S, buf)
@@ -1035,9 +1035,9 @@ when defined(avx2):
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1, nonce2,
       nonce3: uint16) {.inline, otterBench, raises: [].} =
     var
-      states: array[4, Sha3State]
-      msgs: array[4, array[dilithiumCrhBytes + 2, byte]]
-      bufs: array[4, array[dilithiumEtaCtBytesEta2, byte]]
+      states: array[4, Sha3State] = default(array[4, Sha3State])
+      msgs: array[4, array[dilithiumCrhBytes + 2, byte]] = default(array[4, array[dilithiumCrhBytes + 2, byte]])
+      bufs: array[4, array[dilithiumEtaCtBytesEta2, byte]] = default(array[4, array[dilithiumEtaCtBytesEta2, byte]])
     initShake256NonceMsg(msgs[0], seed, nonce0)
     initShake256NonceMsg(msgs[1], seed, nonce1)
     initShake256NonceMsg(msgs[2], seed, nonce2)
@@ -1057,9 +1057,9 @@ when defined(avx2):
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1, nonce2,
       nonce3: uint16) {.inline, otterBench, raises: [].} =
     var
-      states: array[4, Sha3State]
-      msgs: array[4, array[dilithiumCrhBytes + 2, byte]]
-      bufs: array[4, array[dilithiumEtaCtBytesEta4, byte]]
+      states: array[4, Sha3State] = default(array[4, Sha3State])
+      msgs: array[4, array[dilithiumCrhBytes + 2, byte]] = default(array[4, array[dilithiumCrhBytes + 2, byte]])
+      bufs: array[4, array[dilithiumEtaCtBytesEta4, byte]] = default(array[4, array[dilithiumEtaCtBytesEta4, byte]])
     initShake256NonceMsg(msgs[0], seed, nonce0)
     initShake256NonceMsg(msgs[1], seed, nonce1)
     initShake256NonceMsg(msgs[2], seed, nonce2)
@@ -1091,8 +1091,8 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
   proc polyUniformEta2xCtSeedEta2(p: DilithiumParams, a0, a1: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
     var
-      msgs: array[2, array[dilithiumCrhBytes + 2, byte]]
-      bufs: array[2, array[dilithiumEtaCtBytesEta2, byte]]
+      msgs: array[2, array[dilithiumCrhBytes + 2, byte]] = default(array[2, array[dilithiumCrhBytes + 2, byte]])
+      bufs: array[2, array[dilithiumEtaCtBytesEta2, byte]] = default(array[2, array[dilithiumEtaCtBytesEta2, byte]])
       ctr0: int = 0
       ctr1: int = 0
     initShake256NonceMsg(msgs[0], seed, nonce0)
@@ -1111,8 +1111,8 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
   proc polyUniformEta2xCtSeedEta4(p: DilithiumParams, a0, a1: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
     var
-      msgs: array[2, array[dilithiumCrhBytes + 2, byte]]
-      bufs: array[2, array[dilithiumEtaCtBytesEta4, byte]]
+      msgs: array[2, array[dilithiumCrhBytes + 2, byte]] = default(array[2, array[dilithiumCrhBytes + 2, byte]])
+      bufs: array[2, array[dilithiumEtaCtBytesEta4, byte]] = default(array[2, array[dilithiumEtaCtBytesEta4, byte]])
       ctr0: int = 0
       ctr1: int = 0
     initShake256NonceMsg(msgs[0], seed, nonce0)
@@ -1139,7 +1139,7 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
 proc polyUniformEta*(p: DilithiumParams, a: var DilithiumPoly,
     seed: openArray[byte], nonce: uint16) =
   var
-    fixedSeed: array[dilithiumCrhBytes, byte]
+    fixedSeed: array[dilithiumCrhBytes, byte] = default(array[dilithiumCrhBytes, byte])
     i: int = 0
   if seed.len != dilithiumCrhBytes:
     raise newException(ValueError, "Dilithium eta seed must be 64 bytes")
@@ -1156,9 +1156,9 @@ proc polyZUnpack*(p: DilithiumParams, r: var DilithiumPoly, a: openArray[byte]) 
 proc polyUniformGamma1Seed*(p: DilithiumParams, a: var DilithiumPoly,
     seed: array[dilithiumCrhBytes, byte], nonce: uint16) {.inline, raises: [].} =
   var
-    S: Sha3State
+    S: Sha3State = default(Sha3State)
     outLen: int = 0
-    buf: array[((640 + shake256RateBytes - 1) div shake256RateBytes) * shake256RateBytes, byte]
+    buf: array[((640 + shake256RateBytes - 1) div shake256RateBytes) * shake256RateBytes, byte] = default(array[((640 + shake256RateBytes - 1) div shake256RateBytes) * shake256RateBytes, byte])
   outLen = ((p.polyZPackedBytes + shake256RateBytes - 1) div shake256RateBytes) * shake256RateBytes
   initShake256NonceState(S, seed, nonce)
   shake256SqueezeBlocksIntoUnchecked(S, buf.toOpenArray(0, outLen - 1))
@@ -1176,9 +1176,9 @@ when defined(avx2):
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1, nonce2,
       nonce3: uint16) {.inline, otterBench, raises: [].} =
     var
-      states: array[4, Sha3State]
-      msgs: array[4, array[dilithiumCrhBytes + 2, byte]]
-      bufs: array[4, array[dilithiumUniformGamma14xMaxBytes, byte]]
+      states: array[4, Sha3State] = default(array[4, Sha3State])
+      msgs: array[4, array[dilithiumCrhBytes + 2, byte]] = default(array[4, array[dilithiumCrhBytes + 2, byte]])
+      bufs: array[4, array[dilithiumUniformGamma14xMaxBytes, byte]] = default(array[4, array[dilithiumUniformGamma14xMaxBytes, byte]])
     initShake256NonceMsg(msgs[0], seed, nonce0)
     initShake256NonceMsg(msgs[1], seed, nonce1)
     initShake256NonceMsg(msgs[2], seed, nonce2)
@@ -1198,8 +1198,8 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
   proc polyUniformGamma12xSeed(p: DilithiumParams, a0, a1: var DilithiumPoly,
       seed: array[dilithiumCrhBytes, byte], nonce0, nonce1: uint16) {.inline, otterBench, raises: [].} =
     var
-      msgs: array[2, array[dilithiumCrhBytes + 2, byte]]
-      bufs: array[2, array[dilithiumUniformGamma14xMaxBytes, byte]]
+      msgs: array[2, array[dilithiumCrhBytes + 2, byte]] = default(array[2, array[dilithiumCrhBytes + 2, byte]])
+      bufs: array[2, array[dilithiumUniformGamma14xMaxBytes, byte]] = default(array[2, array[dilithiumUniformGamma14xMaxBytes, byte]])
     initShake256NonceMsg(msgs[0], seed, nonce0)
     initShake256NonceMsg(msgs[1], seed, nonce1)
     shake256Sse2xInto(bufs, msgs)
@@ -1217,7 +1217,7 @@ proc polyUniformGamma1*(p: DilithiumParams, a: var DilithiumPoly,
 proc polyUniformGamma1*(p: DilithiumParams, a: var DilithiumPoly,
     seed: openArray[byte], nonce: uint16) =
   var
-    fixedSeed: array[dilithiumCrhBytes, byte]
+    fixedSeed: array[dilithiumCrhBytes, byte] = default(array[dilithiumCrhBytes, byte])
     i: int = 0
   if seed.len != dilithiumCrhBytes:
     raise newException(ValueError, "Dilithium gamma1 seed must be 64 bytes")
@@ -1233,8 +1233,8 @@ proc polyUniformGamma1*(p: DilithiumParams, a: var DilithiumPoly,
 proc polyChallengeSeed*(p: DilithiumParams, c: var DilithiumPoly,
     seed: openArray[byte]) {.inline, raises: [].} =
   var
-    S: Sha3State
-    buf: array[shake256RateBytes, byte]
+    S: Sha3State = default(Sha3State)
+    buf: array[shake256RateBytes, byte] = default(array[shake256RateBytes, byte])
     signs: uint64 = 0
     pos: int = 8
     i: int = 0
@@ -1276,7 +1276,7 @@ proc polyEtaPackInto(p: DilithiumParams, r: var openArray[byte],
   var
     i: int = 0
     j: int = 0
-    t: array[8, uint8]
+    t: array[8, uint8] = default(array[8, uint8])
   if p.eta == 2:
     i = 0
     while i < dilithiumN div 8:
@@ -1377,7 +1377,7 @@ proc polyT0PackInto(r: var openArray[byte], a: DilithiumPoly) {.inline, raises: 
   var
     i: int = 0
     j: int = 0
-    t: array[8, uint32]
+    t: array[8, uint32] = default(array[8, uint32])
   i = 0
   while i < dilithiumN div 8:
     j = 0
@@ -1437,7 +1437,7 @@ proc polyZPackInto(p: DilithiumParams, r: var openArray[byte],
   var
     i: int = 0
     j: int = 0
-    t: array[4, uint32]
+    t: array[4, uint32] = default(array[4, uint32])
   if p.gamma1 == (1 shl 17):
     i = 0
     while i < dilithiumN div 4:
@@ -1543,7 +1543,7 @@ proc polyveclUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecL,
     nn: uint16 = nonce
   when defined(avx2):
     var
-      tmp: DilithiumPoly
+      tmp: DilithiumPoly = default(DilithiumPoly)
     if p.l == 4:
       polyUniformEta4xCtSeed(p, v.vec[0], v.vec[1], v.vec[2], v.vec[3],
         seed, nn, nn + 1'u16, nn + 2'u16, nn + 3'u16)
@@ -1585,7 +1585,7 @@ proc polyveclUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecL,
 proc polyveclUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecL,
     seed: openArray[byte], nonce: uint16) =
   var
-    fixedSeed: array[dilithiumCrhBytes, byte]
+    fixedSeed: array[dilithiumCrhBytes, byte] = default(array[dilithiumCrhBytes, byte])
     i: int = 0
   if seed.len != dilithiumCrhBytes:
     raise newException(ValueError, "Dilithium eta seed must be 64 bytes")
@@ -1649,7 +1649,7 @@ proc polyveclUniformGamma1*(p: DilithiumParams, v: var DilithiumPolyVecL,
 proc polyveclUniformGamma1*(p: DilithiumParams, v: var DilithiumPolyVecL,
     seed: openArray[byte], nonce: uint16) =
   var
-    fixedSeed: array[dilithiumCrhBytes, byte]
+    fixedSeed: array[dilithiumCrhBytes, byte] = default(array[dilithiumCrhBytes, byte])
     i: int = 0
   if seed.len != dilithiumCrhBytes:
     raise newException(ValueError, "Dilithium gamma1 seed must be 64 bytes")
@@ -1692,7 +1692,7 @@ proc polyveclPointwiseAccMontgomery*(w: var DilithiumPoly, u, v: DilithiumPolyVe
     polyveclPointwiseAccMontgomerySimdAvx2(w, u, v)
   else:
     var
-      t: DilithiumPoly
+      t: DilithiumPoly = default(DilithiumPoly)
       i: int = 1
     polyPointwiseMontgomery(w, u.vec[0], v.vec[0])
     while i < u.used:
@@ -1757,7 +1757,7 @@ proc polyveckUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecK,
 proc polyveckUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecK,
     seed: openArray[byte], nonce: uint16) =
   var
-    fixedSeed: array[dilithiumCrhBytes, byte]
+    fixedSeed: array[dilithiumCrhBytes, byte] = default(array[dilithiumCrhBytes, byte])
     i: int = 0
   if seed.len != dilithiumCrhBytes:
     raise newException(ValueError, "Dilithium eta seed must be 64 bytes")
@@ -1861,7 +1861,7 @@ proc polyvecMatrixExpandRowInto*(p: DilithiumParams, row: var DilithiumPolyVecL,
   row = initPolyVecL(p)
   when defined(avx2):
     var
-      tmp: DilithiumPoly
+      tmp: DilithiumPoly = default(DilithiumPoly)
     if p.l == 4:
       polyUniform4xSeed(row.vec[0], row.vec[1], row.vec[2], row.vec[3],
         rho, baseNonce, baseNonce + 1'u16, baseNonce + 2'u16, baseNonce + 3'u16)
@@ -1931,7 +1931,7 @@ proc polyvecMatrixExpand*(p: DilithiumParams,
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyvecMatrixExpand`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyvecMatrixExpand*(p: DilithiumParams, rho: openArray[byte]): DilithiumMatrix =
   var
-    fixedRho: array[dilithiumSeedBytes, byte]
+    fixedRho: array[dilithiumSeedBytes, byte] = default(array[dilithiumSeedBytes, byte])
     i: int = 0
   if rho.len != dilithiumSeedBytes:
     raise newException(ValueError, "Dilithium rho seed must be 32 bytes")
