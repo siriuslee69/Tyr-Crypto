@@ -25,7 +25,6 @@ type
     h*: seq[uint16]
 
   FalconDecodedSignature* = object
-    logn*: int
     nonce*: array[falconNonceLen, byte]
     s2*: seq[int16]
 
@@ -86,21 +85,19 @@ proc decodePublicKeyToNtt*(decoded: var FalconDecodedPublic, pk: openArray[byte]
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `decodeSignature`; pitfall: reject malformed or non-canonical input before indexed access.
 proc decodeSignature*(decoded: var FalconDecodedSignature, sig: openArray[byte], v: FalconVariant): bool =
-  let
-    p = params(v)
-    logn = p.logn
-    n = mkn(logn)
+  ## sig: [0x30 + logn][nonce, 40 bytes][compressed s2]. False on any
+  ## malformed or non-canonical encoding.
+  var
+    p: FalconParams = params(v)
+    logn: int = p.logn
+    used: int = 0
   if sig.len < 1 + falconNonceLen or sig.len > p.signatureBytes:
     return false
   if not expectHeader(sig, 0x30, logn):
     return false
-  decoded.logn = logn
-  decoded.s2 = newSeq[int16](n)
-  var i = 0
-  while i < falconNonceLen:
-    decoded.nonce[i] = sig[1 + i]
-    inc i
-  let used = compDecode(decoded.s2, sig.toOpenArray(1 + falconNonceLen, sig.high), logn)
+  decoded.s2 = newSeq[int16](mkn(logn))
+  copyMem(addr decoded.nonce[0], unsafeAddr sig[1], falconNonceLen)
+  used = compDecode(decoded.s2, sig.toOpenArray(1 + falconNonceLen, sig.high), logn)
   if used == 0:
     return false
   if used != sig.len - 1 - falconNonceLen:
