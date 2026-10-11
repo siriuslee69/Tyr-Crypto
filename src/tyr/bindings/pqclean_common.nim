@@ -74,7 +74,7 @@ proc incrementV(S: var PqNistDrbgState) =
 
 proc aes256EcbBlock(k: openArray[byte], input: array[16, byte]): array[16, byte] =
   var
-    ctx: Aes256Ctx
+    ctx: Aes256Ctx = default(Aes256Ctx)
   ctx.init(k)
   result = encryptBlock(ctx, input)
 
@@ -82,8 +82,8 @@ proc nistDrbgUpdate*(S: var PqNistDrbgState,
     provided: ptr array[pqKatEntropyBytes, byte] = nil) =
   ## Apply the NIST KAT AES-256-CTR DRBG update function.
   var
-    temp: array[pqKatEntropyBytes, byte]
-    blk: array[16, byte]
+    temp: array[pqKatEntropyBytes, byte] = default(array[pqKatEntropyBytes, byte])
+    blk: array[16, byte] = default(array[16, byte])
     i: int = 0
   i = 0
   while i < 3:
@@ -111,7 +111,7 @@ proc initNistDrbg*(entropy: openArray[byte],
     personalization: openArray[byte] = @[]): PqNistDrbgState =
   ## Initialize the same AES-256-CTR DRBG used by NIST KAT files.
   var
-    seedMaterial: array[pqKatEntropyBytes, byte]
+    seedMaterial: array[pqKatEntropyBytes, byte] = default(array[pqKatEntropyBytes, byte])
     i: int = 0
   if entropy.len != pqKatEntropyBytes:
     raise newException(ValueError, "NIST DRBG entropy must be 48 bytes")
@@ -130,7 +130,7 @@ proc initNistDrbg*(entropy: openArray[byte],
 proc nistDrbgRandomBytes*(S: var PqNistDrbgState, n: int): seq[byte] =
   ## Generate bytes from the NIST KAT DRBG and update state.
   var
-    blk: array[16, byte]
+    blk: array[16, byte] = default(array[16, byte])
     offset: int = 0
     take: int = 0
     i: int = 0
@@ -152,7 +152,7 @@ proc nistDrbgRandomBytes*(S: var PqNistDrbgState, n: int): seq[byte] =
 proc pqFeedFromKatSeed*(seed: openArray[byte], n: int = pqRandomFeedBytes): seq[byte] =
   ## Expand a 48-byte KAT seed into the stream consumed by PQClean randombytes.
   var
-    drbg: PqNistDrbgState
+    drbg: PqNistDrbgState = default(PqNistDrbgState)
   drbg = initNistDrbg(seed)
   result = nistDrbgRandomBytes(drbg, n)
   secureClearBytes(drbg.key)
@@ -233,7 +233,7 @@ proc fillFromSystem(outBytes: ptr UncheckedArray[uint8], offset, remaining: int)
 
 proc tyrPqRandombytesFill(outPtr: ptr uint8, outLen: csize_t) =
   var
-    outBytes: ptr UncheckedArray[uint8]
+    outBytes: ptr UncheckedArray[uint8] = nil
     offset: int = 0
     remaining: int = int(outLen)
   if outPtr.isNil or remaining <= 0:
@@ -254,8 +254,8 @@ proc tyrPqRandombytesSet(feed: ptr uint8, feedLen: csize_t) {.cdecl,
 proc tyrPqRandombytesSeedKat(seed48: ptr uint8) {.cdecl,
     exportc: "tyr_pq_randombytes_seed_kat".} =
   var
-    seed: array[pqKatSeedBytes, byte]
-    seedBytes: ptr UncheckedArray[uint8]
+    seed: array[pqKatSeedBytes, byte] = default(array[pqKatSeedBytes, byte])
+    seedBytes: ptr UncheckedArray[uint8] = nil
     i: int = 0
   pqFeedPtr = nil
   pqFeedLen = 0

@@ -78,8 +78,8 @@ template runSaberRoundtripCase(variant: untyped, keyBase, encBase: int) =
       p: custom_saber.SaberParams = custom_saber.saberParamsTable[variant]
       keySeed: seq[byte] = newSeq[byte](pqc.pqKatSeedBytes)
       encSeed: seq[byte] = newSeq[byte](pqc.pqKatSeedBytes)
-      kp: custom_saber.SaberTyrKeypair
-      env: custom_saber.SaberTyrCipher
+      kp: custom_saber.SaberTyrKeypair = default(custom_saber.SaberTyrKeypair)
+      env: custom_saber.SaberTyrCipher = default(custom_saber.SaberTyrCipher)
       shared: seq[byte] = @[]
     checkpoint("SABER roundtrip " & p.name)
     fillSaberSeed(keySeed, keyBase)
@@ -102,9 +102,9 @@ template runSaberKatCase(variant: untyped, backend: untyped) =
   block:
     var
       p: custom_saber.SaberParams = custom_saber.saberParamsTable[variant]
-      expected: SaberKatCase
-      kat: tuple[keypair: custom_saber.SaberTyrKeypair,
-        cipher: custom_saber.SaberTyrCipher]
+      expected: SaberKatCase = default(SaberKatCase)
+      kat: tuple[keypair: custom_saber.SaberTyrKeypair, cipher: custom_saber.SaberTyrCipher] =
+        (custom_saber.SaberTyrKeypair(), custom_saber.SaberTyrCipher())
       shared: seq[byte] = @[]
     checkpoint("SABER KAT " & p.name)
     expected = loadFirstSaberKat(variant)
@@ -146,8 +146,8 @@ suite "saber tyr":
       p: custom_saber.SaberParams = custom_saber.saberParamsTable[v]
       keySeed: seq[byte] = newSeq[byte](pqc.pqKatSeedBytes)
       encSeed: seq[byte] = newSeq[byte](pqc.pqKatSeedBytes)
-      kp: custom_saber.SaberTyrKeypair
-      env: custom_saber.SaberTyrCipher
+      kp: custom_saber.SaberTyrKeypair = default(custom_saber.SaberTyrKeypair)
+      env: custom_saber.SaberTyrCipher = default(custom_saber.SaberTyrCipher)
       tampered: seq[byte] = @[]
       allZero: seq[byte] = @[]
       allFf: seq[byte] = @[]

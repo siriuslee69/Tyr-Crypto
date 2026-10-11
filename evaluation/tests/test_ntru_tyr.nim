@@ -25,8 +25,8 @@ proc fillNtruSeed(S: var seq[byte], base: int) =
 
 proc ntruRootKatSeed(): seq[byte] =
   var
-    entropy: array[ntruKatEntropyLen, byte]
-    root: pqc.PqNistDrbgState
+    entropy: array[ntruKatEntropyLen, byte] = default(array[ntruKatEntropyLen, byte])
+    root: pqc.PqNistDrbgState = default(pqc.PqNistDrbgState)
     i: int = 0
   i = 0
   while i < ntruKatEntropyLen:
@@ -60,7 +60,7 @@ proc ntruTranscriptForKat(v: custom_ntru.NtruVariant,
     backend: custom_ntru.NtruBackend): string =
   var
     seed48: seq[byte] = @[]
-    kat: tuple[keypair: custom_ntru.NtruTyrKeypair, cipher: custom_ntru.NtruTyrCipher]
+    kat: tuple[keypair: custom_ntru.NtruTyrKeypair, cipher: custom_ntru.NtruTyrCipher] = default(tuple[keypair: custom_ntru.NtruTyrKeypair, cipher: custom_ntru.NtruTyrCipher])
     shared: seq[byte] = @[]
   seed48 = ntruRootKatSeed()
   result.add("count = 0\n")
@@ -105,7 +105,7 @@ proc ntruKatJsonPath(): string =
 
 proc loadExpectedNtruKatHash(name: string): string =
   var
-    node: JsonNode
+    node: JsonNode = nil
   node = parseJson(readFile(ntruKatJsonPath()))
   result = node[name]["single"].getStr().toLowerAscii()
 
@@ -118,7 +118,7 @@ proc ntruSha256HexForFile(path: string): string =
   var
     data: string = readFile(path)
     bytes: seq[byte] = newSeq[byte](data.len)
-    digest: Sha256Digest
+    digest: Sha256Digest = default(Sha256Digest)
     i: int = 0
   while i < data.len:
     bytes[i] = byte(ord(data[i]))
@@ -137,8 +137,8 @@ template runNtruRoundtripCase(variant: untyped, keyBase, encBase: int) =
       p: custom_ntru.NtruParams = custom_ntru.ntruParamsTable[variant]
       keySeed: seq[byte] = newSeq[byte](pqc.pqKatSeedBytes)
       encSeed: seq[byte] = newSeq[byte](pqc.pqKatSeedBytes)
-      kp: custom_ntru.NtruTyrKeypair
-      env: custom_ntru.NtruTyrCipher
+      kp: custom_ntru.NtruTyrKeypair = default(custom_ntru.NtruTyrKeypair)
+      env: custom_ntru.NtruTyrCipher = default(custom_ntru.NtruTyrCipher)
       shared: seq[byte] = @[]
     checkpoint("NTRU roundtrip " & p.name)
     fillNtruSeed(keySeed, keyBase)
@@ -195,8 +195,8 @@ suite "ntru tyr":
       p: custom_ntru.NtruParams = custom_ntru.ntruParamsTable[v]
       keySeed: seq[byte] = newSeq[byte](pqc.pqKatSeedBytes)
       encSeed: seq[byte] = newSeq[byte](pqc.pqKatSeedBytes)
-      kp: custom_ntru.NtruTyrKeypair
-      env: custom_ntru.NtruTyrCipher
+      kp: custom_ntru.NtruTyrKeypair = default(custom_ntru.NtruTyrKeypair)
+      env: custom_ntru.NtruTyrCipher = default(custom_ntru.NtruTyrCipher)
       tampered: seq[byte] = @[]
       allZero: seq[byte] = @[]
       allFf: seq[byte] = @[]

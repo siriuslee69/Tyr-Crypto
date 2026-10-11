@@ -39,7 +39,7 @@ proc incrementV(S: var PqNistDrbgState) =
 ## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `aes256EcbBlock`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc aes256EcbBlock(k: openArray[byte], input: array[16, byte]): array[16, byte] =
   var
-    ctx: Aes256Ctx
+    ctx: Aes256Ctx = default(Aes256Ctx)
   defer:
     clear(ctx)
   ctx.init(k)
@@ -50,8 +50,8 @@ proc nistDrbgUpdate*(S: var PqNistDrbgState,
     provided: ptr array[pqKatEntropyBytes, byte] = nil) =
   ## Apply the NIST KAT AES-256-CTR DRBG update function.
   var
-    temp: array[pqKatEntropyBytes, byte]
-    blk: array[16, byte]
+    temp: array[pqKatEntropyBytes, byte] = default(array[pqKatEntropyBytes, byte])
+    blk: array[16, byte] = default(array[16, byte])
     i: int = 0
   i = 0
   while i < 3:
@@ -80,7 +80,7 @@ proc initNistDrbg*(entropy: openArray[byte],
     personalization: openArray[byte] = @[]): PqNistDrbgState =
   ## Initialize the same AES-256-CTR DRBG used by NIST KAT files.
   var
-    seedMaterial: array[pqKatEntropyBytes, byte]
+    seedMaterial: array[pqKatEntropyBytes, byte] = default(array[pqKatEntropyBytes, byte])
     i: int = 0
   if entropy.len != pqKatEntropyBytes:
     raise newException(ValueError, "NIST DRBG entropy must be 48 bytes")
@@ -100,7 +100,7 @@ proc initNistDrbg*(entropy: openArray[byte],
 proc nistDrbgRandomBytes*(S: var PqNistDrbgState, n: int): seq[byte] =
   ## Generate bytes from the NIST KAT DRBG and update state once per call.
   var
-    blk: array[16, byte]
+    blk: array[16, byte] = default(array[16, byte])
     offset: int = 0
     take: int = 0
     i: int = 0

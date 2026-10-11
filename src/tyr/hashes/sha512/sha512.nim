@@ -91,7 +91,7 @@ proc compressSha512(S: var Sha512Context, A: openArray[byte], o: int) {.
     role: {math}.} =
   ## S/A/o: running state, source bytes, and the offset of one 128-byte block.
   var
-    W: array[80, uint64]
+    W: array[80, uint64] = default(array[80, uint64])
     a, b, c, d, e, f, g, h, s0, s1, ch, maj, t1, t2: uint64 = 0
     i: int = 0
   while i < 16:
