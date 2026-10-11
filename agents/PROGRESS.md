@@ -1,4 +1,4 @@
-Commit Message: One wipe module: fold 11 copied wipe helpers into secure_memory
+Commit Message: Progress: convention cleanup of Falcon, Dilithium, SPHINCS, McEliece Benes, password KDF
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -1720,6 +1720,59 @@ Still open:
   did not before this change: `submodules/pqclean` sits at round3-241,
   past the `round3` tag, and upstream removed lightsaber/ntru there.
   Nothing in the repo imports these two bindings.
-- Files touched only by an import line carry ~600 older convention
-  findings (var without start value, `let`), mostly Falcon keygen/sign,
-  SPHINCS and the pq_rng/pqclean helpers. Not rewritten in passing.
+- (done 2026-10-11, see next section) ~600 older convention findings in
+  files touched only by an import line.
+
+## 2026-10-11 Convention Cleanup + Otter Findings
+
+The 597 older findings (var without start value, `let`, repeated var)
+in the files touched by the wipe change are gone (nim-check: 0).
+
+What changed, file by file:
+- Falcon keygen: 2400-line C port rewritten without `let` or in-loop
+  declarations, nested loops pulled into inline helpers, then split into
+  five dependency levels (keygen_modp -> keygen_zint / keygen_bigint ->
+  keygen_rns -> keygen_solve -> keygen). Duplicates merged (the F/G lift
+  of solveNtruIntermediate and depth 1; three copies of tail padding).
+  Dead code removed (makeFg depth>0, modpPolyRecRes, falconSolveNtruPure).
+  Secret f, g, scratch and the 48-byte system seed are now wiped.
+- Falcon sign/operations: ffLDLFft + ffLDLFftInner were one routine;
+  ffSamplingFft's leaves are their own routines; keys are moved, not
+  copied (no stray secret-key copy).
+- New regression test `test_falcon_fingerprints.nim`: frozen
+  keygen/sign/prepared-sign outputs for 512 and 1024 (scalar and
+  native-float SIMD agree). Falcon had no answer file before.
+- Dilithium poly/operations, SPHINCS fors/operations, pq_rng,
+  pqclean_common, sha512, NTRU/Saber KAT tests: start values everywhere.
+- SPHINCS merkle (was OVERSIZED): the 4-lane, 2-lane and 1-lane WOTS chain
+  walks were three copies; now wotsChainLanes[L] + wotsChainOne.
+- McEliece benes (was OVERSIZED): one control-word loader, flat layers.
+- Password KDF (Otter SEAM): split into password/common, /argon, /keywrap,
+  /unavailable; password.nim only picks by -d:hasLibsodium. Label const
+  renamed kdfContextPasswordPinSecret -> kdfContextPasswordPin (value kept).
+  Bug fixed: derivePatternBytesFromPasswordPinWithSalt with l < 16 always
+  failed (Argon2id minimum); now derives 16 and keeps the first l.
+- Placeholders: benchmark calls feed a sink instead of `discard`;
+  nimcrypto stub clear() really clears; FalconDecodedSignature.logn
+  (write-only) removed.
+
+Checked: every changed family against liboqs/KAT groups (--full) on
+scalar, SSE2 and AVX2; Falcon fingerprints + a 50-seed old/new compare;
+password derivations byte-identical old/new with fixed salts.
+
+Found, not fixed:
+- The desktop test runner cannot find libsodium at runtime ("libsodium
+  shared library unavailable at runtime; skipping"), so every libsodium
+  test is silently skipped in `nimble test_all`. With
+  LD_LIBRARY_PATH=<nix libsodium>/lib they run. That is how the l < 16
+  bug above stayed hidden.
+- Otter SECRETS: all 15 come from git history (the commits that added
+  public labels, curve constants, liboqs symbol names before they carried
+  `# otter:allow`). The current lines all carry the marker. Not fixable
+  without rewriting history.
+- divRemAbs31 (keygen_bigint) returns the remainder still shifted by the
+  normalisation; roundDivAbs31 then rounds on 2·r·2^shift vs den. Keys
+  stay valid (any integer k keeps f·G - g·F = q, and the final range
+  check holds), but the rounding is not the intended one. Fixing it
+  changes every Falcon key derived from a seed, so it needs a decision.
+- keygen_bigint (degree 2 and 4 levels only) is not constant time.
