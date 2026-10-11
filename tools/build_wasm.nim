@@ -10,6 +10,7 @@ const
   wasmNimcacheDir = "build/wasm/nimcache_wasm32"
   wasmOutputDir = "bindings/js/dist"
   wasmOutputFile = "bindings/js/dist/tyr_crypto_wasm.mjs"
+  runtimeMethodsArg = "['ccall']"
 
 type
   BuildOptions = object
@@ -112,9 +113,6 @@ proc exportedFunctionsArg(): string =
   ]
   result = "['" & funcs.join("','") & "']"
 
-proc runtimeMethodsArg(): string =
-  result = "['ccall']"
-
 proc ensureTooling() =
   if findExe("emcc").len == 0:
     quit("emcc was not found on PATH. Install emsdk and expose emcc before running build_wasm.")
@@ -169,7 +167,7 @@ proc main() =
     "-sNO_EXIT_RUNTIME=1",
     "-sENVIRONMENT=web,worker,node",
     "-sEXPORTED_FUNCTIONS=" & exportedFunctionsArg(),
-    "-sEXPORTED_RUNTIME_METHODS=" & runtimeMethodsArg()
+    "-sEXPORTED_RUNTIME_METHODS=" & runtimeMethodsArg
   ])
   emccArgs.add(options.emccFlags)
   emccArgs.add(@["-o", wasmOutputFile])

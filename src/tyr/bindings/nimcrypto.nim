@@ -136,7 +136,7 @@ else:
     return zero
 
   proc clear*(context: var Aes256GcmContext) =
-    discard context.dummy
+    context.dummy = 0
 
   proc blake2b*(output: var openArray[byte], input: openArray[byte]) =
     discard output

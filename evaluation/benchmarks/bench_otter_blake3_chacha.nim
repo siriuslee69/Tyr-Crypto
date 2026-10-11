@@ -30,6 +30,9 @@ var
   benchKey32: array[32, byte]
   benchNonce24: array[24, byte]
   benchNonce12: array[12, byte]
+  ## Each run folds one output byte in here, so the compiler cannot drop
+  ## the measured call as unused.
+  benchSink: uint8 = 0
   workBuf: array[benchBytes, byte]
 
 proc fillPattern(bs: var openArray[byte], start: int = 0) =
@@ -114,7 +117,7 @@ proc runTimedGroup(title: string, body: proc ()) =
   printTopTimings(title, stats)
 
 proc tyrBlake3HashImpl() =
-  discard blake3Hash(benchInput)
+  benchSink = benchSink xor blake3Hash(benchInput)[0]
 
 proc tyrChaCha20XorImpl() =
   resetWorkBuf()
@@ -125,19 +128,19 @@ proc tyrXChaCha20XorImpl() =
   xchacha20XorInPlace(benchKey32, benchNonce24, 0'u32, workBuf)
 
 proc tyrXChaCha20StreamImpl() =
-  discard xchacha20Stream(benchKey32, benchNonce24, benchBytes, 0'u32)
+  benchSink = benchSink xor xchacha20Stream(benchKey32, benchNonce24, benchBytes, 0'u32)[0]
 
 proc tyrXChaCha20SimdSse2Impl() =
-  discard xchacha20StreamSimd(benchKey32, benchNonce24, benchBytes, 0'u32, xcbSse2)
+  benchSink = benchSink xor xchacha20StreamSimd(benchKey32, benchNonce24, benchBytes, 0'u32, xcbSse2)[0]
 
 proc tyrXChaCha20SimdAvx2Impl() =
-  discard xchacha20StreamSimd(benchKey32, benchNonce24, benchBytes, 0'u32, xcbAvx2)
+  benchSink = benchSink xor xchacha20StreamSimd(benchKey32, benchNonce24, benchBytes, 0'u32, xcbAvx2)[0]
 
 proc tyrChaCha20BlockImpl() =
-  discard chacha20Block(benchKey32, benchNonce12, 0'u32)
+  benchSink = benchSink xor chacha20Block(benchKey32, benchNonce12, 0'u32)[0]
 
 proc tyrHChaCha20Impl() =
-  discard hchacha20(benchKey32, benchNonce24.toOpenArray(0, 15))
+  benchSink = benchSink xor hchacha20(benchKey32, benchNonce24.toOpenArray(0, 15))[0]
 
 otterInstrument:
   proc tyrBlake3HashBench() =
