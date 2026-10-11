@@ -51,7 +51,7 @@ proc prngRefill*(p: var FalconPrng) =
     lane: int = 0
   while lane < 8:
     var
-      state: array[16, uint32]
+      state: array[16, uint32] = default(array[16, uint32])
       v: int = 0
       rounds: int = 0
     v = 0
@@ -122,7 +122,7 @@ proc prngInit*(p: var FalconPrng, seedMaterial: openArray[byte]) =
   ## Seed Falcon's internal ChaCha20 PRNG from arbitrary local SHAKE256 input.
   var
     tmp = newSeq[byte](56)
-    raw: array[56, byte]
+    raw: array[56, byte] = default(array[56, byte])
     i: int = 0
   shake256Into(tmp, seedMaterial)
   while i < raw.len:
@@ -136,8 +136,8 @@ proc prngInit*(p: var FalconPrng, seedMaterial: openArray[byte]) =
 proc prngInit*(p: var FalconPrng, rawSeed56: array[56, byte]) =
   var
     i: int = 0
-    tl: uint64
-    th: uint64
+    tl: uint64 = 0'u64
+    th: uint64 = 0'u64
   while i < 14:
     var w =
       uint32(rawSeed56[(i shl 2) + 0]) or
@@ -166,7 +166,7 @@ proc prngInit*(p: var FalconPrng, rawSeed56: array[56, byte]) =
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; random-source and deterministic KAT generation rules for `prngInitFromShake`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc prngInitFromShake*(p: var FalconPrng, ctx: var FalconShake256) =
-  var seed: array[56, byte]
+  var seed: array[56, byte] = default(array[56, byte])
   extractFalconShake256(ctx, seed)
   prngInit(p, seed)
   clearPlainData(seed)

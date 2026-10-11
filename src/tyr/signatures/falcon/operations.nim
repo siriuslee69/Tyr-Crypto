@@ -1,5 +1,5 @@
 ## ----------------------------------------------------------------
-## Falcon Operations <- pure-Nim Falcon public API compatibility shim
+## Falcon Operations <- pure-Nim Falcon public API         
 ## ----------------------------------------------------------------
 
 import ./params
@@ -67,10 +67,10 @@ proc copyInto(dst: var openArray[byte], src: openArray[byte], label: string) {.i
 proc falconTyrKeypairInto*(v: FalconVariant, publicKey, secretKey: var openArray[byte],
     backend: FalconBackend = falconAuto) {.otterBench.} =
   ## Generate a pure-Nim Falcon keypair into caller-owned buffers.
-  let
-    p = params(v)
-    active = requireBackend(backend)
-  var kp: tuple[publicKey, secretKey: seq[byte]]
+  var
+    p: FalconParams = params(v)
+    active: FalconBackend = requireBackend(backend)
+    kp: tuple[publicKey, secretKey: seq[byte]] = (newSeq[byte](0), newSeq[byte](0))
   withFalconBackend(active):
     kp = falconKeygenPure(v)
   defer:
@@ -86,39 +86,40 @@ proc falconTyrKeypairInto*(v: FalconVariant, publicKey, secretKey: var openArray
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `falconTyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc falconTyrKeypair*(v: FalconVariant, backend: FalconBackend = falconAuto): FalconTyrKeypair {.otterTrace.} =
   ## Generate a pure-Nim Falcon keypair and return owned buffers.
-  let active = requireBackend(backend)
+  var
+    active: FalconBackend = requireBackend(backend)
+    kp: tuple[publicKey, secretKey: seq[byte]] = (newSeq[byte](0), newSeq[byte](0))
   result.variant = v
   withFalconBackend(active):
-    let kp = falconKeygenPure(v)
-    result.publicKey = kp.publicKey
-    result.secretKey = kp.secretKey
+    kp = falconKeygenPure(v)
+    result.publicKey = move(kp.publicKey)
+    result.secretKey = move(kp.secretKey)
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `falconTyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc falconTyrKeypair*(v: FalconVariant, seed: openArray[byte],
     backend: FalconBackend = falconAuto): FalconTyrKeypair {.otterTrace.} =
   ## Generate a deterministic pure-Nim Falcon keypair from caller-provided
   ## seed material.
-  let
-    p = params(v)
-    active = requireBackend(backend)
   var
-    kp: tuple[publicKey, secretKey: seq[byte]]
+    p: FalconParams = params(v)
+    active: FalconBackend = requireBackend(backend)
+    kp: tuple[publicKey, secretKey: seq[byte]] = (newSeq[byte](0), newSeq[byte](0))
   result.variant = v
   withFalconBackend(active):
     kp = falconKeygenFromSeed(v, seed)
   requireSizedBuffer(kp.publicKey.len, p.publicKeyBytes, "Falcon public key")
   requireSizedBuffer(kp.secretKey.len, p.secretKeyBytes, "Falcon secret key")
-  result.publicKey = kp.publicKey
-  result.secretKey = kp.secretKey
+  result.publicKey = move(kp.publicKey)
+  result.secretKey = move(kp.secretKey)
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `falconTyrSignInto`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc falconTyrSignInto*(v: FalconVariant, sig: var openArray[byte], sigLen: var int,
     msg, sk: openArray[byte], backend: FalconBackend = falconAuto) {.otterBench.} =
   ## Sign a message into a caller-owned max-sized Falcon signature buffer.
-  let
-    p = params(v)
-    active = requireBackend(backend)
-  var encoded: seq[byte]
+  var
+    p: FalconParams = params(v)
+    active: FalconBackend = requireBackend(backend)
+    encoded: seq[byte] = @[]
   withFalconBackend(active):
     encoded = falconSignPure(v, msg, sk)
   requireSignatureInputs(p, sig, sk)
@@ -130,7 +131,8 @@ proc falconTyrSignInto*(v: FalconVariant, sig: var openArray[byte], sigLen: var 
 proc falconTyrSign*(v: FalconVariant, msg, sk: openArray[byte],
     backend: FalconBackend = falconAuto): seq[byte] {.otterTrace.} =
   ## Sign a message and return a trimmed Falcon signature.
-  let active = requireBackend(backend)
+  var
+    active: FalconBackend = requireBackend(backend)
   withFalconBackend(active):
     result = falconSignPure(v, msg, sk)
 
@@ -138,9 +140,9 @@ proc falconTyrSign*(v: FalconVariant, msg, sk: openArray[byte],
 proc falconTyrPrepareSecret*(v: FalconVariant, sk: openArray[byte],
     backend: FalconBackend = falconAuto): FalconPreparedSecret {.otterBench, otterTrace.} =
   ## Expand Falcon private-key state for repeated sign-tree signing.
-  let
-    p = params(v)
-    active = requireBackend(backend)
+  var
+    p: FalconParams = params(v)
+    active: FalconBackend = requireBackend(backend)
   requireSecretKeyBuffer(p, sk)
   result.variant = v
   result.backend = active
@@ -166,8 +168,9 @@ proc falconTyrClearPreparedSecret*(prepared: var FalconPreparedSecret) =
 proc falconTyrSignPreparedInto*(prepared: FalconPreparedSecret, sig: var openArray[byte],
     sigLen: var int, msg: openArray[byte]) {.otterBench.} =
   ## Sign with a pre-expanded Falcon key in sign-tree mode.
-  let p = params(prepared.variant)
-  var encoded: seq[byte]
+  var
+    p: FalconParams = params(prepared.variant)
+    encoded: seq[byte] = @[]
   withFalconBackend(prepared.backend):
     encoded = falconSignPrepared(prepared.expanded, msg, prepared.variant)
   requireMinBuffer(sig.len, p.signatureBytes, "Falcon signature buffer")
@@ -185,9 +188,9 @@ proc falconTyrSignPrepared*(prepared: FalconPreparedSecret, msg: openArray[byte]
 proc falconTyrVerify*(v: FalconVariant, msg, sig, pk: openArray[byte],
     backend: FalconBackend = falconAuto): bool {.otterBench, otterTrace.} =
   ## Verify a Falcon signature with the selected local backend.
-  let
-    p = params(v)
-    active = requireBackend(backend)
+  var
+    p: FalconParams = params(v)
+    active: FalconBackend = requireBackend(backend)
   if pk.len != p.publicKeyBytes:
     return false
   if sig.len == 0 or sig.len > p.signatureBytes:

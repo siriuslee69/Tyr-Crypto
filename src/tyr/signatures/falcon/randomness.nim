@@ -10,7 +10,9 @@ type
   FalconRandombytesCallback* = proc (random_array: ptr uint8,
     bytes_to_read: csize_t) {.cdecl, gcsafe.}
 
-var falconRandombytesCallback {.threadvar.}: FalconRandombytesCallback
+var
+  ## nil = use the system random source (a thread var takes no start value).
+  falconRandombytesCallback {.threadvar.}: FalconRandombytesCallback
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; random-source and deterministic KAT generation rules for `falconSetRandombytesCallback`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc falconSetRandombytesCallback*(cb: FalconRandombytesCallback) =
