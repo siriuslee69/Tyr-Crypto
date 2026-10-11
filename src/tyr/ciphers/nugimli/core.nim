@@ -1,7 +1,8 @@
 ## ------------------------------------------------------------------
 ## NuGimli Cascade Core <- optimized reversible wide Gimli schedule
 ## ------------------------------------------------------------------
-## overlapping boxes <- one-bit twist <- butterfly chunk exchanges
+## overlapping boxes <- lane swap on even chunks <- one-bit twist
+## <- round constants <- butterfly chunk exchanges
 
 import std/bitops
 import runePragmas
@@ -43,23 +44,29 @@ proc cascadeBoxes[N: static[int]](S: var array[N, uint32],
       applyCascadeBox(S, c, c + 1, c + 2, false, optimized)
       c = c + 1
 
+proc swapLanePairs[N: static[int]](S: var array[N, uint32], o, p: int)
+    {.inline, role: {helper}.} =
+  ## S: state. o: first word of the chunk. p: 1 = small swap, 2 = big swap.
+  ##   p = 1:  [a b c d] -> [b a d c]
+  ##   p = 2:  [a b c d] -> [c d a b]
+  swap(S[o], S[o + p])
+  swap(S[o + 3 - p], S[o + 3])
+
 proc cascadeLaneSwap[N: static[int]](S: var array[N, uint32], r: uint32)
     {.inline, role: {helper}.} =
-  ## S: state. r: public round selecting target chunk and Gimli lane swap.
+  ## S: state. r: public round. On even rounds every EVEN chunk (0, 2, 4 ...)
+  ## swaps its lanes; odd chunks keep theirs, so the next box window mixes
+  ## two lane orders. Swapping every chunk would only rename the lanes.
   const chunks = N div nugimliChunkWords
   var
-    c, o: int = 0
-  c = (int(r) * 5) and (chunks - 1)
-  o = c * nugimliChunkWords
+    c, p: int = 0
   case r and 3'u32
-  of 0'u32:
-    swap(S[o], S[o + 1])
-    swap(S[o + 2], S[o + 3])
-  of 2'u32:
-    swap(S[o], S[o + 2])
-    swap(S[o + 1], S[o + 3])
-  else:
-    discard
+  of 0'u32: p = 1
+  of 2'u32: p = 2
+  else: return
+  while c < chunks:
+    swapLanePairs(S, c * nugimliChunkWords, p)
+    c = c + 2
 
 proc cascadeBitTwist[N: static[int]](S: var array[N, uint32],
     inverse: static[bool]) {.inline, role: {math}.} =

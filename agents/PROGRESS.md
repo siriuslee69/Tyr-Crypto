@@ -1,4 +1,4 @@
-Commit Message: Wipe SHAKE state library-wide; port NuGimli reduced-round tools; measure the lane-swap fix
+Commit Message: NuGimli revision 2: lane swap on every even chunk (new vectors)
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -252,7 +252,8 @@ Last big change or problem:
   input) on the stack after every call, library-wide. Now wiped in every
   one-shot routine (scalar and SIMD), plus HQC, Falcon and Dilithium leftovers.
   NuGimli review tools ported to evaluation/; the "every even chunk" lane
-  swap was measured and removes the width penalty (not in src/ yet).
+  swap was measured and removes the width penalty; adopted the same day
+  as design revision 2 (new vectors, all outputs changed).
 - (2026-10-10) NuGimli design review (docs/NUGIMLI_REVIEW.md). The public
   surface `tyr/ciphers/nugimli.nim` had been lost in 52ae317, so `import tyr`
   no longer reached NuGimli and the README example did not compile. Restored
@@ -1666,9 +1667,27 @@ Fix attempt and result:
   nothing (a uniform lane swap only renames columns) - kept as a control.
 
 Still open:
-- Adopt "every even chunk" in src/ (new outputs -> new vectors and profile
+- DONE (revision 2, see below): adopt "every even chunk" in src/ (new outputs -> new vectors and profile
   name). Needs the owner's decision.
 - Duplicate wipe helpers: `clearSensitivePlainData` (Dilithium, Falcon,
   SPHINCS), `clearSensitiveBytes` (Dilithium, SPHINCS), `secureZeroMem`
   (Kyber, X25519, Falcon) all re-implement `secure_memory` byte by byte.
   About 150 call sites; fold them into `secure_memory` in one pass.
+
+## 2026-10-11 NuGimli Design Revision 2
+
+- `src/tyr/ciphers/nugimli/core.nim`: `cascadeLaneSwap` now swaps the lanes
+  of EVERY EVEN chunk (0, 2, 4 ...) on even rounds, instead of one chunk
+  `(5r) and (C-1)`. New helper `swapLanePairs(S, o, p)`: p = 1 small swap,
+  p = 2 big swap. `reference.nim` does the same with direct loops.
+- Every output changed. New vectors in
+  `evaluation/tests/nugimli_cascade_vectors.nim` and
+  `docs/NUGIMLI_CASCADE_VECTORS.md`; new frozen fingerprints in
+  `test_nugimli.nim`. Taken from the reference loops; optimized code,
+  reference and the independent model (`round_model.nim`, lmEvenChunks)
+  agree. The model's lmOneChunk is now "first design".
+- Measured: fwd+bwd worst diffusion 12/24, 11/28, 11/32 (was 13/24, 19/28,
+  23/32). Round counts stay 24 / 28 / 32. Speed cost +1-6 % (512),
+  +3-4 % (1024, 2048) per permutation.
+- No old copy kept (experimental cipher; no compatibility shims).
+- Gimli test group passes; `nimble evaluate_nugimli_rounds` reproduces 14.1.

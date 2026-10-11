@@ -242,10 +242,10 @@ suite "nugimli":
       S2048: NuGimli2048 = default(NuGimli2048)
     fillNuGimliState(S512, 0x31415926'u32)
     cascadePermute512(S512)
-    check nuGimliFingerprint(S512) == 8782100691334107046'u64
+    check nuGimliFingerprint(S512) == 7746884849776999048'u64
     fillNuGimliState(S1024, 0x31415926'u32)
     cascadePermute1024(S1024)
-    check nuGimliFingerprint(S1024) == 4275555771909210885'u64
+    check nuGimliFingerprint(S1024) == 10781833102301254439'u64
     fillNuGimliState(S2048, 0x31415926'u32)
     cascadePermute2048(S2048)
-    check nuGimliFingerprint(S2048) == 15119555303360204443'u64
+    check nuGimliFingerprint(S2048) == 7930554559429063498'u64

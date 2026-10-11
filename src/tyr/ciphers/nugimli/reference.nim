@@ -30,17 +30,19 @@ proc cascadePermuteReference*[N: static[int]](S: var array[N, uint32],
       gimliBoxAtScalar(S, c, c + 1, c + 2)
       c = c + 1
 
-    target = (int(r) * 5) and (chunks - 1)
-    o = target * nugimliChunkWords
-    case r and 3'u32
-    of 0'u32:
-      swap(S[o], S[o + 1])
-      swap(S[o + 2], S[o + 3])
-    of 2'u32:
-      swap(S[o], S[o + 2])
-      swap(S[o + 1], S[o + 3])
-    else:
-      discard
+    target = 0
+    while target < chunks:
+      o = target * nugimliChunkWords
+      case r and 3'u32
+      of 0'u32:
+        swap(S[o], S[o + 1])
+        swap(S[o + 2], S[o + 3])
+      of 2'u32:
+        swap(S[o], S[o + 2])
+        swap(S[o + 1], S[o + 3])
+      else:
+        discard
+      target = target + 2
 
     i = 0
     while i < N:
@@ -90,17 +92,19 @@ proc cascadeInvertReference*[N: static[int]](S: var array[N, uint32],
       S[i] = rotateRightBits(S[i], 1)
       i = i + 1
 
-    target = (int(r) * 5) and (chunks - 1)
-    o = target * nugimliChunkWords
-    case r and 3'u32
-    of 0'u32:
-      swap(S[o], S[o + 1])
-      swap(S[o + 2], S[o + 3])
-    of 2'u32:
-      swap(S[o], S[o + 2])
-      swap(S[o + 1], S[o + 3])
-    else:
-      discard
+    target = 0
+    while target < chunks:
+      o = target * nugimliChunkWords
+      case r and 3'u32
+      of 0'u32:
+        swap(S[o], S[o + 1])
+        swap(S[o + 2], S[o + 3])
+      of 2'u32:
+        swap(S[o], S[o + 2])
+        swap(S[o + 1], S[o + 3])
+      else:
+        discard
+      target = target + 2
 
     c = chunks - 3
     while c >= 0:

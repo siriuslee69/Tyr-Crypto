@@ -5,6 +5,17 @@ chapter 13. Scope: `src/tyr/ciphers/nugimli/`, its tests, and its evaluation
 tools.
 
 ```
+ design revision   lane swap (step 2) hits     in src/ since   numbers in
+ ───────────────   ─────────────────────────   ─────────────   ──────────────
+ 1  first design   ONE chunk: (5r) and (C-1)   start           chapters 4-7
+ 2  current        EVERY EVEN chunk: 0,2,4...  2026-10-11      chapter 14.1
+```
+
+Chapters 4 to 7 measure the FIRST design; that is where its weak spot was
+found. Chapter 14.1 measures both side by side. Every output changed with
+revision 2, so the vectors were made anew.
+
+```
 ╭─ ❧ 0  Verdict                                   🍵
 ├─ ❧ 1  What NuGimli is, in plain words           🌱
 ├─ ❧ 2  Exact specification                       📐
@@ -125,10 +136,11 @@ Rounds run from `r = R` down to `r = 1`. `R` = 24 / 28 / 32.
  │ step 1  SWEEP      box(0,1,2), box(1,2,3), ..., box(C-3,C-2,C-1)     │
  │                    left to right; windows OVERLAP, so each box sees  │
  │                    the previous box's output                         │
- │ step 2  LANE SWAP  target chunk t = (5r) and (C-1)                   │
+ │ step 2  LANE SWAP  every even chunk t = 0, 2, 4, ... (revision 2)    │
  │                    r mod 4 = 0 : lanes 0<->1, 2<->3 inside chunk t   │
  │                    r mod 4 = 2 : lanes 0<->2, 1<->3 inside chunk t   │
  │                    r odd       : nothing                             │
+ │                    (revision 1: only chunk t = (5r) and (C-1))       │
  │ step 3  TWIST      every word rotl 1                                 │
  │ step 4  CONSTANTS  d = 0x43415343 xor (N*32)                         │
  │                    word 0   ^= d xor r                               │
@@ -145,8 +157,8 @@ Example 1 — the butterfly for 512 bits (C = 4):
    r odd  -> distance 1 :  [0][1][2][3]  ->  [1][0][3][2]
 ```
 
-Example 2 — where the lane swap lands. The swap only happens when `r` is
-even, so `5r` is even, so the target chunk is always EVEN:
+Example 2 — where the lane swap landed in revision 1. The swap only happens
+when `r` is even, so `5r` is even, so the target chunk is always EVEN:
 
 ```
    width   lanes 0<->1 (r mod 4 = 0)   lanes 0<->2 (r mod 4 = 2)
@@ -157,7 +169,15 @@ even, so `5r` is even, so the target chunk is always EVEN:
 
 The butterfly moves data between positions, so all data is visited over
 time. The multiplier `5` was probably meant to spread the target over all
-chunks; with even `r` it reaches only half of them.
+chunks; with even `r` it reaches only half of them. Revision 2 drops the
+multiplier and swaps all even chunks at once:
+
+```
+   width   revision 2, every even round
+   512     chunks 0, 2
+   1024    chunks 0, 2, 4, 6
+   2048    chunks 0, 2, 4, ..., 14
+```
 
 ### 2.3 Inverse round
 
@@ -558,11 +578,11 @@ full count.
                not compile                                      exported from ciphers.nim
  2  evidence   related-key search blind to E(X^D,K^D)=E(X,K)^D  FIXED: test pins it;
                and reported 0                                   report states it
- 3  design     cross-lane mixing: 1 chunk per even round        OPEN: fix measured (14.1),
-               (6.25 % at 2048)                                 not yet in src/
- 4  design     round count grows slower than diffusion needs    OPEN (recommendation 2)
-               (fwd+bwd worst = 54 / 68 / 72 % of the rounds)
- 5  design     lane-swap target is always an even chunk         OPEN (minor)
+ 3  design     cross-lane mixing: 1 chunk per even round        FIXED: revision 2, every
+               (6.25 % at 2048)                                 even chunk (14.1)
+ 4  design     round count grows slower than diffusion needs    FIXED by row 3: now
+               (fwd+bwd worst = 54 / 68 / 72 % of the rounds)   50 / 39 / 34 %
+ 5  design     lane-swap target is always an even chunk         FIXED by row 3: by design
  6  claim      "security" of 2048-bit derived material is       documented here
                capped at 256 bits by SHAKE256
  7  hygiene    SHAKE256 sponge state not wiped                  FIXED library-wide (a11a551)
@@ -577,13 +597,12 @@ full count.
 
 1. **Keep it experimental.** No real data until an outside cryptanalyst
    has looked at it. Point them at chapters 4 and 5 first.
-2. **Fix the lane bottleneck before adding rounds.** Measured in 14.1:
-   swapping the lanes of EVERY EVEN chunk instead of one brings the wide
-   profiles to the 512-bit level and beyond. Swapping EVERY chunk does
-   nothing at all (see 14.1) - do not use it.
-   If the structure stays as it is, the round counts that keep the 512-bit
-   ratio (rounds / worst fwd+bwd diffusion ≈ 1.85) are about 35 for 1024
-   and 43 for 2048.
+2. **Fix the lane bottleneck before adding rounds.** DONE (revision 2,
+   2026-10-11): every even chunk now swaps its lanes. The wide profiles
+   went past the 512-bit level, so the round counts stay 24 / 28 / 32.
+   Swapping EVERY chunk does nothing at all (see 14.1) - never use it.
+   (With revision 1, keeping the 512-bit ratio would have needed about
+   35 rounds for 1024 and 43 for 2048.)
 3. **Decide what it is for.** For "turn a 1024-bit secret into an
    independent 2048-bit one", SHAKE256 alone already does this with a
    standard security argument. A new permutation earns its place only
@@ -606,10 +625,10 @@ another lane. Three choices of WHICH chunks get it were measured with
  lane mix            bits  fwd+bwd worst   lane reach   zero-sum      greedy trail
                            full diffusion  fwd / bwd    fwd / bwd     at 6 rounds
  ──────────────────  ────  ──────────────  ───────────  ────────────  ────────────
- one chunk (shipped)  512  13/24  (54 %)     5 / 6       7 / 5          204
+ one chunk (rev. 1)   512  13/24  (54 %)     5 / 6       7 / 5          204
                      1024  19/28  (68 %)     7 / 8       6 / 5          504
                      2048  23/32  (72 %)     8 / 10      6 / 9         1196
- every even chunk     512  12/24  (50 %)     4 / 6       6 / 5          229
+ every even chunk     512  12/24  (50 %)     4 / 6       6 / 5          229  <- rev. 2
                      1024  11/28  (39 %)     4 / 6       6 / 5          750
                      2048  11/32  (34 %)     4 / 6       6 / 5         1994
  every chunk          512  not reached       >12 / >12   >12 / >12      152
@@ -631,8 +650,25 @@ What it shows:
   column by column, so no bit ever meets another lane. Gimli itself swaps
   only one row for exactly this reason. Kept in the tool as a control.
 
-Adopting "every even chunk" changes every output, so it needs new
-vectors and a new profile name. It is NOT in `src/` yet.
+"Every even chunk" is in `src/` since 2026-10-11 (revision 2). Every
+output changed, so `evaluation/tests/nugimli_cascade_vectors.nim` and the
+frozen fingerprints in `test_nugimli.nim` were made anew. They were taken
+from the direct reference loops and checked against the optimized code and
+against the independent model (`nimble test_nugimli_model`): all three agree.
+
+Speed of one full permutation, before and after (median of 15 runs):
+
+```
+ bits   revision 1   revision 2   cost
+ ────   ──────────   ──────────   ──────
+  512    1015-1060    1074-1076   +1-6 %
+ 1024    3160-3180    3270-3282   +3-4 %
+ 2048    8184-8228    8451-8475   +3 %
+        (nanoseconds)
+```
+
+No old copy is kept: the cipher is experimental, nothing may depend on
+its outputs, and keeping two designs would only invite mixing them up.
 
 ---
 

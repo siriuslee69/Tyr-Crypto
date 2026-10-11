@@ -17,6 +17,8 @@
 ##   Derive each key with `deriveCascade512/1024/2048` instead.
 ## ⚠ Decryption runs about 7-10x slower than encryption: undoing one
 ##   Gimli box takes 32 passes instead of one.
+## ⚠ Design revision 2 (2026-10-11) changed every output: the lane swap
+##   now hits every even chunk. Data from revision 1 does not decrypt.
 ##
 ## The full implementation lives in `./nugimli/`. This file only lists
 ## what callers may use. The direct reference loops in

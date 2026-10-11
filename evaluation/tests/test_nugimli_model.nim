@@ -6,7 +6,7 @@
 ## evaluation/nugimli_analysis/round_model.nim, not from src/. These tests
 ## make sure that model is the cipher:
 ##
-##   model (lmOneChunk)  ==  src/ permutation and inverse, all widths
+##   model (lmEvenChunks)  ==  src/ permutation and inverse, all widths
 ##   bit-by-bit inverse  ==  32-pass inverse, on random columns
 ##   every LaneMix       ->  still a permutation (inverse undoes it)
 
@@ -23,10 +23,10 @@ proc modelMatchesSource[N: static[int]](seed: uint64): bool {.role: {helper}.} =
   fillState(X, s)
   A = X
   B = X
-  modelPermute(A, lmOneChunk)
+  modelPermute(A, lmEvenChunks)
   permuteFull(B)
   result = A == B
-  modelInvert(A, lmOneChunk)
+  modelInvert(A, lmEvenChunks)
   result = result and A == X
 
 proc inversesAgree(count: int): int {.role: {helper}.} =
@@ -72,8 +72,8 @@ suite "nugimli analysis model":
 
   # {.testKind: tkProperty, covers: "laneSwap".}
   test "every lane-mix variant is still a permutation":
-    check variantInverts[16](lmEvenChunks)
-    check variantInverts[32](lmEvenChunks)
-    check variantInverts[64](lmEvenChunks)
+    check variantInverts[16](lmOneChunk)
+    check variantInverts[32](lmOneChunk)
+    check variantInverts[64](lmOneChunk)
     check variantInverts[16](lmAllChunks)
     check variantInverts[64](lmAllChunks)

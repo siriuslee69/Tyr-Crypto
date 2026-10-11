@@ -149,14 +149,14 @@ proc startJobs(J: var seq[Job], T: var seq[Thread[ptr Job]], mixes: seq[LaneMix]
     i = i + 1
 
 proc runRoundsEvaluation*(shippedOnly: bool) {.role: {metaOrchestrator}.} =
-  ## shippedOnly: measure lmOneChunk only.
+  ## shippedOnly: measure lmEvenChunks (the shipped design) only.
   var
     J: seq[Job] = @[]
     T: seq[Thread[ptr Job]] = @[]
     text: string = ""
     i: int = 0
-    mixes: seq[LaneMix] = @[lmOneChunk]
-  if not shippedOnly: mixes = @[lmOneChunk, lmEvenChunks, lmAllChunks]
+    mixes: seq[LaneMix] = @[lmEvenChunks]
+  if not shippedOnly: mixes = @[lmEvenChunks, lmOneChunk, lmAllChunks]
   startJobs(J, T, mixes)
   joinThreads(T)
   text.add("# NuGimli Cascade reduced-round evidence\n\n")
@@ -167,8 +167,8 @@ proc runRoundsEvaluation*(shippedOnly: bool) {.role: {metaOrchestrator}.} =
     text.add(row(J[i].row))
     i = i + 1
   text.add("\nLane mix (which chunks get the lane swap on even rounds):\n\n")
-  text.add("- one chunk (shipped): chunk (5r) mod C. Only 1/C of the state can change lanes per swap round.\n")
-  text.add("- every even chunk: candidate fix. Half the state changes lanes; odd chunks keep theirs, so lanes really meet.\n")
+  text.add("- every even chunk (shipped since 2026-10-11): chunks 0, 2, 4 ... Half the state changes lanes; odd chunks keep theirs, so lanes really meet.\n")
+  text.add("- one chunk (first design): chunk (5r) mod C. Only 1/C of the state can change lanes per swap round; wide states mixed slowly.\n")
   text.add("- every chunk: control. A swap applied the same way to every chunk only renames the columns: boxes, twist and butterfly all work column by column, so no bit ever meets another lane. Never use this.\n")
   text.add("\n## Trail model on real pairs\n\n")
   i = 0

@@ -27,11 +27,11 @@
 ##
 ##   LaneMix        chunks swapped on even rounds   share of the state
 ##   -------------  ------------------------------  ----------------------
-##   lmOneChunk     chunk (5r) mod C only           1/C   <- shipped design
-##   lmEvenChunks   chunks 0, 2, 4, ...             1/2   <- candidate fix
-##   lmAllChunks    every chunk                     all   <- candidate fix
+##   lmOneChunk     chunk (5r) mod C only           1/C   <- first design (until 2026-10-11)
+##   lmEvenChunks   chunks 0, 2, 4, ...             1/2   <- shipped design
+##   lmAllChunks    every chunk                     all   <- control: renames lanes only
 ##
-## lmOneChunk reproduces src/ bit for bit; test_nugimli_model checks that.
+## lmEvenChunks reproduces src/ bit for bit; test_nugimli_model checks that.
 
 import std/bitops
 import runePragmas
@@ -43,8 +43,8 @@ const
 
 type
   LaneMix* = enum
-    lmOneChunk = "one chunk (shipped)"
-    lmEvenChunks = "every even chunk"
+    lmOneChunk = "one chunk (first design)"
+    lmEvenChunks = "every even chunk (shipped)"
     lmAllChunks = "every chunk"
 
 ## ╭⟢ Box: the Gimli column box and its two inverses
