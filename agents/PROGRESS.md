@@ -1,4 +1,4 @@
-Commit Message: Progress: convention cleanup of Falcon, Dilithium, SPHINCS, McEliece Benes, password KDF
+Commit Message: NuGimli: one generic API for all widths, reference oracle out of src
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -1776,3 +1776,24 @@ Found, not fixed:
   check holds), but the rounding is not the intended one. Fixing it
   changes every Falcon key derived from a seed, so it needs a decision.
 - keygen_bigint (degree 2 and 4 levels only) is not constant time.
+
+## 2026-10-11 NuGimli Simplification
+
+src/tyr/ciphers/nugimli/ is now five files: types (widths, one
+cascadeRounds(N) table, chunk swap), core (round steps + the public calls),
+domain (deriveCascade), scalar_box, simd_box.
+- One generic name per operation, width from the state type:
+  cascadePermute / cascadeInvert / cascadeEncrypt / cascadeDecrypt /
+  cascadePermuteWindow, deriveCascade(NuGimli2048, source, tag, context),
+  clearCascadeMaterial. CascadeMaterial[N] with 512/1024/2048 aliases.
+- Removed: 12 width wrappers (cascade/ dir), 3 identical derive routines
+  and their 9-overload template, 3 clear copies, the nugimli*Rounds/*Bits
+  constants, runtime width checks (a wrong width is now a compile error),
+  and the analysis tools' own copies of the API (permuteFull & co).
+- reference.nim (test oracle) moved to evaluation/nugimli_analysis/.
+- Breaking API change on purpose (experimental cipher, no shims).
+- Unchanged outputs: published vectors, fingerprints, domain vectors,
+  round table (12/24, 11/28, 11/32); scalar, SSE2, AVX2.
+- Nim note: overloaded procs whose return type uses a `static[int]`
+  parameter fail with "cannot evaluate at compile time" (Nim 2.2.12), so
+  the target width is passed as a type: deriveCascade(NuGimli2048, ...).
