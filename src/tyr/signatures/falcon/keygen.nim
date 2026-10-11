@@ -3,6 +3,7 @@
 ## -------------------------------------------------------------------
 
 import ./codec
+import ../../helpers/secure_memory
 import ./fft
 import ./fpr
 import ./params
@@ -2049,8 +2050,8 @@ proc solveNtru(logn: int, f, g: openArray[int8], lim: int): tuple[ok: bool, F, G
     curG = step0.G
   result.ok = polyBigToSmall(result.F, curF, lim) and polyBigToSmall(result.G, curG, lim)
   if not result.ok:
-    secureClearSeqData(result.F)
-    secureClearSeqData(result.G)
+    secureClearItems(result.F)
+    secureClearItems(result.G)
     result.F.setLen(0)
     result.G.setLen(0)
     return
@@ -2081,8 +2082,8 @@ proc solveNtru(logn: int, f, g: openArray[int8], lim: int): tuple[ok: bool, F, G
     let z = modpSub(modpMontyMul(ft[u], Gt[u], p, runtime.p0i),
       modpMontyMul(gt[u], Ft[u], p, runtime.p0i), p)
     if z != r:
-      secureClearSeqData(result.F)
-      secureClearSeqData(result.G)
+      secureClearItems(result.F)
+      secureClearItems(result.G)
       result.F.setLen(0)
       result.G.setLen(0)
       result.ok = false
@@ -2197,8 +2198,8 @@ proc falconKeygenFromShake*(v: FalconVariant, rng: var FalconShake256): tuple[pu
     break
   result.publicKey = encodePublicKey(v, h)
   result.secretKey = encodeSecretKey(v, f, g, F)
-  secureClearSeqData(F)
-  secureClearSeqData(G)
+  secureClearItems(F)
+  secureClearItems(G)
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `falconKeygenFromSeed`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc falconKeygenFromSeed*(v: FalconVariant, seed: openArray[byte]): tuple[publicKey, secretKey: seq[byte]] {.otterBench.} =
@@ -2206,7 +2207,7 @@ proc falconKeygenFromSeed*(v: FalconVariant, seed: openArray[byte]): tuple[publi
   var
     rng: FalconShake256 = default(FalconShake256)
   defer:
-    clearSensitivePlainData(rng)
+    secureClearPod(rng)
   initFalconShake256(rng, seed)
   result = falconKeygenFromShake(v, rng)
 

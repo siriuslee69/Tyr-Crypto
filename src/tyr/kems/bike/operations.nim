@@ -3,6 +3,7 @@
 ## ----------------------------------------------------------
 
 import ./params
+import ../../helpers/secure_memory
 export params
 import ./types
 export types
@@ -52,8 +53,8 @@ proc functionL(E: BikeRawError): BikeMessage =
   while i < bikeMessageBytes:
     result[i] = dgst[i]
     i = i + 1
-  secureZeroBytes(tmp)
-  secureZeroBytes(dgst)
+  secureClearBytes(tmp)
+  secureClearBytes(dgst)
 
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `functionK`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc functionK(m: BikeMessage, ctBytes: openArray[byte]): BikeSharedSecret =
@@ -71,8 +72,8 @@ proc functionK(m: BikeMessage, ctBytes: openArray[byte]): BikeSharedSecret =
   while i < bikeSharedSecretBytes:
     result[i] = dgst[i]
     i = i + 1
-  secureZeroBytes(tmp)
-  secureZeroBytes(dgst)
+  secureClearBytes(tmp)
+  secureClearBytes(dgst)
 
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `encryptRaw`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc encryptRaw(E: BikeRawError, pkRaw: BikeRawPoly, m: BikeMessage): BikeCiphertextRaw =
@@ -137,15 +138,15 @@ proc bikeTyrKeypairFromParts*(v: BikeVariant, seed0, seed1: openArray[byte]): Bi
   result.variant = v
   result.publicKey = serializePublicKey(skState.pk)
   result.secretKey = serializeSecretKey(skState)
-  secureZeroWords(secret.h0)
-  secureZeroWords(secret.h1)
-  secureZeroPod(secret.w0)
-  secureZeroPod(secret.w1)
-  secureZeroPod(sigma)
-  secureZeroWords(h0Inv)
-  secureZeroPod(skState.wlist)
-  secureZeroPod(skState.bin)
-  secureZeroPod(skState.sigma)
+  secureClearItems(secret.h0)
+  secureClearItems(secret.h1)
+  secureClearPod(secret.w0)
+  secureClearPod(secret.w1)
+  secureClearPod(sigma)
+  secureClearItems(h0Inv)
+  secureClearPod(skState.wlist)
+  secureClearPod(skState.bin)
+  secureClearPod(skState.sigma)
 
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrKeypair`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc bikeTyrKeypair*(v: BikeVariant, randomness: seq[byte] = @[]): BikeTyrKeypair {.otterTrace.} =
@@ -159,7 +160,7 @@ proc bikeTyrKeypair*(v: BikeVariant, randomness: seq[byte] = @[]): BikeTyrKeypai
   else:
     material = copyByteSeq(randomness)
   result = bikeTyrKeypairDerand(v, material)
-  secureZeroBytes(material)
+  secureClearBytes(material)
 
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrEncapsDerand`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc bikeTyrEncapsDerand*(v: BikeVariant, pk: openArray[byte],
@@ -183,9 +184,9 @@ proc bikeTyrEncapsDerand*(v: BikeVariant, pk: openArray[byte],
   result.ciphertext = serializeCiphertext(ct)
   ss = functionK(m, result.ciphertext)
   result.sharedSecret = copyByteSeq(ss)
-  secureZeroPod(m)
-  secureZeroPod(E)
-  secureZeroPod(ss)
+  secureClearPod(m)
+  secureClearPod(E)
+  secureClearPod(ss)
 
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrEncaps`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc bikeTyrEncaps*(v: BikeVariant, pk: openArray[byte],
@@ -200,7 +201,7 @@ proc bikeTyrEncaps*(v: BikeVariant, pk: openArray[byte],
   else:
     material = copyByteSeq(randomness)
   result = bikeTyrEncapsDerand(v, pk, material)
-  secureZeroBytes(material)
+  secureClearBytes(material)
 
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrTryDecaps`; pitfall: preserve implicit rejection and never expose a secret-dependent validity oracle.
 proc bikeTyrTryDecapsInternal(v: BikeVariant, sk,
@@ -244,12 +245,12 @@ proc bikeTyrTryDecapsInternal(v: BikeVariant, sk,
   ss = functionK(mPrime, ctBytes)
   result.sharedSecret = copyByteSeq(ss)
   result.ok = successCond == 1'u32
-  secureZeroPod(skState)
-  secureZeroPod(E)
-  secureZeroPod(ePrime)
-  secureZeroPod(eTmp)
-  secureZeroPod(mPrime)
-  secureZeroPod(ss)
+  secureClearPod(skState)
+  secureClearPod(E)
+  secureClearPod(ePrime)
+  secureClearPod(eTmp)
+  secureClearPod(mPrime)
+  secureClearPod(ss)
 
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `bikeTyrDecaps`; pitfall: preserve implicit rejection and never expose a secret-dependent validity oracle.
 proc bikeTyrDecaps*(v: BikeVariant, sk, ctBytes: openArray[byte]): seq[byte] {.otterTrace.} =

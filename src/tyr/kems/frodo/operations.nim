@@ -3,6 +3,7 @@
 ## ----------------------------------------------------------
 
 import ./params
+import ../../helpers/secure_memory
 export params
 import ./util
 import ./noise
@@ -1939,7 +1940,7 @@ proc frodoTyrKeypairDerand*(v: FrodoVariant, randomness: openArray[byte]): Frodo
       unsafeAddr pkh[0], pkh.len)
     # seedSEWords holds the secret matrices S and E, and seedSEInput the
     # seed that regrows them; volatile-clear both.
-    secureClearWords(seedSEWords)
+    secureClearItems(seedSEWords)
     secureClearBytes(seedSEInput)
     clearWords(bWords)
     clearBytes(pkSeedA)
@@ -2022,11 +2023,11 @@ proc frodoTyrEncapsDerand*(v: FrodoVariant, pk: openArray[byte], mu: openArray[b
   secureClearBytes(fin)
   secureClearBytes(g2Input)
   secureClearBytes(spInput)
-  secureClearWords(noiseWords)
+  secureClearItems(noiseWords)
   clearWords(bpWords)
   clearWords(bWords)
-  secureClearWords(vWords)
-  secureClearWords(muWords)
+  secureClearItems(vWords)
+  secureClearItems(muWords)
   clearWords(cWords)
 
 ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `frodoTyrEncaps`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
@@ -2128,13 +2129,13 @@ proc frodoTyrDecaps*(v: FrodoVariant, sk, ct: openArray[byte]): seq[byte] {.otte
   secureClearBytes(spInput)
   secureClearBytes(fin)
   secureClearBytes(selected)
-  secureClearWords(sWords)
-  secureClearWords(bpsWords)
-  secureClearWords(wWords)
-  secureClearWords(muPrimeWords)
-  secureClearWords(noiseWords)
-  secureClearWords(vWords)
-  secureClearWords(ccWords)
+  secureClearItems(sWords)
+  secureClearItems(bpsWords)
+  secureClearItems(wWords)
+  secureClearItems(muPrimeWords)
+  secureClearItems(noiseWords)
+  secureClearItems(vWords)
+  secureClearItems(ccWords)
   # Public: ciphertext and public-key parts.
   clearBytes(decSeedA)
   clearWords(bpWords)

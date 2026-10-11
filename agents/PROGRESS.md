@@ -1,4 +1,4 @@
-Commit Message: NuGimli revision 2: lane swap on every even chunk (new vectors)
+Commit Message: One wipe module: fold 11 copied wipe helpers into secure_memory
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -1669,7 +1669,7 @@ Fix attempt and result:
 Still open:
 - DONE (revision 2, see below): adopt "every even chunk" in src/ (new outputs -> new vectors and profile
   name). Needs the owner's decision.
-- Duplicate wipe helpers: `clearSensitivePlainData` (Dilithium, Falcon,
+- DONE (see "One Wipe Module" below): duplicate wipe helpers: `clearSensitivePlainData` (Dilithium, Falcon,
   SPHINCS), `clearSensitiveBytes` (Dilithium, SPHINCS), `secureZeroMem`
   (Kyber, X25519, Falcon) all re-implement `secure_memory` byte by byte.
   About 150 call sites; fold them into `secure_memory` in one pass.
@@ -1691,3 +1691,35 @@ Still open:
   +3-4 % (1024, 2048) per permutation.
 - No old copy kept (experimental cipher; no compatibility shims).
 - Gimli test group passes; `nimble evaluate_nugimli_rounds` reproduces 14.1.
+
+## 2026-10-11 One Wipe Module
+
+- `src/tyr/helpers/secure_memory.nim` is now the only place that wipes
+  secrets: `secureClearBytes` (bytes), `secureClearItems` (new: a list of
+  plain items, e.g. seq[uint16]) and `secureClearPod` (one plain value).
+  All three write 8 bytes at a time with volatile stores.
+- Removed the copies from 11 modules: pqclean_common, pq_rng, BIKE, Frodo,
+  Kyber, McEliece, NTRU, Saber, X25519, Dilithium, Falcon, SPHINCS.
+  Renamed calls: secureZeroBytes/clearSensitiveBytes -> secureClearBytes;
+  secureZeroWords/secureClearWords/clearSensitiveWords/secureClearSeqData
+  -> secureClearItems; secureZeroPod/clearSensitivePlainData/
+  secureClearPoly/secureClearNttPoly/secureZeroMem(addr x, sizeof x)
+  -> secureClearPod. Every caller imports secure_memory directly (sha512
+  used to get its wipes from x25519_common).
+- Two copies were NOT volatile, so the compiler could delete them:
+  `bindings/pqclean_common.secureClearBytes` ("best-effort") and
+  `kdfs/password.zeroizeCompat` (the non-libsodium path). Both fixed.
+- Kept on purpose: `clearPod`, `clearBytes`, `clearPlainData`,
+  `clearSeqData` (plain zeroMem for non-secret scratch, different job).
+- Checked: nim check of test_all with tyrCryptoTestHooks, plus
+  -d:saberMulNttScalar, -d:hasLibsodium, -d:avx2, -d:danger; all 37
+  desktop test groups pass (all KAT vectors unchanged).
+
+Still open:
+- `bindings/pqclean_saber.nim` and `pqclean_ntru.nim` do not compile, and
+  did not before this change: `submodules/pqclean` sits at round3-241,
+  past the `round3` tag, and upstream removed lightsaber/ntru there.
+  Nothing in the repo imports these two bindings.
+- Files touched only by an import line carry ~600 older convention
+  findings (var without start value, `let`), mostly Falcon keygen/sign,
+  SPHINCS and the pq_rng/pqclean helpers. Not rewritten in passing.

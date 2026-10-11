@@ -3,6 +3,7 @@
 ## ---------------------------------------------------------------------
 
 import ./params
+import ../../helpers/secure_memory
 export params
 import ./address
 import ./context
@@ -65,7 +66,7 @@ proc sphincsTyrKeypair*(v: SphincsVariant, seed: seq[byte] = @[]): SphincsTyrKey
   else:
     randomness = @seed
   defer:
-    clearSensitiveBytes(randomness)
+    secureClearBytes(randomness)
   result = sphincsTyrSeedKeypair(v, randomness)
 
 ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sphincsTyrSignDerand`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
@@ -120,7 +121,7 @@ proc sphincsTyrSign*(v: SphincsVariant, msg: openArray[byte], sk: openArray[byte
   var
     optrand: seq[byte] = cryptoRandomBytes(16)
   defer:
-    clearSensitiveBytes(optrand)
+    secureClearBytes(optrand)
   result = sphincsTyrSignDerand(v, msg, sk, optrand)
 
 ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; key generation, encapsulation/signing, and decapsulation/verification algorithms for `sphincsTyrVerify`; pitfall: fail closed and preserve canonical, constant-time comparison where secrets are involved.

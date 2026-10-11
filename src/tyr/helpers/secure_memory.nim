@@ -1,7 +1,17 @@
 ## -----------------------------------------------------------------
-## | Secure Memory <- compiler-resistant wiping for symmetric data |
+## | Secure Memory <- the ONE place that wipes secrets in Tyr       |
 ## | secret bytes/words -> volatile zero writes -> cleared storage |
 ## -----------------------------------------------------------------
+##
+##   call                    for                        example
+##   ──────────────────────  ─────────────────────────  ───────────────────
+##   secureClearBytes(A)     bytes: seq, array, slice   a key, a seed
+##   secureClearItems(A)     a list of plain items      seq[uint16] poly
+##   secureClearPod(v)       one plain value            a state object
+##
+## Every algorithm uses these three. Do not write another copy: until
+## 2026-10-11 eleven modules had their own, one of them without volatile
+## writes (so the compiler could delete it).
 ##
 ## A "volatile" write is one the compiler must keep, even when it can see
 ## that nobody reads the memory afterwards. A plain `zeroMem` at the end of
@@ -43,3 +53,12 @@ proc secureClearPod*[T](v: var T) {.inline, raises: [].} =
     secureClearRaw(addr v, sizeof(T))
   else:
     {.error: "secureClearPod requires a POD-style type".}
+
+proc secureClearItems*[T](A: var openArray[T]) {.inline, raises: [].} =
+  ## A: secret list of plain items (uint16, uint64, int32, objects ...),
+  ## for example a seq or a polynomial buffer. Every item is overwritten.
+  when supportsCopyMem(T):
+    if A.len > 0:
+      secureClearRaw(addr A[0], A.len * sizeof(T))
+  else:
+    {.error: "secureClearItems requires POD-style items".}

@@ -3,6 +3,7 @@
 ## ----------------------------------------------------------------
 
 import ./params
+import ../../helpers/secure_memory
 import ./types
 import ./util
 import ./poly

@@ -2,7 +2,7 @@
 ## Falcon Util <- byte helpers and secret-clearing support
 ## ------------------------------------------------------------
 
-import std/[typetraits, volatile]
+import std/typetraits
 
 {.push boundChecks: off.}
 
@@ -15,32 +15,10 @@ proc clearBytes*(A: var openArray[byte]) {.raises: [].} =
   if A.len > 0:
     zeroMem(addr A[0], A.len)
 
-## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `secureZeroMem`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureZeroMem*(p: pointer, l: int) {.raises: [].} =
-  var
-    i: int = 0
-    B: ptr UncheckedArray[byte]
-  if p.isNil or l <= 0:
-    return
-  B = cast[ptr UncheckedArray[byte]](p)
-  while i < l:
-    volatileStore(addr B[i], 0'u8)
-    i = i + 1
-
-## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `secureClearBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureClearBytes*(A: var openArray[byte]) {.raises: [].} =
-  if A.len > 0:
-    secureZeroMem(addr A[0], A.len)
-
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `clearSeqData`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clearSeqData*[T](A: var seq[T]) {.raises: [].} =
   if A.len > 0:
     zeroMem(addr A[0], A.len * sizeof(T))
-
-## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `secureClearSeqData`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureClearSeqData*[T](A: var seq[T]) {.raises: [].} =
-  if A.len > 0:
-    secureZeroMem(addr A[0], A.len * sizeof(T))
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `clearPlainData`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clearPlainData*[T](x: var T) {.raises: [].} =
@@ -48,13 +26,6 @@ proc clearPlainData*[T](x: var T) {.raises: [].} =
     zeroMem(addr x, sizeof(T))
   else:
     {.error: "clearPlainData requires supportsCopyMem(T)".}
-
-## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `clearSensitivePlainData`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc clearSensitivePlainData*[T](x: var T) {.raises: [].} =
-  when supportsCopyMem(T):
-    secureZeroMem(addr x, sizeof(T))
-  else:
-    {.error: "clearSensitivePlainData requires supportsCopyMem(T)".}
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; canonical byte and polynomial encoding rules for `copyBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc copyBytes*(dst: var openArray[byte], dstOffset: int, src: openArray[byte]) {.inline, raises: [].} =

@@ -391,7 +391,7 @@
           <tr>
             <td><code>util.nim</code></td>
             <td>Bit, mask, endian, wipe helpers</td>
-            <td>Contains <code>load/store</code> helpers, constant-time masks, and <code>clearSensitiveWords</code>.</td>
+            <td>Contains <code>load/store</code> helpers, constant-time masks, and <code>secureClearItems</code>.</td>
           </tr>
           <tr>
             <td><code>gf.nim</code></td>
@@ -483,7 +483,7 @@
       <p>
         This file is intentionally small. It supplies little-endian load/store helpers,
         bit reversal, constant-time zero/nonzero masks, and now the
-        <code>clearSensitiveWords</code> helper, which uses volatile stores for POD buffers.
+        <code>secureClearItems</code> helper, which uses volatile stores for POD buffers.
       </p>
       <p>
         The zeroization work is not cosmetic. Key generation and decapsulation allocate large
@@ -779,7 +779,7 @@
       </ul>
       <p>
         The goal was to zero memory early enough to matter while keeping the hot paths reasonable.
-        Tyr now does this with <code>clearSensitiveWords</code>, which uses volatile stores on POD
+        Tyr now does this with <code>secureClearItems</code>, which uses volatile stores on POD
         buffers. That is a practical compromise: much better than leaving large scratch arrays live,
         without rewriting every helper into a custom allocator.
       </p>

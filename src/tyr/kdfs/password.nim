@@ -8,6 +8,7 @@ import ../helpers/errors
 import ../aeads/types
 import ../aeads as cryptoApi
 import ../hashes/blake3
+import ../helpers/secure_memory
 
 type
   ## Secret: secure container for user-provided secrets.
@@ -84,11 +85,8 @@ proc stringToBytes(s: string): seq[uint8] =
     result[i] = uint8(ch)
 
 proc zeroizeCompat(data: var seq[uint8]) =
-  var
-    i: int = 0
-  while i < data.len:
-    data[i] = 0
-    i = i + 1
+  ## data: secret bytes; overwritten with volatile writes, then emptied.
+  secureClearBytes(data)
   data.setLen(0)
 
 proc appendUint32Le(buf: var seq[uint8], v: uint32) =

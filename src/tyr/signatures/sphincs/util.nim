@@ -2,7 +2,6 @@
 ## SPHINCS Util <- byte helpers, tree hashing, and Merkle helpers
 ## ---------------------------------------------------------------
 
-import std/volatile
 import std/typetraits
 
 ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; canonical byte and polynomial encoding rules for `ullToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
@@ -45,27 +44,6 @@ proc clearPlainData*[T](S: var T) {.raises: [].} =
     zeroMem(addr S, sizeof(T))
   else:
     {.error: "clearPlainData requires supportsCopyMem(T)".}
-
-## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; canonical byte and polynomial encoding rules for `clearSensitiveBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc clearSensitiveBytes*(A: var openArray[byte]) {.raises: [].} =
-  var
-    i: int = 0
-  while i < A.len:
-    volatileStore(addr A[i], 0'u8)
-    i = i + 1
-
-## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; canonical byte and polynomial encoding rules for `clearSensitivePlainData`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc clearSensitivePlainData*[T](S: var T) {.raises: [].} =
-  ## Reserve volatile wipes for direct secret-bearing POD state.
-  when supportsCopyMem(T):
-    var
-      p: ptr UncheckedArray[byte] = cast[ptr UncheckedArray[byte]](addr S)
-      i: int = 0
-    while i < sizeof(T):
-      volatileStore(addr p[i], 0'u8)
-      i = i + 1
-  else:
-    {.error: "clearSensitivePlainData requires supportsCopyMem(T)".}
 
 ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; canonical byte and polynomial encoding rules for `ctMaskEqU32`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ctMaskEqU32*(a, b: uint32): uint32 {.inline, raises: [].} =

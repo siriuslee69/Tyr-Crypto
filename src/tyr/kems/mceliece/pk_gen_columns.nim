@@ -12,8 +12,8 @@ proc movColumns(mat: var seq[byte], pi: var seq[int16], pivots: var uint64,
     j: int = 0
     k: int = 0
   defer:
-    clearSensitiveWords(buf)
-    clearSensitiveWords(ctzList)
+    secureClearItems(buf)
+    secureClearItems(ctzList)
 
   for i in 0 ..< 32:
     buf[i] = loadColumnBlock(mat, (row + i) * fullRowBytes, blockIdx, tail)

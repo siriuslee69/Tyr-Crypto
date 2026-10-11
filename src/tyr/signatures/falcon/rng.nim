@@ -3,6 +3,7 @@
 ## ----------------------------------------------------------
 
 import ../../hashes/sha3
+import ../../helpers/secure_memory
 import ./shake
 import ./util
 
@@ -128,7 +129,7 @@ proc prngInit*(p: var FalconPrng, seedMaterial: openArray[byte]) =
     raw[i] = tmp[i]
     i = i + 1
   prngInit(p, raw)
-  clearSensitivePlainData(raw)
+  secureClearPod(raw)
   secureClearBytes(tmp)
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; random-source and deterministic KAT generation rules for `prngInit`; pitfall: use deterministic generation only for KAT replay and system entropy in production.

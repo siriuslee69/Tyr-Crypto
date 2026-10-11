@@ -3,6 +3,7 @@
 ## -------------------------------------------------------------
 
 import std/[json, os, strutils, unittest]
+import ../../src/tyr/helpers/secure_memory
 import ../paths
 
 import ../../src/tyr/kems/ntru as custom_ntru
@@ -33,9 +34,9 @@ proc ntruRootKatSeed(): seq[byte] =
     i = i + 1
   root = pqc.initNistDrbg(entropy)
   result = pqc.nistDrbgRandomBytes(root, ntruKatSeedLen)
-  pqc.secureClearBytes(root.key)
-  pqc.secureClearBytes(root.v)
-  pqc.secureClearBytes(entropy)
+  secureClearBytes(root.key)
+  secureClearBytes(root.v)
+  secureClearBytes(entropy)
 
 proc appendNtruHexUpper(dst: var string, A: openArray[byte]) =
   const
@@ -72,8 +73,8 @@ proc ntruTranscriptForKat(v: custom_ntru.NtruVariant,
   shared = custom_ntru.ntruTyrDecaps(v, kat.keypair.secretKey,
     kat.cipher.ciphertext, backend)
   check shared == kat.cipher.sharedSecret
-  pqc.secureClearBytes(seed48)
-  pqc.secureClearBytes(shared)
+  secureClearBytes(seed48)
+  secureClearBytes(shared)
 
 proc ntruRepoRoot(): string =
   result = repoRootFrom(currentSourcePath())
@@ -152,9 +153,9 @@ template runNtruRoundtripCase(variant: untyped, keyBase, encBase: int) =
     check kp.secretKey.len == p.secretKeyBytes
     check env.ciphertext.len == p.ciphertextBytes
     check env.sharedSecret.len == p.sharedSecretBytes
-    pqc.secureClearBytes(keySeed)
-    pqc.secureClearBytes(encSeed)
-    pqc.secureClearBytes(shared)
+    secureClearBytes(keySeed)
+    secureClearBytes(encSeed)
+    secureClearBytes(shared)
 
 template runNtruKatCase(variant: untyped) =
   block:
@@ -262,14 +263,14 @@ suite "ntru tyr":
     check zero0 != env.sharedSecret
     check ff0 == ff1
     check ff0 != env.sharedSecret
-    pqc.secureClearBytes(keySeed)
-    pqc.secureClearBytes(encSeed)
-    pqc.secureClearBytes(bad0)
-    pqc.secureClearBytes(bad1)
-    pqc.secureClearBytes(zero0)
-    pqc.secureClearBytes(zero1)
-    pqc.secureClearBytes(ff0)
-    pqc.secureClearBytes(ff1)
+    secureClearBytes(keySeed)
+    secureClearBytes(encSeed)
+    secureClearBytes(bad0)
+    secureClearBytes(bad1)
+    secureClearBytes(zero0)
+    secureClearBytes(zero1)
+    secureClearBytes(ff0)
+    secureClearBytes(ff1)
 
   when defined(tyrAndroidHarness):
     test "file-backed NTRU KAT hashes remain host-only":

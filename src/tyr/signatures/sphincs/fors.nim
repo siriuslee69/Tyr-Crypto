@@ -3,6 +3,7 @@
 ## ----------------------------------------------------------
 
 import ./params
+import ../../helpers/secure_memory
 import ./address
 import ./context
 import ./hash
@@ -70,7 +71,7 @@ proc forsSign*(sig: var seq[byte], sigOff: var int, pk: var array[spxN, byte], m
     copyMem(addr roots[i * spxN], addr rootNode[0], spxN)
     copyMem(addr sig[sigOff], addr authPath[0], authPath.len)
     sigOff = sigOff + authPath.len
-    clearSensitivePlainData(skPart)
+    secureClearPod(skPart)
     clearPlainData(rootNode)
   thash(pk, roots, spxForsTrees, ctx, pkAddr)
 

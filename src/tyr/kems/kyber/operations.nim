@@ -3,6 +3,7 @@
 ## ---------------------------------------------------------
 
 import ./params
+import ../../helpers/secure_memory
 export params
 import ./util
 import ./indcpa

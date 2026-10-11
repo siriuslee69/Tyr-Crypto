@@ -3,6 +3,7 @@
 ## ----------------------------------------------------------
 
 import ./params
+import ../../helpers/secure_memory
 import ./address
 import ./context
 import ./hash
@@ -85,7 +86,7 @@ proc wotsGenLeafX1(leaf: var openArray[byte], ctx: SphincsCtx, leafIdx: uint32,
         copyMem(addr pkBuffer[laneOffset], addr nodes[lane][0], spxN)
         laneOffset = laneOffset + spxN
         lane = lane + 1
-      clearSensitivePlainData(nodes)
+      secureClearPod(nodes)
       clearPlainData(chainTargets)
       i = i + 4
       nodeOffset = nodeOffset + (4 * spxN)
@@ -141,7 +142,7 @@ proc wotsGenLeafX1(leaf: var openArray[byte], ctx: SphincsCtx, leafIdx: uint32,
         copyMem(addr pkBuffer[laneOffset], addr nodes[lane][0], spxN)
         laneOffset = laneOffset + spxN
         lane = lane + 1
-      clearSensitivePlainData(nodes)
+      secureClearPod(nodes)
       clearPlainData(chainTargets)
       i = i + 2
       nodeOffset = nodeOffset + (2 * spxN)
@@ -169,7 +170,7 @@ proc wotsGenLeafX1(leaf: var openArray[byte], ctx: SphincsCtx, leafIdx: uint32,
       thash(node, node, 1, ctx, info.leafAddr)
       k = k + 1
     copyMem(addr pkBuffer[nodeOffset], addr node[0], spxN)
-    clearSensitivePlainData(node)
+    secureClearPod(node)
     clearPlainData(wotsK)
     i = i + 1
     nodeOffset = nodeOffset + spxN

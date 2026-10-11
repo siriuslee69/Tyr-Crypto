@@ -2,7 +2,7 @@
 ## X25519 Common <- shared helpers for the custom Curve25519 port
 ## -------------------------------------------------------------
 
-import std/[typetraits, volatile]
+import ../../helpers/secure_memory
 
 import ../../hashes/blake3
 import ../../helpers/random
@@ -75,30 +75,6 @@ proc load4*(input: openArray[byte], offset: int): int64 {.inline.} =
   result = result or (int64(input[offset + 1]) shl 8)
   result = result or (int64(input[offset + 2]) shl 16)
   result = result or (int64(input[offset + 3]) shl 24)
-
-## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `secureZeroMem`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureZeroMem*(p: pointer, len: int) =
-  var
-    bytes: ptr UncheckedArray[byte] = default(ptr UncheckedArray[byte])
-    i: int = 0
-  if p.isNil or len <= 0:
-    return
-  bytes = cast[ptr UncheckedArray[byte]](p)
-  while i < len:
-    volatileStore(addr bytes[i], 0'u8)
-    inc i
-
-## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `secureClearPod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureClearPod*[T](value: var T) =
-  static:
-    doAssert supportsCopyMem(T), "secureClearPod requires a POD-style type"
-  when sizeof(T) > 0:
-    secureZeroMem(addr value, sizeof(T))
-
-## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `secureClearBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureClearBytes*(value: var seq[byte]) =
-  if value.len > 0:
-    secureZeroMem(addr value[0], value.len)
 
 ## Reference: [RFC-7748] sections 5-6, X25519 and Diffie-Hellman; implementation support for the family algorithms for `toFixed32`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc toFixed32*(input: openArray[byte]): X25519Bytes32 =

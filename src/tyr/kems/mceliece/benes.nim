@@ -3,8 +3,9 @@
 
 
 from ./support import GF, bitrev
-from ./util import load8, store8, clearSensitiveWords
+from ./util import load8, store8
 import ./transpose
+import ../../helpers/secure_memory
 
 const
   BenesGfBits = 13
@@ -84,13 +85,13 @@ proc applyBenes*(r: var openArray[byte]; bits: openArray[byte]; gfbits: int;
   if not (bits.len >= totalBitsBytes):
     raise newException(ValueError, "McEliece size check failed: bits.len >= totalBitsBytes")
   defer:
-    clearSensitiveWords(rIntV[0])
-    clearSensitiveWords(rIntV[1])
-    clearSensitiveWords(rIntH0)
-    clearSensitiveWords(rIntH1)
-    clearSensitiveWords(rIntH)
-    clearSensitiveWords(bIntV)
-    clearSensitiveWords(bIntH)
+    secureClearItems(rIntV[0])
+    secureClearItems(rIntV[1])
+    secureClearItems(rIntH0)
+    secureClearItems(rIntH1)
+    secureClearItems(rIntH)
+    secureClearItems(bIntV)
+    secureClearItems(bIntH)
 
   ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; Benes network and permutation-control-bit algorithms for `load64At`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template load64At(buf: openArray[byte], start: int): uint64 =
@@ -200,7 +201,7 @@ proc supportGen*(outSupport: var openArray[GF]; bits: openArray[byte];
   var L: array[BenesGfBits, array[BenesPackedBytes, byte]] = default(array[BenesGfBits, array[BenesPackedBytes, byte]])
   defer:
     for i in 0 ..< BenesGfBits:
-      clearSensitiveWords(L[i])
+      secureClearItems(L[i])
 
   var
     i: int = 0

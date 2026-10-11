@@ -3,10 +3,11 @@
 ## ---------------------------------------------------------------------
 
 import ./params
+import ../../helpers/secure_memory
 import ./arith
 import ../../hashes/sha3
 import ../../helpers/otter_support
-import std/[typetraits, volatile]
+import std/typetraits
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   import simd_nexus/simd/base_operations
@@ -517,26 +518,6 @@ proc clearPlainData*[T](S: var T) {.raises: [].} =
   else:
     {.error: "clearPlainData requires supportsCopyMem(T)".}
 
-## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `clearSensitiveBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc clearSensitiveBytes*(A: var seq[byte]) {.raises: [].} =
-  var
-    i: int = 0
-  while i < A.len:
-    volatileStore(addr A[i], 0'u8)
-    i = i + 1
-
-## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `clearSensitivePlainData`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc clearSensitivePlainData*[T](S: var T) {.raises: [].} =
-  when supportsCopyMem(T):
-    var
-      p: ptr UncheckedArray[byte] = cast[ptr UncheckedArray[byte]](addr S)
-      i: int = 0
-    while i < sizeof(T):
-      volatileStore(addr p[i], 0'u8)
-      i = i + 1
-  else:
-    {.error: "clearSensitivePlainData requires supportsCopyMem(T)".}
-
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `sliceBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc sliceBytes*(A: openArray[byte], o, l: int): seq[byte] =
   var
@@ -893,7 +874,7 @@ proc initShake256NonceState(S: var Sha3State,
   input[dilithiumCrhBytes] = byte(nonce and 0xff'u16)
   input[dilithiumCrhBytes + 1] = byte((nonce shr 8) and 0xff'u16)
   shake256AbsorbOnce(S, input)
-  clearSensitivePlainData(input)
+  secureClearPod(input)
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `initShake256NonceMsg`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
@@ -997,10 +978,10 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
           ctr[lane] = ctr[lane] + rejUniform(polys[lane][].coeffs, ctr[lane],
             dilithiumN - ctr[lane], extraBufs[lane])
         lane = lane + 1
-    clearSensitivePlainData(states)
-    clearSensitivePlainData(msgs)
-    clearSensitivePlainData(initBufs)
-    clearSensitivePlainData(extraBufs)
+    secureClearPod(states)
+    secureClearPod(msgs)
+    secureClearPod(initBufs)
+    secureClearPod(extraBufs)
 
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniform`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniform*(a: var DilithiumPoly,
@@ -1029,8 +1010,8 @@ proc polyUniformEtaSeed*(p: DilithiumParams, a: var DilithiumPoly,
     initShake256NonceState(S, seed, nonce)
     shake256SqueezeBlocksIntoUnchecked(S, buf.toOpenArray(0, dilithiumEtaCtBytesEta2 - 1))
     finishEtaCtPrefix(p, a, S, buf)
-    clearSensitivePlainData(S)
-    clearSensitivePlainData(buf)
+    secureClearPod(S)
+    secureClearPod(buf)
     return
   var
     S: Sha3State
@@ -1038,8 +1019,8 @@ proc polyUniformEtaSeed*(p: DilithiumParams, a: var DilithiumPoly,
   initShake256NonceState(S, seed, nonce)
   shake256SqueezeBlocksIntoUnchecked(S, buf.toOpenArray(0, dilithiumEtaCtBytesEta4 - 1))
   finishEtaCtPrefix(p, a, S, buf)
-  clearSensitivePlainData(S)
-  clearSensitivePlainData(buf)
+  secureClearPod(S)
+  secureClearPod(buf)
 
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEta`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniformEta*(p: DilithiumParams, a: var DilithiumPoly,
@@ -1067,9 +1048,9 @@ when defined(avx2):
     finishEtaCtPrefix(p, a1, states[1], bufs[1])
     finishEtaCtPrefix(p, a2, states[2], bufs[2])
     finishEtaCtPrefix(p, a3, states[3], bufs[3])
-    clearSensitivePlainData(states)
-    clearSensitivePlainData(bufs)
-    clearSensitivePlainData(msgs)
+    secureClearPod(states)
+    secureClearPod(bufs)
+    secureClearPod(msgs)
 
   ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEta4xCtSeedEta4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniformEta4xCtSeedEta4(p: DilithiumParams, a0, a1, a2, a3: var DilithiumPoly,
@@ -1089,9 +1070,9 @@ when defined(avx2):
     finishEtaCtPrefix(p, a1, states[1], bufs[1])
     finishEtaCtPrefix(p, a2, states[2], bufs[2])
     finishEtaCtPrefix(p, a3, states[3], bufs[3])
-    clearSensitivePlainData(states)
-    clearSensitivePlainData(bufs)
-    clearSensitivePlainData(msgs)
+    secureClearPod(states)
+    secureClearPod(bufs)
+    secureClearPod(msgs)
 
   ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEta4xCtSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniformEta4xCtSeed(p: DilithiumParams, a0, a1, a2, a3: var DilithiumPoly,
@@ -1123,8 +1104,8 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
       polyUniformEtaSeed(p, a0, seed, nonce0)
     if ctr1 < dilithiumN:
       polyUniformEtaSeed(p, a1, seed, nonce1)
-    clearSensitivePlainData(bufs)
-    clearSensitivePlainData(msgs)
+    secureClearPod(bufs)
+    secureClearPod(msgs)
 
   ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEta2xCtSeedEta4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniformEta2xCtSeedEta4(p: DilithiumParams, a0, a1: var DilithiumPoly,
@@ -1143,8 +1124,8 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
       polyUniformEtaSeed(p, a0, seed, nonce0)
     if ctr1 < dilithiumN:
       polyUniformEtaSeed(p, a1, seed, nonce1)
-    clearSensitivePlainData(bufs)
-    clearSensitivePlainData(msgs)
+    secureClearPod(bufs)
+    secureClearPod(msgs)
 
   ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformEta2xCtSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyUniformEta2xCtSeed(p: DilithiumParams, a0, a1: var DilithiumPoly,
@@ -1166,7 +1147,7 @@ proc polyUniformEta*(p: DilithiumParams, a: var DilithiumPoly,
     fixedSeed[i] = seed[i]
     i = i + 1
   polyUniformEtaSeed(p, a, fixedSeed, nonce)
-  clearSensitivePlainData(fixedSeed)
+  secureClearPod(fixedSeed)
 
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyZUnpack`; pitfall: reject malformed or non-canonical input before indexed access.
 proc polyZUnpack*(p: DilithiumParams, r: var DilithiumPoly, a: openArray[byte]) {.raises: [], gcsafe.}
@@ -1184,8 +1165,8 @@ proc polyUniformGamma1Seed*(p: DilithiumParams, a: var DilithiumPoly,
   polyZUnpack(p, a, buf.toOpenArray(0, p.polyZPackedBytes - 1))
   # y is the masking vector; its raw sponge output and state must not
   # outlive this call.
-  clearSensitivePlainData(S)
-  clearSensitivePlainData(buf)
+  secureClearPod(S)
+  secureClearPod(buf)
 
 when defined(avx2):
   ## Paper note: gamma1 sampling is batched only at the SHAKE/output-unpack layer,
@@ -1208,9 +1189,9 @@ when defined(avx2):
     polyZUnpack(p, a1, bufs[1].toOpenArray(0, p.polyZPackedBytes - 1))
     polyZUnpack(p, a2, bufs[2].toOpenArray(0, p.polyZPackedBytes - 1))
     polyZUnpack(p, a3, bufs[3].toOpenArray(0, p.polyZPackedBytes - 1))
-    clearSensitivePlainData(states)
-    clearSensitivePlainData(bufs)
-    clearSensitivePlainData(msgs)
+    secureClearPod(states)
+    secureClearPod(bufs)
+    secureClearPod(msgs)
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformGamma12xSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
@@ -1224,8 +1205,8 @@ when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or define
     shake256Sse2xInto(bufs, msgs)
     polyZUnpack(p, a0, bufs[0].toOpenArray(0, p.polyZPackedBytes - 1))
     polyZUnpack(p, a1, bufs[1].toOpenArray(0, p.polyZPackedBytes - 1))
-    clearSensitivePlainData(bufs)
-    clearSensitivePlainData(msgs)
+    secureClearPod(bufs)
+    secureClearPod(msgs)
 
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyUniformGamma1`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyUniformGamma1*(p: DilithiumParams, a: var DilithiumPoly,
@@ -1246,7 +1227,7 @@ proc polyUniformGamma1*(p: DilithiumParams, a: var DilithiumPoly,
   polyUniformGamma1Seed(p, a, fixedSeed, nonce)
   # Same rule as the eta wrapper above: the copy made here is the masking
   # seed, so it must not outlive the call that used it.
-  clearSensitivePlainData(fixedSeed)
+  secureClearPod(fixedSeed)
 
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyChallengeSeed`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyChallengeSeed*(p: DilithiumParams, c: var DilithiumPoly,
@@ -1577,7 +1558,7 @@ proc polyveclUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecL,
         seed, nn, nn + 1'u16, nn + 2'u16, nn + 3'u16)
       polyUniformEta4xCtSeed(p, v.vec[4], v.vec[5], v.vec[6], tmp,
         seed, nn + 4'u16, nn + 5'u16, nn + 6'u16, 0'u16)
-      clearSensitivePlainData(tmp)
+      secureClearPod(tmp)
       return
   when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
     if p.l == 4:
@@ -1612,7 +1593,7 @@ proc polyveclUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecL,
     fixedSeed[i] = seed[i]
     i = i + 1
   polyveclUniformEta(p, v, fixedSeed, nonce)
-  clearSensitivePlainData(fixedSeed)
+  secureClearPod(fixedSeed)
 
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveclUniformGamma1BaseNonce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveclUniformGamma1BaseNonce*(p: DilithiumParams, v: var DilithiumPolyVecL,
@@ -1784,7 +1765,7 @@ proc polyveckUniformEta*(p: DilithiumParams, v: var DilithiumPolyVecK,
     fixedSeed[i] = seed[i]
     i = i + 1
   polyveckUniformEta(p, v, fixedSeed, nonce)
-  clearSensitivePlainData(fixedSeed)
+  secureClearPod(fixedSeed)
 
 ## Reference: [FIPS-204] sections 6-7 and algorithms 1-33; polynomial arithmetic and internal algorithm steps for `polyveckReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyveckReduce*(v: var DilithiumPolyVecK) {.inline, raises: [].} =

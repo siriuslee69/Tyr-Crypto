@@ -1,6 +1,7 @@
 ## Secret-key helper: generate the Goppa polynomial via Gaussian elimination.
 
 import ./params
+import ../../helpers/secure_memory
 import ./gf
 import ./util
 
@@ -23,7 +24,7 @@ proc genpolyGen*(p: McElieceParams; outPoly: var seq[GF]; f: openArray[GF]): boo
 
   var mat = newSeq[GF]((cols + 1) * cols)
   defer:
-    clearSensitiveWords(mat)
+    secureClearItems(mat)
 
   ## Reference: [MCELIECE-20221023] sections 2-5 and the implementation-guide keygen, encapsulation, and decapsulation algorithms; key-generation algorithms for `cell`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   template cell(row, col: int): untyped =

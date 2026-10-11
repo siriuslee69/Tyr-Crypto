@@ -3,6 +3,7 @@
 ## -------------------------------------------------------------------
 
 import ../../helpers/random
+import ../../helpers/secure_memory
 import ./util
 
 type

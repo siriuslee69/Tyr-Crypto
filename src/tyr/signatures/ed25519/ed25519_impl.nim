@@ -28,6 +28,7 @@
 ##   verified by the RFC 8032 vectors in evaluation/tests/test_ed25519_custom.nim.
 
 import ../../kems/x25519/x25519_common
+import ../../helpers/secure_memory
 import ../../helpers/random
 
 const

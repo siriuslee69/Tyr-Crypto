@@ -2,7 +2,7 @@
 ## NTRU Core <- pure-Nim NTRU arithmetic, OWC-CPA, and KEM code
 ## ----------------------------------------------------------
 
-import std/volatile
+import ../../helpers/secure_memory
 
 import ./params
 import ../../helpers/common/pq_rng
@@ -21,15 +21,6 @@ type
   ## One NTRU polynomial. The active prefix length is selected by NtruParams.n.
   NtruPoly* = object
     coeffs*: array[ntruMaxN, uint16]
-
-## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `secureClearPoly`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureClearPoly(a: var NtruPoly) {.raises: [].} =
-  ## Volatile zeroization for secret polynomial scratch (cannot be elided).
-  var
-    i: int = 0
-  while i < ntruMaxN:
-    volatileStore(addr a.coeffs[i], 0'u16)
-    i = i + 1
 
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `q`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc q(p: NtruParams): uint16 {.inline.} =
@@ -1486,13 +1477,13 @@ proc owcpaKeypair*(pk, sk: var openArray[byte], p: NtruParams, seed: openArray[b
   polyRqMul(tmp, p, invgf, g)
   polyRqMul(h, p, tmp, g)
   polyRqSumZeroToBytes(pk, p, h)
-  secureClearPoly(f)
-  secureClearPoly(g)
-  secureClearPoly(invfMod3)
-  secureClearPoly(gf)
-  secureClearPoly(invgf)
-  secureClearPoly(tmp)
-  secureClearPoly(invh)
+  secureClearPod(f)
+  secureClearPod(g)
+  secureClearPod(invfMod3)
+  secureClearPod(gf)
+  secureClearPod(invgf)
+  secureClearPod(tmp)
+  secureClearPod(invh)
 
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `owcpaEnc`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc owcpaEnc*(c: var openArray[byte], p: NtruParams, r, m: NtruPoly,
@@ -1511,7 +1502,7 @@ proc owcpaEnc*(c: var openArray[byte], p: NtruParams, r, m: NtruPoly,
     ct.coeffs[i] = u16Add(ct.coeffs[i], liftm.coeffs[i])
     i = i + 1
   polyRqSumZeroToBytes(c, p, ct)
-  secureClearPoly(liftm)
+  secureClearPod(liftm)
 
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `owcpaDec`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc owcpaDec*(rm: var openArray[byte], p: NtruParams, ciphertext,
@@ -1552,15 +1543,15 @@ proc owcpaDec*(rm: var openArray[byte], p: NtruParams, ciphertext,
   result = result or owcpaCheckR(p, r)
   polyTrinaryZqToZ3(r, p)
   polyS3ToBytes(rm.toOpenArray(0, p.packTrinaryBytes - 1), p, r)
-  secureClearPoly(f)
-  secureClearPoly(finv3)
-  secureClearPoly(invh)
-  secureClearPoly(m)
-  secureClearPoly(r)
-  secureClearPoly(cf)
-  secureClearPoly(mf)
-  secureClearPoly(b)
-  secureClearPoly(liftm)
+  secureClearPod(f)
+  secureClearPod(finv3)
+  secureClearPod(invh)
+  secureClearPod(m)
+  secureClearPod(r)
+  secureClearPod(cf)
+  secureClearPod(mf)
+  secureClearPod(b)
+  secureClearPod(liftm)
 
 ## Reference: [NTRU-20190330] sections 1.8 and 2, DPKE and KEM algorithms; polynomial arithmetic and internal algorithm steps for `ntruKemKeypairInto`; pitfall: keep transcript order, domain separation, sizes, and secret wiping exact.
 proc ntruKemKeypairInto*(pk, sk: var openArray[byte], p: NtruParams,
@@ -1593,8 +1584,8 @@ proc ntruKemEncInto*(ciphertext, sharedSecret: var openArray[byte],
   sha3_256Into(sharedSecret, rm)
   polyZ3ToZq(r, p)
   owcpaEnc(ciphertext, p, r, m, pk)
-  secureClearPoly(r)
-  secureClearPoly(m)
+  secureClearPod(r)
+  secureClearPod(m)
   secureClearBytes(rm)
   secureClearBytes(rmSeed)
 

@@ -3,6 +3,7 @@
 ## --------------------------------------------------------------------
 
 import ./params
+import ../../helpers/secure_memory
 export params
 import ./poly
 import ../../helpers/common/ct_compare
@@ -222,17 +223,17 @@ proc keypairFromRandomSeedInto(p: DilithiumParams, seed: openArray[byte], public
     t0: DilithiumPolyVecK
     i: int = 0
   defer:
-    clearSensitivePlainData(seedInput)
-    clearSensitivePlainData(seedbuf)
+    secureClearPod(seedInput)
+    secureClearPod(seedbuf)
     clearPlainData(rho)
-    clearSensitivePlainData(rhoprime)
-    clearSensitivePlainData(key)
+    secureClearPod(rhoprime)
+    secureClearPod(key)
     clearPlainData(tr)
-    clearSensitivePlainData(s1)
-    clearSensitivePlainData(s1hat)
-    clearSensitivePlainData(s2)
+    secureClearPod(s1)
+    secureClearPod(s1hat)
+    secureClearPod(s2)
     clearPlainData(t1)
-    clearSensitivePlainData(t0)
+    secureClearPod(t0)
   i = 0
   while i < dilithiumSeedBytes:
     seedInput[i] = seed[i]
@@ -282,7 +283,7 @@ proc dilithiumTyrKeypairInto*(v: DilithiumVariant, publicKey,
     randomness: seq[byte]
     p: DilithiumParams = params(v)
   defer:
-    clearSensitiveBytes(randomness)
+    secureClearBytes(randomness)
   if publicKey.len != p.publicKeyBytes:
     raise newException(ValueError, "Dilithium public key buffer has wrong size for variant")
   if secretKey.len != p.secretKeyBytes:
@@ -347,22 +348,22 @@ proc dilithiumTyrSignDerandInto*(v: DilithiumVariant, sig: var openArray[byte], 
     packedW1: array[dilithiumMaxK * 192, byte]
     cseed: array[dilithiumMaxCtildeBytes, byte]
   defer:
-    clearSensitivePlainData(skp)
+    secureClearPod(skp)
     clearPlainData(pre)
     clearPlainData(mu)
-    clearSensitivePlainData(rhoprime)
+    secureClearPod(rhoprime)
     clearPlainData(mat)
     # z from rejected iterations is y + c*s1 with y still masking-critical,
     # so it gets the volatile clear even though the final z is published.
-    clearSensitivePlainData(z)
-    clearSensitivePlainData(tmpL)
-    clearSensitivePlainData(s1)
+    secureClearPod(z)
+    secureClearPod(tmpL)
+    secureClearPod(s1)
     clearPlainData(w1)
-    clearSensitivePlainData(w0)
+    secureClearPod(w0)
     # h is reused as scratch for c*s2 and c*t0 products before it holds hints.
-    clearSensitivePlainData(h)
-    clearSensitivePlainData(s2)
-    clearSensitivePlainData(t0)
+    secureClearPod(h)
+    secureClearPod(s2)
+    secureClearPod(t0)
     clearPlainData(cp)
     clearPlainData(packedW1)
     clearPlainData(cseed)
@@ -428,7 +429,7 @@ proc dilithiumTyrSignInto*(v: DilithiumVariant, sig: var openArray[byte], msg: o
   var
     rnd: seq[byte]
   defer:
-    clearSensitiveBytes(rnd)
+    secureClearBytes(rnd)
   rnd = cryptoRandomBytes(dilithiumRndBytes)
   dilithiumTyrSignDerandInto(v, sig, msg, sk, rnd, ctx)
 

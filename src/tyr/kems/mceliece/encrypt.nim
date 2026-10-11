@@ -1,6 +1,7 @@
 ## Niederreiter encryption helpers for the pure-Nim Classic McEliece backend.
 
 import runePragmas
+import ../../helpers/secure_memory
 import ./params
 import ./util
 import ../../helpers/random
@@ -72,8 +73,8 @@ proc errorVectorFromRandomBlock(p: McElieceParams,
     i: int = 0
     num: uint16 = 0
   defer:
-    clearSensitiveWords(ind)
-    clearSensitiveWords(val)
+    secureClearItems(ind)
+    secureClearItems(val)
   if buf.len != mcelieceEncapsRandomBlockBytes(p):
     raise newException(ValueError, "invalid McEliece encaps random block length")
   count = 0
@@ -108,7 +109,7 @@ proc genErrorVectorDerand*(p: McElieceParams, randomness: openArray[byte]): seq[
       randomness.toOpenArray(offset, offset + blockBytes - 1))
     if candidate.ok:
       return candidate.errorVec
-    clearSensitiveWords(candidate.errorVec)
+    secureClearItems(candidate.errorVec)
     offset = offset + blockBytes
   raise newException(ValueError, "McEliece encaps randomness did not produce a valid error vector")
 
@@ -119,9 +120,9 @@ proc genErrorVector*(p: McElieceParams): seq[byte] =
     buf: seq[byte] = @[]
     candidate: tuple[ok: bool, errorVec: seq[byte]] = default(tuple[ok: bool, errorVec: seq[byte]])
   defer:
-    clearSensitiveWords(buf)
+    secureClearItems(buf)
   while true:
-    clearSensitiveWords(buf)
+    secureClearItems(buf)
     buf = cryptoRandomBytes(mcelieceEncapsRandomBlockBytes(p))
     candidate = errorVectorFromRandomBlock(p, buf)
     if candidate.ok:

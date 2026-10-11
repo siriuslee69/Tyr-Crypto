@@ -3,6 +3,7 @@
 ## --------------------------------------------------------
 
 import ../../hashes/sha3
+import ../../helpers/secure_memory
 import ./util
 
 type

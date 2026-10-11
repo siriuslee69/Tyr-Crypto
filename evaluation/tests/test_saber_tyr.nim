@@ -3,6 +3,7 @@
 ## ----------------------------------------------------------------
 
 import std/[os, strutils, unittest]
+import ../../src/tyr/helpers/secure_memory
 
 import ./helpers
 import ../../src/tyr/kems/saber as custom_saber
@@ -93,9 +94,9 @@ template runSaberRoundtripCase(variant: untyped, keyBase, encBase: int) =
     check kp.secretKey.len == p.secretKeyBytes
     check env.ciphertext.len == p.ciphertextBytes
     check env.sharedSecret.len == p.sharedSecretBytes
-    pqc.secureClearBytes(keySeed)
-    pqc.secureClearBytes(encSeed)
-    pqc.secureClearBytes(shared)
+    secureClearBytes(keySeed)
+    secureClearBytes(encSeed)
+    secureClearBytes(shared)
 
 template runSaberKatCase(variant: untyped, backend: untyped) =
   block:
@@ -115,10 +116,10 @@ template runSaberKatCase(variant: untyped, backend: untyped) =
     shared = custom_saber.saberTyrDecaps(variant, kat.keypair.secretKey,
       kat.cipher.ciphertext, backend)
     check shared == expected.sharedSecret
-    pqc.secureClearBytes(expected.seed)
-    pqc.secureClearBytes(expected.secretKey)
-    pqc.secureClearBytes(expected.sharedSecret)
-    pqc.secureClearBytes(shared)
+    secureClearBytes(expected.seed)
+    secureClearBytes(expected.secretKey)
+    secureClearBytes(expected.sharedSecret)
+    secureClearBytes(shared)
 
 suite "saber tyr":
   test "clean SABER roundtrips for all variants":
@@ -212,14 +213,14 @@ suite "saber tyr":
     check zero0 != env.sharedSecret
     check ff0 == ff1
     check ff0 != env.sharedSecret
-    pqc.secureClearBytes(keySeed)
-    pqc.secureClearBytes(encSeed)
-    pqc.secureClearBytes(bad0)
-    pqc.secureClearBytes(bad1)
-    pqc.secureClearBytes(zero0)
-    pqc.secureClearBytes(zero1)
-    pqc.secureClearBytes(ff0)
-    pqc.secureClearBytes(ff1)
+    secureClearBytes(keySeed)
+    secureClearBytes(encSeed)
+    secureClearBytes(bad0)
+    secureClearBytes(bad1)
+    secureClearBytes(zero0)
+    secureClearBytes(zero1)
+    secureClearBytes(ff0)
+    secureClearBytes(ff1)
 
   when defined(tyrAndroidHarness):
     test "file-backed SABER KAT vectors remain host-only":

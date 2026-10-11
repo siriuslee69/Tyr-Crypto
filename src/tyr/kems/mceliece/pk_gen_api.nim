@@ -44,11 +44,11 @@ proc pkGen*(p: McElieceParams, g: openArray[GF], perm: openArray[uint32],
     rowStart: int = 0
     kStart: int = 0
   defer:
-    clearSensitiveWords(buf)
-    clearSensitiveWords(L)
-    clearSensitiveWords(inv)
-    clearSensitiveWords(invPrefix)
-    clearSensitiveWords(mat)
+    secureClearItems(buf)
+    secureClearItems(L)
+    secureClearItems(inv)
+    secureClearItems(invPrefix)
+    secureClearItems(mat)
   if g.len < p.sysT + 1:
     raise newException(ValueError, "goppa polynomial length mismatch")
   if perm.len < (1 shl p.gfBits):

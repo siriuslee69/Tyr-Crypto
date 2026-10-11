@@ -12,6 +12,7 @@
 ## by which of these features were switched off and were removed.
 
 import ../../helpers/otter_support
+import ../../helpers/secure_memory
 import ./x25519_common
 export x25519_common
 

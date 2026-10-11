@@ -1,6 +1,7 @@
 ## Berlekamp-Massey for Classic McEliece (parameterised by variant).
 
 import ./params
+import ../../helpers/secure_memory
 import ./gf
 import ./util
 
@@ -21,9 +22,9 @@ proc berlekampMassey*(p: McElieceParams; s: openArray[GF]; outPoly: var seq[GF])
     f: GF = 0
     newL: uint32 = 0
   defer:
-    clearSensitiveWords(C)
-    clearSensitiveWords(B)
-    clearSensitiveWords(T)
+    secureClearItems(C)
+    secureClearItems(B)
+    secureClearItems(T)
   if not (s.len >= 2 * p.sysT):
     raise newException(ValueError, "McEliece size check failed: s.len >= 2 * p.sysT")
   outPoly.setLen(p.sysT + 1)

@@ -2,7 +2,7 @@
 ## Kyber Utilities <- little-endian helpers and byte-sequence helpers
 ## -----------------------------------------------------------------
 
-import std/[typetraits, volatile]
+import std/typetraits
 
 {.push boundChecks: off.}
 
@@ -77,33 +77,6 @@ proc clearBytes*[N: static[int]](A: var array[N, byte]) =
   when N > 0:
     zeroMem(addr A[0], N)
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; canonical byte and polynomial encoding rules for `secureZeroMem`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureZeroMem*(p: pointer, l: int) =
-  ## Volatile zeroization for secret-bearing POD scratch.
-  var
-    i: int = 0
-    B: ptr UncheckedArray[byte] = default(ptr UncheckedArray[byte])
-  if p.isNil or l <= 0:
-    return
-  B = cast[ptr UncheckedArray[byte]](p)
-  i = 0
-  while i < l:
-    volatileStore(addr B[i], 0'u8)
-    i = i + 1
-
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; canonical byte and polynomial encoding rules for `secureClearBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureClearBytes*(S: var seq[byte]) =
-  ## Volatile zeroization for secret byte sequences.
-  if S.len == 0:
-    return
-  secureZeroMem(addr S[0], S.len)
-
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; canonical byte and polynomial encoding rules for `secureClearBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureClearBytes*[N: static[int]](A: var array[N, byte]) =
-  ## Volatile zeroization for secret fixed-size byte arrays.
-  when N > 0:
-    secureZeroMem(addr A[0], N)
-
 ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; canonical byte and polynomial encoding rules for `clearPod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc clearPod*[T](x: var T) =
   ## Fast bulk zeroization for POD-style scratch.
@@ -111,14 +84,6 @@ proc clearPod*[T](x: var T) =
     doAssert supportsCopyMem(T), "clearPod requires a POD-style type"
   when sizeof(T) > 0:
     zeroMem(addr x, sizeof(T))
-
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; canonical byte and polynomial encoding rules for `secureClearPod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureClearPod*[T](x: var T) =
-  ## Volatile zeroization for POD-style stack scratch only.
-  static:
-    doAssert supportsCopyMem(T), "secureClearPod requires a POD-style type"
-  when sizeof(T) > 0:
-    secureZeroMem(addr x, sizeof(T))
 
 ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; canonical byte and polynomial encoding rules for `fillArray`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fillArray*[N: static[int]](dst: var array[N, byte], src: openArray[byte]) =

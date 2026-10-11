@@ -21,9 +21,9 @@ when defined(avx2):
       rowOffset: int = 0
       bIdx: int = 0
     defer:
-      clearSensitiveWords(inRows)
-      clearSensitiveWords(outRows)
-      clearSensitiveWords(tailBytes)
+      secureClearItems(inRows)
+      secureClearItems(outRows)
+      secureClearItems(tailBytes)
 
     i = 0
     while i < p.sysT:

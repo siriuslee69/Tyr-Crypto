@@ -2,27 +2,7 @@
 ## Frodo Util <- packing, endian, and constant-time Frodo helpers
 ## ---------------------------------------------------------------
 
-import std/volatile
-
 import ../../helpers/otter_support
-
-## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `secureClearBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureClearBytes*(A: var openArray[byte]) {.raises: [].} =
-  ## Volatile zeroization for secret byte buffers (cannot be elided).
-  var
-    i: int = 0
-  while i < A.len:
-    volatileStore(addr A[i], 0'u8)
-    i = i + 1
-
-## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `secureClearWords`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureClearWords*(W: var openArray[uint16]) {.raises: [].} =
-  ## Volatile zeroization for secret word buffers (cannot be elided).
-  var
-    i: int = 0
-  while i < W.len:
-    volatileStore(addr W[i], 0'u16)
-    i = i + 1
 
 ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `frodoPackInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc frodoPackInto*(dst: var openArray[byte], input: openArray[uint16], lsb: int) {.gcsafe.}

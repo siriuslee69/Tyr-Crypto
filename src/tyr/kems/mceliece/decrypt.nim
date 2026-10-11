@@ -1,6 +1,7 @@
 ## Niederreiter decryption for the pure-Nim Classic McEliece backend.
 
 import ./params
+import ../../helpers/secure_memory
 import ./util
 import ../../helpers/common/ct_compare
 import ./gf
@@ -27,13 +28,13 @@ proc decodeErrorVector*(p: McElieceParams, skTail, ciphertext: openArray[byte]):
     t: GF = 0
     condOffset = p.irrBytes
   defer:
-    clearSensitiveWords(g)
-    clearSensitiveWords(L)
-    clearSensitiveWords(r)
-    clearSensitiveWords(s0)
-    clearSensitiveWords(sCmp)
-    clearSensitiveWords(locator)
-    clearSensitiveWords(images)
+    secureClearItems(g)
+    secureClearItems(L)
+    secureClearItems(r)
+    secureClearItems(s0)
+    secureClearItems(sCmp)
+    secureClearItems(locator)
+    secureClearItems(images)
   if skTail.len < p.irrBytes + p.condBytes + (p.sysN div 8):
     raise newException(ValueError, "invalid McEliece secret key tail length")
   if ciphertext.len != p.syndBytes:

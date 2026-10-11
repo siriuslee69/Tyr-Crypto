@@ -3,6 +3,7 @@
 ## ----------------------------------------------------------------
 
 import ./params
+import ../../helpers/secure_memory
 export params
 import ./keygen
 import ./pure_verify

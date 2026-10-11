@@ -3,41 +3,10 @@
 ## -----------------------------------------------------------------
 
 import std/bitops
-import std/typetraits
-import std/volatile
+import ../../helpers/secure_memory
 
 import ./params
 import ./types
-
-## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; canonical byte and polynomial encoding rules for `secureZeroBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureZeroBytes*(A: var openArray[byte]) =
-  ## Volatile zeroization for secret byte buffers (cannot be elided).
-  var
-    i: int = 0
-  while i < A.len:
-    volatileStore(addr A[i], 0'u8)
-    i = i + 1
-
-## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; canonical byte and polynomial encoding rules for `secureZeroWords`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureZeroWords*(A: var openArray[uint64]) =
-  ## Volatile zeroization for secret word buffers (cannot be elided).
-  var
-    i: int = 0
-  while i < A.len:
-    volatileStore(addr A[i], 0'u64)
-    i = i + 1
-
-## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; canonical byte and polynomial encoding rules for `secureZeroPod`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc secureZeroPod*[T](S: var T) =
-  ## Volatile zeroization for POD-style secret stack state.
-  static:
-    doAssert supportsCopyMem(T), "secureZeroPod requires a POD-style type"
-  var
-    p: ptr UncheckedArray[byte] = cast[ptr UncheckedArray[byte]](addr S)
-    i: int = 0
-  while i < sizeof(T):
-    volatileStore(addr p[i], 0'u8)
-    i = i + 1
 
 ## Reference: [BIKE-5.2] sections 2-4, BIKE KEM and BGF decoder algorithms; canonical byte and polynomial encoding rules for `copyByteSeq`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc copyByteSeq*(A: openArray[byte]): seq[byte] =
@@ -286,7 +255,7 @@ proc validateSecretIndexList(W: BikeIndexList, R: BikeRawPoly) =
     i: int = 0
     pos: int = 0
   defer:
-    secureZeroPod(expected)
+    secureClearPod(expected)
   while i < bikeD:
     if W[i] >= uint32(bikeRBits):
       raise newException(ValueError, "BIKE secret index is out of range")

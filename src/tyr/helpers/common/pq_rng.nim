@@ -2,7 +2,7 @@
 ## PQ RNG <- pure-Nim NIST KAT DRBG and short-lived byte wiping
 ## ----------------------------------------------------------------
 
-import std/volatile
+import ../secure_memory
 
 import ../../ciphers/aes/aes_core
 import ../random
@@ -22,26 +22,6 @@ type
   PqRandomContext* = object
     deterministic*: bool
     drbg*: PqNistDrbgState
-
-## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `secureClearBytes`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
-proc secureClearBytes*(A: var openArray[byte]) {.raises: [].} =
-  ## Volatile short-lived byte buffer wipe for secret material.
-  var
-    i: int = 0
-    B: ptr UncheckedArray[byte]
-  if A.len == 0:
-    return
-  B = cast[ptr UncheckedArray[byte]](addr A[0])
-  i = 0
-  while i < A.len:
-    volatileStore(addr B[i], 0'u8)
-    i = i + 1
-
-## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `secureClearBytes`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
-proc secureClearBytes*(S: var seq[byte]) {.raises: [].} =
-  ## Volatile short-lived byte sequence wipe for secret material.
-  if S.len > 0:
-    secureClearBytes(S.toOpenArray(0, S.len - 1))
 
 ## Reference: [PQ-SUPPORT] FIPS 202 XOF use and SP 800-90A deterministic KAT support; random-source and deterministic KAT generation rules for `incrementV`; pitfall: use deterministic generation only for KAT replay and system entropy in production.
 proc incrementV(S: var PqNistDrbgState) =

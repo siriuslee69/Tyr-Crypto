@@ -450,22 +450,22 @@
           <tr>
             <td><code>context.nim</code></td>
             <td><code>SphincsCtx</code> holding <code>skSeed</code> and <code>pubSeed</code></td>
-            <td><code>clearSensitivePlainData</code> using <code>volatileStore</code></td>
+            <td><code>secureClearPod</code> using <code>volatileStore</code></td>
           </tr>
           <tr>
             <td><code>operations.nim</code></td>
             <td>temporary seed material copied during key generation</td>
-            <td><code>clearSensitiveBytes</code></td>
+            <td><code>secureClearBytes</code></td>
           </tr>
           <tr>
             <td><code>merkle.nim</code></td>
             <td>secret WOTS chain nodes created from <code>prfAddr</code></td>
-            <td><code>clearSensitivePlainData</code></td>
+            <td><code>secureClearPod</code></td>
           </tr>
           <tr>
             <td><code>fors.nim</code></td>
             <td><code>skPart</code>, the direct FORS secret leaf material</td>
-            <td><code>clearSensitivePlainData</code></td>
+            <td><code>secureClearPod</code></td>
           </tr>
           <tr>
             <td>multiple modules</td>

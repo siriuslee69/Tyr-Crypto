@@ -3,6 +3,7 @@
 ## --------------------------------------------------------------------
 
 import ./codec
+import ../../helpers/secure_memory
 import ./common
 import ./fft
 import ./format
@@ -87,12 +88,12 @@ proc ffLDLFftInner(tree: var seq[FalconFpr], treeOff: int, g0, g1: openArray[Fal
     d11Hi = newSeq[FalconFpr](hn)
     childLen = ffLDLTreeSize(logn - 1)
   defer:
-    secureClearSeqData(d11)
-    secureClearSeqData(l10)
-    secureClearSeqData(d00Lo)
-    secureClearSeqData(d00Hi)
-    secureClearSeqData(d11Lo)
-    secureClearSeqData(d11Hi)
+    secureClearItems(d11)
+    secureClearItems(l10)
+    secureClearItems(d00Lo)
+    secureClearItems(d00Hi)
+    secureClearItems(d11Lo)
+    secureClearItems(d11Hi)
   polyLDLmvFft(d11, l10, g0, g1, g0, logn)
   copyMem(addr tree[treeOff], addr l10[0], n * sizeof(FalconFpr))
   polySplitFft(d00Lo, d00Hi, g0, logn)
@@ -119,12 +120,12 @@ proc ffLDLFft*(tree: var seq[FalconFpr], g00, g01, g11: openArray[FalconFpr], lo
     d11Hi = newSeq[FalconFpr](hn)
     childLen = ffLDLTreeSize(logn - 1)
   defer:
-    secureClearSeqData(d11)
-    secureClearSeqData(l10)
-    secureClearSeqData(d00Lo)
-    secureClearSeqData(d00Hi)
-    secureClearSeqData(d11Lo)
-    secureClearSeqData(d11Hi)
+    secureClearItems(d11)
+    secureClearItems(l10)
+    secureClearItems(d00Lo)
+    secureClearItems(d00Hi)
+    secureClearItems(d11Lo)
+    secureClearItems(d11Hi)
   polyLDLmvFft(d11, l10, g00, g01, g11, logn)
   copyMem(addr tree[0], addr l10[0], n * sizeof(FalconFpr))
   polySplitFft(d00Lo, d00Hi, g00, logn)
@@ -143,11 +144,11 @@ proc ffLDLBinaryNormalize*(tree: var seq[FalconFpr], treeOff, origLogn, logn: in
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `clearExpandedSecret`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc clearExpandedSecret*(expanded: var FalconExpandedSecret) =
-  secureClearSeqData(expanded.b00)
-  secureClearSeqData(expanded.b01)
-  secureClearSeqData(expanded.b10)
-  secureClearSeqData(expanded.b11)
-  secureClearSeqData(expanded.tree)
+  secureClearItems(expanded.b00)
+  secureClearItems(expanded.b01)
+  secureClearItems(expanded.b10)
+  secureClearItems(expanded.b11)
+  secureClearItems(expanded.tree)
   expanded.b00.setLen(0)
   expanded.b01.setLen(0)
   expanded.b10.setLen(0)
@@ -221,10 +222,10 @@ proc expandPrivateKey*(expanded: var FalconExpandedSecret, decoded: FalconDecode
   ffLDLFft(expanded.tree, g00, g01, g11, logn)
   ffLDLBinaryNormalize(expanded.tree, 0, logn, logn)
 
-  secureClearSeqData(g00)
-  secureClearSeqData(g01)
-  secureClearSeqData(g11)
-  secureClearSeqData(gxx)
+  secureClearItems(g00)
+  secureClearItems(g01)
+  secureClearItems(g11)
+  secureClearItems(gxx)
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `expandPrivateKey`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc expandPrivateKey*(decoded: FalconDecodedSecret): FalconExpandedSecret =
@@ -236,10 +237,10 @@ proc prepareSecretKey*(v: FalconVariant, sk: openArray[byte]): FalconExpandedSec
   if not decodeSecretKey(decoded, sk, v):
     raise newException(ValueError, "invalid Falcon secret key")
   defer:
-    secureClearSeqData(decoded.f)
-    secureClearSeqData(decoded.g)
-    secureClearSeqData(decoded.F)
-    secureClearSeqData(decoded.G)
+    secureClearItems(decoded.f)
+    secureClearItems(decoded.g)
+    secureClearItems(decoded.F)
+    secureClearItems(decoded.G)
   expandPrivateKey(result, decoded)
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `gaussian0Sampler`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
@@ -309,8 +310,8 @@ proc ffSamplingFft(ctx: var FalconSamplerContext, tree, t0, t1: openArray[Falcon
       tree0 = copyFprRange(tree, 4, 4)
       tree1 = copyFprRange(tree, 8, 4)
     defer:
-      secureClearSeqData(tree0)
-      secureClearSeqData(tree1)
+      secureClearItems(tree0)
+      secureClearItems(tree1)
     result.z0 = newSeq[FalconFpr](4)
     result.z1 = newSeq[FalconFpr](4)
 
@@ -464,18 +465,18 @@ proc ffSamplingFft(ctx: var FalconSamplerContext, tree, t0, t1: openArray[Falcon
     l10 = copyFprRange(tree, 0, n)
     merged: tuple[z0, z1: seq[FalconFpr]]
   defer:
-    secureClearSeqData(tree0)
-    secureClearSeqData(tree1)
-    secureClearSeqData(split0)
-    secureClearSeqData(split1)
-    secureClearSeqData(tmp)
-    secureClearSeqData(l10)
+    secureClearItems(tree0)
+    secureClearItems(tree1)
+    secureClearItems(split0)
+    secureClearItems(split1)
+    secureClearItems(tmp)
+    secureClearItems(l10)
   polySplitFft(split0, split1, t1, logn)
   merged = ffSamplingFft(ctx, tree1, split0, split1, logn - 1)
   result.z1 = newSeq[FalconFpr](n)
   polyMergeFft(result.z1, merged.z0, merged.z1, logn)
-  secureClearSeqData(merged.z0)
-  secureClearSeqData(merged.z1)
+  secureClearItems(merged.z0)
+  secureClearItems(merged.z1)
 
   polySub(tmp, result.z1, logn)
   polyMulFft(tmp, l10, logn)
@@ -485,8 +486,8 @@ proc ffSamplingFft(ctx: var FalconSamplerContext, tree, t0, t1: openArray[Falcon
   merged = ffSamplingFft(ctx, tree0, split0, split1, logn - 1)
   result.z0 = newSeq[FalconFpr](n)
   polyMergeFft(result.z0, merged.z0, merged.z1, logn)
-  secureClearSeqData(merged.z0)
-  secureClearSeqData(merged.z1)
+  secureClearItems(merged.z0)
+  secureClearItems(merged.z1)
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `doSignTree`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
 proc doSignTree(ctx: var FalconSamplerContext, s2: var seq[int16], expanded: FalconExpandedSecret,
@@ -503,13 +504,13 @@ proc doSignTree(ctx: var FalconSamplerContext, s2: var seq[int16], expanded: Fal
     i: int = 0
     s2Tmp = newSeq[int16](n)
   defer:
-    secureClearSeqData(t0)
-    secureClearSeqData(t1)
-    secureClearSeqData(tx)
-    secureClearSeqData(ty)
-    secureClearSeqData(sampled.z0)
-    secureClearSeqData(sampled.z1)
-    secureClearSeqData(s2Tmp)
+    secureClearItems(t0)
+    secureClearItems(t1)
+    secureClearItems(tx)
+    secureClearItems(ty)
+    secureClearItems(sampled.z0)
+    secureClearItems(sampled.z1)
+    secureClearItems(s2Tmp)
   while i < n:
     t0[i] = fprOf(hm[i].int64)
     i = i + 1
@@ -592,9 +593,9 @@ proc falconSignPreparedDerand*(prepared: FalconExpandedSecret, msg, nonce, seed:
     sig: seq[int16] = @[]
     rng: FalconShake256 = default(FalconShake256)
   defer:
-    secureClearSeqData(hm)
-    secureClearSeqData(sig)
-    clearSensitivePlainData(rng)
+    secureClearItems(hm)
+    secureClearItems(sig)
+    secureClearPod(rng)
   hashNonceMessageToPointCt(hm, nonce, msg, p.logn)
   initFalconShake256(rng, seed)
   while true:
@@ -602,7 +603,7 @@ proc falconSignPreparedDerand*(prepared: FalconExpandedSecret, msg, nonce, seed:
     result = encodeDetachedSignature(v, nonce, sig)
     if result.len > 0:
       return
-    secureClearSeqData(sig)
+    secureClearItems(sig)
     sig.setLen(0)
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; signature generation algorithms for `falconSignPrepared`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.

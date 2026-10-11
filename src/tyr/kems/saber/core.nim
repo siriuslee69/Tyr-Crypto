@@ -3,13 +3,11 @@
 ## -------------------------------------------------------------
 
 import ./params
+import ../../helpers/secure_memory
 import ../../helpers/common/pq_rng
 import ../../hashes/sha3
 import ../kyber/verify
 import ../../helpers/otter_support
-
-when defined(saberMulNttScalar):
-  import std/volatile
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):
   import simd_nexus/simd/base_operations
@@ -816,17 +814,6 @@ when defined(saberMulNttScalar):
     centered = x - int64(uint64(saberNttProduct) and mask)
     result = uint16(cast[uint64](centered) and 0xffff'u64)
 
-  ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `secureClearNttPoly`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-  proc secureClearNttPoly(a: var SaberNttPoly) {.raises: [].} =
-    var
-      i: int = 0
-      p: ptr UncheckedArray[int32] = default(ptr UncheckedArray[int32])
-    p = cast[ptr UncheckedArray[int32]](addr a[0])
-    i = 0
-    while i < saberN:
-      volatileStore(addr p[i], 0'i32)
-      i = i + 1
-
   ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulIntoNttSmallB`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc polyMulIntoNttSmallB(c: var SaberPoly, a, b: SaberPoly,
       accumulate: bool) {.inline.} =
@@ -863,9 +850,9 @@ when defined(saberMulNttScalar):
       coeff = crtToU16(r1[i], x[i])
       storeSaberReduced(c, i, coeff, accumulate)
       i = i + 1
-    secureClearNttPoly(x)
-    secureClearNttPoly(y)
-    secureClearNttPoly(r1)
+    secureClearPod(x)
+    secureClearPod(y)
+    secureClearPod(r1)
 
 const
   saberToomChunk = saberN div 4

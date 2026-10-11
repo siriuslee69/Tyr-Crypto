@@ -1,6 +1,7 @@
 ## Public-key generation for the pure-Nim Classic McEliece backend.
 
 import std/bitops
+import ../../helpers/secure_memory
 
 import ./params
 import ./util

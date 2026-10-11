@@ -3,6 +3,7 @@
 ## -----------------------------------------------------------------
 
 import ../ciphers/aes/aes_core
+import ../helpers/secure_memory
 import ../helpers/random
 
 {.passC: "-Isubmodules/pqclean/common".}
@@ -32,20 +33,6 @@ proc tyrPqRandombytesSet(feed: ptr uint8, feedLen: csize_t) {.cdecl.}
 proc tyrPqRandombytesSeedKat(seed48: ptr uint8) {.cdecl.}
 proc tyrPqRandombytesClear() {.cdecl.}
 proc tyrPqRandombytesRemaining*(): csize_t {.cdecl.}
-
-proc secureClearBytes*(A: var openArray[byte]) {.raises: [].} =
-  ## Best-effort short-lived byte buffer wipe.
-  var
-    i: int = 0
-  i = 0
-  while i < A.len:
-    A[i] = 0'u8
-    i = i + 1
-
-proc secureClearBytes*(S: var seq[byte]) {.raises: [].} =
-  ## Best-effort short-lived byte sequence wipe.
-  if S.len > 0:
-    secureClearBytes(S.toOpenArray(0, S.len - 1))
 
 template withPqRandomFeed*(F: var seq[byte], body: untyped) =
   if F.len == 0:

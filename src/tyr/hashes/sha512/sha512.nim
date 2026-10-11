@@ -7,6 +7,7 @@
 ## and a truncated output.
 
 import runePragmas
+import ../../helpers/secure_memory
 import ../../kems/x25519/x25519_common
 
 const

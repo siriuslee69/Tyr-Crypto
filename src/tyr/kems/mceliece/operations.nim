@@ -1,6 +1,7 @@
 ## Parameterized Classic McEliece KEM operations for the pure-Nim backend.
 
 import runePragmas
+import ../../helpers/secure_memory
 import ./params
 export params
 import ./util
@@ -92,17 +93,17 @@ proc mcelieceTyrKeypair*(v: McElieceVariant; seed: seq[byte] = @[]): McElieceTyr
     pk: seq[byte] = default(seq[byte])
     irrBytes: seq[byte] = default(seq[byte])
   defer:
-    clearSensitiveWords(seedBytes)
-    clearSensitiveWords(seedMaterial)
-    clearSensitiveWords(stream)
-    clearSensitiveWords(perm)
-    clearSensitiveWords(pi)
-    clearSensitiveWords(irr)
-    clearSensitiveWords(g)
-    clearSensitiveWords(storedSeed)
-    clearSensitiveWords(controlBits)
-    clearSensitiveWords(fWords)
-    clearSensitiveWords(irrBytes)
+    secureClearItems(seedBytes)
+    secureClearItems(seedMaterial)
+    secureClearItems(stream)
+    secureClearItems(perm)
+    secureClearItems(pi)
+    secureClearItems(irr)
+    secureClearItems(g)
+    secureClearItems(storedSeed)
+    secureClearItems(controlBits)
+    secureClearItems(fWords)
+    secureClearItems(irrBytes)
 
   if seed.len > 0 and seed.len != 32:
     raise newException(ValueError, "McEliece seeded keypair requires a 32-byte seed")
@@ -122,7 +123,7 @@ proc mcelieceTyrKeypair*(v: McElieceVariant; seed: seq[byte] = @[]): McElieceTyr
   while true:
     for i in 0 ..< 32:
       storedSeed[i] = seedMaterial[i + 1]
-    clearSensitiveWords(stream)
+    secureClearItems(stream)
     otterSpan("mceliece.keypair.shake256"):
       stream = shake256(seedMaterial, buildKeypairStreamLength(p))
     for i in 0 ..< 32:
@@ -216,8 +217,8 @@ proc mcelieceTyrEncaps*(v: McElieceVariant, pk: openArray[byte]): McElieceTyrCip
     enc: tuple[syndrome, errorVec: seq[byte]] = (@[], @[])
     preimage: seq[byte] = @[]
   defer:
-    clearSensitiveWords(enc.errorVec)
-    clearSensitiveWords(preimage)
+    secureClearItems(enc.errorVec)
+    secureClearItems(preimage)
   requireValidPublicKey(p, pk)
   otterSpan("mceliece.encaps.encryptError"):
     enc = encryptError(p, pk)
@@ -237,8 +238,8 @@ proc mcelieceTyrEncapsDerand*(v: McElieceVariant, pk, randomness: openArray[byte
     enc: tuple[syndrome, errorVec: seq[byte]] = (@[], @[])
     preimage: seq[byte] = @[]
   defer:
-    clearSensitiveWords(enc.errorVec)
-    clearSensitiveWords(preimage)
+    secureClearItems(enc.errorVec)
+    secureClearItems(preimage)
   requireValidPublicKey(p, pk)
   otterSpan("mceliece.encaps.encryptErrorDerand"):
     enc = encryptErrorDerand(p, pk, randomness)
@@ -260,8 +261,8 @@ proc mcelieceTyrTryDecapsInternal(v: McElieceVariant, sk,
     dec: tuple[ok: bool, okMask: uint16, errorVec: seq[byte]] = (false, 0'u16, @[])
     preimage: seq[byte] = @[]
   defer:
-    clearSensitiveWords(dec.errorVec)
-    clearSensitiveWords(preimage)
+    secureClearItems(dec.errorVec)
+    secureClearItems(preimage)
   if ct.len != ciphertextBytes(p):
     raise newException(ValueError, "invalid McEliece ciphertext length")
   if sk.len != secretKeyBytes(p):
