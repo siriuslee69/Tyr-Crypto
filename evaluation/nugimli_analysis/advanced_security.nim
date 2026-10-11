@@ -62,7 +62,7 @@ proc buildInvariantMatrices[N: static[int]](seedValue: uint64,
     Linear, Affine: var seq[seq[uint64]]) {.role: {truthBuilder}.} =
   ## seedValue: deterministic sample seed. Linear/Affine: certificate matrices.
   var
-    X, Y: array[N, uint32]
+    X, Y: array[N, uint32] = default(array[N, uint32])
     seed: uint64 = seedValue
     base: seq[uint64] = @[]
     row: seq[uint64] = @[]
@@ -73,7 +73,7 @@ proc buildInvariantMatrices[N: static[int]](seedValue: uint64,
   while i < Linear.len:
     fillState(X, seed)
     Y = X
-    permuteFull(Y)
+    cascadePermute(Y)
     row = packedDifference(X, Y)
     Linear[i] = row
     if i == 0:
@@ -119,7 +119,7 @@ proc deterministicPlainBit[N: static[int]](inputBit: int,
     seed: var uint64): bool {.role: {math}.} =
   ## inputBit/seed: candidate translation difference and independent bases.
   var
-    X, Y, A, B, A0, B0: array[N, uint32]
+    X, Y, A, B, A0, B0: array[N, uint32] = default(array[N, uint32])
     trial, word, shift: int = 0
   word = inputBit div 32
   shift = inputBit mod 32
@@ -131,8 +131,8 @@ proc deterministicPlainBit[N: static[int]](inputBit: int,
     Y[word] = Y[word] xor (1'u32 shl shift)
     A = X
     B = Y
-    permuteFull(A)
-    permuteFull(B)
+    cascadePermute(A)
+    cascadePermute(B)
     if trial == 0:
       A0 = A
       B0 = B
@@ -144,7 +144,7 @@ proc deterministicKeyBit[N: static[int]](inputBit: int, seed: var uint64,
     equivalent: var bool): bool {.role: {math}.} =
   ## inputBit/seed: related-key candidate. equivalent: exact collision result.
   var
-    X, K, K2, A, B, A0, B0: array[N, uint32]
+    X, K, K2, A, B, A0, B0: array[N, uint32] = default(array[N, uint32])
     trial, word, shift: int = 0
   word = inputBit div 32
   shift = inputBit mod 32
@@ -156,8 +156,8 @@ proc deterministicKeyBit[N: static[int]](inputBit: int, seed: var uint64,
     fillState(K, seed)
     K2 = K
     K2[word] = K2[word] xor (1'u32 shl shift)
-    A = encryptFull(X, K)
-    B = encryptFull(X, K2)
+    A = cascadeEncrypt(X, K)
+    B = cascadeEncrypt(X, K2)
     equivalent = equivalent and zeroDifference(A, B)
     if trial == 0:
       A0 = A
@@ -207,15 +207,15 @@ proc testBitRotation[N: static[int]](amount: int,
     seed: var uint64): int {.role: {math}.} =
   ## amount/seed: candidate rotational symmetry and sample seed.
   var
-    X, A, B: array[N, uint32]
+    X, A, B: array[N, uint32] = default(array[N, uint32])
     trial: int = 0
   trial = 0
   while trial < symmetryTrials:
     fillState(X, seed)
     A = rotateWordBits(X, amount)
     B = X
-    permuteFull(A)
-    permuteFull(B)
+    cascadePermute(A)
+    cascadePermute(B)
     B = rotateWordBits(B, amount)
     if A == B:
       result = result + 1
@@ -225,15 +225,15 @@ proc testWordRotation[N: static[int]](amount: int,
     seed: var uint64): int {.role: {math}.} =
   ## amount/seed: candidate word-position symmetry and sample seed.
   var
-    X, A, B: array[N, uint32]
+    X, A, B: array[N, uint32] = default(array[N, uint32])
     trial: int = 0
   trial = 0
   while trial < symmetryTrials:
     fillState(X, seed)
     A = rotateWords(X, amount)
     B = X
-    permuteFull(A)
-    permuteFull(B)
+    cascadePermute(A)
+    cascadePermute(B)
     B = rotateWords(B, amount)
     if A == B:
       result = result + 1
@@ -265,7 +265,7 @@ proc testSlideWindow[N: static[int]](rounds: int,
     seed: var uint64): int {.role: {math}.} =
   ## rounds/seed: full-permutation commutation with a round-prefix transform.
   var
-    X, A, B: array[N, uint32]
+    X, A, B: array[N, uint32] = default(array[N, uint32])
     trial: int = 0
   trial = 0
   while trial < symmetryTrials:
@@ -273,8 +273,8 @@ proc testSlideWindow[N: static[int]](rounds: int,
     A = X
     permuteRounds(A, rounds)
     B = A
-    permuteFull(B)
-    permuteFull(X)
+    cascadePermute(B)
+    cascadePermute(X)
     permuteRounds(X, rounds)
     if B == X:
       result = result + 1
@@ -326,7 +326,7 @@ proc searchLinearCorrelation[N: static[int]](seedValue: uint64): float64
   var
     InputMasks, OutputMasks: seq[array[N, uint32]] = @[]
     Counts: seq[int] = @[]
-    X, Y: array[N, uint32]
+    X, Y: array[N, uint32] = default(array[N, uint32])
     seed: uint64 = seedValue
     i: int = 0
     correlation: float64 = 0.0
@@ -342,7 +342,7 @@ proc searchLinearCorrelation[N: static[int]](seedValue: uint64): float64
   while i < linearSamples:
     fillState(X, seed)
     Y = X
-    permuteFull(Y)
+    cascadePermute(Y)
     updateLinearCounts(X, Y, InputMasks, OutputMasks, Counts)
     i = i + 1
   i = 0
@@ -367,9 +367,9 @@ proc trailCandidate[N: static[int]](inputBit: int, seed: var uint64): tuple[
     uniqueCount: int, maxProbability: float64] {.role: {math}.} =
   ## inputBit/seed: fixed input difference and independent base states.
   var
-    H: HashSet[uint64]
-    Counts: array[256, int]
-    X, Y, A, B: array[N, uint32]
+    H: HashSet[uint64] = default(HashSet[uint64])
+    Counts: array[256, int] = default(array[256, int])
+    X, Y, A, B: array[N, uint32] = default(array[N, uint32])
     sample, word, shift, bucket, maximum: int = 0
   word = inputBit div 32
   shift = inputBit mod 32
@@ -380,8 +380,8 @@ proc trailCandidate[N: static[int]](inputBit: int, seed: var uint64): tuple[
     Y[word] = Y[word] xor (1'u32 shl shift)
     A = X
     B = Y
-    permuteFull(A)
-    permuteFull(B)
+    cascadePermute(A)
+    cascadePermute(B)
     H.incl(differenceFingerprint(A, B))
     bucket = int((A[0] xor B[0]) and 0xff'u32)
     Counts[bucket] = Counts[bucket] + 1
@@ -399,7 +399,7 @@ proc searchDifferentialTrails[N: static[int]](R: var AdvancedSecurityResult,
   var
     seed: uint64 = seedValue
     i, inputBit: int = 0
-    candidate: tuple[uniqueCount: int, maxProbability: float64]
+    candidate: tuple[uniqueCount: int, maxProbability: float64] = default(tuple[uniqueCount: int, maxProbability: float64])
   R.minimumDifferenceFingerprints = differentialTrailSamples
   i = 0
   while i < differentialTrailInputs:
@@ -439,7 +439,7 @@ proc derivativeNonzero[N: static[int]](degree: int,
     seed: var uint64): bool {.role: {math}.} =
   ## degree/seed: derivative order and deterministic cube selection.
   var
-    base, X, Y, accumulator: array[N, uint32]
+    base, X, Y, accumulator: array[N, uint32] = default(array[N, uint32])
     Directions: seq[int] = @[]
     mask, i, start, step: int = 0
     d: uint32 = 0'u32
@@ -456,7 +456,7 @@ proc derivativeNonzero[N: static[int]](degree: int,
     X = base
     applyCubeMask(X, Directions, mask)
     Y = X
-    permuteFull(Y)
+    cascadePermute(Y)
     xorStateInto(accumulator, Y)
     mask = mask + 1
   i = 0
@@ -515,7 +515,7 @@ proc structuredTrial[N: static[int]](kind: int, seed: var uint64): bool
     {.role: {math}.} =
   ## kind/seed: structured candidate subspace and deterministic member.
   var
-    S: array[N, uint32]
+    S: array[N, uint32] = default(array[N, uint32])
     i: int = 0
     value: uint32 = 0'u32
   case kind
@@ -540,7 +540,7 @@ proc structuredTrial[N: static[int]](kind: int, seed: var uint64): bool
       S[i + 2] = value
       S[i + 3] = value
       i = i + 4
-  permuteFull(S)
+  cascadePermute(S)
   case kind
   of 0: result = wordsUniform(S)
   of 1: result = halvesEqual(S)
@@ -576,7 +576,7 @@ proc analyzeAdvanced*[N: static[int]](seedValue: uint64): AdvancedSecurityResult
     {.role: {metaOrchestrator}.} =
   ## seedValue: deterministic domain for all bounded searches.
   var
-    ranks: tuple[linear, affine: int]
+    ranks: tuple[linear, affine: int] = default(tuple[linear, affine: int])
   result.bits = N * 32
   ranks = invariantRanks[N](seedValue xor 0x01'u64)
   result.linearRank = ranks.linear

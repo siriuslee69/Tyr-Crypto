@@ -1,23 +1,40 @@
 ## --------------------------------------------------------------------
-## NuGimli Types <- fixed-width states and contiguous 128-bit chunk swaps
+## NuGimli Types <- the three widths and contiguous 128-bit chunk swaps
 ## --------------------------------------------------------------------
+##
+##   state      bits   32-bit words (N)   chunks (4 words)   rounds
+##   ---------  -----  -----------------  -----------------  ------
+##   NuGimli512   512   16                 4                  24
+##   NuGimli1024 1024   32                 8                  28
+##   NuGimli2048 2048   64                 16                 32
+##
+## Every routine is generic over N, so one name serves all three widths
+## and a fourth width fails to compile instead of failing at run time.
 
 import runePragmas
 
 const
   nugimliChunkWords* = 4
-  nugimli512Bits* = 512
-  nugimli1024Bits* = 1024
-  nugimli2048Bits* = 2048
-  nugimli512Rounds* = 24
-  nugimli1024Rounds* = 28
-  nugimli2048Rounds* = 32
   cascadeRoundDomain* = 0x43415343'u32
 
 type
-  NuGimli512* = array[nugimli512Bits div 32, uint32]
-  NuGimli1024* = array[nugimli1024Bits div 32, uint32]
-  NuGimli2048* = array[nugimli2048Bits div 32, uint32]
+  NuGimli512* = array[16, uint32]
+  NuGimli1024* = array[32, uint32]
+  NuGimli2048* = array[64, uint32]
+
+func cascadeRounds*(N: int): int {.role: {parser}.} =
+  ## N: state width in 32-bit words. Returns its round count, or 0 for a
+  ## width Cascade does not define.
+  case N
+  of 16: 24
+  of 32: 28
+  of 64: 32
+  else: 0
+
+template requireCascadeWidth*(N: static[int]) =
+  ## Stops the build for a state that is not 512, 1024 or 2048 bits.
+  when cascadeRounds(N) == 0:
+    {.error: "Cascade state must be 512, 1024, or 2048 bits".}
 
 proc swapChunkBlocks*[N: static[int]](S: var array[N, uint32], a, b,
     c: int) {.role: {helper}.} =
@@ -32,7 +49,6 @@ proc swapChunkBlocks*[N: static[int]](S: var array[N, uint32], a, b,
     raise newException(ValueError, "NuGimli chunk swap is outside the state")
   if a < b + c and b < a + c:
     raise newException(ValueError, "NuGimli chunk swap blocks overlap")
-  i = 0
   while i < c * nugimliChunkWords:
     swap(S[a * nugimliChunkWords + i], S[b * nugimliChunkWords + i])
     i = i + 1

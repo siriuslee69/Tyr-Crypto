@@ -1,8 +1,25 @@
 ## ------------------------------------------------------------------
-## NuGimli Cascade Core <- optimized reversible wide Gimli schedule
+## NuGimli Cascade Core <- reversible wide Gimli schedule, all widths
 ## ------------------------------------------------------------------
-## overlapping boxes <- lane swap on even chunks <- one-bit twist
-## <- round constants <- butterfly chunk exchanges
+##
+## One round r (counting down from the width's round count to 1):
+##
+##   1. boxes        Gimli box on chunks (0,1,2), (1,2,3), ... in order
+##   2. lane swap    even r: every even chunk swaps lanes
+##                   (r mod 4 = 0: [a b c d] -> [b a d c],
+##                    r mod 4 = 2: [a b c d] -> [c d a b])
+##   3. twist        every word rotates left by 1 bit
+##   4. constants    S[0] ^= d ^ r,  S[N-1] ^= rotl(d ^ N, r mod 32)
+##   5. butterfly    blocks of 2^((r-1) mod log2(chunks)) chunks trade places
+##
+## The inverse runs the same steps backward, rounds counting up.
+##
+##   cascadePermute(S)       S = P(S)            cascadeEncrypt(X, K) = K ^ P(X ^ K)
+##   cascadeInvert(S)        S = P^-1(S)         cascadeDecrypt(C, K) = K ^ P^-1(C ^ K)
+##   cascadePermuteWindow    rounds start .. start-count+1 only (analysis tools)
+##
+## `optimized = false` forces the portable box instead of SSE2/NEON; the
+## tests use it to check that both give the same bytes.
 
 import std/bitops
 import runePragmas
@@ -39,7 +56,6 @@ proc cascadeBoxes[N: static[int]](S: var array[N, uint32],
       applyCascadeBox(S, c, c + 1, c + 2, true, optimized)
       c = c - 1
   else:
-    c = 0
     while c + 2 < chunks:
       applyCascadeBox(S, c, c + 1, c + 2, false, optimized)
       c = c + 1
@@ -73,7 +89,6 @@ proc cascadeBitTwist[N: static[int]](S: var array[N, uint32],
   ## S: state. inverse: undo or apply the one-bit trail break.
   var
     i: int = 0
-  i = 0
   while i < N:
     when inverse:
       S[i] = rotateRightBits(S[i], 1)
@@ -84,34 +99,20 @@ proc cascadeBitTwist[N: static[int]](S: var array[N, uint32],
 proc cascadeRoundConstant[N: static[int]](S: var array[N, uint32],
     r: uint32) {.inline, role: {math}.} =
   ## S/r: state and public round receiving width-separated constants.
-  var
-    d: uint32 = 0'u32
-  d = cascadeRoundDomain xor uint32(N * 32)
+  const d: uint32 = cascadeRoundDomain xor uint32(N * 32)
   S[0] = S[0] xor d xor r
-  S[N - 1] = S[N - 1] xor rotateLeftBits(d xor uint32(N),
-    int(r and 31'u32))
-
-proc butterflyDistance(chunks: static[int], r: uint32): int
-    {.inline, role: {parser}.} =
-  ## chunks/r: public width and round selecting a power-of-two swap distance.
-  case chunks
-  of 4:
-    result = 1 shl int((r - 1'u32) mod 2'u32)
-  of 8:
-    result = 1 shl int((r - 1'u32) mod 3'u32)
-  of 16:
-    result = 1 shl int((r - 1'u32) mod 4'u32)
-  else:
-    raise newException(ValueError, "Cascade supports 4, 8, or 16 chunks")
+  S[N - 1] = S[N - 1] xor rotateLeftBits(d xor uint32(N), int(r and 31'u32))
 
 proc cascadeButterfly[N: static[int]](S: var array[N, uint32], r: uint32)
     {.inline, role: {helper}.} =
-  ## S/r: state and public round selecting a self-inverse block exchange.
-  const chunks = N div nugimliChunkWords
+  ## S/r: state and public round. Blocks of d = 2^((r-1) mod log2(chunks))
+  ## chunks trade places with their neighbour block (self-inverse).
+  const
+    chunks = N div nugimliChunkWords
+    logChunks = fastLog2(chunks)
   var
-    c, d: int = 0
-  d = butterflyDistance(chunks, r)
-  c = 0
+    d: int = 1 shl int((r - 1'u32) mod uint32(logChunks))
+    c: int = 0
   while c < chunks:
     swapChunkBlocks(S, c, c + d, d)
     c = c + d * 2
@@ -134,28 +135,14 @@ proc cascadeInverseRound[N: static[int]](S: var array[N, uint32], r: uint32,
   cascadeLaneSwap(S, r)
   cascadeBoxes(S, true, optimized)
 
-proc validateCascadeWidth(N: static[int]) {.inline, role: {parser}.} =
-  ## N: compile-time state width in 32-bit words.
-  if N != 16 and N != 32 and N != 64:
-    raise newException(ValueError, "Cascade state must be 512, 1024, or 2048 bits")
-
-proc cascadePermuteCore*[N: static[int]](S: var array[N, uint32],
-    rounds: static[int], optimized: static[bool] = true) {.role: {math}.} =
-  ## S: fixed-width state. rounds: descending full-round count.
-  var
-    r: uint32 = uint32(rounds)
-  validateCascadeWidth(N)
-  while r > 0'u32:
-    cascadeForwardRound(S, r, optimized)
-    r = r - 1'u32
-
-proc cascadePermuteWindowCore*[N: static[int]](S: var array[N, uint32],
+proc cascadePermuteWindow*[N: static[int]](S: var array[N, uint32],
     startRound, count: int, optimized: static[bool] = true) {.role: {math}.} =
-  ## S: state. startRound/count: exact descending prefix window.
+  ## S: state. Runs rounds startRound, startRound - 1, ... (count of them),
+  ## the same rounds the full permutation runs at that point.
   var
     r: uint32 = 0'u32
     remaining: int = count
-  validateCascadeWidth(N)
+  requireCascadeWidth(N)
   if startRound <= 0 or count < 0 or count > startRound:
     raise newException(ValueError, "Cascade round window is invalid")
   r = uint32(startRound)
@@ -164,13 +151,23 @@ proc cascadePermuteWindowCore*[N: static[int]](S: var array[N, uint32],
     r = r - 1'u32
     remaining = remaining - 1
 
-proc cascadeInvertCore*[N: static[int]](S: var array[N, uint32],
-    rounds: static[int], optimized: static[bool] = true) {.role: {math}.} =
-  ## S: permuted state. rounds: ascending inverse-round count.
+proc cascadePermute*[N: static[int]](S: var array[N, uint32],
+    optimized: static[bool] = true) {.role: {math}.} =
+  ## S: 512-, 1024- or 2048-bit state, permuted in place (all rounds).
+  var
+    r: uint32 = uint32(cascadeRounds(N))
+  requireCascadeWidth(N)
+  while r > 0'u32:
+    cascadeForwardRound(S, r, optimized)
+    r = r - 1'u32
+
+proc cascadeInvert*[N: static[int]](S: var array[N, uint32],
+    optimized: static[bool] = true) {.role: {math}.} =
+  ## S: permuted state, turned back in place (rounds 1 .. all).
   var
     r: uint32 = 1'u32
-  validateCascadeWidth(N)
-  while r <= uint32(rounds):
+  requireCascadeWidth(N)
+  while r <= uint32(cascadeRounds(N)):
     cascadeInverseRound(S, r, optimized)
     r = r + 1'u32
 
@@ -179,23 +176,22 @@ proc xorCascadeKey[N: static[int]](S: var array[N, uint32],
   ## S/K: same-width state and key xor layer.
   var
     i: int = 0
-  i = 0
   while i < N:
     S[i] = S[i] xor K[i]
     i = i + 1
 
-proc cascadeEncryptCore*[N: static[int]](X, K: array[N, uint32],
-    rounds: static[int]): array[N, uint32] {.role: {encryptor}.} =
-  ## X/K: same-width block and key for K xor P(X xor K).
+proc cascadeEncrypt*[N: static[int]](X, K: array[N, uint32]): array[N, uint32]
+    {.role: {encryptor}.} =
+  ## X/K: same-width block and key. Returns K xor P(X xor K).
   result = X
   xorCascadeKey(result, K)
-  cascadePermuteCore(result, rounds)
+  cascadePermute(result)
   xorCascadeKey(result, K)
 
-proc cascadeDecryptCore*[N: static[int]](C, K: array[N, uint32],
-    rounds: static[int]): array[N, uint32] {.role: {decryptor}.} =
-  ## C/K: same-width block and key for K xor P^-1(C xor K).
+proc cascadeDecrypt*[N: static[int]](C, K: array[N, uint32]): array[N, uint32]
+    {.role: {decryptor}.} =
+  ## C/K: same-width block and key. Returns K xor P^-1(C xor K).
   result = C
   xorCascadeKey(result, K)
-  cascadeInvertCore(result, rounds)
+  cascadeInvert(result)
   xorCascadeKey(result, K)

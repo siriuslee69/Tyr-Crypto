@@ -7,8 +7,8 @@ import runePragmas
 import otter_repo_evaluation
 import ../../src/tyr/ciphers/nugimli/types
 import ../../src/tyr/ciphers/nugimli/domain
-import ../../src/tyr/ciphers/nugimli/cascade
-import ../../src/tyr/ciphers/nugimli/reference
+import ../../src/tyr/ciphers/nugimli/core
+
 
 const
   leakageSamplesPerClass = 50_000
@@ -42,74 +42,55 @@ proc fillWords[N: static[int]](S: var array[N, uint32], seed: var uint64)
     S[i] = uint32(nextSplitMix(seed))
     i = i + 1
 
-proc encryptCascade[N: static[int]](X, K: array[N, uint32]): array[N, uint32]
-    {.inline, role: {encryptor}.} =
-  ## X/K: exact-width plaintext and key.
-  when N == 16:
-    result = cascadeEncrypt512(X, K)
-  elif N == 32:
-    result = cascadeEncrypt1024(X, K)
-  else:
-    result = cascadeEncrypt2048(X, K)
-
-proc decryptCascade[N: static[int]](C, K: array[N, uint32]): array[N, uint32]
-    {.inline, role: {decryptor}.} =
-  ## C/K: exact-width ciphertext and key.
-  when N == 16:
-    result = cascadeDecrypt512(C, K)
-  elif N == 32:
-    result = cascadeDecrypt1024(C, K)
-  else:
-    result = cascadeDecrypt2048(C, K)
-
 proc measureCipher[N: static[int]](op: LeakageOperation,
     randomClass: bool, seed: var uint64, sink: var uint32): float64
     {.role: {orchestrator}.} =
   ## op/randomClass/seed: timing class. sink: optimizer-resistant output use.
   var
-    X, K, C, T, R: array[N, uint32]
-    started, stopped: MonoTime
+    X, K, C, T, R: array[N, uint32] = default(array[N, uint32])
+    started, stopped: MonoTime = default(MonoTime)
     i: int = 0
   fillWords(X, seed)
   if randomClass:
     fillWords(K, seed)
-  C = encryptCascade(X, K)
+  C = cascadeEncrypt(X, K)
   started = getMonoTime()
   i = 0
   while i < leakageBatch:
     T = X
     T[0] = T[0] xor uint32(i)
     if op == loEncrypt:
-      R = encryptCascade(T, K)
+      R = cascadeEncrypt(T, K)
     else:
-      R = decryptCascade(C, K)
+      R = cascadeDecrypt(C, K)
     i = i + 1
   stopped = getMonoTime()
   sink = sink xor R[0]
   result = float64(stopped.ticks - started.ticks) / float64(leakageBatch)
 
-proc deriveCascade[N: static[int]](S: array[N, uint32],
+proc deriveNextWidthKey[N: static[int]](S: array[N, uint32],
     tag: CascadeDomainTag): uint32 {.role: {truthBuilder}.} =
-  ## S/tag: exact-width source and fixed public domain tag.
+  ## S/tag: source state and tag. Derives into the next width up
+  ## (512 -> 1024 -> 2048 -> 512) and returns the first key word.
   when N == 16:
-    result = deriveCascade1024(S, tag).key[0]
+    result = deriveCascade(NuGimli1024, S, tag).key[0]
   elif N == 32:
-    result = deriveCascade2048(S, tag).key[0]
+    result = deriveCascade(NuGimli2048, S, tag).key[0]
   else:
-    result = deriveCascade512(S, tag).key[0]
+    result = deriveCascade(NuGimli512, S, tag).key[0]
 
 proc measureDerivation[N: static[int]](randomClass: bool, seed: var uint64,
     tag: CascadeDomainTag, sink: var uint32): float64
     {.role: {orchestrator}.} =
   ## randomClass/seed/tag: timing class. sink: optimizer-resistant output use.
   var
-    S: array[N, uint32]
-    started, stopped: MonoTime
+    S: array[N, uint32] = default(array[N, uint32])
+    started, stopped: MonoTime = default(MonoTime)
     value: uint32 = 0'u32
   if randomClass:
     fillWords(S, seed)
   started = getMonoTime()
-  value = deriveCascade(S, tag)
+  value = deriveNextWidthKey(S, tag)
   stopped = getMonoTime()
   sink = sink xor value
   result = float64(stopped.ticks - started.ticks)

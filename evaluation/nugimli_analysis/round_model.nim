@@ -246,7 +246,7 @@ proc modelPermute*[N: static[int]](S: var array[N, uint32], m: LaneMix)
     {.role: {math}.} =
   ## S: state through all rounds, R down to 1.
   var
-    r: int = fullRounds[N]()
+    r: int = cascadeRounds(N)
   while r >= 1:
     forwardRound(S, uint32(r), m)
     r = r - 1
@@ -256,6 +256,6 @@ proc modelInvert*[N: static[int]](S: var array[N, uint32], m: LaneMix)
   ## S: state through all inverse rounds, 1 up to R.
   var
     r: int = 1
-  while r <= fullRounds[N]():
+  while r <= cascadeRounds(N):
     inverseRound(S, uint32(r), m)
     r = r + 1

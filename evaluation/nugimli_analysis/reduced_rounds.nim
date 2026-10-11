@@ -142,7 +142,7 @@ proc reachSummary*[N: static[int]](backward: bool, m: LaneMix): ReachSummary
     {.role: {orchestrator}.} =
   ## backward/m: direction and lane-mix variant, over every window start.
   var
-    R: int = fullRounds[N]()
+    R: int = cascadeRounds(N)
     s: int = 1
     one: Reach = default(Reach)
   while s <= R:
@@ -225,7 +225,7 @@ proc zeroSumRounds*[N: static[int]](P: seq[int], backward: bool, m: LaneMix): in
     Z: seq[array[N, uint32]] = newSeq[array[N, uint32]](zeroSumMaxRounds)
     seed: uint64 = 777'u64
     b: int = 0
-    start: int = (if backward: 1 else: fullRounds[N]())
+    start: int = (if backward: 1 else: cascadeRounds(N))
   while b < zeroSumBases:
     cubeOnce(Z, P, start, backward, m, seed)
     b = b + 1
@@ -302,7 +302,7 @@ proc symmetryRounds*[N: static[int]](kind: int, m: LaneMix): int
   while t < symmetrySamples * symmetryMaxRounds:
     k = t mod symmetryMaxRounds
     if k == 0: symmetricState(S, kind, seed)
-    forwardRound(S, uint32(fullRounds[N]() - k), m)
+    forwardRound(S, uint32(cascadeRounds(N) - k), m)
     Sum[k] = Sum[k] + float(asymmetry(S, kind))
     t = t + 1
   result = symmetryMaxRounds + 1

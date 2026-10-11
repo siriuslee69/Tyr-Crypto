@@ -9,24 +9,35 @@
 ##   encrypt:  C = K xor P(X xor K)                  P = the Cascade scrambler
 ##   decrypt:  X = K xor P^-1(C xor K)
 ##
+## Every call works on all three widths; the state type picks the width:
+##
+##   var S: NuGimli1024                   # or NuGimli512 / NuGimli2048
+##   cascadePermute(S)                    # S = P(S)
+##   cascadeInvert(S)                     # S = P^-1(S)
+##   C = cascadeEncrypt(X, K)             # X, K, C: one width
+##   X = cascadeDecrypt(C, K)
+##   m = deriveCascade(NuGimli2048, S, tag)  # key + state for another width
+##
 ## ⚠ No published cryptanalysis exists. Do not protect real data with it
 ##   until an independent review says which uses are safe.
 ## ⚠ The key layer has a built-in relation for EVERY difference D:
 ##       encrypt(X xor D, K xor D) == encrypt(X, K) xor D
 ##   Never build keys by xoring a counter or a label into one master key.
-##   Derive each key with `deriveCascade512/1024/2048` instead.
+##   Derive each key with `deriveCascade` instead.
 ## ⚠ Decryption runs about 7-10x slower than encryption: undoing one
 ##   Gimli box takes 32 passes instead of one.
 ## ⚠ Design revision 2 (2026-10-11) changed every output: the lane swap
 ##   now hits every even chunk. Data from revision 1 does not decrypt.
 ##
-## The full implementation lives in `./nugimli/`. This file only lists
-## what callers may use. The direct reference loops in
-## `./nugimli/reference.nim` are a test oracle and stay out of it.
+## The implementation lives in `./nugimli/`:
+##   types    widths, round counts, chunk swap
+##   core     the round steps and the five calls above
+##   domain   deriveCascade (tagged SHAKE256)
+##   scalar_box / simd_box   the Gimli box, portable and SSE2/NEON
 ## Review and measurements: docs/NUGIMLI_REVIEW.md.
 
 import ./nugimli/types
 import ./nugimli/domain
-import ./nugimli/cascade
+import ./nugimli/core
 
-export types, domain, cascade
+export types, domain, core

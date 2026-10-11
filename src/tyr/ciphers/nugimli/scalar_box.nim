@@ -44,7 +44,7 @@ proc gimliBoxInverseAtScalar*[N: static[int]](S: var array[N, uint32],
   var
     i: int = 0
     oa, ob, oc: uint32 = 0
-    A: array[3, uint32]
+    A: array[3, uint32] = default(array[3, uint32])
   i = 0
   while i < nugimliChunkWords:
     oa = S[a * nugimliChunkWords + i]

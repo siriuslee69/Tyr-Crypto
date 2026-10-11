@@ -165,7 +165,7 @@ proc snapshotMetrics*(M: StreamMetricMemory, C: var StreamCheckpoint,
     runNist: bool) {.role: {truthBuilder}.} =
   ## M: completed interval metrics. C: report row. runNist: run core suite.
   var
-    P: NistParams
+    P: NistParams = default(NistParams)
     R: seq[NistResult] = @[]
   C.sampledBytes = M.sampledBytes
   C.shannonEntropy = shannonEntropy(M)

@@ -55,7 +55,7 @@ proc parseConfig(): CampaignConfig {.role: {parser}.} =
 proc runStreamEvaluation*() {.role: {metaOrchestrator}.} =
   var
     C: CampaignConfig = parseConfig()
-    R: StreamCampaignResult
+    R: StreamCampaignResult = default(StreamCampaignResult)
     markdown, csv: string = ""
     markdownPath: string = joinPath("build", "nugimli_stream_campaign.md")
     csvPath: string = joinPath("build", "nugimli_stream_campaign.csv")

@@ -6,16 +6,10 @@ import std/bitops
 import runePragmas
 import ../../src/tyr/ciphers/nugimli/types
 import ../../src/tyr/ciphers/nugimli/domain
-import ../../src/tyr/ciphers/nugimli/cascade
-import ../../src/tyr/ciphers/nugimli/reference
 import ../../src/tyr/ciphers/nugimli/core
 
-proc fullRounds*[N: static[int]](): int {.inline, role: {parser}.} =
-  ## N: state width in 32-bit words.
-  when N == 16: result = nugimli512Rounds
-  elif N == 32: result = nugimli1024Rounds
-  elif N == 64: result = nugimli2048Rounds
-  else: raise newException(ValueError, "unsupported Cascade analysis width")
+## The analysis tools reach the cipher through this file.
+export types, domain, core
 
 proc nextSplitMix*(S: var uint64): uint64 {.inline, role: {math}.} =
   ## S: deterministic SplitMix64 state.
@@ -49,40 +43,10 @@ proc xorState*[N: static[int]](S: var array[N, uint32],
     S[i] = S[i] xor K[i]
     i = i + 1
 
-proc permuteFull*[N: static[int]](S: var array[N, uint32],
-    optimized: static[bool] = true) {.role: {math}.} =
-  ## S: Cascade state. optimized: SIMD or portable box path.
-  when N == 16: cascadePermuteCore(S, nugimli512Rounds, optimized)
-  elif N == 32: cascadePermuteCore(S, nugimli1024Rounds, optimized)
-  else: cascadePermuteCore(S, nugimli2048Rounds, optimized)
-
-proc invertFull*[N: static[int]](S: var array[N, uint32],
-    optimized: static[bool] = true) {.role: {math}.} =
-  ## S: Cascade state. optimized: SIMD or portable inverse box path.
-  when N == 16: cascadeInvertCore(S, nugimli512Rounds, optimized)
-  elif N == 32: cascadeInvertCore(S, nugimli1024Rounds, optimized)
-  else: cascadeInvertCore(S, nugimli2048Rounds, optimized)
-
-proc encryptFull*[N: static[int]](X, K: array[N, uint32]): array[N, uint32]
-    {.role: {encryptor}.} =
-  ## X/K: same-width Cascade plaintext and key.
-  result = X
-  xorState(result, K)
-  permuteFull(result)
-  xorState(result, K)
-
-proc decryptFull*[N: static[int]](C, K: array[N, uint32]): array[N, uint32]
-    {.role: {decryptor}.} =
-  ## C/K: same-width Cascade ciphertext and key.
-  result = C
-  xorState(result, K)
-  invertFull(result)
-  xorState(result, K)
-
 proc permuteRounds*[N: static[int]](S: var array[N, uint32],
     rounds: int) {.role: {math}.} =
   ## S/rounds: Cascade state and prefix length from the full schedule.
-  cascadePermuteWindowCore(S, fullRounds[N](), rounds)
+  cascadePermuteWindow(S, cascadeRounds(N), rounds)
 
 proc hammingDistance*[N: static[int]](A, B: array[N, uint32]): int
     {.inline, role: {math}.} =

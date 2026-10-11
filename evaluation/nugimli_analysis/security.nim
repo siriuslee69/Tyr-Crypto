@@ -82,10 +82,10 @@ proc runAvalancheTrial[N: static[int]](M: var AvalancheMemory,
     {.role: {math}.} =
   ## M: accumulator. X/K: base cipher case. keyMode: flip key or plaintext.
   var
-    base, changed: array[N, uint32]
-    TX, TK: array[N, uint32]
+    base, changed: array[N, uint32] = default(array[N, uint32])
+    TX, TK: array[N, uint32] = default(array[N, uint32])
     bit, word, shift: int = 0
-  base = encryptFull(X, K)
+  base = cascadeEncrypt(X, K)
   bit = 0
   while bit < N * 32:
     TX = X
@@ -96,7 +96,7 @@ proc runAvalancheTrial[N: static[int]](M: var AvalancheMemory,
       TK[word] = TK[word] xor (1'u32 shl shift)
     else:
       TX[word] = TX[word] xor (1'u32 shl shift)
-    changed = encryptFull(TX, TK)
+    changed = cascadeEncrypt(TX, TK)
     recordDifference(M, base, changed, bit)
     bit = bit + 1
 
@@ -135,7 +135,7 @@ proc evaluateAvalanche*[N: static[int]](keyMode: bool,
   ## keyMode: plaintext or key experiment. seedValue: reproducible input seed.
   var
     M: AvalancheMemory = initAvalancheMemory(N * 32, N)
-    X, K: array[N, uint32]
+    X, K: array[N, uint32] = default(array[N, uint32])
     seed: uint64 = seedValue
     trial: int = 0
   trial = 0
@@ -150,8 +150,8 @@ proc evaluateDifferential*[N: static[int]](seedValue: uint64): DifferentialResul
     {.role: {orchestrator}.} =
   ## seedValue: fixed one-bit differential input seed.
   var
-    Counts: array[differentialBuckets, int]
-    X, Y, K, A, B: array[N, uint32]
+    Counts: array[differentialBuckets, int] = default(array[differentialBuckets, int])
+    X, Y, K, A, B: array[N, uint32] = default(array[N, uint32])
     seed: uint64 = seedValue
     i, bucket, distance, words: int = 0
     totalDistance: int64 = 0
@@ -163,8 +163,8 @@ proc evaluateDifferential*[N: static[int]](seedValue: uint64): DifferentialResul
     fillState(X, seed)
     Y = X
     Y[0] = Y[0] xor 1'u32
-    A = encryptFull(X, K)
-    B = encryptFull(Y, K)
+    A = cascadeEncrypt(X, K)
+    B = cascadeEncrypt(Y, K)
     bucket = int((A[0] xor B[0]) and uint32(differentialBuckets - 1))
     Counts[bucket] = Counts[bucket] + 1
     distance = hammingDistance(A, B)
@@ -219,8 +219,8 @@ proc evaluateWeakPath*[N: static[int]](keyMode: bool,
     inputBit: int, seedValue: uint64): WeakPathResult {.role: {orchestrator}.} =
   ## keyMode/inputBit: candidate path. seedValue: independent validation seed.
   var
-    H: HashSet[uint64]
-    X, K, TX, TK, A, B: array[N, uint32]
+    H: HashSet[uint64] = default(HashSet[uint64])
+    X, K, TX, TK, A, B: array[N, uint32] = default(array[N, uint32])
     seed: uint64 = seedValue
     i, word, shift, distance, words: int = 0
   result.inputBit = inputBit
@@ -239,8 +239,8 @@ proc evaluateWeakPath*[N: static[int]](keyMode: bool,
       TK[word] = TK[word] xor (1'u32 shl shift)
     else:
       TX[word] = TX[word] xor (1'u32 shl shift)
-    A = encryptFull(X, K)
-    B = encryptFull(TX, TK)
+    A = cascadeEncrypt(X, K)
+    B = cascadeEncrypt(TX, TK)
     if i == 0:
       result.firstDifference = differenceText(A, B)
     distance = hammingDistance(A, B)
@@ -314,7 +314,7 @@ proc evaluateComponents*[N: static[int]](seedValue: uint64): ComponentResult
   ## seedValue: word-influence graph sample seed.
   var
     P: seq[int] = @[]
-    X, K, Y, A, B: array[N, uint32]
+    X, K, Y, A, B: array[N, uint32] = default(array[N, uint32])
     seed: uint64 = seedValue
     bit, word, shift: int = 0
   P.setLen(N)
@@ -324,14 +324,14 @@ proc evaluateComponents*[N: static[int]](seedValue: uint64): ComponentResult
     bit = bit + 1
   fillState(X, seed)
   fillState(K, seed)
-  A = encryptFull(X, K)
+  A = cascadeEncrypt(X, K)
   bit = 0
   while bit < N * 32:
     Y = X
     word = bit div 32
     shift = bit mod 32
     Y[word] = Y[word] xor (1'u32 shl shift)
-    B = encryptFull(Y, K)
+    B = cascadeEncrypt(Y, K)
     joinChangedOutputs(P, word, A, B)
     bit = bit + 1
   result = finishComponents(P)
@@ -340,14 +340,14 @@ proc buildCipherStream[N: static[int]](seedValue: uint64): seq[uint8]
     {.role: {dataWriter}.} =
   ## seedValue: fixed-key counter-stream seed.
   var
-    X, K, C: array[N, uint32]
+    X, K, C: array[N, uint32] = default(array[N, uint32])
     seed: uint64 = seedValue
     counter: uint64 = 0'u64
   result = newSeqOfCap[uint8](statisticalBytes)
   fillState(K, seed)
   while result.len < statisticalBytes:
     setCounterState(X, counter)
-    C = encryptFull(X, K)
+    C = cascadeEncrypt(X, K)
     appendStateBytes(result, C, statisticalBytes)
     counter = counter + 1'u64
 
@@ -356,7 +356,7 @@ proc evaluateStatistics*[N: static[int]](seedValue: uint64): StatisticalResult
   ## seedValue: fixed-key counter-stream statistical seed.
   var
     B: seq[uint8] = @[]
-    P: NistParams
+    P: NistParams = default(NistParams)
     R: seq[NistResult] = @[]
     i: int = 0
   B = buildCipherStream[N](seedValue)
@@ -379,7 +379,7 @@ proc evaluateDiffusionPoint[N: static[int]](rounds: int,
   const
     positions: array[3, int] = [0, (N * 32) div 2, N * 32 - 1]
   var
-    X, A, B: array[N, uint32]
+    X, A, B: array[N, uint32] = default(array[N, uint32])
     seed: uint64 = seedValue
     i, word, shift, distance, words: int = 0
     total: int = 0
@@ -414,5 +414,5 @@ proc evaluateDiffusion*[N: static[int]](seedValue: uint64): seq[DiffusionPoint]
   while i < earlyRounds.len:
     result.add(evaluateDiffusionPoint[N](earlyRounds[i], seedValue))
     i = i + 1
-  rounds = fullRounds[N]()
+  rounds = cascadeRounds(N)
   result.add(evaluateDiffusionPoint[N](rounds, seedValue))

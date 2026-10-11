@@ -22,7 +22,7 @@ suite "nugimli stream campaign":
 
   test "width adapters preserve their declared behavior":
     var
-      source, zeroPad, repeated, folded: WideState
+      source, zeroPad, repeated, folded: WideState = default(WideState)
       i: int = 0
     source.wordCount = 16
     i = 0

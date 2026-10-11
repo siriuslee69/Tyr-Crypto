@@ -267,12 +267,12 @@ proc runStage[N: static[int]](J: var StreamJob, initial, keyWide: WideState,
     {.role: {orchestrator}.} =
   ## J: job receiving checkpoints. initial/keyWide/blocks/stage: stage settings.
   var
-    X, base, K, C: array[N, uint32]
-    M: StreamMetricMemory
+    X, base, K, C: array[N, uint32] = default(array[N, uint32])
+    M: StreamMetricMemory = default(StreamMetricMemory)
     Points: seq[uint64] = checkpointsFor(blocks, J.mode == smCrossWidth)
     pointIndex: int = 0
     blockIndex, intervalStart: uint64 = 0'u64
-    R: StreamCheckpoint
+    R: StreamCheckpoint = default(StreamCheckpoint)
   X = arrayFromWide[N](initial)
   base = X
   K = arrayFromWide[N](keyWide)
@@ -284,7 +284,7 @@ proc runStage[N: static[int]](J: var StreamJob, initial, keyWide: WideState,
       X = base
       X[0] = X[0] xor uint32(blockIndex - 1'u64)
       X[1] = X[1] xor uint32((blockIndex - 1'u64) shr 32)
-    C = encryptFull(X, K)
+    C = cascadeEncrypt(X, K)
     observeState(M, C, blockIndex)
     if J.mode != smCounter:
       X = C
@@ -315,7 +315,7 @@ proc dispatchStage(J: var StreamJob, initial, key: WideState, blocks: uint64,
 proc processBaseJob(J: var StreamJob) {.role: {orchestrator}.} =
   ## J: direct counter or feedback stream job.
   var
-    state, key: WideState
+    state, key: WideState = default(WideState)
   state = wideFromMaterial(J.material, J.route[0], 0)
   key = wideFromMaterial(J.material, J.route[0], 73)
   discard dispatchStage(J, state, key, J.baseBlocks, 0, true)
@@ -330,7 +330,7 @@ proc stageKey(J: StreamJob, state: WideState, stage: int): WideState
 proc processRouteJob(J: var StreamJob) {.role: {orchestrator}.} =
   ## J: three-stage cross-width feedback route.
   var
-    state, key, output: WideState
+    state, key, output: WideState = default(WideState)
     stage, targetWords: int = 0
     domain: uint32 = 0'u32
   state = wideFromMaterial(J.material, J.route[0], 0)
@@ -402,7 +402,7 @@ proc addBaseWidthJobs(J: var seq[StreamJob], source: EntropySource,
   ## J: destination. source/width/block counts/id: two direct stream modes.
   var
     modeIndex: int = 0
-    job: StreamJob
+    job: StreamJob = default(StreamJob)
   modeIndex = 0
   while modeIndex < 2:
     job = default(StreamJob)
@@ -435,7 +435,7 @@ proc addRouteAdapterJobs(J: var seq[StreamJob], source: EntropySource,
   ## J: destination. source/route/adapter/block counts/id: both key feeds.
   var
     feedIndex: int = 0
-    job: StreamJob
+    job: StreamJob = default(StreamJob)
   feedIndex = 0
   while feedIndex <= ord(FeedMode.high):
     job = default(StreamJob)
@@ -457,7 +457,7 @@ proc addRouteJobs(J: var seq[StreamJob], source: EntropySource,
   ## J: destination. source/block counts/id: all route job dimensions.
   var
     routeIndex: int = 0
-    route: array[3, int]
+    route: array[3, int] = default(array[3, int])
   routeIndex = 0
   while routeIndex < 27:
     route = routeFromIndex(routeIndex)
@@ -469,7 +469,7 @@ proc buildStreamJobs*(baseBlocks, routeBlocks: uint64): seq[StreamJob]
   ## baseBlocks/routeBlocks: direct and per-route-stage block counts.
   var
     sourceIndex, id: int = 0
-    source: EntropySource
+    source: EntropySource = default(EntropySource)
   sourceIndex = 0
   while sourceIndex <= ord(EntropySource.high):
     source = EntropySource(sourceIndex)
@@ -554,7 +554,7 @@ proc runStreamCampaign*(threadCount: int, baseBlocks: uint64 = defaultBaseBlocks
   var
     J: seq[StreamJob] = @[]
     W: seq[StreamWorker] = @[]
-    started, stopped: MonoTime
+    started, stopped: MonoTime = default(MonoTime)
     threads: int = max(1, threadCount)
   J = buildStreamJobs(baseBlocks, routeBlocks)
   threads = min(threads, J.len)

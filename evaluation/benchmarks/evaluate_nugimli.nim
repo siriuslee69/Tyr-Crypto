@@ -50,7 +50,7 @@ proc appendProfiles(R: var seq[ProfileResult], seed: uint64)
 proc runEvaluation*() {.role: {metaOrchestrator}.} =
   var
     R: seq[ProfileResult] = @[]
-    baseline: StableBenchResult
+    baseline: StableBenchResult = default(StableBenchResult)
     text: string = ""
     path: string = joinPath("build", "nugimli_evaluation.md")
   appendProfiles(R, evaluationSeed xor 0x22'u64)

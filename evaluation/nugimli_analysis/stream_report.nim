@@ -134,7 +134,7 @@ proc routeAggregates(R: StreamCampaignResult): Table[string, RouteAggregate]
   var
     i: int = 0
     key: string = ""
-    A: RouteAggregate
+    A: RouteAggregate = default(RouteAggregate)
   i = 0
   while i < R.checkpoints.len:
     if R.checkpoints[i].mode == smCrossWidth and
@@ -152,7 +152,7 @@ proc appendRouteTable(s: var string, R: StreamCampaignResult)
     T: Table[string, RouteAggregate] = routeAggregates(R)
     K: seq[string] = @[]
     i: int = 0
-    A: RouteAggregate
+    A: RouteAggregate = default(RouteAggregate)
   for key in T.keys:
     K.add(key)
   K.sort()
@@ -191,11 +191,11 @@ proc appendNistCampaignTable(s: var string, R: StreamCampaignResult)
       "cumulative sums forward", "cumulative sums reverse"
     ]
   var
-    Failures: array[11, int]
+    Failures: array[11, int] = default(array[11, int])
     i, bit, jobs: int = 0
     rate: float64 = 0.0
     status: string = ""
-    P: ProportionResult
+    P: ProportionResult = default(ProportionResult)
   i = 0
   while i < R.checkpoints.len:
     if R.checkpoints[i].nistTotal == 11:
@@ -260,11 +260,11 @@ proc buildRegressions(R: StreamCampaignResult): seq[RegressionRow]
     {.role: {truthBuilder}.} =
   ## R: campaign reduced to first-versus-last entropy deltas.
   var
-    First, Last: Table[string, StreamCheckpoint]
+    First, Last: Table[string, StreamCheckpoint] = default(Table[string, StreamCheckpoint])
     i: int = 0
     key: string = ""
-    C0, C1: StreamCheckpoint
-    row: RegressionRow
+    C0, C1: StreamCheckpoint = default(StreamCheckpoint)
+    row: RegressionRow = default(RegressionRow)
   i = 0
   while i < R.checkpoints.len:
     if R.checkpoints[i].sampledBytes >= 100_000'u64:

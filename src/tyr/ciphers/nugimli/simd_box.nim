@@ -19,7 +19,7 @@ proc loadChunk[N: static[int]](S: array[N, uint32], c: int): NuGimliVec4
     {.inline, role: {dataFetcher}.} =
   ## S: source state. c: 128-bit chunk index.
   var
-    A: array[nugimliChunkWords, uint32]
+    A: array[nugimliChunkWords, uint32] = default(array[nugimliChunkWords, uint32])
   A[0] = S[c * nugimliChunkWords]
   A[1] = S[c * nugimliChunkWords + 1]
   A[2] = S[c * nugimliChunkWords + 2]
@@ -30,7 +30,7 @@ proc storeChunk[N: static[int]](v: NuGimliVec4, S: var array[N, uint32],
     c: int) {.inline, role: {dataWriter}.} =
   ## v: SIMD value. S: destination state. c: 128-bit chunk index.
   var
-    A: array[nugimliChunkWords, uint32]
+    A: array[nugimliChunkWords, uint32] = default(array[nugimliChunkWords, uint32])
   A = storeU32x4(v)
   S[c * nugimliChunkWords] = A[0]
   S[c * nugimliChunkWords + 1] = A[1]
@@ -41,8 +41,8 @@ proc gimliBoxAtSimd*[N: static[int]](S: var array[N, uint32], a, b,
     c: int) {.inline, role: {math}.} =
   ## S: state. a/b/c: 128-bit chunk indices used as Gimli rows.
   var
-    av, bv, cv: NuGimliVec4
-    x, y, z: NuGimliVec4
+    av, bv, cv: NuGimliVec4 = default(NuGimliVec4)
+    x, y, z: NuGimliVec4 = default(NuGimliVec4)
   av = loadChunk(S, a)
   bv = loadChunk(S, b)
   cv = loadChunk(S, c)
@@ -61,8 +61,8 @@ proc gimliBoxInverseAtSimd*[N: static[int]](S: var array[N, uint32],
   ## S: state. a/b/c: chunks produced by gimliBoxAtSimd.
   var
     bit: int = 0
-    oa, ob, oc: NuGimliVec4
-    x, y, z: NuGimliVec4
+    oa, ob, oc: NuGimliVec4 = default(NuGimliVec4)
+    x, y, z: NuGimliVec4 = default(NuGimliVec4)
   oa = loadChunk(S, a)
   ob = loadChunk(S, b)
   oc = loadChunk(S, c)

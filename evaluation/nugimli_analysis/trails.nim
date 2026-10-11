@@ -152,7 +152,7 @@ proc greedyTrails*[N: static[int]](m: LaneMix): seq[float] {.role: {orchestrator
   ## m: variant. Index k = lowest greedy weight over k rounds, from any
   ## single active input bit at any starting round.
   var
-    R: int = fullRounds[N]()
+    R: int = cascadeRounds(N)
     j: int = 0
   result = newSeq[float](R + 1)
   while j <= R:
@@ -228,7 +228,7 @@ proc predictedTrail[N: static[int]](rounds: int, m: LaneMix,
     j: int = 0
     w: float = 0.0
   result = Inf
-  while j < (fullRounds[N]() - rounds + 1) * N * 32:
+  while j < (cascadeRounds(N) - rounds + 1) * N * 32:
     D = default(array[N, uint32])
     D[(j mod (N * 32)) div 32] = 1'u32 shl (j mod 32)
     w = trailWeight(D, rounds + j div (N * 32), rounds, m)

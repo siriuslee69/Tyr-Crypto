@@ -24,7 +24,7 @@ proc modelMatchesSource[N: static[int]](seed: uint64): bool {.role: {helper}.} =
   A = X
   B = X
   modelPermute(A, lmEvenChunks)
-  permuteFull(B)
+  cascadePermute(B)
   result = A == B
   modelInvert(A, lmEvenChunks)
   result = result and A == X

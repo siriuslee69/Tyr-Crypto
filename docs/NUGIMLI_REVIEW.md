@@ -496,7 +496,7 @@ integrity check. Using it on several blocks of real data would be "ECB"
 - **Security ceiling.** SHAKE256 gives at most 256-bit security. A 2048-bit
   "key" made this way is still a 256-bit secret, spread out. 256 bits is
   plenty, but the width is not extra strength.
-- **README pattern** `cascadeEncrypt2048(target.state, target.key)` encrypts
+- **README pattern** `cascadeEncrypt(target.state, target.key)` encrypts
   one derived value with another derived value from the same SHAKE call.
   The result is a fixed function of the source, so it cannot be stronger
   than SHAKE256 output of the same length. Use it to test the API, not as
