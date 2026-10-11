@@ -38,8 +38,8 @@ proc copyRoot(dst: var array[spxN, byte], src: openArray[byte]) =
 proc sphincsTyrSeedKeypair*(v: SphincsVariant, seed: openArray[byte]): SphincsTyrKeypair {.otterTrace.} =
   var
     p = params(v)
-    ctx: SphincsCtx
-    root: array[spxN, byte]
+    ctx: SphincsCtx = default(SphincsCtx)
+    root: array[spxN, byte] = default(array[spxN, byte])
   defer:
     clearCtx(ctx)
   if seed.len != p.seedBytes:
@@ -77,13 +77,13 @@ proc sphincsTyrSignDerand*(v: SphincsVariant, msg: openArray[byte], sk: openArra
   ## `0 || len(ctx) || ctx || M`; adding that prefix requires a distinct API.
   var
     p = params(v)
-    ctx: SphincsCtx
-    r: array[spxN, byte]
-    mhash: array[spxForsMsgBytes, byte]
-    rootNode: array[spxN, byte]
+    ctx: SphincsCtx = default(SphincsCtx)
+    r: array[spxN, byte] = default(array[spxN, byte])
+    mhash: array[spxForsMsgBytes, byte] = default(array[spxForsMsgBytes, byte])
+    rootNode: array[spxN, byte] = default(array[spxN, byte])
     tree: uint64 = 0
     idxLeaf: uint32 = 0
-    wotsAddr, treeAddr: SphincsAddress
+    wotsAddr, treeAddr: SphincsAddress = default(SphincsAddress)
     sig = newSeq[byte](p.signatureBytes)
     sigOff: int = 0
   defer:
@@ -130,16 +130,16 @@ proc sphincsTyrVerify*(v: SphincsVariant, msg, sig, pk: openArray[byte]): bool {
   ## legacy raw-message transcript and therefore is not SLH-DSA verification.
   var
     p = params(v)
-    ctx: SphincsCtx
-    pubRoot: array[spxN, byte]
-    mhash: array[spxForsMsgBytes, byte]
-    wotsPk: array[spxWotsBytes, byte]
-    rootNode: array[spxN, byte]
-    leaf: array[spxN, byte]
+    ctx: SphincsCtx = default(SphincsCtx)
+    pubRoot: array[spxN, byte] = default(array[spxN, byte])
+    mhash: array[spxForsMsgBytes, byte] = default(array[spxForsMsgBytes, byte])
+    wotsPk: array[spxWotsBytes, byte] = default(array[spxWotsBytes, byte])
+    rootNode: array[spxN, byte] = default(array[spxN, byte])
+    leaf: array[spxN, byte] = default(array[spxN, byte])
     tree: uint64 = 0
     idxLeaf: uint32 = 0
     sigOff: int = 0
-    wotsAddr, treeAddr, wotsPkAddr: SphincsAddress
+    wotsAddr, treeAddr, wotsPkAddr: SphincsAddress = default(SphincsAddress)
   if sig.len != p.signatureBytes or pk.len != p.publicKeyBytes:
     return false
   initCtx(ctx, pk.toOpenArray(0, 15), pk.toOpenArray(0, 15))
