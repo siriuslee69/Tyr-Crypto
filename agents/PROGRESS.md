@@ -1,4 +1,4 @@
-Commit Message: NuGimli: one generic API for all widths, reference oracle out of src
+Commit Message: Security watch: McEliece 2026 attack warning, Frodo select barrier, P-256 seed noted
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -248,6 +248,14 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
+- (2026-10-16) Upstream/security check. Classic McEliece: ePrint 2026/1630,
+  1747, 1984 + BSI note (29 Sep 2026) cut key-recovery cost to ~2^99..2^148.
+  Math-level, so Tyr's optimizations do not help; compile-time warning and
+  docs added. The planned McEliece+X25519+Kyber hybrid stays sound (X25519
+  and Kyber carry it). liboqs 0.16 FrodoKEM ct_select barrier ported as
+  `ctBarrier` (secure_memory). libsodium CVE-2025-69277 does not apply:
+  Tyr Ed25519 checks [L]P, and the submodule already has the fix. P-256
+  b verified against SEED c49d3608...; seed now written next to `b`.
 - (2026-10-11) SHAKE/SHA3 left its sponge state (a copy of the secret
   input) on the stack after every call, library-wide. Now wiped in every
   one-shot routine (scalar and SIMD), plus HQC, Falcon and Dilithium leftovers.

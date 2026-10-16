@@ -3,6 +3,7 @@
 ## ---------------------------------------------------------------
 
 import ../../helpers/otter_support
+import ../../helpers/secure_memory
 
 ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; canonical byte and polynomial encoding rules for `frodoPackInto`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
 proc frodoPackInto*(dst: var openArray[byte], input: openArray[uint16], lsb: int) {.gcsafe.}
@@ -224,7 +225,7 @@ proc ctSelectBytes*(dst: var openArray[byte], A, B: openArray[byte], selector: i
   ## Copy `A` into `dst` when selector is `0`, else copy `B`.
   var
     i: int = 0
-    mask: uint8 = cast[uint8](selector)
+    mask: uint8 = ctBarrier(cast[uint8](selector))
   if dst.len != A.len or A.len != B.len:
     raise newException(ValueError, "ctSelect byte arrays must have matching lengths")
   i = 0

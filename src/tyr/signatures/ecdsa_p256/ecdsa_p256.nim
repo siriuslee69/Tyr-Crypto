@@ -49,6 +49,11 @@ type
     signature*: EcdsaSignature
     err*: string
 
+## Curve SEED (FIPS 186-5 / SEC 2): c49d3608 86e70493 6a6678e1 139d26b7 819f7e90
+## The seed is not used at runtime. It only shows `b` came out of SHA-1 over
+## this SEED (where NSA got the SEED itself was never published):
+##   W = SHA-1 chain over SEED (ANSI X9.62 A.3.3.1)  ->  b^2 * W == -27 (mod p)
+## Checked 2026-10-16: holds for the `b` below; G lies on the curve; n*G = infinity.
 const
   p256FieldBytes* = 32
   p256PHex = "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff"

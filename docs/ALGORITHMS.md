@@ -140,8 +140,8 @@ All symmetric primitives are **pure Nim** implementations under `src/tyr/ciphers
 
 | Variant | NIST Level | PK bytes | SK bytes | CT bytes | Shared Secret |
 |---------|-----------|----------|----------|----------|---------------|
-| mceliece-6688128f | 3 | 524,928 | 13,892 | 224 | 32 |
-| mceliece-6960119f | 3 | 524,928 | 13,948 | 226 | 32 |
+| mceliece-6688128f | 5 | 524,928 | 13,892 | 224 | 32 |
+| mceliece-6960119f | 5 | 524,928 | 13,948 | 226 | 32 |
 | mceliece-8192128f | 5 | 1,357,576 | 14,468 | 240 | 32 |
 
 - **Security foundation:** Goppa code-based cryptography
@@ -149,6 +149,7 @@ All symmetric primitives are **pure Nim** implementations under `src/tyr/ciphers
 - **Key generation** is the bottleneck (Goppa code selection)
 - **SIMD:** AVX2 matrix fill plus AVX2/SSE2/NEON masked row XOR during key generation; root evaluation in decoding uses 8 AVX2 or 4 SSE2/NEON lanes
 - **Optimized:** 64×64 bit-matrix transpose, masked row XOR, public syndrome bit limit
+- **⚠ 2026 key-recovery attacks:** ePrint [2026/1630](https://eprint.iacr.org/2026/1630) (Ghoshal-Ishai-Jain-Sun) and follow-ups [2026/1747](https://eprint.iacr.org/2026/1747), [2026/1984](https://eprint.iacr.org/2026/1984) recover the secret Goppa code from the public key at an estimated ~2^99..2^148 bit operations instead of ~2^256 (not run at full size, not peer reviewed). The attack targets the math, so Tyr's optimizations neither cause nor prevent it. The [BSI note of 29 Sep 2026](https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Crypto/Notes_Classic_McEliece.pdf) advises against new deployments: use McEliece only in a hybrid, and prefer ML-KEM or FrodoKEM. Compiling the module prints a warning (silence with `-d:tyrMcElieceAttackAcknowledged`).
 
 ---
 

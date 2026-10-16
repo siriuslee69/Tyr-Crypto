@@ -62,3 +62,21 @@ proc secureClearItems*[T](A: var openArray[T]) {.inline, raises: [].} =
       secureClearRaw(addr A[0], A.len * sizeof(T))
   else:
     {.error: "secureClearItems requires POD-style items".}
+
+## ╭⟢ ctBarrier <- hide a secret mask from the optimiser
+##
+##   mask = 0x00 or 0xFF  ->  [volatile write, volatile read]  ->  same mask
+##
+## A select like `(not m and a) or (m and b)` is only constant-time while the
+## compiler does not know `m` is 0 or 0xFF. If it can prove that, it may turn
+## the select back into an `if`, which leaks the secret through timing.
+## Passing the mask through one volatile slot hides its origin. Cost: two
+## memory operations per call, not per byte.
+## Same fix as liboqs 0.16 `OQS_MEM_BLACK_BOX` on FrodoKEM `ct_select`.
+
+proc ctBarrier*(m: uint8): uint8 {.inline, raises: [].} =
+  ## m: secret-dependent mask; returned unchanged, but opaque to the optimiser.
+  var
+    t: uint8 = 0
+  volatileStore(addr t, m)
+  result = volatileLoad(addr t)
