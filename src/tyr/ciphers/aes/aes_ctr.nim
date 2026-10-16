@@ -189,6 +189,25 @@ proc clear*(s: var AesCtrState) {.inline, raises: [], gcsafe.} =
   ## End a streaming operation by wiping its expanded key and counter.
   secureClearPod(s)
 
+when defined(avx2):
+  proc nextKeystream32(s: var AesCtrState, ks32: var array[32, uint8]) {.inline, gcsafe.} =
+    ## s: AES-CTR state; its counter moves on by two blocks.
+    ## ks32: receives  [ AES(counter) 16 | AES(counter + 1) 16 ].
+    var
+      ks0: AesBlock = default(AesBlock)
+      ks1: AesBlock = default(AesBlock)
+      wrapped0: bool = false
+      wrapped1: bool = false
+    ks0 = aesCore.encryptBlock(s.ctx, s.counter)
+    wrapped0 = incrementCounter(s.counter)   # always advance the counter
+    ks1 = aesCore.encryptBlock(s.ctx, s.counter)
+    wrapped1 = incrementCounter(s.counter)
+    s.exhausted = s.exhausted or wrapped0 or wrapped1
+    copyMem(addr ks32[0], addr ks0[0], 16)
+    copyMem(addr ks32[16], addr ks1[0], 16)
+    secureClearBytes(ks0)
+    secureClearBytes(ks1)
+
 proc aesCtrXorInPlace*(s: var AesCtrState, ps: var openArray[uint8],
     b: AesCtrBackend) {.gcsafe.} =
   ## s: AES-CTR streaming state.
@@ -201,13 +220,10 @@ proc aesCtrXorInPlace*(s: var AesCtrState, ps: var openArray[uint8],
     backend: AesCtrBackend
   when defined(avx2):
     var
-      ks1: AesBlock
-      ks32: array[32, uint8]
-      i: int = 0
+      ks32: array[32, uint8] = default(array[32, uint8])
   defer:
     secureClearBytes(ks0)
     when defined(avx2):
-      secureClearBytes(ks1)
       secureClearBytes(ks32)
   requireAesCtrStateRange(s, ps.len)
   while offset < ps.len and s.keystreamOffset < aesCtrBlockLen:
@@ -219,17 +235,7 @@ proc aesCtrXorInPlace*(s: var AesCtrState, ps: var openArray[uint8],
   of acbAvx2:
     when defined(avx2):
       while offset + 32 <= ps.len:
-        ks0 = aesCore.encryptBlock(s.ctx, s.counter)
-        if incrementCounter(s.counter):
-          s.exhausted = true
-        ks1 = aesCore.encryptBlock(s.ctx, s.counter)
-        if incrementCounter(s.counter):
-          s.exhausted = true
-        i = 0
-        while i < 16:
-          ks32[i] = ks0[i]
-          ks32[i + 16] = ks1[i]
-          i = i + 1
+        nextKeystream32(s, ks32)
         xorBlockAvx2InPlace(ps, ks32, offset)
         offset = offset + 32
     else:
@@ -238,8 +244,7 @@ proc aesCtrXorInPlace*(s: var AesCtrState, ps: var openArray[uint8],
     when defined(sse2):
       while offset + 16 <= ps.len:
         ks0 = aesCore.encryptBlock(s.ctx, s.counter)
-        if incrementCounter(s.counter):
-          s.exhausted = true
+        s.exhausted = incrementCounter(s.counter) or s.exhausted   # counter always moves
         simdByteStreams.xorBytes16InPlace(ps, offset, ks0, 0)
         offset = offset + 16
     else:
@@ -248,8 +253,7 @@ proc aesCtrXorInPlace*(s: var AesCtrState, ps: var openArray[uint8],
     when defined(neon) or defined(arm64) or defined(aarch64):
       while offset + 16 <= ps.len:
         ks0 = aesCore.encryptBlock(s.ctx, s.counter)
-        if incrementCounter(s.counter):
-          s.exhausted = true
+        s.exhausted = incrementCounter(s.counter) or s.exhausted   # counter always moves
         simdByteStreams.xorBytes16InPlace(ps, offset, ks0, 0)
         offset = offset + 16
     else:

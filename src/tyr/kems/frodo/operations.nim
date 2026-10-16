@@ -1488,6 +1488,27 @@ proc mulAddSaPlusEShakeStream(p: FrodoParams, seedA: openArray[byte],
   clearBytes(rowBytes)
   clearWords(rowWords)
 
+## Reference: [FRODOKEM-20250929] AES-128 matrix generation, one stripe for `fillAesStripe`; pitfall: the block is (i, j) little-endian 16-bit, rest zero.
+proc fillAesStripe(p: FrodoParams, ctx: Aes128Ctx, A: var seq[uint16], i, j: int) {.inline.} =
+  ## p/ctx: parameters and the seed_A AES key. A: the matrix being filled.
+  ## i/j: row and first column of this stripe of p.stripeStep entries.
+  ##   AES( i lo | i hi | j lo | j hi | 0 ... 0 )  ->  8 words, each mod q
+  var
+    blk: AesBlock = default(AesBlock)
+    enc: AesBlock = default(AesBlock)
+    k: int = 0
+    o: int = 0
+  blk[0] = byte(i and 0xff)
+  blk[1] = byte((i shr 8) and 0xff)
+  blk[2] = byte(j and 0xff)
+  blk[3] = byte((j shr 8) and 0xff)
+  enc = encryptBlockPublicFast(ctx, blk)
+  while k < p.stripeStep:
+    o = i * p.n + j + k
+    if o < A.len:
+      A[o] = reduceWordQ(p, loadU16Le(enc, k * 2))
+    k = k + 1
+
 ## Reference: [FRODOKEM-20250929] parameter tables and the FrodoKEM keygen, encapsulation, and decapsulation algorithms; key generation, encapsulation/signing, and decapsulation/verification algorithms for `generateMatrixA`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc generateMatrixA(p: FrodoParams, seedA: openArray[byte]): seq[uint16] =
   ## Generate the Frodo matrix `A` row-wise for the selected parameter set.
@@ -1495,8 +1516,6 @@ proc generateMatrixA(p: FrodoParams, seedA: openArray[byte]): seq[uint16] =
     var
       i: int = 0
       j: int = 0
-      k: int = 0
-      o: int = 0
     if seedA.len != p.bytesSeedA:
       raise newException(ValueError, "invalid Frodo seed_A length")
     result = newSeq[uint16](p.n * p.n)
@@ -1504,25 +1523,12 @@ proc generateMatrixA(p: FrodoParams, seedA: openArray[byte]): seq[uint16] =
     of fmgAes128:
       var
         ctx: Aes128Ctx = default(Aes128Ctx)
-        blk: AesBlock = default(AesBlock)
-        enc: AesBlock = default(AesBlock)
       ctx.initPublicFast(seedA)
       i = 0
       while i < p.n:
         j = 0
         while j < p.n:
-          blk = default(AesBlock)
-          blk[0] = byte(i and 0xff)
-          blk[1] = byte((i shr 8) and 0xff)
-          blk[2] = byte(j and 0xff)
-          blk[3] = byte((j shr 8) and 0xff)
-          enc = encryptBlockPublicFast(ctx, blk)
-          k = 0
-          while k < p.stripeStep:
-            o = i * p.n + j + k
-            if o < result.len:
-              result[o] = reduceWordQ(p, loadU16Le(enc, k * 2))
-            k = k + 1
+          fillAesStripe(p, ctx, result, i, j)
           j = j + p.stripeStep
         i = i + 1
     of fmgShake128:

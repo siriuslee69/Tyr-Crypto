@@ -32,17 +32,18 @@ when defined(hasLibOqs):
   import builders/liboqs_builder
 
   proc appendLibMatches(candidates: var seq[string], dirPath: string) =
-    if dirExists(dirPath):
-      let patterns = when defined(windows):
-                       @["oqs.dll", "liboqs.dll"]
-                     elif defined(macosx):
-                       @["liboqs.dylib"]
-                     else:
-                       @["liboqs.so*"]
-      for pattern in patterns:
-        for candidate in walkPattern(joinPath(dirPath, pattern)):
-          if fileExists(candidate) or symlinkExists(candidate):
-            candidates.add(candidate)
+    if not dirExists(dirPath):
+      return
+    let patterns = when defined(windows):
+                     @["oqs.dll", "liboqs.dll"]
+                   elif defined(macosx):
+                     @["liboqs.dylib"]
+                   else:
+                     @["liboqs.so*"]
+    for pattern in patterns:
+      for candidate in walkPattern(joinPath(dirPath, pattern)):
+        if fileExists(candidate) or symlinkExists(candidate):
+          candidates.add(candidate)
 
   proc defaultLibCandidates(): seq[string] =
     var candidates: seq[string] = @[]

@@ -19,7 +19,6 @@ when defined(avx2):
       lane: int = 0
       storeBytes: int = 0
       rowOffset: int = 0
-      bIdx: int = 0
     defer:
       secureClearItems(inRows)
       secureClearItems(outRows)
@@ -65,10 +64,7 @@ when defined(avx2):
         while k < p.gfBits:
           store8(tailBytes.toOpenArray(0, 7), outRows[k])
           rowOffset = matBase + (k * fullRowBytes) + byteOffset
-          bIdx = 0
-          while bIdx < storeBytes:
-            mat[rowOffset + bIdx] = tailBytes[bIdx]
-            bIdx = bIdx + 1
+          copyMem(addr mat[rowOffset], addr tailBytes[0], storeBytes)   # 0 bytes is a no-op
           k = k + 1
         lane = 0
         while lane < rem:

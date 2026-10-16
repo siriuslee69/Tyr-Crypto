@@ -1,3 +1,15 @@
+proc dnsNameText(V: openArray[byte]): string {.inline, role: {parser}.} =
+  ## V: raw dNSName bytes. Returns them as text, or "" when empty or when
+  ## any byte is outside visible ASCII (0x21 .. 0x7e).
+  var
+    j: int = 0
+  result = newString(V.len)
+  while j < V.len:
+    if V[j] < 0x21'u8 or V[j] > 0x7e'u8:
+      return ""
+    result[j] = char(V[j])
+    j = j + 1
+
 proc parseSubjectAltName(B: openArray[byte], C: var X509Certificate): string {.role: {truthBuilder}.} =
   var
     R: DerReadResult = readDerElement(B, 0)
@@ -18,15 +30,9 @@ proc parseSubjectAltName(B: openArray[byte], C: var X509Certificate): string {.r
     V = derContent(B, G.children[i])
     case G.children[i].tagNumber
     of 2'u8:
-      if V.len == 0:
-        return "DNS Subject Alternative Name is empty"
-      s = newString(V.len)
-      j = 0
-      while j < V.len:
-        if V[j] < 0x21'u8 or V[j] > 0x7e'u8:
-          return "DNS Subject Alternative Name is not visible ASCII"
-        s[j] = char(V[j])
-        j = j + 1
+      s = dnsNameText(V)
+      if s.len == 0:
+        return "DNS Subject Alternative Name is empty or not visible ASCII"
       C.dnsNames.add(s.toLowerAscii())
     of 7'u8:
       if V.len notin {4, 16}:

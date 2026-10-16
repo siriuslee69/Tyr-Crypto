@@ -1259,40 +1259,26 @@ proc matrixVectorMul(c: var SaberPolyVec, p: SaberParams, A: SaberMatrix,
     while j < p.l:
       evalSaberToom4Mod(E[j], s[j])
       j = j + 1
+  template mulStep(dst: var SaberPoly, a: SaberPoly, j: int, acc: bool) =
+    ## dst (+)= a * s[j], with the multiplier this build selected.
+    when defined(saberMulNttScalar):
+      polyMulIntoNttSmallB(dst, a, s[j], acc)
+    elif defined(saberMulToom4Cached):
+      polyMulIntoToom4ModEval(dst, a, E[j], acc)
+    else:
+      polyMulInto(dst, a, s[j], acc)
+  ##   c[i] = sum over j of A[j][i] * s[j]   (transpose)
+  ##   c[i] = sum over j of A[i][j] * s[j]   (otherwise)
+  ## The first product (j = 0) overwrites c[i], the rest accumulate.
   i = 0
   while i < p.l:
-    if transpose:
-      when defined(saberMulNttScalar):
-        polyMulIntoNttSmallB(c[i], A[0][i], s[0], false)
-      elif defined(saberMulToom4Cached):
-        polyMulIntoToom4ModEval(c[i], A[0][i], E[0], false)
+    j = 0
+    while j < p.l:
+      if transpose:
+        mulStep(c[i], A[j][i], j, j > 0)
       else:
-        polyMulInto(c[i], A[0][i], s[0], false)
-      j = 1
-      while j < p.l:
-        when defined(saberMulNttScalar):
-          polyMulIntoNttSmallB(c[i], A[j][i], s[j], true)
-        elif defined(saberMulToom4Cached):
-          polyMulIntoToom4ModEval(c[i], A[j][i], E[j], true)
-        else:
-          polyMulInto(c[i], A[j][i], s[j], true)
-        j = j + 1
-    else:
-      when defined(saberMulNttScalar):
-        polyMulIntoNttSmallB(c[i], A[i][0], s[0], false)
-      elif defined(saberMulToom4Cached):
-        polyMulIntoToom4ModEval(c[i], A[i][0], E[0], false)
-      else:
-        polyMulInto(c[i], A[i][0], s[0], false)
-      j = 1
-      while j < p.l:
-        when defined(saberMulNttScalar):
-          polyMulIntoNttSmallB(c[i], A[i][j], s[j], true)
-        elif defined(saberMulToom4Cached):
-          polyMulIntoToom4ModEval(c[i], A[i][j], E[j], true)
-        else:
-          polyMulInto(c[i], A[i][j], s[j], true)
-        j = j + 1
+        mulStep(c[i], A[i][j], j, j > 0)
+      j = j + 1
     i = i + 1
 
 ## Reference: [SABER-R3] sections 4-6, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `innerProd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.

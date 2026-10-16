@@ -167,6 +167,23 @@ proc parseProfile(s: string): BenchProfile =
     return bpMobile
   result = bpDesktop
 
+proc parseScaleOr1(s: string): float {.inline.} =
+  ## s: text after --scale=. Unreadable text falls back to 1.0.
+  try:
+    result = parseFloat(s)
+  except ValueError:
+    result = 1.0
+
+proc addCsvTokens(D: var seq[string], val: string) {.inline.} =
+  ## D: list to extend. val: comma-separated text; blanks are skipped,
+  ## the rest is trimmed and lower-cased.
+  var
+    t: string = ""
+  for item in val.split(','):
+    t = item.strip().toLowerAscii()
+    if t.len > 0:
+      D.add(t)
+
 proc parseArgs(): tuple[
     outPath: string,
     deviceLabel: string,
@@ -208,27 +225,15 @@ proc parseArgs(): tuple[
       of "profile":
         result.profile = parseProfile(p.val)
       of "only":
-        for item in p.val.split(','):
-          let trimmed = item.strip().toLowerAscii()
-          if trimmed.len > 0:
-            result.onlyFamilies.add(trimmed)
+        addCsvTokens(result.onlyFamilies, p.val)
       of "implementation", "impl":
-        for item in p.val.split(','):
-          let trimmed = item.strip().toLowerAscii()
-          if trimmed.len > 0:
-            result.onlyImplementations.add(trimmed)
+        addCsvTokens(result.onlyImplementations, p.val)
       of "backend":
-        for item in p.val.split(','):
-          let trimmed = item.strip().toLowerAscii()
-          if trimmed.len > 0:
-            result.onlyBackends.add(trimmed)
+        addCsvTokens(result.onlyBackends, p.val)
       of "verbose", "v":
         result.verbose = true
       of "scale":
-        try:
-          result.loopScale = parseFloat(p.val)
-        except ValueError:
-          result.loopScale = 1.0
+        result.loopScale = parseScaleOr1(p.val)
       of "phase":
         let lower = p.val.toLowerAscii()
         case lower

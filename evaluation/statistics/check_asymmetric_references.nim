@@ -234,13 +234,12 @@ proc checkFile(path: string, ids: HashSet[string]): seq[string] {.role: {actor}.
     previous: string = ""
     i: int = 0
   while i < lines.len:
-    if isDeclarationLine(lines[i]):
-      if not previous.contains(referenceMarker):
-        result.add(path & ":" & $(i + 1) & ": missing immediate Reference comment")
-      else:
-        id = citedId(previous)
-        if id notin ids:
-          result.add(path & ":" & $i & ": unknown reference ID " & id)
+    if isDeclarationLine(lines[i]) and not previous.contains(referenceMarker):
+      result.add(path & ":" & $(i + 1) & ": missing immediate Reference comment")
+    elif isDeclarationLine(lines[i]):
+      id = citedId(previous)
+      if id notin ids:
+        result.add(path & ":" & $i & ": unknown reference ID " & id)
     previous = lines[i]
     i = i + 1
 

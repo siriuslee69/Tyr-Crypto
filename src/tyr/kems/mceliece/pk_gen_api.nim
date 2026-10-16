@@ -95,9 +95,8 @@ proc pkGen*(p: McElieceParams, g: openArray[GF], perm: openArray[uint32],
         row = i * 8 + j
         if row >= p.pkNRows:
           break
-        if row == p.pkNRows - 32:
-          if not movColumns(mat, pi, pivots, p, fullRowBytes):
-            return false
+        if row == p.pkNRows - 32 and not movColumns(mat, pi, pivots, p, fullRowBytes):
+          return false
         rowStart = row * fullRowBytes
         k = row + 1
         while k < p.pkNRows:

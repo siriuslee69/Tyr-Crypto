@@ -157,6 +157,28 @@ proc resolveBackend(b: Blake3CompressBackend): Blake3CompressBackend =
     return bcbScalar
   result = b
 
+proc compressLanes[N: static int](cvs: openArray[Blake3Cv], blocks: openArray[Blake3Block],
+    o: int, counter: uint64, blkLen, flags: uint32, R: var seq[Blake3Out]) {.inline.} =
+  ## cvs/blocks/o: inputs and the first lane index. R: results, written at o.
+  ## N = 8 uses the AVX2 kernel, N = 4 the SSE2/NEON kernel.
+  var
+    cv: array[N, Blake3Cv] = default(array[N, Blake3Cv])
+    bl: array[N, Blake3Block] = default(array[N, Blake3Block])
+    outs: array[N, Blake3Out] = default(array[N, Blake3Out])
+    j: int = 0
+  while j < N:
+    cv[j] = cvs[o + j]
+    bl[j] = blocks[o + j]
+    j = j + 1
+  when N == 8:
+    outs = blake3CompressAvx8(cv, bl, counter, blkLen, flags)
+  else:
+    outs = blake3CompressSse4(cv, bl, counter, blkLen, flags)
+  j = 0
+  while j < N:
+    R[o + j] = outs[j]
+    j = j + 1
+
 proc blake3CompressBatch*(
     cvs: openArray[Blake3Cv],
     blocks: openArray[Blake3Block],
@@ -177,40 +199,12 @@ proc blake3CompressBatch*(
   when defined(avx2):
     if backend == bcbAvx2:
       while i + 8 <= cvs.len:
-        var
-          cv8: array[8, Blake3Cv]
-          bl8: array[8, Blake3Block]
-          out8: array[8, Blake3Out]
-          j: int = 0
-        j = 0
-        while j < 8:
-          cv8[j] = cvs[i + j]
-          bl8[j] = blocks[i + j]
-          j = j + 1
-        out8 = blake3CompressAvx8(cv8, bl8, counter, blkLen, flags)
-        j = 0
-        while j < 8:
-          result[i + j] = out8[j]
-          j = j + 1
+        compressLanes[8](cvs, blocks, i, counter, blkLen, flags, result)
         i = i + 8
   when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64):
     if backend == bcbSse2 or backend == bcbNeon or backend == bcbAvx2:
       while i + 4 <= cvs.len:
-        var
-          cv4: array[4, Blake3Cv]
-          bl4: array[4, Blake3Block]
-          out4: array[4, Blake3Out]
-          j: int = 0
-        j = 0
-        while j < 4:
-          cv4[j] = cvs[i + j]
-          bl4[j] = blocks[i + j]
-          j = j + 1
-        out4 = blake3CompressSse4(cv4, bl4, counter, blkLen, flags)
-        j = 0
-        while j < 4:
-          result[i + j] = out4[j]
-          j = j + 1
+        compressLanes[4](cvs, blocks, i, counter, blkLen, flags, result)
         i = i + 4
   while i < cvs.len:
     result[i] = blake3Compress(cvs[i], blocks[i], counter, blkLen, flags)
@@ -258,6 +252,15 @@ proc parentOutput(left, right: array[8, uint32], key: array[8, uint32], baseFlag
     words[8 + i] = right[i]
   Output(inputCv: key, blockWords: words, blockLen: blockLen.uint32, flags: baseFlags or flagParent, counter: 0'u64)
 
+proc loadWordPadded(A: openArray[byte], o: int): uint32 {.inline.} =
+  ## A/o: input and byte offset. Little-endian 32-bit word; bytes past the
+  ## end of A count as zero (the last block of a chunk is zero-padded).
+  var
+    b: int = 0
+  while b < 4 and o + b < A.len:
+    result = result or (uint32(A[o + b]) shl (8 * b))
+    b = b + 1
+
 proc chunkOutput(chunk: openArray[byte], chunkIndex: uint64, key: array[8, uint32], baseFlags: uint32): Output =
   var 
     cv = key
@@ -278,10 +281,6 @@ proc chunkOutput(chunk: openArray[byte], chunkIndex: uint64, key: array[8, uint3
 
   var
     blockIndex: int = 0
-    off: int = 0
-    idxByte: int = 0
-    w: uint32 = 0
-    b: int = 0
     i: int = 0
     outWords: array[16, uint32]
   defer:
@@ -290,15 +289,7 @@ proc chunkOutput(chunk: openArray[byte], chunkIndex: uint64, key: array[8, uint3
     thisBlockLen = uint32(min(blockLen, chunk.len - offset))
     i = 0
     while i < 16:
-      w = 0'u32
-      off = offset + i * 4
-      b = 0
-      while b < 4:
-        idxByte = off + b
-        if idxByte < chunk.len:
-          w = w or (uint32(chunk[idxByte]) shl (8 * b))
-        b = b + 1
-      blockWords[i] = w
+      blockWords[i] = loadWordPadded(chunk, offset + i * 4)
       i = i + 1
     thisFlags = baseFlags
     if blockIndex == 0:

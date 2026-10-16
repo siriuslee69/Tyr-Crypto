@@ -107,6 +107,20 @@ when defined(hasLibOqs):
     else:
       result = ""
 
+proc liboqsSigAvailable(alg: SignatureAlgorithm): bool {.inline.} =
+  ## alg: an algorithm only liboqs provides. True when liboqs is compiled
+  ## in, loads, and can create that signature object.
+  when defined(hasLibOqs):
+    if not ensureLibOqsLoaded():
+      return false
+    let sig = OQS_SIG_new(sigAlgId(alg).cstring)
+    if sig == nil:
+      return false
+    OQS_SIG_free(sig)
+    result = true
+  else:
+    result = false
+
 proc signatureAvailable*(alg: SignatureAlgorithm): bool =
   ## Check if the signature backend is available for the algorithm.
   try:
@@ -123,17 +137,7 @@ proc signatureAvailable*(alg: SignatureAlgorithm): bool =
     of saEd448:
       false
     else:
-      when defined(hasLibOqs):
-        if not ensureLibOqsLoaded():
-          return false
-        let algId = sigAlgId(alg).cstring
-        let sig = OQS_SIG_new(algId)
-        if sig == nil:
-          return false
-        OQS_SIG_free(sig)
-        true
-      else:
-        false
+      liboqsSigAvailable(alg)
   except LibraryUnavailableError, OSError, IOError, CryptoOperationError:
     false
 

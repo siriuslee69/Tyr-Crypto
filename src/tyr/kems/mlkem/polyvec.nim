@@ -251,60 +251,65 @@ proc polyvecCompress*(p: MlKemParams, a: PolyVec): seq[byte] =
   result = newSeq[byte](p.polyVecCompressedBytes)
   polyvecCompressInto(result, p, a)
 
-## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecDecompressInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+## Reference: [FIPS-203] algorithm 6 ByteDecode_11 with Decompress_11; unpacking rules for `decompress11Block`; pitfall: reject malformed or non-canonical input before indexed access.
+proc decompress11Block(P: var Poly, c: int, A: openArray[byte], o: int) {.inline.} =
+  ## P/c: polynomial and first of 8 coefficients. A/o: input and byte offset.
+  ##   11 bytes -> 8 numbers of 11 bits -> each * q / 2^11, rounded
+  var
+    t8 {.noinit.}: array[8, uint16]
+    k: int = 0
+  t8[0] = (uint16(A[o + 0]) shr 0) or (uint16(A[o + 1]) shl 8)
+  t8[1] = (uint16(A[o + 1]) shr 3) or (uint16(A[o + 2]) shl 5)
+  t8[2] = (uint16(A[o + 2]) shr 6) or (uint16(A[o + 3]) shl 2) or (uint16(A[o + 4]) shl 10)
+  t8[3] = (uint16(A[o + 4]) shr 1) or (uint16(A[o + 5]) shl 7)
+  t8[4] = (uint16(A[o + 5]) shr 4) or (uint16(A[o + 6]) shl 4)
+  t8[5] = (uint16(A[o + 6]) shr 7) or (uint16(A[o + 7]) shl 1) or (uint16(A[o + 8]) shl 9)
+  t8[6] = (uint16(A[o + 8]) shr 2) or (uint16(A[o + 9]) shl 6)
+  t8[7] = (uint16(A[o + 9]) shr 5) or (uint16(A[o + 10]) shl 3)
+  while k < 8:
+    P.coeffs[c + k] = int16(((uint32(t8[k] and 0x7ff'u16) * uint32(mlkemQ)) + 1024'u32) shr 11)
+    k = k + 1
+
+## Reference: [FIPS-203] algorithm 6 ByteDecode_10 with Decompress_10; unpacking rules for `decompress10Block`; pitfall: reject malformed or non-canonical input before indexed access.
+proc decompress10Block(P: var Poly, c: int, A: openArray[byte], o: int) {.inline.} =
+  ## P/c: polynomial and first of 4 coefficients. A/o: input and byte offset.
+  ##   5 bytes -> 4 numbers of 10 bits -> each * q / 2^10, rounded
+  var
+    t4 {.noinit.}: array[4, uint16]
+    k: int = 0
+  t4[0] = (uint16(A[o + 0]) shr 0) or (uint16(A[o + 1]) shl 8)
+  t4[1] = (uint16(A[o + 1]) shr 2) or (uint16(A[o + 2]) shl 6)
+  t4[2] = (uint16(A[o + 2]) shr 4) or (uint16(A[o + 3]) shl 4)
+  t4[3] = (uint16(A[o + 3]) shr 6) or (uint16(A[o + 4]) shl 2)
+  while k < 4:
+    P.coeffs[c + k] = int16(((uint32(t4[k] and 0x3ff'u16) * uint32(mlkemQ)) + 512'u32) shr 10)
+    k = k + 1
+
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecDecompressInto`; pitfall: reject malformed or non-canonical input before indexed access.
 proc polyvecDecompressInto*(r: var PolyVec, p: MlKemParams, A: openArray[byte]) =
   ## Decompress and deserialize a ML-KEM polynomial vector into a caller-provided vector.
+  ##   11 bits per number (ML-KEM-1024) or 10 bits (512 / 768)
   var
     i: int = 0
     j: int = 0
-    k: int = 0
-    o: int = 0
-    t8 {.noinit.}: array[8, uint16]
-    t4 {.noinit.}: array[4, uint16]
   if A.len != p.polyVecCompressedBytes:
     raise newException(ValueError, "invalid ML-KEM compressed polyvec length")
   if p.polyVecCompressedBytes == p.k * 352:
-    i = 0
     while i < p.k:
       j = 0
       while j < mlkemN div 8:
-        o = i * (mlkemN div 8) * 11 + j * 11
-        t8[0] = (uint16(A[o + 0]) shr 0) or (uint16(A[o + 1]) shl 8)
-        t8[1] = (uint16(A[o + 1]) shr 3) or (uint16(A[o + 2]) shl 5)
-        t8[2] = (uint16(A[o + 2]) shr 6) or (uint16(A[o + 3]) shl 2) or (uint16(A[o + 4]) shl 10)
-        t8[3] = (uint16(A[o + 4]) shr 1) or (uint16(A[o + 5]) shl 7)
-        t8[4] = (uint16(A[o + 5]) shr 4) or (uint16(A[o + 6]) shl 4)
-        t8[5] = (uint16(A[o + 6]) shr 7) or (uint16(A[o + 7]) shl 1) or (uint16(A[o + 8]) shl 9)
-        t8[6] = (uint16(A[o + 8]) shr 2) or (uint16(A[o + 9]) shl 6)
-        t8[7] = (uint16(A[o + 9]) shr 5) or (uint16(A[o + 10]) shl 3)
-        k = 0
-        while k < 8:
-          r.vec[i].coeffs[8 * j + k] =
-            int16(((uint32(t8[k] and 0x7ff'u16) * uint32(mlkemQ)) + 1024'u32) shr 11)
-          k = k + 1
+        decompress11Block(r.vec[i], 8 * j, A, i * 352 + j * 11)
         j = j + 1
       i = i + 1
     return
-
   if p.polyVecCompressedBytes == p.k * 320:
-    i = 0
     while i < p.k:
       j = 0
       while j < mlkemN div 4:
-        o = i * (mlkemN div 4) * 5 + j * 5
-        t4[0] = (uint16(A[o + 0]) shr 0) or (uint16(A[o + 1]) shl 8)
-        t4[1] = (uint16(A[o + 1]) shr 2) or (uint16(A[o + 2]) shl 6)
-        t4[2] = (uint16(A[o + 2]) shr 4) or (uint16(A[o + 3]) shl 4)
-        t4[3] = (uint16(A[o + 3]) shr 6) or (uint16(A[o + 4]) shl 2)
-        k = 0
-        while k < 4:
-          r.vec[i].coeffs[4 * j + k] =
-            int16(((uint32(t4[k] and 0x3ff'u16) * uint32(mlkemQ)) + 512'u32) shr 10)
-          k = k + 1
+        decompress10Block(r.vec[i], 4 * j, A, i * 320 + j * 5)
         j = j + 1
       i = i + 1
     return
-
   raise newException(ValueError, "unsupported ML-KEM polyvec compression size")
 
 ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecDecompress`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.

@@ -105,6 +105,18 @@ proc hadamard(src: var RmExpanded, dst: var RmExpanded)
     pass = pass + 1
   dst = a
 
+## Reference: [HQC-20250822] Reed-Muller decoding; one 32-bit lane of the copy sum for `addLaneBits`; pitfall: the first copy overwrites, later copies add.
+proc addLaneBits(dst: var RmExpanded, o: int, lane: uint32, first: bool)
+    {.inline, role: {parser}, raises: [].} =
+  ## dst/o: the widened sum and where these 32 entries start.
+  ## lane: 32 received bits. first: true for the first copy (overwrite).
+  var
+    bit: int = 0
+    keep: int32 = (if first: 0'i32 else: 1'i32)
+  while bit < 32:
+    dst[o + bit] = dst[o + bit] * keep + int32((lane shr bit) and 1'u32)
+    bit = bit + 1
+
 ## Reference: [HQC-20250822] Reed-Muller decoding; copy accumulation for `expandAndSum`; pitfall: the copies are added as 0/1 rather than -1/+1, which shifts the first transform entry and is corrected afterwards.
 proc expandAndSum(dst: var RmExpanded, V: openArray[uint64], base, multiplicity: int)
     {.role: {parser}, raises: [].} =
@@ -114,21 +126,13 @@ proc expandAndSum(dst: var RmExpanded, V: openArray[uint64], base, multiplicity:
   var
     copyIdx: int = 0
     part: int = 0
-    bit: int = 0
     lane: uint32 = 0
   copyIdx = 0
   while copyIdx < multiplicity:
     part = 0
     while part < rmLanesPerCodeword:
       lane = hqcGetU32(V, (base + copyIdx) * rmLanesPerCodeword + part)
-      bit = 0
-      while bit < 32:
-        if copyIdx == 0:
-          dst[part * 32 + bit] = int32((lane shr bit) and 1'u32)
-        else:
-          dst[part * 32 + bit] = dst[part * 32 + bit] +
-            int32((lane shr bit) and 1'u32)
-        bit = bit + 1
+      addLaneBits(dst, part * 32, lane, copyIdx == 0)
       part = part + 1
     copyIdx = copyIdx + 1
 

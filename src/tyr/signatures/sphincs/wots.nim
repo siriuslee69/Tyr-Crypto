@@ -26,6 +26,20 @@ when defined(sse2) or defined(neon) or defined(arm64) or defined(aarch64) or def
     setHashAddr(addrs[1], hashAddr)
     thash1Batch2(nodes, nodes, ctx, addrs)
 
+  ## Reference: [SPHINCS-R3.1] algorithm 6 wots_pk_from_sig, one chain step over 2 lanes for `wotsStep2`; pitfall: only lanes whose chain has reached hashAddr may be hashed.
+  proc wotsStep2(nodes: var array[2, array[spxN, byte]], ctx: SphincsCtx,
+      addrs: var array[2, SphincsAddress], starts: array[2, uint32], hashAddr: int) {.inline.} =
+    ## nodes/addrs: the 2 chains and their addresses. starts: where each begins.
+    var
+      on0: bool = uint32(hashAddr) >= starts[0]
+      on1: bool = uint32(hashAddr) >= starts[1]
+    if on0 and on1:
+      applyWotsHashStep2(nodes, ctx, addrs, uint32(hashAddr))
+    elif on0:
+      applyWotsHashStep(nodes[0], ctx, addrs[0], uint32(hashAddr))
+    elif on1:
+      applyWotsHashStep(nodes[1], ctx, addrs[1], uint32(hashAddr))
+
 when defined(avx2):
   ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; WOTS+ algorithms for `applyWotsHashStep2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc applyWotsHashStep2(nodes: var array[4, array[spxN, byte]], ctx: SphincsCtx,
@@ -57,6 +71,35 @@ when defined(avx2):
       setHashAddr(addrs[lane], hashAddr)
       lane = lane + 1
     thash1Batch4(nodes, nodes, ctx, addrs)
+
+  ## Reference: [SPHINCS-R3.1] algorithm 6 wots_pk_from_sig, one chain step over 4 lanes for `wotsStep4`; pitfall: only lanes whose chain has reached hashAddr may be hashed.
+  proc wotsStep4(nodes: var array[4, array[spxN, byte]], ctx: SphincsCtx,
+      addrs: var array[4, SphincsAddress], starts: array[4, uint32], hashAddr: int) {.inline.} =
+    ## nodes/addrs: the 4 chains and their addresses. starts: where each chain
+    ## begins. Lanes still before their start are skipped this step.
+    ##   active = the lanes with starts[lane] <= hashAddr, packed to the front
+    var
+      active: array[4, int] = default(array[4, int])
+      n: int = 0
+      lane: int = 0
+    while lane < 4:
+      active[n] = lane
+      n = n + int(uint32(hashAddr) >= starts[lane])
+      lane = lane + 1
+    ## Batch only lanes that really are at this exact chain step so the
+    ## AVX2 verifier path stays identical to the scalar address schedule.
+    case n
+    of 4:
+      applyWotsHashStep4(nodes, ctx, addrs, uint32(hashAddr))
+    of 3:
+      applyWotsHashStep2(nodes, ctx, addrs, active[0], active[1], uint32(hashAddr))
+      applyWotsHashStep(nodes[active[2]], ctx, addrs[active[2]], uint32(hashAddr))
+    of 2:
+      applyWotsHashStep2(nodes, ctx, addrs, active[0], active[1], uint32(hashAddr))
+    of 1:
+      applyWotsHashStep(nodes[active[0]], ctx, addrs[active[0]], uint32(hashAddr))
+    else:
+      discard
 
 ## Reference: [SPHINCS-R3.1] version 3.1 sections 3-4 and algorithms 1-23; WOTS+ algorithms for `genChain`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc genChain(outNode: var array[16, byte], input: openArray[byte], start, steps: int,
@@ -123,9 +166,7 @@ proc wotsPkFromSig*(pk: var openArray[byte], sig, msg: openArray[byte],
         nodes: array[4, array[spxN, byte]]
         addrs: array[4, SphincsAddress]
         starts: array[4, uint32]
-        active: array[4, int]
         lane: int = 0
-        activeLen: int = 0
         hashAddr: int = 0
       lane = 0
       while lane < 4:
@@ -136,24 +177,7 @@ proc wotsPkFromSig*(pk: var openArray[byte], sig, msg: openArray[byte],
         lane = lane + 1
       hashAddr = 0
       while hashAddr < (spxWotsW - 1):
-        activeLen = 0
-        lane = 0
-        while lane < 4:
-          if uint32(hashAddr) >= starts[lane]:
-            active[activeLen] = lane
-            activeLen = activeLen + 1
-          lane = lane + 1
-        if activeLen == 4:
-          ## Batch only lanes that really are at this exact chain step so the
-          ## AVX2 verifier path stays identical to the scalar address schedule.
-          applyWotsHashStep4(nodes, ctx, addrs, uint32(hashAddr))
-        elif activeLen == 3:
-          applyWotsHashStep2(nodes, ctx, addrs, active[0], active[1], uint32(hashAddr))
-          applyWotsHashStep(nodes[active[2]], ctx, addrs[active[2]], uint32(hashAddr))
-        elif activeLen == 2:
-          applyWotsHashStep2(nodes, ctx, addrs, active[0], active[1], uint32(hashAddr))
-        elif activeLen == 1:
-          applyWotsHashStep(nodes[active[0]], ctx, addrs[active[0]], uint32(hashAddr))
+        wotsStep4(nodes, ctx, addrs, starts, hashAddr)
         hashAddr = hashAddr + 1
       lane = 0
       while lane < 4:
@@ -166,9 +190,7 @@ proc wotsPkFromSig*(pk: var openArray[byte], sig, msg: openArray[byte],
         nodes: array[2, array[spxN, byte]]
         addrs: array[2, SphincsAddress]
         starts: array[2, uint32]
-        active: array[2, int]
         lane: int = 0
-        activeLen: int = 0
         hashAddr: int = 0
       lane = 0
       while lane < 2:
@@ -179,17 +201,7 @@ proc wotsPkFromSig*(pk: var openArray[byte], sig, msg: openArray[byte],
         lane = lane + 1
       hashAddr = 0
       while hashAddr < (spxWotsW - 1):
-        activeLen = 0
-        lane = 0
-        while lane < 2:
-          if uint32(hashAddr) >= starts[lane]:
-            active[activeLen] = lane
-            activeLen = activeLen + 1
-          lane = lane + 1
-        if activeLen == 2:
-          applyWotsHashStep2(nodes, ctx, addrs, uint32(hashAddr))
-        elif activeLen == 1:
-          applyWotsHashStep(nodes[active[0]], ctx, addrs[active[0]], uint32(hashAddr))
+        wotsStep2(nodes, ctx, addrs, starts, hashAddr)
         hashAddr = hashAddr + 1
       lane = 0
       while lane < 2:

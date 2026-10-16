@@ -148,7 +148,7 @@ proc fromAffine(A: P256AffinePoint): P256Point {.role: {helper}.} =
 ## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `toAffine`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc toAffine*(P: P256Point): P256AffinePoint {.role: {math}.} =
   ## P: Jacobian point to normalize.
-  var zInv, zInv2: BigInt
+  var zInv, zInv2: BigInt = default(BigInt)
   if isInfinity(P):
     result.infinity = true
     result.x = bigZero()
@@ -162,7 +162,7 @@ proc toAffine*(P: P256Point): P256AffinePoint {.role: {math}.} =
 ## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `pointDouble`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc pointDouble*(P: P256Point): P256Point {.role: {math}.} =
   ## P: Jacobian point to double, using the a = -3 formulas.
-  var delta, gamma, beta, alpha, t: BigInt
+  var delta, gamma, beta, alpha, t: BigInt = default(BigInt)
   if isInfinity(P) or bigIsZero(P.y):
     return p256Infinity()
   delta = fSqr(P.z)
@@ -180,7 +180,7 @@ proc pointDouble*(P: P256Point): P256Point {.role: {math}.} =
 proc pointAdd*(P, Q: P256Point): P256Point {.role: {math}.} =
   ## P/Q: Jacobian points to add; handles the doubling and infinity cases.
   var
-    z1z1, z2z2, u1, u2, s1, s2, h, r, i, j, v, t: BigInt
+    z1z1, z2z2, u1, u2, s1, s2, h, r, i, j, v, t: BigInt = default(BigInt)
   if isInfinity(P):
     return Q
   if isInfinity(Q):
@@ -225,7 +225,7 @@ proc scalarMulSecret(k: BigInt, P: P256Point): P256Point {.role: {math}.} =
   ## cases, and selection remain variable-time. Do not expose this path to
   ## attacker-observable private-key workloads.
   var
-    acc, sum: P256Point
+    acc, sum: P256Point = default(P256Point)
     i: int = 255
   acc = p256Infinity()
   while i >= 0:
@@ -239,7 +239,7 @@ proc scalarMulSecret(k: BigInt, P: P256Point): P256Point {.role: {math}.} =
 ## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `isOnCurve`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc isOnCurve*(A: P256AffinePoint): bool {.role: {math}.} =
   ## A: candidate affine point checked against y^2 = x^3 - 3x + b.
-  var lhs, rhs: BigInt
+  var lhs, rhs: BigInt = default(BigInt)
   if A.infinity:
     return false
   if bigCmp(A.x, p256P) >= 0 or bigCmp(A.y, p256P) >= 0:
@@ -280,9 +280,9 @@ proc parseP256Spki*(A: openArray[byte]): P256PublicKeyResult {.
     role: {truthBuilder}.} =
   ## A: DER SubjectPublicKeyInfo carrying an `id-ecPublicKey` prime256v1 key.
   var
-    R: DerReadResult
-    C, alg: tuple[ok: bool, children: seq[DerElement], err: string]
-    O, curve: tuple[ok: bool, value, err: string]
+    R: DerReadResult = default(DerReadResult)
+    C, alg: tuple[ok: bool, children: seq[DerElement], err: string] = default(tuple[ok: bool, children: seq[DerElement], err: string])
+    O, curve: tuple[ok: bool, value, err: string] = default(tuple[ok: bool, value, err: string])
     shape: string = ""
   R = readDerElement(A, 0)
   if not R.ok:
@@ -349,7 +349,7 @@ proc parseEcdsaSignatureDer*(A: openArray[byte]): tuple[
   ## A: DER `Ecdsa-Sig-Value ::= SEQUENCE { r INTEGER, s INTEGER }`.
   var
     R: DerReadResult
-    C: tuple[ok: bool, children: seq[DerElement], err: string]
+    C: tuple[ok: bool, children: seq[DerElement], err: string] = default(tuple[ok: bool, children: seq[DerElement], err: string])
     shape: string = ""
   R = readDerElement(A, 0)
   if not R.ok:
@@ -419,10 +419,10 @@ proc ecdsaVerifyP256WithDigest*(pub: P256AffinePoint, digest: openArray[byte],
   ## pub/digest/sig: public key, pre-computed message hash, and signature.
   ## Lets callers verify chains whose signature hash is not SHA-256.
   var
-    e, w, u1, u2: BigInt
-    R: P256Point
-    A: P256AffinePoint
-    inv: tuple[ok: bool, value: BigInt]
+    e, w, u1, u2: BigInt = default(BigInt)
+    R: P256Point = default(P256Point)
+    A: P256AffinePoint = default(P256AffinePoint)
+    inv: tuple[ok: bool, value: BigInt] = default(tuple[ok: bool, value: BigInt])
   if pub.infinity or not isOnCurve(pub):
     return false
   if bigIsZero(sig.r) or bigIsZero(sig.s):
@@ -458,11 +458,11 @@ proc rfc6979Nonce(d: BigInt, digest: Sha256Digest): BigInt {.role: {math}.} =
   ## Derives `k` with the RFC 6979 HMAC-SHA-256 construction so a repeated
   ## nonce cannot arise from a degraded RNG.
   var
-    V, K: array[sha256DigestBytes, byte]
+    V, K: array[sha256DigestBytes, byte] = default(array[sha256DigestBytes, byte])
     buf: seq[byte] = @[]
     i: int = 0
-    cand: BigInt
-    hv: Sha256Digest
+    cand: BigInt = default(BigInt)
+    hv: Sha256Digest = default(Sha256Digest)
   i = 0
   while i < sha256DigestBytes:
     V[i] = 0x01'u8
@@ -491,16 +491,43 @@ proc rfc6979Nonce(d: BigInt, digest: Sha256Digest): BigInt {.role: {math}.} =
     K = hmacSha256(K, buf)
     V = hmacSha256(K, V)
 
-## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `ecdsaSignP256`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `trySignWithNonce`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
+proc trySignWithNonce(d, e, k: BigInt, S: var EcdsaSignature): bool {.inline,
+    role: {math}.} =
+  ## d/e/k: private scalar, reduced message hash, candidate nonce.
+  ## S: receives (r, s). False when this nonce gives r = 0 or s = 0
+  ## (or has no inverse); the caller then derives the next nonce.
+  ##   R = k*G   r = R.x mod n   s = k^-1 (e + r d) mod n   s -> min(s, n - s)
+  var
+    R: P256Point = scalarMulSecret(k, p256Generator())
+    r, s: BigInt = default(BigInt)
+    kInv: tuple[ok: bool, value: BigInt] = default(tuple[ok: bool, value: BigInt])
+  if isInfinity(R):
+    return false
+  r = bigMod(toAffine(R).x, p256N)
+  if bigIsZero(r):
+    return false
+  kInv = bigModInv(k, p256N)
+  if not kInv.ok:
+    return false
+  s = bigMod(bigMul(kInv.value,
+    bigModAdd(e, bigMod(bigMul(r, d), p256N), p256N)), p256N)
+  if bigIsZero(s):
+    return false
+  # Low-S normalization: many verifiers reject the malleable form.
+  if bigCmp(bigAdd(s, s), p256N) > 0:
+    s = bigSub(p256N, s)
+  S.r = r
+  S.s = s
+  result = true
+
+## Reference: [FIPS-186-5] section 6 and appendix D.1.2, ECDSA over P-256; curve arithmetic, key generation, signing, and verification algorithms for `ecdsaSignP256`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc ecdsaSignP256*(d: BigInt, msg: openArray[byte]): EcdsaSignResult {.
     role: {math}.} =
   ## d/msg: private scalar and the message to sign.
   var
-    e, k, r, s: BigInt
-    R: P256Point
-    A: P256AffinePoint
-    kInv: tuple[ok: bool, value: BigInt]
-    digest: Sha256Digest
+    e, k: BigInt = default(BigInt)
+    digest: Sha256Digest = default(Sha256Digest)
     guard: int = 0
   if bigIsZero(d) or bigCmp(d, p256N) >= 0:
     result.err = "P-256 private scalar is out of range"
@@ -509,23 +536,9 @@ proc ecdsaSignP256*(d: BigInt, msg: openArray[byte]): EcdsaSignResult {.
   e = bigMod(bitsToInt(digest), p256N)
   k = rfc6979Nonce(d, digest)
   while guard < 8:
-    R = scalarMulSecret(k, p256Generator())
-    if not isInfinity(R):
-      A = toAffine(R)
-      r = bigMod(A.x, p256N)
-      if not bigIsZero(r):
-        kInv = bigModInv(k, p256N)
-        if kInv.ok:
-          s = bigMod(bigMul(kInv.value,
-            bigModAdd(e, bigMod(bigMul(r, d), p256N), p256N)), p256N)
-          if not bigIsZero(s):
-            # Low-S normalization: many verifiers reject the malleable form.
-            if bigCmp(bigAdd(s, s), p256N) > 0:
-              s = bigSub(p256N, s)
-            result.signature.r = r
-            result.signature.s = s
-            result.ok = true
-            return
+    if trySignWithNonce(d, e, k, result.signature):
+      result.ok = true
+      return
     k = rfc6979Nonce(k, digest)
     guard = guard + 1
   result.err = "failed to derive a usable ECDSA nonce"

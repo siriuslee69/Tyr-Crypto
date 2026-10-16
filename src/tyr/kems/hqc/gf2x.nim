@@ -69,6 +69,25 @@ proc newHqcMulScratch*(p: HqcParams): seq[uint64] {.role: {helper}, raises: [].}
   result = newSeq[uint64](4 * p.vecNWords +
     scratchWordsPerWord * p.vecNWords + scratchSlackWords)
 
+## Reference: [HQC-20250822] polynomial multiplication; one masked shifted row for `xorShiftedRow`; pitfall: bit 0 has no carry word, every other bit spills into the next word.
+proc xorShiftedRow(W: var seq[uint64], rOff, bOff, n, bit: int, mask: uint64)
+    {.inline, raises: [].} =
+  ## W: work area. rOff: where this row lands. bOff/n: operand b and its length.
+  ## bit/mask: shift amount and all-ones (bit of a set) or all-zeros.
+  ##   r[j]   ^= (b[j] shl bit)        and mask
+  ##   r[j+1] ^= (b[j] shr (64 - bit)) and mask     (only when bit > 0)
+  var
+    j: int = 0
+  if bit == 0:
+    while j < n:
+      W[rOff + j] = W[rOff + j] xor (W[bOff + j] and mask)
+      j = j + 1
+    return
+  while j < n:
+    W[rOff + j] = W[rOff + j] xor ((W[bOff + j] shl bit) and mask)
+    W[rOff + j + 1] = W[rOff + j + 1] xor ((W[bOff + j] shr (64 - bit)) and mask)
+    j = j + 1
+
 ## Reference: [HQC-20250822] polynomial multiplication; schoolbook product for `schoolbookMul`; pitfall: the destination range must not overlap either operand range.
 proc schoolbookMul(W: var seq[uint64], rOff, aOff, bOff, n: int)
     {.role: {math}, raises: [].} =
@@ -82,9 +101,7 @@ proc schoolbookMul(W: var seq[uint64], rOff, aOff, bOff, n: int)
     ai: uint64 = 0
     mask: uint64 = 0
     i: int = 0
-    j: int = 0
     bit: int = 0
-    inv: int = 0
   i = 0
   while i < 2 * n:
     W[rOff + i] = 0'u64
@@ -95,19 +112,7 @@ proc schoolbookMul(W: var seq[uint64], rOff, aOff, bOff, n: int)
     bit = 0
     while bit < 64:
       mask = 0'u64 - ((ai shr bit) and 1'u64)
-      if bit == 0:
-        j = 0
-        while j < n:
-          W[rOff + i + j] = W[rOff + i + j] xor (W[bOff + j] and mask)
-          j = j + 1
-      else:
-        inv = 64 - bit
-        j = 0
-        while j < n:
-          W[rOff + i + j] = W[rOff + i + j] xor ((W[bOff + j] shl bit) and mask)
-          W[rOff + i + j + 1] = W[rOff + i + j + 1] xor
-            ((W[bOff + j] shr inv) and mask)
-          j = j + 1
+      xorShiftedRow(W, rOff + i, bOff, n, bit, mask)
       bit = bit + 1
     i = i + 1
 

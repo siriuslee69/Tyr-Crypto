@@ -267,9 +267,9 @@ proc compDecode*(dst: var openArray[int16], src: openArray[byte], logn: int): in
     m = b and 127'u32
     v = v + 1
     while true:
+      if accLen == 0 and v >= src.len:
+        return 0
       if accLen == 0:
-        if v >= src.len:
-          return 0
         acc = (acc shl 8) or uint32(src[v])
         accLen = 8
         v = v + 1

@@ -140,13 +140,12 @@ proc frodoPackInto*(dst: var openArray[byte], input: openArray[uint16], lsb: int
         b = b + nbits
         bits = bits - nbits
         w = w and not (mask shl bits)
+        if bits == 0 and j >= input.len:
+          break
         if bits == 0:
-          if j < input.len:
-            w = input[j]
-            bits = lsb
-            j = j + 1
-          else:
-            break
+          w = input[j]
+          bits = lsb
+          j = j + 1
       if b == 8:
         i = i + 1
 
@@ -194,13 +193,12 @@ proc frodoUnpackInto*(dst: var openArray[uint16], input: openArray[byte], lsb: i
         b = b + nbits
         bits = bits - nbits
         w = w and not (uint8(mask) shl bits)
+        if bits == 0 and j >= input.len:
+          break
         if bits == 0:
-          if j < input.len:
-            w = input[j]
-            bits = 8
-            j = j + 1
-          else:
-            break
+          w = input[j]
+          bits = 8
+          j = j + 1
       if b == lsb:
         i = i + 1
 

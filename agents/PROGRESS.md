@@ -1,4 +1,4 @@
-Commit Message: X-Wing hybrid KEM; Falcon keygen retries instead of raising on reducer overflow
+Commit Message: Nesting: flatten every depth-4+ site with inlined helpers (75 -> 0)
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -248,6 +248,12 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
+- (2026-10-16) Otter depth-4+ nesting cleared (75 -> 0 sites) by moving inner
+  loops into {.inline.} helpers or turning ifs round (continue / early break).
+  224 depth-3 sites remain. Two slips caught by tests while doing it: the
+  ML-KEM NTT rewrite first dropped baseMul, and an AES-CTR `or` short-circuit
+  would have stopped the counter once exhausted. Checked scalar, SSE2, AVX2,
+  both SABER multiplier flags and the liboqs build.
 - (2026-10-16) X-Wing (draft-connolly-cfrg-xwing-kem-11) added as kems/xwing,
   family kfXWing in all three tiers; all three Appendix C vectors match.
   Falcon: "exact reducer overflow" escaped keygen once in a Bifrost run

@@ -35,19 +35,20 @@ proc verifyCertificateChain*(leaf: X509Certificate,
     # A trust anchor that issued the current certificate ends the walk.
     i = 0
     while i < trust.roots.len:
-      if trust.roots[i].subjectDer == current.issuerDer:
-        if nowUnix < trust.roots[i].notBeforeUnix or
-            nowUnix > trust.roots[i].notAfterUnix:
-          result.err = "trust anchor is outside its validity period"
-          return
-        sig = verifySignatureWithIssuer(current, trust.roots[i])
-        if not sig.ok:
-          result.err = sig.err
-          return
-        result.depth = depth + 1
-        result.ok = true
+      if trust.roots[i].subjectDer != current.issuerDer:
+        i = i + 1
+        continue
+      if nowUnix < trust.roots[i].notBeforeUnix or
+          nowUnix > trust.roots[i].notAfterUnix:
+        result.err = "trust anchor is outside its validity period"
         return
-      i = i + 1
+      sig = verifySignatureWithIssuer(current, trust.roots[i])
+      if not sig.ok:
+        result.err = sig.err
+        return
+      result.depth = depth + 1
+      result.ok = true
+      return
     # Otherwise continue through the supplied intermediates.
     idx = findIssuer(current, intermediates, used)
     if idx < 0:

@@ -52,6 +52,16 @@ proc hashToPointVarTime*(ctx: var FalconShake256, x: var openArray[uint16], logn
       remaining = remaining - 1
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; portable representation and constant-schedule support for `hashToPointCt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc slotPtr(x: var openArray[uint16], tt1, tt2: var seq[uint16], k, n, n2: int): ptr uint16
+    {.inline.} =
+  ## Position k of the joined list  [ x 0..n-1 | tt1 n..n2-1 | tt2 n2.. ].
+  ## k is a public loop index, so choosing the array by it leaks nothing.
+  if k < n:
+    return addr x[k]
+  if k < n2:
+    return addr tt1[k - n]
+  result = addr tt2[k - n2]
+
 proc hashToPointCt*(ctx: var FalconShake256, x: var openArray[uint16], logn: int) =
   var
     n = mkn(logn)
@@ -89,23 +99,13 @@ proc hashToPointCt*(ctx: var FalconShake256, x: var openArray[uint16], logn: int
       dst: ptr uint16
       u2: int = 0
     while u2 < m:
-      if u2 < n:
-        src = addr x[u2]
-      elif u2 < n2:
-        src = addr tt1[u2 - n]
-      else:
-        src = addr tt2[u2 - n2]
+      src = slotPtr(x, tt1, tt2, u2, n, n2)
       let sv = src[]
       let j = u2 - v
       var mk = (uint(sv) shr 15) - 1'u
       v = v + int(mk and 1'u)
       if u2 >= p:
-        if (u2 - p) < n:
-          dst = addr x[u2 - p]
-        elif (u2 - p) < n2:
-          dst = addr tt1[(u2 - p) - n]
-        else:
-          dst = addr tt2[(u2 - p) - n2]
+        dst = slotPtr(x, tt1, tt2, u2 - p, n, n2)
         let dv = dst[]
         mk = mk and (0'u - uint((((j and p) + 0x1FF) shr 9)))
         src[] = uint16(uint(sv) xor (mk and uint(sv xor dv)))

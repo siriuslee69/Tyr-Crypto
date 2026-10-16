@@ -471,6 +471,20 @@ proc shake128SqueezeBlocksSse2x*[OUTBYTES: static[int]](states: var array[2, Sha
     produced = produced + 168
     keccakF1600Sse2x(states)
 
+proc squeezeLaneBlock[N: static[int]](D: var array[N, byte], S: Sha3State, o, n: int) {.inline.} =
+  ## D/o: one lane's output and where this block starts. S: that lane's state.
+  ## n: bytes wanted from this block (the last block may be short).
+  var
+    laneBytes: array[8, byte] = default(array[8, byte])
+    i: int = 0
+    take: int = 0
+  while i * sha3SimdLaneBytes < n:
+    store64Le(laneBytes, 0, S[i])
+    take = min(sha3SimdLaneBytes, n - i * sha3SimdLaneBytes)
+    copyMem(addr D[o + i * sha3SimdLaneBytes], addr laneBytes[0], take)
+    i = i + 1
+  secureClearPod(laneBytes)
+
 proc shake256Sse2xInto*[OUTBYTES: static[int], INBYTES: static[int]](
     dst: var array[2, array[OUTBYTES, byte]], msgs: array[2, array[INBYTES, byte]]) =
   ## SHAKE256 over two short equal-length inputs in parallel.
@@ -495,15 +509,7 @@ proc shake256Sse2xInto*[OUTBYTES: static[int], INBYTES: static[int]](
       blockBytes = OUTBYTES - produced
     lane = 0
     while lane < 2:
-      i = 0
-      while i * sha3SimdLaneBytes < blockBytes:
-        store64Le(laneBytes, 0, states[lane][i])
-        take = blockBytes - i * sha3SimdLaneBytes
-        if take > sha3SimdLaneBytes:
-          take = sha3SimdLaneBytes
-        for j in 0 ..< take:
-          dst[lane][produced + i * sha3SimdLaneBytes + j] = laneBytes[j]
-        i = i + 1
+      squeezeLaneBlock(dst[lane], states[lane], produced, blockBytes)
       lane = lane + 1
     produced = produced + blockBytes
     if produced < OUTBYTES:
@@ -795,15 +801,7 @@ when defined(avx2):
         blockBytes = OUTBYTES - produced
       lane = 0
       while lane < 4:
-        i = 0
-        while i * sha3SimdLaneBytes < blockBytes:
-          store64Le(laneBytes, 0, states[lane][i])
-          take = blockBytes - i * sha3SimdLaneBytes
-          if take > sha3SimdLaneBytes:
-            take = sha3SimdLaneBytes
-          for j in 0 ..< take:
-            dst[lane][produced + i * sha3SimdLaneBytes + j] = laneBytes[j]
-          i = i + 1
+        squeezeLaneBlock(dst[lane], states[lane], produced, blockBytes)
         lane = lane + 1
       produced = produced + blockBytes
       if produced < OUTBYTES:

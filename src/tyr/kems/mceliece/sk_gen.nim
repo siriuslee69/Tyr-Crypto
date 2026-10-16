@@ -65,12 +65,14 @@ proc genpolyGen*(p: McElieceParams; outPoly: var seq[GF]; f: openArray[GF]): boo
 
     k = 0
     while k < cols:
-      if k != j:
-        t = cell(j, k)
-        c = j
-        while c <= cols:
-          cell(c, k) = cell(c, k) xor gfMul(cell(c, j), t)
-          c = c + 1
+      if k == j:   # the pivot row itself is not eliminated (k, j are public)
+        k = k + 1
+        continue
+      t = cell(j, k)
+      c = j
+      while c <= cols:
+        cell(c, k) = cell(c, k) xor gfMul(cell(c, j), t)
+        c = c + 1
       k = k + 1
     j = j + 1
 

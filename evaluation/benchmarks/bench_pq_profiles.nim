@@ -309,6 +309,25 @@ proc printHelp() =
   echo "  --logs-dir=<dir>"
   echo "  --help"
 
+proc applyModeOption(C: var CliConfig, val: string) {.inline.} =
+  ## C: config being built. val: the text after --mode=.
+  if val.len == 0:
+    raise newException(ValueError, "--mode requires a value")
+  case val.toLowerAscii()
+  of "all":
+    C.runScalar = true
+    C.runAvx2 = true
+  of "scalar": C.runScalar = true
+  of "avx2": C.runAvx2 = true
+  else: raise newException(ValueError, "unknown mode: " & val)
+
+proc addSuiteTokens(S: var seq[BenchSuite], val: string) {.inline.} =
+  ## S: suites so far. val: comma-separated text after --suite=.
+  if val.len == 0:
+    raise newException(ValueError, "--suite requires a value")
+  for token in val.split(','):
+    addSuiteToken(S, token)
+
 proc parseArgs(): CliConfig =
   var
     p: OptParser
@@ -316,9 +335,6 @@ proc parseArgs(): CliConfig =
     modeSet: bool = false
     key: string = ""
     val: string = ""
-    token: string = ""
-    parts: seq[string] = @[]
-    i: int = 0
   result.rebuild = true
   result.runScalar = true
   result.runAvx2 = true
@@ -345,37 +361,19 @@ proc parseArgs(): CliConfig =
       if key == "no-rebuild":
         result.rebuild = false
         continue
+      if key == "logs-dir" and val.len == 0:
+        raise newException(ValueError, "--logs-dir requires a value")
       if key == "logs-dir":
-        if val.len == 0:
-          raise newException(ValueError, "--logs-dir requires a value")
         result.logsDir = absolutePath(val)
         continue
       if key == "mode":
         modeSet = true
         result.runScalar = false
         result.runAvx2 = false
-        if val.len == 0:
-          raise newException(ValueError, "--mode requires a value")
-        if val.toLowerAscii() == "all":
-          result.runScalar = true
-          result.runAvx2 = true
-          continue
-        if val.toLowerAscii() == "scalar":
-          result.runScalar = true
-          continue
-        if val.toLowerAscii() == "avx2":
-          result.runAvx2 = true
-          continue
-        raise newException(ValueError, "unknown mode: " & val)
+        applyModeOption(result, val)
+        continue
       if key == "suite":
-        if val.len == 0:
-          raise newException(ValueError, "--suite requires a value")
-        parts = val.split(',')
-        i = 0
-        while i < parts.len:
-          token = parts[i]
-          addSuiteToken(result.suites, token)
-          i = i + 1
+        addSuiteTokens(result.suites, val)
         continue
       raise newException(ValueError, "unknown option: --" & key)
     of cmdArgument:
