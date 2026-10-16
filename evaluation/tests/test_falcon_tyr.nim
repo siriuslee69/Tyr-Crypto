@@ -12,6 +12,7 @@ import ../../src/tyr/signatures/falcon/fpr
 import ../../src/tyr/signatures/falcon/format
 import ../../src/tyr/signatures/falcon/pure_verify
 import ../../src/tyr/signatures/falcon/sign
+import ../../src/tyr/signatures/falcon/keygen_bigint
 
 import runePragmas
 
@@ -68,6 +69,18 @@ template falcon1024Test(testName: string, body: untyped) =
       body
 
 suite "falcon tyr":
+  # {.testKind: tkRegression, covers: "roundDivSigned31", pins: "Falcon exact reducer overflow escaped keygen".}
+  test "an oversized rounded quotient gives up the candidate instead of raising":
+    ## 2^31 / 1 does not fit in 31 bits. Before 2026-10-16 this raised out
+    ## of keygen; now it returns false so keygen draws a new (f, g).
+    var
+      k: int32 = 5
+      big: FalconSigned31 = FalconSigned31(neg: false, words: @[0'u32, 1'u32])
+      small: FalconSigned31 = FalconSigned31(neg: true, words: @[7'u32])
+    check not roundDivSigned31(big, [1'u32], k)
+    check roundDivSigned31(small, [2'u32], k)
+    check k == -4'i32
+
   test "integer FPR arithmetic preserves exact small values":
     var
       three: FalconFpr = fprOf(3)

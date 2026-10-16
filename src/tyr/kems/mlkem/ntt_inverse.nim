@@ -1,3 +1,4 @@
+## Reference: [FIPS-203] algorithm 10 NTT^-1; pitfall: keep the zeta order and the final Montgomery factor exact.
 proc invNtt*(R: var array[mlkemN, int16]) {.inline.} =
   ## Inverse NTT back to standard order and Montgomery scale factor.
   var

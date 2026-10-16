@@ -81,6 +81,7 @@ Curated benchmark snapshots currently focus on the asymmetric and key-agreement 
 | Category | Algorithms | SIMD coverage | Benchmark-guided profile |
 |----------|------------|---------------|--------------------------|
 | **KEM** | FIPS 203 ML-KEM (512/768/1024) | SSE2/NEON four-pair and AVX2 eight-pair polynomial accumulation; coefficient helpers | Fastest PQ KEM family in the current curated snapshots; sub-ms on desktop and the measured phones |
+| **KEM** | X-Wing (ML-KEM-768 + X25519, draft-connolly-cfrg-xwing-kem-11) | Inherits the ML-KEM and X25519 paths | Hybrid for talking to other X-Wing software; an attacker must break both halves. Matches all draft-11 Appendix C vectors |
 | **KEM** | FrodoKEM (640/976/1344, AES + SHAKE) | Streamed matrix generation; SSE2/NEON 128-bit and AVX2 256-bit matrix products; optional Tyr-native AES-NI | Conservative, high-bandwidth path; AES-NI makes AES variants substantially faster, while streamed SHAKE avoids the full matrix allocation |
 | **KEM** | BIKE-L1 | SSE2/NEON 128-bit decoder word helpers; multiplication remains scalar/Karatsuba | Tens-of-ms KEM in the current snapshots |
 | **KEM** | HQC (HQC-1/3/5, 2025-08-22 specification) | None yet; multiplication is scalar Karatsuba and both decoders are scalar | Tens-of-ms KEM. Code-based like BIKE and McEliece, so it shares none of the lattice assumptions; keys stay small but ciphertexts are roughly three times the key |

@@ -32,6 +32,7 @@
 ##   ntru                 NTRU              ntruTyrKeypair(...)
 ##   saber                SABER             saberTyrKeypair(...)
 ##   hqc                  HQC               hqcTyrKeypair(hqc1)
+##   xwing                X-Wing hybrid     xwingTyrKeypair(xwing768)
 ##
 ## Why a build flag and not a call in your code
 ## --------------------------------------------
@@ -57,7 +58,8 @@ when tyrKem == "":
   import ./ntru
   import ./saber
   import ./hqc
-  export mlkem, mceliece, frodo, bike, ntru, saber, hqc
+  import ./xwing
+  export mlkem, mceliece, frodo, bike, ntru, saber, hqc, xwing
 elif tyrKem == "mlkem":
   import ./mlkem
   export mlkem
@@ -79,9 +81,12 @@ elif tyrKem == "saber":
 elif tyrKem == "hqc":
   import ./hqc
   export hqc
+elif tyrKem == "xwing":
+  import ./xwing
+  export xwing
 else:
   {.error: "unknown -d:tyrKem=" & tyrKem &
-    " (expected: mlkem, mceliece, frodo, bike, ntru, saber, hqc, or omit the flag for all)".}
+    " (expected: mlkem, mceliece, frodo, bike, ntru, saber, hqc, xwing, or omit the flag for all)".}
 
 proc keypairSingle*(f: static KemFamily, seed: seq[byte] = @[]): KemKeypair =
   ## f/seed: family named as a COMPILE-TIME value, plus optional fixed
@@ -132,3 +137,9 @@ proc keypairSingle*(f: static KemFamily, seed: seq[byte] = @[]): KemKeypair =
     else:
       var t = hqcTyrKeypair(hqc1, seed)
       result = KemKeypair(family: kfHqc, public: t.publicKey, secret: t.secretKey)
+  elif f == kfXWing:
+    when not declared(xwingTyrKeypair):
+      {.error: "X-Wing is not in this build; use -d:tyrKem=xwing or omit the flag".}
+    else:
+      var t = xwingTyrKeypair(xwing768, seed)
+      result = KemKeypair(family: kfXWing, public: t.publicKey, secret: t.secretKey)

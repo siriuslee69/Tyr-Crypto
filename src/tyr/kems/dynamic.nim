@@ -30,6 +30,7 @@ import ./bike
 import ./ntru
 import ./saber
 import ./hqc
+import ./xwing
 
 export types
 
@@ -44,6 +45,7 @@ type
     of kfNtru:     ntru*: NtruVariant
     of kfSaber:    saber*: SaberVariant
     of kfHqc:      hqc*: HqcVariant
+    of kfXWing:    xwing*: XWingVariant
 
 proc keypairOf*(a: AnyKem, seed: seq[byte] = @[]): KemKeypair =
   ## a/seed: the runtime choice, and optional fixed randomness for tests.
@@ -70,6 +72,9 @@ proc keypairOf*(a: AnyKem, seed: seq[byte] = @[]): KemKeypair =
   of kfHqc:
     var t = hqcTyrKeypair(a.hqc, seed)
     result = KemKeypair(family: kfHqc, public: t.publicKey, secret: t.secretKey)
+  of kfXWing:
+    var t = xwingTyrKeypair(a.xwing, seed)
+    result = KemKeypair(family: kfXWing, public: t.publicKey, secret: t.secretKey)
 
 proc encapsOf*(a: AnyKem, pk: openArray[byte], seed: seq[byte] = @[]): KemCiphertext =
   ## a/pk/seed: the runtime choice, recipient's public key, optional randomness.
@@ -98,6 +103,9 @@ proc encapsOf*(a: AnyKem, pk: openArray[byte], seed: seq[byte] = @[]): KemCipher
   of kfHqc:
     var t = hqcTyrEncaps(a.hqc, pk, seed)
     result = KemCiphertext(family: kfHqc, ciphertext: t.ciphertext, shared: t.sharedSecret)
+  of kfXWing:
+    var t = xwingTyrEncaps(a.xwing, pk, seed)
+    result = KemCiphertext(family: kfXWing, ciphertext: t.ciphertext, shared: t.sharedSecret)
 
 proc decapsOf*(a: AnyKem, sk, ct: openArray[byte]): seq[byte] =
   ## a/sk/ct: the runtime choice, your secret key, the ciphertext received.
@@ -110,3 +118,4 @@ proc decapsOf*(a: AnyKem, sk, ct: openArray[byte]): seq[byte] =
   of kfNtru:     result = ntruTyrDecaps(a.ntru, sk, ct)
   of kfSaber:    result = saberTyrDecaps(a.saber, sk, ct)
   of kfHqc:      result = hqcTyrDecaps(a.hqc, sk, ct)
+  of kfXWing:    result = xwingTyrDecaps(a.xwing, sk, ct)

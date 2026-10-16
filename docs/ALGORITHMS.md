@@ -59,6 +59,26 @@ All symmetric primitives are **pure Nim** implementations under `src/tyr/ciphers
   bad ciphertext      KDF(z || H(ct))               SHAKE256(z || ct)
   ```
 
+### X-Wing (hybrid)
+
+**Files:** `src/tyr/kems/xwing.nim`, `src/tyr/kems/xwing/`
+
+| Variant | NIST Level | PK bytes | SK bytes | CT bytes | Shared Secret |
+|---------|-----------|----------|----------|----------|---------------|
+| xwing768 | 3 (ML-KEM-768) + X25519 | 1,216 | 32 | 1,120 | 32 |
+
+```
+sk (32) --SHAKE256--> [ d 32 | z 32 ] -> ML-KEM-768 keypair
+                      [ sX 32       ] -> X25519 keypair
+pk = pkM (1184) | pkX (32)          ct = ctM (1088) | ctX (32)
+ss = SHA3-256( ssM | ssX | ctX | pkX | 5c 2e 2f 2f 5e 5c )
+```
+
+- **Specification:** draft-connolly-cfrg-xwing-kem-11 (2026-09-23), an Internet-Draft, not yet an RFC
+- **KAT validated:** all three Appendix C vectors, copied into `evaluation/tests/xwing_vectors.txt`
+- **When to use it:** to interoperate with other X-Wing software. Inside Bifrost, enabling the ML-KEM-768 and X25519 slots already gives a hybrid, mixed by Bifrost's own key schedule (not byte-compatible with X-Wing)
+- **Malformed input:** a tampered ML-KEM part gives a wrong, random-looking secret (implicit rejection); a small-order X25519 part raises `ValueError`, which depends only on public bytes
+
 ### FrodoKEM
 
 **Files:** `src/tyr/kems/frodo.nim`, `src/tyr/kems/frodo/`

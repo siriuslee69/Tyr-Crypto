@@ -36,7 +36,7 @@
       "bytes": 1252341,
       "licenseExpression": "NIST-Technical-Series-Notice",
       "gitPolicy": "tracked",
-      "note": "Comparison source only: Tyr's kyber API implements round-3 Kyber, not ML-KEM. NIST lists pending errata as of the audit date."
+      "note": "Implemented by src/tyr/kems/mlkem since 2026-10-16 (round-3 Kyber before). NIST lists pending errata as of the check date."
     },
     {
       "id": "FIPS-204",
@@ -113,6 +113,17 @@
       "bytes": 855898,
       "licenseExpression": "NOASSERTION",
       "gitPolicy": "hash-pin-only"
+    },
+    {
+      "id": "XWING-11",
+      "title": "X-Wing: general-purpose hybrid post-quantum KEM, draft-connolly-cfrg-xwing-kem-11",
+      "sourceUrl": "https://datatracker.ietf.org/doc/draft-connolly-cfrg-xwing-kem/",
+      "downloadUrl": "https://www.ietf.org/archive/id/draft-connolly-cfrg-xwing-kem-11.txt",
+      "sha256": "1353f61f0d706199d86b6802eab83cabbb5195b2d99fb35bca20f5e4f83db786",
+      "bytes": 61105,
+      "licenseExpression": "IETF-Trust-Legal-Provisions",
+      "gitPolicy": "hash-pin-only",
+      "note": "Internet-Draft, not an RFC. Appendix C vectors are copied into evaluation/tests/xwing_vectors.txt."
     },
     {
       "id": "SPHINCS-R3.1",

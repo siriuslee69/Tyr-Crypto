@@ -34,7 +34,8 @@ type
     kfBike,
     kfNtru,
     kfSaber,
-    kfHqc
+    kfHqc,
+    kfXWing
 
   ## A public/secret pair. `public` is safe to publish; `secret` never
   ## leaves the machine that made it.
@@ -61,6 +62,7 @@ proc familyName*(f: KemFamily): string =
   of kfNtru:     result = "ntru"
   of kfSaber:    result = "saber"
   of kfHqc:      result = "hqc"
+  of kfXWing:    result = "xwing"
 
 proc parseKemFamily*(s: string): KemFamily =
   ## s: a name produced by `familyName`.
@@ -74,4 +76,5 @@ proc parseKemFamily*(s: string): KemFamily =
   of "ntru":     result = kfNtru
   of "saber":    result = kfSaber
   of "hqc":      result = kfHqc
+  of "xwing":    result = kfXWing
   else: raise newException(ValueError, "unknown KEM family: " & s)

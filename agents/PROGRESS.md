@@ -1,4 +1,4 @@
-Commit Message: ML-KEM: replace round-3 Kyber with FIPS 203 ML-KEM
+Commit Message: X-Wing hybrid KEM; Falcon keygen retries instead of raising on reducer overflow
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -248,6 +248,13 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
+- (2026-10-16) X-Wing (draft-connolly-cfrg-xwing-kem-11) added as kems/xwing,
+  family kfXWing in all three tiers; all three Appendix C vectors match.
+  Falcon: "exact reducer overflow" escaped keygen once in a Bifrost run
+  (0 in 1800 local keygens). roundDivSigned31 now returns false so the
+  candidate is dropped and redrawn, as the reference solve_NTRU does.
+  Fingerprints unchanged. Reference check: 165 old errors remain (HQC-20250822
+  has no lock entry); ML-KEM and X-Wing are clean.
 - (2026-10-16) Round-3 Kyber replaced by FIPS 203 ML-KEM (same NTT/SIMD core;
   keygen G(d||k), m not pre-hashed, K not hashed with ct, J(z||ct) rejection,
   7.2 modulus and 7.3 hash checks). Renamed kyber -> mlkem everywhere (enum,

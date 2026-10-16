@@ -55,7 +55,7 @@
 ## Where things live
 ## -----------------
 ##
-##   tyr/kems         key agreement      ML-KEM McEliece Frodo BIKE NTRU SABER
+##   tyr/kems         key agreement      ML-KEM X-Wing McEliece Frodo BIKE NTRU SABER HQC
 ##   tyr/signatures   proving authorship Dilithium Falcon SPHINCS+ Ed25519
 ##   tyr/hashes       fingerprints       BLAKE3 SHA-256 SHA-512 SHA-3
 ##   tyr/macs         keyed fingerprints BLAKE3-keyed Gimli Poly1305 HMAC-SHA3

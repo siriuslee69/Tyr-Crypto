@@ -146,8 +146,8 @@ proc reduceIntermediateLogn1(ft, gt: RnsPoly, slen: int, Ft, Gt: var RnsPoly,
     h0 = addSigned31(h0, mulSigned31(G1, g1))
     h1 = subSigned31(h1, mulSigned31(G0, g1))
     h1 = addSigned31(h1, mulSigned31(G1, g0))
-    k[0] = roundDivSigned31(h0, denScaled)
-    k[1] = roundDivSigned31(h1, denScaled)
+    if not (roundDivSigned31(h0, denScaled, k[0]) and roundDivSigned31(h1, denScaled, k[1])):
+      return
     polySubScaled(Ft, FGlen, ft, slen, k, uint32(scaleK div 31), uint32(scaleK mod 31), 1)
     polySubScaled(Gt, FGlen, gt, slen, k, uint32(scaleK div 31), uint32(scaleK mod 31), 1)
     shrinkFgLen(FGlen, maxBitsCurrent, scaleK, maxBitsFg)
@@ -166,7 +166,7 @@ proc decodePoly4(P: RnsPoly, wordLen: int): array[4, FalconSigned31] {.role: {pa
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `cramerK4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc cramerK4(k: var seq[int32], denMat: FalconSigned31Mat4,
-    numPoly: openArray[FalconSigned31], detNeg: bool, denScaled: openArray[uint32])
+    numPoly: openArray[FalconSigned31], detNeg: bool, denScaled: openArray[uint32]): bool
     {.role: {math}.} =
   ## k: receives the solution of denMat·k = numPoly by Cramer's rule,
   ## k[i] = round(det(denMat with column i = numPoly) / det(denMat)).
@@ -177,8 +177,10 @@ proc cramerK4(k: var seq[int32], denMat: FalconSigned31Mat4,
     num = det4Small31(replaceMat4Column(denMat, i, numPoly))
     if detNeg:
       num = negSigned31(num)
-    k[i] = roundDivSigned31(num, denScaled)
+    if not roundDivSigned31(num, denScaled, k[i]):
+      return false
     i = i + 1
+  result = true
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `reduceIntermediateLogn2`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc reduceIntermediateLogn2(ft, gt: RnsPoly, slen: int, Ft, Gt: var RnsPoly,
@@ -206,7 +208,8 @@ proc reduceIntermediateLogn2(ft, gt: RnsPoly, slen: int, Ft, Gt: var RnsPoly,
   while not done:
     numPoly = polyAddSmall31(polyMulModXn1Small31(decodePoly4(Ft, FGlen), adjF),
       polyMulModXn1Small31(decodePoly4(Gt, FGlen), adjG))
-    cramerK4(k, denMat, numPoly, det.neg, shiftLeftAbs31(det.words, scaleK))
+    if not cramerK4(k, denMat, numPoly, det.neg, shiftLeftAbs31(det.words, scaleK)):
+      return
     polySubScaled(Ft, FGlen, ft, slen, k, uint32(scaleK div 31), uint32(scaleK mod 31), 2)
     polySubScaled(Gt, FGlen, gt, slen, k, uint32(scaleK div 31), uint32(scaleK mod 31), 2)
     shrinkFgLen(FGlen, maxBitsCurrent, scaleK, maxBitsFg)

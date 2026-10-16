@@ -378,18 +378,23 @@ proc roundDivAbs31(num, den: openArray[uint32]): uint32 {.role: {math}.} =
   q
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `roundDivSigned31`; pitfall: avoid secret-dependent branches, indices, and unbounded secret lifetimes.
-proc roundDivSigned31*(num: FalconSigned31, den: openArray[uint32]): int32 {.role: {math}.} =
-  ## num: signed big number. den: magnitude. Returns round(num/den).
+proc roundDivSigned31*(num: FalconSigned31, den: openArray[uint32], k: var int32): bool
+    {.role: {math}.} =
+  ## num: signed big number. den: magnitude. k: receives round(num/den).
+  ## False when the quotient does not fit in 31 bits. The key candidate is
+  ## then given up and keygen draws a new (f, g), as the reference
+  ## solve_NTRU does. Raising here instead once leaked out of keygen as
+  ## "Falcon exact reducer overflow" (seen 2026-10-16 in a Bifrost test).
   var
     q: uint32 = 0'u32
+  k = 0'i32
   if num.words.len == 0:
-    return 0'i32
+    return true
   q = roundDivAbs31(num.words, den)
   if q >= 0x80000000'u32:
-    raise newException(ValueError, "Falcon exact reducer overflow")
-  if num.neg:
-    return -cast[int32](q)
-  cast[int32](q)
+    return false
+  k = (if num.neg: -cast[int32](q) else: cast[int32](q))
+  result = true
 
 ## Reference: [FALCON-SPEC] sections 2-3 and the keygen, signing, verification, and encoding algorithms; key-generation algorithms for `polyAdjSmall31`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyAdjSmall31*(a: openArray[FalconSigned31]): seq[FalconSigned31] {.role: {math}.} =

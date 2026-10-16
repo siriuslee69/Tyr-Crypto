@@ -47,11 +47,12 @@ import ./kems/bike
 import ./kems/ntru
 import ./kems/saber
 import ./kems/hqc
+import ./kems/xwing
 import ./kems/x25519
 import ./kems/material
 
 export types
-export mlkem, mceliece, frodo, bike, ntru, saber, hqc
+export mlkem, mceliece, frodo, bike, ntru, saber, hqc, xwing
 export x25519
 export material
 
@@ -91,6 +92,11 @@ proc keypair*(v: HqcVariant, seed: seq[byte] = @[]): KemKeypair {.role: {orchest
   ## v/seed: variant, and optional 32 bytes of fixed randomness for tests.
   var t = hqcTyrKeypair(v, seed)
   result = KemKeypair(family: kfHqc, public: t.publicKey, secret: t.secretKey)
+
+proc keypair*(v: XWingVariant, seed: seq[byte] = @[]): KemKeypair {.role: {orchestrator}.} =
+  ## v/seed: variant, and optional 32-byte secret key for reproducible tests.
+  var t = xwingTyrKeypair(v, seed)
+  result = KemKeypair(family: kfXWing, public: t.publicKey, secret: t.secretKey)
 
 ## ╭⟢ encapsulate
 
@@ -144,6 +150,12 @@ proc encaps*(v: HqcVariant, pk: openArray[byte], seed: seq[byte] = @[]): KemCiph
   var t = hqcTyrEncaps(v, pk, seed)
   result = KemCiphertext(family: kfHqc, ciphertext: t.ciphertext, shared: t.sharedSecret)
 
+proc encaps*(v: XWingVariant, pk: openArray[byte], seed: seq[byte] = @[]): KemCiphertext
+    {.role: {encryptor}.} =
+  ## v/pk/seed: variant, the recipient's public key, optional 64-byte eseed.
+  var t = xwingTyrEncaps(v, pk, seed)
+  result = KemCiphertext(family: kfXWing, ciphertext: t.ciphertext, shared: t.sharedSecret)
+
 ## ╭⟢ decapsulate
 
 proc decaps*(v: MlKemVariant, sk, ct: openArray[byte]): seq[byte] {.role: {decryptor}.} =
@@ -173,3 +185,7 @@ proc decaps*(v: SaberVariant, sk, ct: openArray[byte]): seq[byte] {.role: {decry
 proc decaps*(v: HqcVariant, sk, ct: openArray[byte]): seq[byte] {.role: {decryptor}.} =
   ## v/sk/ct: variant, your secret key, the ciphertext you received.
   result = hqcTyrDecaps(v, sk, ct)
+
+proc decaps*(v: XWingVariant, sk, ct: openArray[byte]): seq[byte] {.role: {decryptor}.} =
+  ## v/sk/ct: variant, your 32-byte secret key, the ciphertext you received.
+  result = xwingTyrDecaps(v, sk, ct)

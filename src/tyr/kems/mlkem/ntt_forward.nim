@@ -1,3 +1,4 @@
+## Reference: [FIPS-203] algorithm 9 NTT; pitfall: keep the zeta order and Montgomery scaling exact.
 proc ntt*(R: var array[mlkemN, int16]) {.inline.} =
   ## Forward NTT from standard order to bit-reversed order.
   var
