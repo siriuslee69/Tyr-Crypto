@@ -24,7 +24,7 @@ src/
   tyr.nim                        Everything, one name per operation
   tyr/
     kems.nim  kems/              Key agreement
-      kyber/ mceliece/ frodo/ bike/ hqc/ ntru/ saber/ x25519/
+      mlkem/ mceliece/ frodo/ bike/ hqc/ ntru/ saber/ x25519/
     signatures.nim  signatures/  Proving authorship
       dilithium/ falcon/ sphincs/ ed25519/ ecdsa_p256/
     hashes.nim  hashes/          Fingerprints
@@ -83,18 +83,18 @@ them. `aeads.nim` says so where a reader will look for it.
 ## Four ways to reach an algorithm
 
 ```
-import tyr                     keypair(kyber768)          <- overload on the
+import tyr                     keypair(mlkem768)          <- overload on the
                                                              variant's TYPE
 import tyr/kems/mceliece       mcelieceTyrKeypair(...)    <- one family, by
                                                              its own long name
 import tyr/kems/dynamic        keypairOf(anyKemValue)     <- choose from a
                                                              VALUE at runtime
-import tyr/kems/single         keypairSingle(kfKyber)     <- choose with
-  (-d:tyrKem=kyber)                                          -d:, for IoT
+import tyr/kems/single         keypairSingle(kfMlKem)     <- choose with
+  (-d:tyrKem=mlkem)                                          -d:, for IoT
 ```
 
 The names differ per tier (`keypair` / `keypairOf` / `keypairSingle` /
-`kyberTyrKeypair`) so all four can be imported side by side and never
+`mlkemTyrKeypair`) so all four can be imported side by side and never
 collide.
 
 Choosing what gets compiled is a build-time decision by nature: Nim
@@ -123,7 +123,7 @@ helpers/material.nim        AlgorithmKind, algorithmLayouts, AsymEnvelope
    +-- macs/material.nim        blake3hmacM poly1305hmacM ...
    +-- ciphers/material.nim     xchacha20cipherM aesCtrcipherM ...
    +-- signatures/material.nim  ed25519SignM falcon0VerifyM ...
-   +-- kems/material.nim        kyber0SendM mceliece0OpenM ...
+   +-- kems/material.nim        mlkem0SendM mceliece0OpenM ...
 ```
 
 `AlgorithmKind` stays one flat list because `algorithmLayouts` is indexed
@@ -161,7 +161,7 @@ raw bytes or typed crypto material
 sanitize/validate (check sizes, reject invalid inputs)
    |
    v
-typed crypto material (kyber0SendM, dilithium0SignM, ...)
+typed crypto material (mlkem0SendM, dilithium0SignM, ...)
    |
    v
 operation: hash / encrypt / sign / encapsulate
@@ -238,7 +238,7 @@ that binding is what the `v3` in the frame's domain string marks.
 | gimli/blake3      | ciphers/gimli/, hashes/blake3/              |
 | derive_sources    | ciphers/chacha/xchacha20_derive, macs/poly1305/derive |
 | x25519            | kems/x25519/                                |
-| kyber/frodo/bike  | kems/{kyber,frodo,bike}/                    |
+| mlkem/frodo/bike  | kems/{mlkem,frodo,bike}/                    |
 | ntru/saber        | kems/{ntru,saber}/                          |
 | hqc               | kems/hqc/                                   |
 | dilithium/falcon  | signatures/{dilithium,falcon}/              |

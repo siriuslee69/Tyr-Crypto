@@ -84,7 +84,7 @@ proc cipherNonceBytes*(a: StreamCipherAlgorithm): int =
 
 proc parseKemAlgo*(s: string): string =
   case s
-  of "x25519", "kyber768", "kyber1024":
+  of "x25519", "mlkem768", "mlkem1024":
     result = s
   else:
     raise newException(ValueError, "unsupported wasm KEM algorithm: " & s)

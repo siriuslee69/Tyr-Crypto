@@ -5,15 +5,15 @@
 
 import std/[algorithm, tables, unittest]
 
-import ../../src/tyr/kems/kyber as kyber
+import ../../src/tyr/kems/mlkem as mlkem
 import ../../src/tyr/kems/frodo as frodo
 import ../../src/tyr/kems/bike as bike
 import ../../src/tyr/kems/mceliece as mceliece
 import ../../src/tyr/signatures/dilithium as dilithium
 import ../../src/tyr/signatures/falcon as falcon
 import ../../src/tyr/signatures/sphincs as sphincs
-import ../../src/tyr/kems/kyber/params
-import ../../src/tyr/kems/kyber/indcpa
+import ../../src/tyr/kems/mlkem/params
+import ../../src/tyr/kems/mlkem/indcpa
 import ../../src/tyr/signatures/falcon/sign as pure_falcon_sign
 import ../../src/tyr/signatures/falcon/pure_verify as pure_falcon_verify
 import otter_repo_evaluation
@@ -96,23 +96,23 @@ proc runTimedGroup(title: string, body: proc ()) =
   stats = aggregateTimings(entries)
   printTopTimings(title, stats)
 
-proc kyber768BenchGenMatrixImpl() =
+proc mlkem768BenchGenMatrixImpl() =
   var
-    p = params(kyber768)
+    p = params(mlkem768)
     seed: array[32, byte]
   fillPattern(seed, 0x11)
   discard genMatrix(p, seed, false)
 
-proc kyber768BenchIndcpaKeypairImpl() =
+proc mlkem768BenchIndcpaKeypairImpl() =
   var
-    p = params(kyber768)
+    p = params(mlkem768)
     seed = newSeq[byte](32)
   fillPattern(seed, 0x21)
   discard indcpaKeypair(p, seed)
 
-proc kyber768BenchIndcpaEncDecImpl() =
+proc mlkem768BenchIndcpaEncDecImpl() =
   var
-    p = params(kyber768)
+    p = params(mlkem768)
     seed = newSeq[byte](32)
     coins = newSeq[byte](32)
     msg = newSeq[byte](32)
@@ -127,10 +127,10 @@ proc kyber768BenchIndcpaEncDecImpl() =
   dec = indcpaDec(p, ct, kp.sk)
   doAssert dec == msg
 
-proc kyber768BenchRoundtripImpl() =
-  let kp = kyberTyrKeypair(kyber768)
-  let env = kyberTyrEncaps(kyber768, kp.publicKey)
-  let shared = kyberTyrDecaps(kyber768, kp.secretKey, env.ciphertext)
+proc mlkem768BenchRoundtripImpl() =
+  let kp = mlkemTyrKeypair(mlkem768)
+  let env = mlkemTyrEncaps(mlkem768, kp.publicKey)
+  let shared = mlkemTyrDecaps(mlkem768, kp.secretKey, env.ciphertext)
   doAssert shared == env.sharedSecret
 
 proc frodo976BenchRoundtripImpl() =
@@ -208,17 +208,17 @@ proc sphincsShake128fBenchSignVerifyImpl() =
   doAssert sphincsTyrVerify(sphincsShake128fSimple, msg, sig, kp.publicKey)
 
 otterInstrument:
-  proc kyber768BenchGenMatrix() =
-    kyber768BenchGenMatrixImpl()
+  proc mlkem768BenchGenMatrix() =
+    mlkem768BenchGenMatrixImpl()
 
-  proc kyber768BenchIndcpaKeypair() =
-    kyber768BenchIndcpaKeypairImpl()
+  proc mlkem768BenchIndcpaKeypair() =
+    mlkem768BenchIndcpaKeypairImpl()
 
-  proc kyber768BenchIndcpaEncDec() =
-    kyber768BenchIndcpaEncDecImpl()
+  proc mlkem768BenchIndcpaEncDec() =
+    mlkem768BenchIndcpaEncDecImpl()
 
-  proc kyber768BenchRoundtrip() =
-    kyber768BenchRoundtripImpl()
+  proc mlkem768BenchRoundtrip() =
+    mlkem768BenchRoundtripImpl()
 
   proc frodo976BenchRoundtrip() =
     frodo976BenchRoundtripImpl()
@@ -254,13 +254,13 @@ suite "Otter PQ timing":
     fillPattern(msgShort, 0x21)
     fillPattern(msgLong, 0x55)
 
-    runTimedGroup("Kyber768 Roundtrip Hotspots", proc () =
+    runTimedGroup("ML-KEM-768 Roundtrip Hotspots", proc () =
       i = 0
       while i < 5:
-        kyber768BenchGenMatrix()
-        kyber768BenchIndcpaKeypair()
-        kyber768BenchIndcpaEncDec()
-        kyber768BenchRoundtrip()
+        mlkem768BenchGenMatrix()
+        mlkem768BenchIndcpaKeypair()
+        mlkem768BenchIndcpaEncDec()
+        mlkem768BenchRoundtrip()
         i = i + 1
     )
 

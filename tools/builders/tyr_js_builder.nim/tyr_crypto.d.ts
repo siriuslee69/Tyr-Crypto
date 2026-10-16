@@ -4,7 +4,7 @@ export type TyrBasicCipherAlgo =
   | "aesCtr"
   | "gimliStream";
 
-export type TyrKemAlgo = "x25519" | "kyber768" | "kyber1024";
+export type TyrKemAlgo = "x25519" | "mlkem768" | "mlkem1024";
 
 export interface TyrBasicCapability {
   name: TyrBasicCipherAlgo;

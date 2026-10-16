@@ -33,20 +33,31 @@ All symmetric primitives are **pure Nim** implementations under `src/tyr/ciphers
 
 ## Key Encapsulation Mechanisms (KEMs)
 
-### Kyber (ML-KEM)
+### ML-KEM (FIPS 203)
 
-**Files:** `src/tyr/kems/kyber.nim`, `src/tyr/kems/kyber/`
+**Files:** `src/tyr/kems/mlkem.nim`, `src/tyr/kems/mlkem/`
 
 | Variant | NIST Level | PK bytes | SK bytes | CT bytes | Shared Secret |
 |---------|-----------|----------|----------|----------|---------------|
-| Kyber512 (ML-KEM-512) | 1 | 800 | 1,632 | 768 | 32 |
-| Kyber768 (ML-KEM-768) | 3 | 1,184 | 2,400 | 1,088 | 32 |
-| Kyber1024 (ML-KEM-1024) | 5 | 1,568 | 3,168 | 1,568 | 32 |
+| ML-KEM-512 | 1 | 800 | 1,632 | 768 | 32 |
+| ML-KEM-768 | 3 | 1,184 | 2,400 | 1,088 | 32 |
+| ML-KEM-1024 | 5 | 1,568 | 3,168 | 1,568 | 32 |
 
 - **Security foundation:** Module-LWE
 - **NTT:** Scalar + optional SSE2/AVX2
 - **Decaps:** Fujisaki-Okamoto transform with constant-time re-encryption check
-- **KAT validated:** Against liboqs and local NIST KAT vectors
+- **KAT validated:** Against the liboqs / PQClean ML-KEM known-answer hashes (record 0, all three sizes)
+- **FIPS 203 checks:** public keys holding a number >= q are refused (section 7.2); secret keys whose stored H(ek) does not match are refused (section 7.3)
+- **History:** Tyr implemented round-3 CRYSTALS-Kyber until 2026-10-16. Same sizes, different shared secrets:
+
+  ```
+  step                Kyber round 3                 ML-KEM (now)
+  ──────────────────  ────────────────────────────  ──────────────────────
+  keygen seed         G(d)                          G(d || k)
+  encaps m            H(m) first                    m as-is
+  shared key          KDF(K' || H(ct))              K'
+  bad ciphertext      KDF(z || H(ct))               SHAKE256(z || ct)
+  ```
 
 ### FrodoKEM
 
@@ -230,7 +241,7 @@ Sorted by encaps/decaps or sign/verify cycles on a desktop Skylake-class CPU (re
 ### KEMs (fastest → slowest per keypair+encaps+decaps)
 
 ```
-Kyber512      ~0.05 ms  │  PK: 800 B   CT: 768 B    Level 1
+ML-KEM-512      ~0.05 ms  │  PK: 800 B   CT: 768 B    Level 1
 NTRU 509      ~2.5  ms  │  PK: 699 B   CT: 699 B    Level 1
 SABER         ~0.15 ms  │  PK: 672 B   CT: 736 B    Level 1
 BIKE-L1       ~3.0  ms  │  PK: 1.5 KB  CT: 1.5 KB   Level 1
@@ -270,7 +281,7 @@ and malformed-input rejection can still change runtime.
 | Custom KDF | reviewed | Memory schedule is driven by public parameters; selected generators determine available SIMD paths |
 | Argon2i | reviewed with algorithm caveat | Data-independent addressing, but use only the standard parameter constraints |
 | **Argon2id** | **not constant-time by design** | Later passes use data-dependent memory addressing; this is part of Argon2id's tradeoff, not a suitable primitive for a strict CT claim |
-| Kyber / SABER / Frodo | reviewed | FO checks use masks; no newly identified secret-dependent branch in the reviewed KEM paths |
+| ML-KEM / SABER / Frodo | reviewed | FO checks use masks; no newly identified secret-dependent branch in the reviewed KEM paths |
 | NTRU | reviewed with sampler caveat | The default is fixed-work sort sampling; do not re-enable the ISO rejection sampler for secret material |
 | BIKE | reviewed with decoder caveat | GF(2) multiplication no longer branches on secret bits; the decoder still needs dedicated timing measurement on each target |
 | HQC | reviewed with keygen-sampler caveat | Decoding, the FO check and the encryption sampler are mask-driven with fixed loop bounds; the key-generation sampler rejects biased draws and scans for repeats, so its running time varies with the draws — this matches the reference implementation and is confined to key generation |
@@ -287,7 +298,7 @@ KEM public key sizes (smallest → largest):
 
 NTRU 509        699 B
 SABER           672 B   (LightSaber)
-Kyber512        800 B
+ML-KEM-512        800 B
 BIKE-L1       1,540 B
 HQC-1         2,241 B
 NTRU 677        930 B
@@ -305,7 +316,7 @@ SPHINCS+         32 + 17,088 = 17,120 B  │ smallest PK
 
 ## Research & Reference Documents
 
-- `docs/research/pq_non_ntru_saber/README.md` — Paper index for Kyber, Dilithium, Falcon, Frodo, BIKE, McEliece, SPHINCS+
+- `docs/research/pq_non_ntru_saber/README.md` — Paper index for ML-KEM, Dilithium, Falcon, Frodo, BIKE, McEliece, SPHINCS+
 - `docs/research/pq_non_ntru_saber/papers/2021-1631_secure_sampling_constant_weight_words.pdf` — Sendrier, the fixed-cost constant-weight sampler HQC uses during encryption
 - `docs/research/ntru_saber/README.md` — Paper index for NTRU and SABER, optimization history, benchmark tables
 - `docs/benchmarks/` — Curated benchmark JSON snapshots (desktop + 3 phones)

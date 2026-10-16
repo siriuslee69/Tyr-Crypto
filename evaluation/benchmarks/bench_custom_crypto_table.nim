@@ -13,7 +13,7 @@ import ../../src/tyr/hashes/blake3 as custom_blake3
 import ../../src/tyr/hashes/sha3 as custom_sha3
 import ../../src/tyr/macs/poly1305 as custom_poly1305
 import ../../src/tyr/macs/hmac as custom_hmac
-import ../../src/tyr/kems/kyber as custom_kyber
+import ../../src/tyr/kems/mlkem as custom_mlkem
 import ../../src/tyr/kems/frodo as custom_frodo
 import ../../src/tyr/kems/bike as custom_bike
 import ../../src/tyr/kems/mceliece as custom_mceliece
@@ -29,8 +29,8 @@ const
   byteWarmupSmall = 500
   byteLoopsLarge = 20_000
   byteWarmupLarge = 100
-  kyberLoops = 100
-  kyberWarmup = 3
+  mlkemLoops = 100
+  mlkemWarmup = 3
   frodoBikeLoops = 20
   frodoBikeWarmup = 2
   mcelieceLoops = 2
@@ -453,67 +453,67 @@ proc buildMacSpecs(msgLen: int, notes: var seq[string]): seq[BenchSpec] =
     mixBytes(outBytes)
   )
 
-proc buildKyberKeypairSpec(v: custom_kyber.KyberVariant, name: string): BenchSpec =
+proc buildMlKemKeypairSpec(v: custom_mlkem.MlKemVariant, name: string): BenchSpec =
   var
     seeds: seq[seq[byte]]
     counter: int = 0
-  seeds = makeCorpus(custom_kyber.kyberSymBytes, fastCorpusCount, 0x10 + ord(v) * 19)
+  seeds = makeCorpus(custom_mlkem.mlkemSymBytes, fastCorpusCount, 0x10 + ord(v) * 19)
   result.name = name
-  result.loops = kyberLoops
-  result.warmup = kyberWarmup
+  result.loops = mlkemLoops
+  result.warmup = mlkemWarmup
   result.rateKind = rkOps
   result.workPerLoop = 1
   result.run = proc() =
     var
       idx: int = 0
-      kp: custom_kyber.KyberTyrKeypair
+      kp: custom_mlkem.MlKemTyrKeypair
     idx = nextIndex(counter, seeds.len)
-    kp = custom_kyber.kyberTyrKeypair(v, seeds[idx])
+    kp = custom_mlkem.mlkemTyrKeypair(v, seeds[idx])
     mixBytes(kp.publicKey)
     mixBytes(kp.secretKey)
 
-proc buildKyberEncapsSpec(v: custom_kyber.KyberVariant, name: string): BenchSpec =
+proc buildMlKemEncapsSpec(v: custom_mlkem.MlKemVariant, name: string): BenchSpec =
   var
     kpSeed: seq[byte]
-    kp: custom_kyber.KyberTyrKeypair
+    kp: custom_mlkem.MlKemTyrKeypair
     seeds: seq[seq[byte]]
     counter: int = 0
-  kpSeed = makePatternBytes(custom_kyber.kyberSymBytes, 0x50 + ord(v) * 19)
-  kp = custom_kyber.kyberTyrKeypair(v, kpSeed)
-  seeds = makeCorpus(custom_kyber.kyberSymBytes, fastCorpusCount, 0x70 + ord(v) * 19)
+  kpSeed = makePatternBytes(custom_mlkem.mlkemSymBytes, 0x50 + ord(v) * 19)
+  kp = custom_mlkem.mlkemTyrKeypair(v, kpSeed)
+  seeds = makeCorpus(custom_mlkem.mlkemSymBytes, fastCorpusCount, 0x70 + ord(v) * 19)
   result.name = name
-  result.loops = kyberLoops
-  result.warmup = kyberWarmup
+  result.loops = mlkemLoops
+  result.warmup = mlkemWarmup
   result.rateKind = rkOps
   result.workPerLoop = 1
   result.run = proc() =
     var
       idx: int = 0
-      env: custom_kyber.KyberTyrCipher
+      env: custom_mlkem.MlKemTyrCipher
     idx = nextIndex(counter, seeds.len)
-    env = custom_kyber.kyberTyrEncaps(v, kp.publicKey, seeds[idx])
+    env = custom_mlkem.mlkemTyrEncaps(v, kp.publicKey, seeds[idx])
     mixBytes(env.ciphertext)
     mixBytes(env.sharedSecret)
 
-proc buildKyberDecapsSpec(v: custom_kyber.KyberVariant, name: string): BenchSpec =
+proc buildMlKemDecapsSpec(v: custom_mlkem.MlKemVariant, name: string): BenchSpec =
   var
     kpSeed: seq[byte]
-    kp: custom_kyber.KyberTyrKeypair
+    kp: custom_mlkem.MlKemTyrKeypair
     seeds: seq[seq[byte]]
-    envs: seq[custom_kyber.KyberTyrCipher]
+    envs: seq[custom_mlkem.MlKemTyrCipher]
     counter: int = 0
     i: int = 0
-  kpSeed = makePatternBytes(custom_kyber.kyberSymBytes, 0x90 + ord(v) * 19)
-  kp = custom_kyber.kyberTyrKeypair(v, kpSeed)
-  seeds = makeCorpus(custom_kyber.kyberSymBytes, fastCorpusCount, 0xB0 + ord(v) * 19)
-  envs = newSeq[custom_kyber.KyberTyrCipher](seeds.len)
+  kpSeed = makePatternBytes(custom_mlkem.mlkemSymBytes, 0x90 + ord(v) * 19)
+  kp = custom_mlkem.mlkemTyrKeypair(v, kpSeed)
+  seeds = makeCorpus(custom_mlkem.mlkemSymBytes, fastCorpusCount, 0xB0 + ord(v) * 19)
+  envs = newSeq[custom_mlkem.MlKemTyrCipher](seeds.len)
   i = 0
   while i < seeds.len:
-    envs[i] = custom_kyber.kyberTyrEncaps(v, kp.publicKey, seeds[i])
+    envs[i] = custom_mlkem.mlkemTyrEncaps(v, kp.publicKey, seeds[i])
     i = i + 1
   result.name = name
-  result.loops = kyberLoops
-  result.warmup = kyberWarmup
+  result.loops = mlkemLoops
+  result.warmup = mlkemWarmup
   result.rateKind = rkOps
   result.workPerLoop = 1
   result.run = proc() =
@@ -521,7 +521,7 @@ proc buildKyberDecapsSpec(v: custom_kyber.KyberVariant, name: string): BenchSpec
       idx: int = 0
       shared: seq[byte]
     idx = nextIndex(counter, envs.len)
-    shared = custom_kyber.kyberTyrDecaps(v, kp.secretKey, envs[idx].ciphertext)
+    shared = custom_mlkem.mlkemTyrDecaps(v, kp.secretKey, envs[idx].ciphertext)
     mixBytes(shared)
 
 proc buildFrodoKeypairSpec(v: custom_frodo.FrodoVariant, name: string): BenchSpec =
@@ -921,9 +921,9 @@ proc appendFalconPreparedSignSpecs(S: var seq[BenchSpec], notes: var seq[string]
 
 proc buildKemKeypairSpecs(notes: var seq[string]): seq[BenchSpec] =
   discard notes
-  addOpsSpec(result, "kyber512", kyberLoops, kyberWarmup, buildKyberKeypairSpec(custom_kyber.kyber512, "kyber512").run)
-  addOpsSpec(result, "kyber768", kyberLoops, kyberWarmup, buildKyberKeypairSpec(custom_kyber.kyber768, "kyber768").run)
-  addOpsSpec(result, "kyber1024", kyberLoops, kyberWarmup, buildKyberKeypairSpec(custom_kyber.kyber1024, "kyber1024").run)
+  addOpsSpec(result, "mlkem512", mlkemLoops, mlkemWarmup, buildMlKemKeypairSpec(custom_mlkem.mlkem512, "mlkem512").run)
+  addOpsSpec(result, "mlkem768", mlkemLoops, mlkemWarmup, buildMlKemKeypairSpec(custom_mlkem.mlkem768, "mlkem768").run)
+  addOpsSpec(result, "mlkem1024", mlkemLoops, mlkemWarmup, buildMlKemKeypairSpec(custom_mlkem.mlkem1024, "mlkem1024").run)
   appendFrodoKeypairSpecs(result)
   addOpsSpec(result, "bike_l1", frodoBikeLoops, frodoBikeWarmup, buildBikeKeypairSpec(custom_bike.bikeL1, "bike_l1").run)
   addOpsSpec(result, "mceliece6688128f", mcelieceLoops, mcelieceWarmup, buildMcelieceKeypairSpec(custom_mceliece.mceliece6688128f, "mceliece6688128f").run)
@@ -932,9 +932,9 @@ proc buildKemKeypairSpecs(notes: var seq[string]): seq[BenchSpec] =
 
 proc buildKemEncapsSpecs(notes: var seq[string]): seq[BenchSpec] =
   notes.add("Classic McEliece encaps rows use the current public API randomness because the facade does not expose a deterministic encaps seed")
-  addOpsSpec(result, "kyber512", kyberLoops, kyberWarmup, buildKyberEncapsSpec(custom_kyber.kyber512, "kyber512").run)
-  addOpsSpec(result, "kyber768", kyberLoops, kyberWarmup, buildKyberEncapsSpec(custom_kyber.kyber768, "kyber768").run)
-  addOpsSpec(result, "kyber1024", kyberLoops, kyberWarmup, buildKyberEncapsSpec(custom_kyber.kyber1024, "kyber1024").run)
+  addOpsSpec(result, "mlkem512", mlkemLoops, mlkemWarmup, buildMlKemEncapsSpec(custom_mlkem.mlkem512, "mlkem512").run)
+  addOpsSpec(result, "mlkem768", mlkemLoops, mlkemWarmup, buildMlKemEncapsSpec(custom_mlkem.mlkem768, "mlkem768").run)
+  addOpsSpec(result, "mlkem1024", mlkemLoops, mlkemWarmup, buildMlKemEncapsSpec(custom_mlkem.mlkem1024, "mlkem1024").run)
   appendFrodoEncapsSpecs(result)
   addOpsSpec(result, "bike_l1", frodoBikeLoops, frodoBikeWarmup, buildBikeEncapsSpec(custom_bike.bikeL1, "bike_l1").run)
   addOpsSpec(result, "mceliece6688128f", mcelieceLoops, mcelieceWarmup, buildMcelieceEncapsSpec(custom_mceliece.mceliece6688128f, "mceliece6688128f").run)
@@ -943,9 +943,9 @@ proc buildKemEncapsSpecs(notes: var seq[string]): seq[BenchSpec] =
 
 proc buildKemDecapsSpecs(notes: var seq[string]): seq[BenchSpec] =
   discard notes
-  addOpsSpec(result, "kyber512", kyberLoops, kyberWarmup, buildKyberDecapsSpec(custom_kyber.kyber512, "kyber512").run)
-  addOpsSpec(result, "kyber768", kyberLoops, kyberWarmup, buildKyberDecapsSpec(custom_kyber.kyber768, "kyber768").run)
-  addOpsSpec(result, "kyber1024", kyberLoops, kyberWarmup, buildKyberDecapsSpec(custom_kyber.kyber1024, "kyber1024").run)
+  addOpsSpec(result, "mlkem512", mlkemLoops, mlkemWarmup, buildMlKemDecapsSpec(custom_mlkem.mlkem512, "mlkem512").run)
+  addOpsSpec(result, "mlkem768", mlkemLoops, mlkemWarmup, buildMlKemDecapsSpec(custom_mlkem.mlkem768, "mlkem768").run)
+  addOpsSpec(result, "mlkem1024", mlkemLoops, mlkemWarmup, buildMlKemDecapsSpec(custom_mlkem.mlkem1024, "mlkem1024").run)
   appendFrodoDecapsSpecs(result)
   addOpsSpec(result, "bike_l1", frodoBikeLoops, frodoBikeWarmup, buildBikeDecapsSpec(custom_bike.bikeL1, "bike_l1").run)
   addOpsSpec(result, "mceliece6688128f", mcelieceLoops, mcelieceWarmup, buildMcelieceDecapsSpec(custom_mceliece.mceliece6688128f, "mceliece6688128f").run)

@@ -7,7 +7,7 @@ import ../../helpers/secure_memory
 import ./params
 import ../../helpers/common/pq_rng
 import ../../hashes/sha3
-import ../kyber/verify
+import ../mlkem/verify
 import ../../helpers/otter_support
 
 when defined(sse2) or defined(avx2) or defined(neon) or defined(arm64) or defined(aarch64):

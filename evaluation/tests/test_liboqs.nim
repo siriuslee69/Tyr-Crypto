@@ -50,7 +50,7 @@ suite "liboqs bindings":
         if not ensureLibOqsLoaded():
           echo "liboqs shared library unavailable at runtime; skipping liboqs tests."
           return false
-        let testKem = OQS_KEM_new(oqsAlgKyber768)
+        let testKem = OQS_KEM_new(oqsAlgMlKem768)
         if testKem != nil:
           OQS_KEM_free(testKem)
         return testKem != nil
@@ -58,16 +58,16 @@ suite "liboqs bindings":
         echo "liboqs shared library unavailable at runtime; skipping liboqs tests."
         return false
 
-    test "Kyber768 encapsulation/decapsulation":
+    test "ML-KEM-768 encapsulation/decapsulation":
       let available = ensureLibOqsAvailable()
       if available:
-        exerciseKem(oqsAlgKyber768)
+        exerciseKem(oqsAlgMlKem768)
 
     test "Additional KEM encapsulation/decapsulation":
       let available = ensureLibOqsAvailable()
       if available:
         for alg in [
-          oqsAlgKyber1024,
+          oqsAlgMlKem1024,
           oqsAlgFrodoKEM976,
           oqsAlgClassicMcEliece6688128f,
           oqsAlgClassicMcEliece6688128,
@@ -109,4 +109,4 @@ suite "liboqs bindings":
   else:
     test "liboqs unavailable raises descriptive error":
       expect LibraryUnavailableError:
-        discard OQS_KEM_new(oqsAlgKyber768)
+        discard OQS_KEM_new(oqsAlgMlKem768)

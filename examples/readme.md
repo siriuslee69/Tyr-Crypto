@@ -3,7 +3,7 @@
 | File | What it shows |
 |------|---------------|
 | [basic_hash.nim](basic_hash.nim) | BLAKE3 (hash, keyed, KDF), SHA3, Poly1305 |
-| [kem_kyber.nim](kem_kyber.nim) | Kyber KEM keypair / encaps / decaps |
+| [kem_mlkem.nim](kem_mlkem.nim) | ML-KEM KEM keypair / encaps / decaps |
 | [kem_mceliece.nim](kem_mceliece.nim) | Classic McEliece KEM via typed materials |
 | [kem_frodo.nim](kem_frodo.nim) | FrodoKEM-976-AES keypair / encaps / decaps |
 | [kem_bike.nim](kem_bike.nim) | BIKE-L1 KEM keypair / encaps / decaps |

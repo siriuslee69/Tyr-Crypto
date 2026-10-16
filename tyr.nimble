@@ -123,7 +123,7 @@ task test_asymmetric_audit, "Run focused asymmetric conformance and malformed-in
   exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_audit_x25519").replace('\\', '/') & " evaluation/tests/test_x25519_custom.nim")
   exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_audit_ed25519").replace('\\', '/') & " evaluation/tests/test_ed25519_custom.nim")
   exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_audit_dilithium").replace('\\', '/') & " evaluation/tests/test_dilithium_tyr.nim")
-  exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_audit_kyber").replace('\\', '/') & " evaluation/tests/test_kyber_tyr.nim")
+  exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_audit_mlkem").replace('\\', '/') & " evaluation/tests/test_mlkem_tyr.nim")
   exec withRepoCaches("nim c -r --nimcache:" & repoNimcacheDir("nimcache_audit_sphincs").replace('\\', '/') & " evaluation/tests/test_sphincs_tyr.nim")
 
 task test, "Run the crypto bindings test suite":
@@ -235,7 +235,7 @@ task test_neon_checks, "Compile-check the ARM64/NEON SIMD coverage matrix":
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_aes").replace('\\', '/') & " evaluation/tests/test_aes_ctr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_custom").replace('\\', '/') & " evaluation/tests/test_custom_crypto.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_x25519").replace('\\', '/') & " evaluation/tests/test_x25519_simd.nim")
-  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_kyber").replace('\\', '/') & " evaluation/tests/test_kyber_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_mlkem").replace('\\', '/') & " evaluation/tests/test_mlkem_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_frodo").replace('\\', '/') & " evaluation/tests/test_frodo_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_bike").replace('\\', '/') & " evaluation/tests/test_bike_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_ntru").replace('\\', '/') & " evaluation/tests/test_ntru_tyr.nim")
@@ -264,7 +264,7 @@ task test_simd_matrix, "Run the host SIMD/runtime suite and the ARM64/NEON compi
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_aes").replace('\\', '/') & " evaluation/tests/test_aes_ctr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_custom").replace('\\', '/') & " evaluation/tests/test_custom_crypto.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_x25519").replace('\\', '/') & " evaluation/tests/test_x25519_simd.nim")
-  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_kyber").replace('\\', '/') & " evaluation/tests/test_kyber_tyr.nim")
+  exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_mlkem").replace('\\', '/') & " evaluation/tests/test_mlkem_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_frodo").replace('\\', '/') & " evaluation/tests/test_frodo_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_bike").replace('\\', '/') & " evaluation/tests/test_bike_tyr.nim")
   exec withRepoCaches("nim check --cpu:arm64 -d:neon --nimcache:" & repoNimcacheDir("nimcache_test_neon_ntru").replace('\\', '/') & " evaluation/tests/test_ntru_tyr.nim")
@@ -305,8 +305,8 @@ task perf_sigma_dilithium_scalar, "Benchmark scalar Tyr Dilithium against the sc
   putEnv("LIBOQS_BUILD_ROOT", joinPath(getCurrentDir(), "build", "liboqs_dilithium_scalar_zig_mingw"))
   exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_dilithium_scalar").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -d:tyrExplicitCapabilities -u:sse2 -u:avx2 -u:aesni -u:neon -r evaluation/benchmarks/bench_sigma_dilithium.nim")
 
-task perf_sigma_kyber, "Benchmark Tyr Kyber against liboqs with Otter helpers":
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_kyber").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r evaluation/benchmarks/bench_sigma_kyber_only.nim")
+task perf_sigma_mlkem, "Benchmark Tyr ML-KEM against liboqs with Otter helpers":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_mlkem").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r evaluation/benchmarks/bench_sigma_mlkem_only.nim")
 
 task perf_sigma_pq_aesni, "Benchmark Tyr PQ backends against liboqs with Otter helpers and AES-NI enabled":
   exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_sigma_pq_aesni").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:hasLibOqs -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r evaluation/benchmarks/bench_sigma_pq.nim")
@@ -345,8 +345,8 @@ task bench_custom_kdf, "Run the custom KDF generator benchmark table":
 task perf_otter_pq, "Profile Tyr PQ functions with Otter timing instrumentation":
   exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_otter_pq").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:otterTiming -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r evaluation/benchmarks/bench_otter_pq.nim")
 
-task perf_otter_kyber, "Profile Tyr Kyber functions with Otter timing instrumentation":
-  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_otter_kyber").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:otterTiming -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r evaluation/benchmarks/bench_otter_kyber_only.nim")
+task perf_otter_mlkem, "Profile Tyr ML-KEM functions with Otter timing instrumentation":
+  exec withRepoCaches("nim c --threads:on --nimcache:" & repoNimcacheDir("nimcache_perf_otter_mlkem").replace('\\', '/') & " --path:src --path:" & otterSrcDir() & " -d:release -d:otterTiming -d:sse2 -d:avx2 -d:aesni --passC:\"-msse4.1 -mavx2 -maes\" --passL:\"-msse4.1 -mavx2\" -r evaluation/benchmarks/bench_otter_mlkem_only.nim")
 
 
 task build_libsodium, "Build libsodium and prepare combined headers":
@@ -454,7 +454,7 @@ task test_public_api_surface, "Compile and run the top-level public API export s
 
 task test_single_select, "Compile-check every -d:tyr...=<name> single-family build mode":
   ## Each module must build with no flag (all families) and with each value.
-  for spec in @[("tyrKem", @["kyber","mceliece","frodo","bike","ntru","saber"], "kems"),
+  for spec in @[("tyrKem", @["mlkem","mceliece","frodo","bike","ntru","saber"], "kems"),
       ("tyrSig", @["dilithium","falcon","sphincs","ed25519"], "signatures"),
       ("tyrHash", @["blake3","sha256","sha512","sha3"], "hashes"),
       ("tyrMac", @["poly1305","hmac"], "macs"),

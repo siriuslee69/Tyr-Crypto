@@ -14,10 +14,10 @@ suite "quick api":
     check layoutOf(akChaCha20Cipher).operationKind == okCipher
     check layoutOf(akChaCha20Cipher).keyLayouts[0].size == 32
     check layoutOf(akChaCha20Cipher).keyLayouts[1].size == 12
-    check layoutOf(akKyber0Send).keyLayouts[0].size == 1184
-    check layoutOf(akKyber1Open).keyLayouts[0].size == 3168
-    check layoutOf(akKyber0TyrSend).keyLayouts[0].size == 1184
-    check layoutOf(akKyber1TyrOpen).keyLayouts[0].size == 3168
+    check layoutOf(akMlKem0Send).keyLayouts[0].size == 1184
+    check layoutOf(akMlKem1Open).keyLayouts[0].size == 3168
+    check layoutOf(akMlKem0TyrSend).keyLayouts[0].size == 1184
+    check layoutOf(akMlKem1TyrOpen).keyLayouts[0].size == 3168
     check layoutOf(akMcEliece1Send).keyLayouts[0].size == 1047319
     check layoutOf(akMcEliece2Open).keyLayouts[0].size == 14120
     check layoutOf(akFrodo0AesSend).keyLayouts[0].size == 9616

@@ -5,7 +5,7 @@
 
 import std/unittest
 
-import ../../src/tyr/kems/kyber as custom_kyber
+import ../../src/tyr/kems/mlkem as custom_mlkem
 import ../../src/tyr/kems/frodo as custom_frodo
 import ../../src/tyr/kems/bike as custom_bike
 import ../../src/tyr/kems/mceliece as custom_mceliece
@@ -58,12 +58,12 @@ proc printGroup(g: BenchGroup, results: openArray[BenchResult]) =
   echo "## ", g.title, " loops=", g.loops, " warmup=", g.warmup
   echo formatBenchResults(results)
 
-proc buildCustomKyberRoundtrip(name: string, v: custom_kyber.KyberVariant): BenchAlgo =
+proc buildCustomMlKemRoundtrip(name: string, v: custom_mlkem.MlKemVariant): BenchAlgo =
   result.name = name
   result.run = proc() =
-    let kp = custom_kyber.kyberTyrKeypair(v)
-    let env = custom_kyber.kyberTyrEncaps(v, kp.publicKey)
-    let shared = custom_kyber.kyberTyrDecaps(v, kp.secretKey, env.ciphertext)
+    let kp = custom_mlkem.mlkemTyrKeypair(v)
+    let env = custom_mlkem.mlkemTyrEncaps(v, kp.publicKey)
+    let shared = custom_mlkem.mlkemTyrDecaps(v, kp.secretKey, env.ciphertext)
     doAssert shared == env.sharedSecret
 
 proc buildCustomFrodoRoundtrip(name: string, v: custom_frodo.FrodoVariant): BenchAlgo =
@@ -206,16 +206,16 @@ suite "Sigma PQ performance":
         fillPattern(msgLong, 0x55)
 
         kemAlgos = @[
-          buildCustomKyberRoundtrip("tyr_kyber768_roundtrip", custom_kyber.kyber768),
-          buildOqsKemRoundtrip("oqs_kyber768_roundtrip", oqsAlgKyber768, kemHolders)
+          buildCustomMlKemRoundtrip("tyr_mlkem768_roundtrip", custom_mlkem.mlkem768),
+          buildOqsKemRoundtrip("oqs_mlkem768_roundtrip", oqsAlgMlKem768, kemHolders)
         ]
-        appendGroup(groups, "Kyber768 KEM Roundtrip", fastLoops, warmFast, kemAlgos)
+        appendGroup(groups, "ML-KEM-768 KEM Roundtrip", fastLoops, warmFast, kemAlgos)
 
         kemAlgos = @[
-          buildCustomKyberRoundtrip("tyr_kyber1024_roundtrip", custom_kyber.kyber1024),
-          buildOqsKemRoundtrip("oqs_kyber1024_roundtrip", oqsAlgKyber1024, kemHolders)
+          buildCustomMlKemRoundtrip("tyr_mlkem1024_roundtrip", custom_mlkem.mlkem1024),
+          buildOqsKemRoundtrip("oqs_mlkem1024_roundtrip", oqsAlgMlKem1024, kemHolders)
         ]
-        appendGroup(groups, "Kyber1024 KEM Roundtrip", fastLoops, warmFast, kemAlgos)
+        appendGroup(groups, "ML-KEM-1024 KEM Roundtrip", fastLoops, warmFast, kemAlgos)
 
         kemAlgos = @[
           buildCustomFrodoRoundtrip("tyr_frodo976aes_roundtrip", custom_frodo.frodo976aes),

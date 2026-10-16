@@ -20,8 +20,8 @@ suite "registry helpers":
 
   test "kem metadata covers PQ algorithms":
     check kemBackends(kaX25519).len == 1
-    check kemBackends(kaKyber0).len == 1
-    check kemBackends(kaKyber1).len == 1
+    check kemBackends(kaMlKem0).len == 1
+    check kemBackends(kaMlKem1).len == 1
     check kemBackends(kaMcEliece2).len == 1
     check kemBackends(kaBike0).len == 1
 

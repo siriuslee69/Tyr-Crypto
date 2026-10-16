@@ -1,6 +1,6 @@
 ## ---------------------------------------------------------------------
 ## | KEM Single <- import ONE family, or all of them, from one flag      |
-## | no flag -> every family    -d:tyrKem=kyber -> Kyber alone           |
+## | no flag -> every family    -d:tyrKem=mlkem -> ML-KEM alone           |
 ## ---------------------------------------------------------------------
 ##
 ## Usable straight away, no flag required
@@ -8,7 +8,7 @@
 ##
 ##     import tyr/kems/single
 ##
-##     var kp = keypairSingle(kfKyber)        # <- compile-time choice
+##     var kp = keypairSingle(kfMlKem)        # <- compile-time choice
 ##
 ## With no flag this behaves like the full library: every family is
 ## available, and `keypairSingle` picks between them WHILE COMPILING, so
@@ -16,16 +16,16 @@
 ##
 ## Then, when you want a small build, add one flag and change nothing else:
 ##
-##     nim c -d:tyrKem=kyber myfirmware.nim
+##     nim c -d:tyrKem=mlkem myfirmware.nim
 ##
-## Now only Kyber is compiled. The same `keypairSingle(kfKyber)` call keeps
+## Now only ML-KEM is compiled. The same `keypairSingle(kfMlKem)` call keeps
 ## working; asking for any other family becomes a compile error naming the
 ## flag you would need. Your source does not change between the two builds.
 ##
 ##   -d:tyrKem=<name>     compiles          names
 ##   ------------------   ---------------   --------------------------
 ##   (omitted)            every family      all of them
-##   kyber                Kyber             kyberTyrKeypair(kyber768)
+##   mlkem                ML-KEM             mlkemTyrKeypair(mlkem768)
 ##   mceliece             Classic McEliece  mcelieceTyrKeypair(...)
 ##   frodo                FrodoKEM          frodoTyrKeypair(...)
 ##   bike                 BIKE              bikeTyrKeypair(bikeL1)
@@ -50,17 +50,17 @@ const tyrKem* {.strdefine.}: string = ""
   ## Which single KEM family to compile. Empty (the default) means all.
 
 when tyrKem == "":
-  import ./kyber
+  import ./mlkem
   import ./mceliece
   import ./frodo
   import ./bike
   import ./ntru
   import ./saber
   import ./hqc
-  export kyber, mceliece, frodo, bike, ntru, saber, hqc
-elif tyrKem == "kyber":
-  import ./kyber
-  export kyber
+  export mlkem, mceliece, frodo, bike, ntru, saber, hqc
+elif tyrKem == "mlkem":
+  import ./mlkem
+  export mlkem
 elif tyrKem == "mceliece":
   import ./mceliece
   export mceliece
@@ -81,7 +81,7 @@ elif tyrKem == "hqc":
   export hqc
 else:
   {.error: "unknown -d:tyrKem=" & tyrKem &
-    " (expected: kyber, mceliece, frodo, bike, ntru, saber, hqc, or omit the flag for all)".}
+    " (expected: mlkem, mceliece, frodo, bike, ntru, saber, hqc, or omit the flag for all)".}
 
 proc keypairSingle*(f: static KemFamily, seed: seq[byte] = @[]): KemKeypair =
   ## f/seed: family named as a COMPILE-TIME value, plus optional fixed
@@ -90,12 +90,12 @@ proc keypairSingle*(f: static KemFamily, seed: seq[byte] = @[]): KemKeypair =
   ## `f` is `static`, so the branch below is chosen while compiling and the
   ## others are discarded. Asking for a family this build excluded is a
   ## compile error telling you which flag to change.
-  when f == kfKyber:
-    when not declared(kyberTyrKeypair):
-      {.error: "Kyber is not in this build; use -d:tyrKem=kyber or omit the flag".}
+  when f == kfMlKem:
+    when not declared(mlkemTyrKeypair):
+      {.error: "ML-KEM is not in this build; use -d:tyrKem=mlkem or omit the flag".}
     else:
-      var t = kyberTyrKeypair(kyber768, seed)
-      result = KemKeypair(family: kfKyber, public: t.publicKey, secret: t.secretKey)
+      var t = mlkemTyrKeypair(mlkem768, seed)
+      result = KemKeypair(family: kfMlKem, public: t.publicKey, secret: t.secretKey)
   elif f == kfMcEliece:
     when not declared(mcelieceTyrKeypair):
       {.error: "McEliece is not in this build; use -d:tyrKem=mceliece or omit the flag".}

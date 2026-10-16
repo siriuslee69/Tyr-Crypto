@@ -178,26 +178,26 @@ suite "cipher tiers":
 suite "kem tiers":
 
   test "default, dynamic and single produce interoperable keys":
-    ## Kyber is used as the representative family: it is the fastest, and
+    ## ML-KEM is used as the representative family: it is the fastest, and
     ## the tier plumbing is identical for the rest.
     var
-      viaDefault = keypair(kyber768)
-      viaSingle = kemSingle.keypairSingle(kfKyber)
-      viaDynamic = kemDyn.keypairOf(AnyKem(family: kfKyber, kyber: kyber768))
+      viaDefault = keypair(mlkem768)
+      viaSingle = kemSingle.keypairSingle(kfMlKem)
+      viaDynamic = kemDyn.keypairOf(AnyKem(family: kfMlKem, mlkem: mlkem768))
     check viaDefault.public.len == viaSingle.public.len
     check viaDefault.public.len == viaDynamic.public.len
-    check viaDefault.family == kfKyber
-    check viaSingle.family == kfKyber
-    check viaDynamic.family == kfKyber
+    check viaDefault.family == kfMlKem
+    check viaSingle.family == kfMlKem
+    check viaDynamic.family == kfMlKem
     ## A ciphertext made through one tier opens through another.
-    var c = encaps(kyber768, viaDynamic.public)
-    check kemDyn.decapsOf(AnyKem(family: kfKyber, kyber: kyber768),
+    var c = encaps(mlkem768, viaDynamic.public)
+    check kemDyn.decapsOf(AnyKem(family: kfMlKem, mlkem: mlkem768),
       viaDynamic.secret, c.ciphertext) == c.shared
-    check decaps(kyber768, viaDynamic.secret, c.ciphertext) == c.shared
+    check decaps(mlkem768, viaDynamic.secret, c.ciphertext) == c.shared
 
   test "a seeded keypair is reproducible":
     var seed = fill(32, 8)
-    check keypair(kyber768, seed).public == keypair(kyber768, seed).public
+    check keypair(mlkem768, seed).public == keypair(mlkem768, seed).public
 
   test "names survive a write-then-read trip":
     for f in KemFamily:

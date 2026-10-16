@@ -1,4 +1,4 @@
-Commit Message: Security watch: McEliece 2026 attack warning, Frodo select barrier, P-256 seed noted
+Commit Message: ML-KEM: replace round-3 Kyber with FIPS 203 ML-KEM
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -248,6 +248,13 @@ Working on:
 - Hybrid public-key crypto plan: 3-layer scheme using McEliece + Curve25519 + Kyber.
 
 Last big change or problem:
+- (2026-10-16) Round-3 Kyber replaced by FIPS 203 ML-KEM (same NTT/SIMD core;
+  keygen G(d||k), m not pre-hashed, K not hashed with ct, J(z||ct) rejection,
+  7.2 modulus and 7.3 hash checks). Renamed kyber -> mlkem everywhere (enum,
+  procs, tiers, material, liboqs names; Kyber768-90s binding dropped). KAT
+  matches liboqs/PQClean ML-KEM-512/768/1024 on the first run. Pitfall: the
+  liboqs ML-KEM KAT draws d||z as ONE 64-byte call, not two 32-byte calls.
+  ctBarrier also applied to the ML-KEM cmov.
 - (2026-10-16) Upstream/security check. Classic McEliece: ePrint 2026/1630,
   1747, 1984 + BSI note (29 Sep 2026) cut key-recovery cost to ~2^99..2^148.
   Math-level, so Tyr's optimizations do not help; compile-time warning and

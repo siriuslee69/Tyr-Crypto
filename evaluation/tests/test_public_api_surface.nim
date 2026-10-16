@@ -21,9 +21,9 @@ suite "public api surface":
       argonSalt: seq[byte] = @[]
       argonBlock: seq[byte] = @[]
       kdfBlock: seq[byte] = @[]
-      kyberKp: KyberTyrKeypair
-      kyberEnv: KyberTyrCipher
-      kyberShared: seq[byte] = @[]
+      mlkemKp: MlKemTyrKeypair
+      mlkemEnv: MlKemTyrCipher
+      mlkemShared: seq[byte] = @[]
       diliKp: DilithiumTyrKeypair
       diliSig: seq[byte] = @[]
       sphincsKp: SphincsTyrKeypair
@@ -49,10 +49,10 @@ suite "public api surface":
     kdfBlock = deriveCustomKdf(msg, ckaGimli, 1, 512, 2, 8)
     check kdfBlock.len == 8
 
-    kyberKp = kyberTyrKeypair(kyber768)
-    kyberEnv = kyberTyrEncaps(kyber768, kyberKp.publicKey)
-    kyberShared = kyberTyrDecaps(kyber768, kyberKp.secretKey, kyberEnv.ciphertext)
-    check kyberShared == kyberEnv.sharedSecret
+    mlkemKp = mlkemTyrKeypair(mlkem768)
+    mlkemEnv = mlkemTyrEncaps(mlkem768, mlkemKp.publicKey)
+    mlkemShared = mlkemTyrDecaps(mlkem768, mlkemKp.secretKey, mlkemEnv.ciphertext)
+    check mlkemShared == mlkemEnv.sharedSecret
 
     diliKp = dilithiumTyrKeypair(dilithium65)
     diliSig = dilithiumTyrSign(dilithium65, msg, diliKp.secretKey)

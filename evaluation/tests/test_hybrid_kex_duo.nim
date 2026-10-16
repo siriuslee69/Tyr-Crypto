@@ -5,13 +5,13 @@ import ../../src/tyr
 
 suite "multi kex duo":
   when defined(hasLibOqs):
-    test "Kyber + X25519 shared secrets match via quick api":
+    test "ML-KEM + X25519 shared secrets match via quick api":
       let receiverX = genKeypair(kaX25519)
-      let receiverK = genKeypair(kaKyber0)
+      let receiverK = genKeypair(kaMlKem0)
       var sendX: x25519SendM
       var openX: x25519OpenM
-      var sendK: kyber0SendM
-      var openK: kyber0OpenM
+      var sendK: mlkem0SendM
+      var openK: mlkem0OpenM
       for i in 0 ..< 32:
         sendX.receiverPublicKey[i] = receiverX.publicKey[i]
         openX.receiverSecretKey[i] = receiverX.secretKey[i]
@@ -26,13 +26,13 @@ suite "multi kex duo":
       check shareds[0].len == 32
       check shareds[1].len == 32
 
-    test "Kyber + X25519 can still be composed without helper suites":
+    test "ML-KEM + X25519 can still be composed without helper suites":
       let receiverX = genKeypair(kaX25519)
-      let receiverK = genKeypair(kaKyber0)
+      let receiverK = genKeypair(kaMlKem0)
       var sendX: x25519SendM
       var openX: x25519OpenM
-      var sendK: kyber0SendM
-      var openK: kyber0OpenM
+      var sendK: mlkem0SendM
+      var openK: mlkem0OpenM
       for i in 0 ..< 32:
         sendX.receiverPublicKey[i] = receiverX.publicKey[i]
         openX.receiverSecretKey[i] = receiverX.secretKey[i]
@@ -45,13 +45,13 @@ suite "multi kex duo":
       check open(envX, openX) == envX.sharedSecret
       check open(envK, openK) == envK.sharedSecret
 
-    test "Kyber1024 + X25519 shared secrets match":
+    test "ML-KEM-1024 + X25519 shared secrets match":
       let receiverX = genKeypair(kaX25519)
-      let receiverK = genKeypair(kaKyber1)
+      let receiverK = genKeypair(kaMlKem1)
       var sendX: x25519SendM
       var openX: x25519OpenM
-      var sendK: kyber1SendM
-      var openK: kyber1OpenM
+      var sendK: mlkem1SendM
+      var openK: mlkem1OpenM
       for i in 0 ..< 32:
         sendX.receiverPublicKey[i] = receiverX.publicKey[i]
         openX.receiverSecretKey[i] = receiverX.secretKey[i]
@@ -104,4 +104,4 @@ suite "multi kex duo":
   else:
     test "hybrid kex unavailable raises descriptive error":
       expect LibraryUnavailableError:
-        discard genKeypair(kaKyber0)
+        discard genKeypair(kaMlKem0)

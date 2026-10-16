@@ -726,7 +726,7 @@ proc sha3Digest*(A: openArray[byte], v: Sha3Variant): seq[byte] =
   sha3DigestInto(result, A, v)
 
 proc shake128AbsorbOnce*(S: var Sha3State, A: openArray[byte]) {.inline, raises: [].} =
-  ## Shared SHAKE128 absorb helper so Kyber can stream squeezes without rebuilding input buffers.
+  ## Shared SHAKE128 absorb helper so ML-KEM can stream squeezes without rebuilding input buffers.
   S = default(Sha3State)
   absorbFinalPartsWithDomain(S, shake128RateBytes, shakeDomainSuffix, A)
   keccakF1600Ref(S)

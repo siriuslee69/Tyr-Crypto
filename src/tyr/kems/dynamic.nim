@@ -7,13 +7,13 @@
 ## ------------------
 ## The default tier (`tyr/kems`) settles the choice while compiling:
 ##
-##   keypair(kyber768)        <- "kyber768" is written in the source
+##   keypair(mlkem768)        <- "mlkem768" is written in the source
 ##
 ## That is no help when the choice arrives at runtime, from a config file
 ## or a message header. Nim cannot pick an overload from a value, so this
 ## file wraps the choice in one type carrying a tag, and switches on it:
 ##
-##   AnyKem(family: kfKyber, kyber: kyber768)
+##   AnyKem(family: kfMlKem, mlkem: mlkem768)
 ##          ^^^^^^^^^^^^^^^ the tag the `case` reads
 ##
 ## The names here end in `Of` (`keypairOf`, `encapsOf`, `decapsOf`) so all
@@ -23,7 +23,7 @@
 ## If that is too much, use `single.nim` instead.
 
 import ./types
-import ./kyber
+import ./mlkem
 import ./mceliece
 import ./frodo
 import ./bike
@@ -37,7 +37,7 @@ type
   ## One KEM choice, carrying the family tag plus that family's variant.
   AnyKem* = object
     case family*: KemFamily
-    of kfKyber:    kyber*: KyberVariant
+    of kfMlKem:    mlkem*: MlKemVariant
     of kfMcEliece: mceliece*: McElieceVariant
     of kfFrodo:    frodo*: FrodoVariant
     of kfBike:     bike*: BikeVariant
@@ -49,9 +49,9 @@ proc keypairOf*(a: AnyKem, seed: seq[byte] = @[]): KemKeypair =
   ## a/seed: the runtime choice, and optional fixed randomness for tests.
   ## Generate a fresh public/secret pair for whichever family `a` names.
   case a.family
-  of kfKyber:
-    var t = kyberTyrKeypair(a.kyber, seed)
-    result = KemKeypair(family: kfKyber, public: t.publicKey, secret: t.secretKey)
+  of kfMlKem:
+    var t = mlkemTyrKeypair(a.mlkem, seed)
+    result = KemKeypair(family: kfMlKem, public: t.publicKey, secret: t.secretKey)
   of kfMcEliece:
     var t = mcelieceTyrKeypair(a.mceliece, seed)
     result = KemKeypair(family: kfMcEliece, public: t.publicKey, secret: t.secretKey)
@@ -75,9 +75,9 @@ proc encapsOf*(a: AnyKem, pk: openArray[byte], seed: seq[byte] = @[]): KemCipher
   ## a/pk/seed: the runtime choice, recipient's public key, optional randomness.
   ## Produce a ciphertext to send plus the shared secret to keep.
   case a.family
-  of kfKyber:
-    var t = kyberTyrEncaps(a.kyber, pk, seed)
-    result = KemCiphertext(family: kfKyber, ciphertext: t.ciphertext, shared: t.sharedSecret)
+  of kfMlKem:
+    var t = mlkemTyrEncaps(a.mlkem, pk, seed)
+    result = KemCiphertext(family: kfMlKem, ciphertext: t.ciphertext, shared: t.sharedSecret)
   of kfMcEliece:
     var t: McElieceTyrCipher = default(McElieceTyrCipher)
     if seed.len == 0: t = mcelieceTyrEncaps(a.mceliece, pk)
@@ -103,7 +103,7 @@ proc decapsOf*(a: AnyKem, sk, ct: openArray[byte]): seq[byte] =
   ## a/sk/ct: the runtime choice, your secret key, the ciphertext received.
   ## Recover the same shared secret the sender produced.
   case a.family
-  of kfKyber:    result = kyberTyrDecaps(a.kyber, sk, ct)
+  of kfMlKem:    result = mlkemTyrDecaps(a.mlkem, sk, ct)
   of kfMcEliece: result = mcelieceTyrDecaps(a.mceliece, sk, ct)
   of kfFrodo:    result = frodoTyrDecaps(a.frodo, sk, ct)
   of kfBike:     result = bikeTyrDecaps(a.bike, sk, ct)

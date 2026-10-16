@@ -1,5 +1,5 @@
 ## -------------------------------------------------------
-## Kyber NTT <- negacyclic NTT and base multiplication core
+## ML-KEM NTT <- negacyclic NTT and base multiplication core
 ## -------------------------------------------------------
 
 import ./params
@@ -30,12 +30,12 @@ const zetas*: array[128, int16] = [
    -108'i16,  -308'i16,   996'i16,   991'i16,   958'i16, -1460'i16,  1522'i16,  1628'i16
 ]
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `fqMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; finite-field, ring, and transform arithmetic for `fqMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc fqMul(a, b: int16): int16 {.inline.} =
   result = montgomeryReduce(int32(a) * int32(b))
 
 include "ntt_avx2.nim"
 include "ntt_forward.nim"
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `invNtt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; finite-field, ring, and transform arithmetic for `invNtt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 
 include "ntt_inverse.nim"

@@ -5,7 +5,7 @@
 
 import std/[algorithm, json, math, monotimes, os, parseopt, strutils, tables, times]
 
-import ../../src/tyr/kems/kyber as kyber
+import ../../src/tyr/kems/mlkem as mlkem
 import ../../src/tyr/kems/frodo as frodo
 import ../../src/tyr/kems/bike as bike
 import ../../src/tyr/kems/mceliece as mceliece
@@ -16,9 +16,9 @@ import ../../src/tyr/kems/ntru as custom_ntru
 import ../../src/tyr/kems/saber as custom_saber
 import ../../src/tyr/kems/x25519/x25519_common
 import ../../src/tyr/kems/x25519
-import ../../src/tyr/kems/kyber/params as kyber_params
-import ../../src/tyr/kems/kyber as kyber_ops
-import ../../src/tyr/kems/kyber/indcpa
+import ../../src/tyr/kems/mlkem/params as mlkem_params
+import ../../src/tyr/kems/mlkem as mlkem_ops
+import ../../src/tyr/kems/mlkem/indcpa
 import ../../src/tyr/kems/frodo/params as frodo_params
 import ../../src/tyr/kems/bike/params as bike_params
 import ../../src/tyr/kems/mceliece/params as mceliece_params
@@ -273,7 +273,7 @@ proc benchLoops(profile: BenchProfile, family, variant, mode: string): tuple[loo
       result.warmup = 48
     return
 
-  if family == "kyber":
+  if family == "mlkem":
     if profile == bpDesktop:
       result.loops = 80
       result.warmup = 4
@@ -380,7 +380,7 @@ proc functionLoops(profile: BenchProfile, family: string): tuple[loops, warmup: 
       result.loops = 16
       result.warmup = 2
     return
-  if family == "kyber":
+  if family == "mlkem":
     if profile == bpDesktop:
       result.loops = 4
       result.warmup = 1
@@ -802,19 +802,19 @@ proc resetFalconDeterministic(base: int) =
   gFalconDeterministicBase = base
   gFalconDeterministicOffset = 0
 
-proc makeKyberRoundtripBench(v: KyberVariant): BenchProc =
+proc makeMlKemRoundtripBench(v: MlKemVariant): BenchProc =
   var
     keySeed = patternSeq(32, 0x10 + ord(v) * 17)
     envSeed = patternSeq(32, 0x60 + ord(v) * 13)
   result = proc() =
-    let kp = kyberTyrKeypair(v, keySeed)
-    let env = kyberTyrEncaps(v, kp.publicKey, envSeed)
-    let shared = kyberTyrDecaps(v, kp.secretKey, env.ciphertext)
+    let kp = mlkemTyrKeypair(v, keySeed)
+    let env = mlkemTyrEncaps(v, kp.publicKey, envSeed)
+    let shared = mlkemTyrDecaps(v, kp.secretKey, env.ciphertext)
     doAssert shared == env.sharedSecret
 
-proc makeKyberFunctionBench(v: KyberVariant): BenchProc =
+proc makeMlKemFunctionBench(v: MlKemVariant): BenchProc =
   var
-    p = kyber_params.params(v)
+    p = mlkem_params.params(v)
     seed = patternSeq(32, 0x21 + ord(v) * 7)
     coins = patternSeq(32, 0x41 + ord(v) * 9)
     msg = patternSeq(32, 0x61 + ord(v) * 11)
@@ -824,9 +824,9 @@ proc makeKyberFunctionBench(v: KyberVariant): BenchProc =
     let ct = indcpaEnc(p, msg, kp.pk, coins)
     let dec = indcpaDec(p, ct, kp.sk)
     doAssert dec == msg
-    let tyrKp = kyberTyrKeypair(v, seed)
-    let env = kyberTyrEncaps(v, tyrKp.publicKey, coins)
-    let shared = kyberTyrDecaps(v, tyrKp.secretKey, env.ciphertext)
+    let tyrKp = mlkemTyrKeypair(v, seed)
+    let env = mlkemTyrEncaps(v, tyrKp.publicKey, coins)
+    let shared = mlkemTyrDecaps(v, tyrKp.secretKey, env.ciphertext)
     doAssert shared == env.sharedSecret
 
 proc makeFrodoRoundtripBench(v: FrodoVariant): BenchProc =
@@ -962,13 +962,13 @@ proc collectSummaryRows(rows: var seq[JsonNode], deviceLabel, deviceKind: string
         addSummaryRowFromNs(rows, deviceLabel, deviceKind, "x25519", "curve25519", "tyr", "avx4x", "shared_secret_batch",
           cfg.loops, cfg.warmup, cfg.opsPerCall, measureX25519Batch4Avx(xCorpus, cfg.loops, cfg.warmup))
 
-  if familyEnabled(onlyFamilies, "kyber"):
-    trace(verbose, "summary:kyber")
-    for v in [kyber512, kyber768, kyber1024]:
-      cfg = benchLoops(profile, "kyber", $v, "roundtrip")
+  if familyEnabled(onlyFamilies, "mlkem"):
+    trace(verbose, "summary:mlkem")
+    for v in [mlkem512, mlkem768, mlkem1024]:
+      cfg = benchLoops(profile, "mlkem", $v, "roundtrip")
       applyScale(cfg, scale)
-      addSummaryRow(rows, deviceLabel, deviceKind, "kyber", $v, "tyr", compiledBackendLabel(), "roundtrip",
-        cfg.loops, cfg.warmup, cfg.opsPerCall, makeKyberRoundtripBench(v))
+      addSummaryRow(rows, deviceLabel, deviceKind, "mlkem", $v, "tyr", compiledBackendLabel(), "roundtrip",
+        cfg.loops, cfg.warmup, cfg.opsPerCall, makeMlKemRoundtripBench(v))
 
   if familyEnabled(onlyFamilies, "frodo"):
     trace(verbose, "summary:frodo")
@@ -1066,13 +1066,13 @@ proc collectFunctionRows(rows: var seq[JsonNode], deviceLabel, deviceKind: strin
         "shared_secret_batch", "x25519.avx4x", cfg.loops, cfg.warmup,
         makeX25519Batch4Bench(x25519ScalarmultBatchAvx4x, xCorpus))
 
-  if familyEnabled(onlyFamilies, "kyber"):
-    trace(verbose, "functions:kyber")
-    for v in [kyber512, kyber768, kyber1024]:
-      cfg = functionLoops(profile, "kyber")
+  if familyEnabled(onlyFamilies, "mlkem"):
+    trace(verbose, "functions:mlkem")
+    for v in [mlkem512, mlkem768, mlkem1024]:
+      cfg = functionLoops(profile, "mlkem")
       applyScale(cfg, scale)
-      addFunctionRows(rows, deviceLabel, deviceKind, "kyber", $v, "tyr", compiledBackendLabel(),
-        "roundtrip_hotspots", "kyber." & $v, cfg.loops, cfg.warmup, makeKyberFunctionBench(v))
+      addFunctionRows(rows, deviceLabel, deviceKind, "mlkem", $v, "tyr", compiledBackendLabel(),
+        "roundtrip_hotspots", "mlkem." & $v, cfg.loops, cfg.warmup, makeMlKemFunctionBench(v))
 
   if familyEnabled(onlyFamilies, "frodo"):
     trace(verbose, "functions:frodo")

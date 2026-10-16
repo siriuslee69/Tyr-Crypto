@@ -9,7 +9,7 @@
 ##
 ##   1. import tyr                     EVERYTHING, one name per operation
 ##
-##        keypair(kyber768)            <- the compiler picks Kyber because
+##        keypair(mlkem768)            <- the compiler picks ML-KEM because
 ##        keypair(dilithium65)            of the argument's TYPE
 ##        digest(hfBlake3, data)
 ##
@@ -29,8 +29,8 @@
 ##      header. Every family is compiled in, because any could be chosen.
 ##
 ##   4. import tyr/kems/single         ONE family, chosen by a BUILD FLAG
-##      -d:tyrKem=kyber
-##        keypairSingle(kfKyber)
+##      -d:tyrKem=mlkem
+##        keypairSingle(kfMlKem)
 ##
 ##      For small devices. Usable with no flag at all - then every family
 ##      is available and the choice is still settled while compiling. Add
@@ -38,7 +38,7 @@
 ##      compile for your target never gets in the way.
 ##
 ## The names differ per tier (`keypair` / `keypairOf` / `keypairSingle` /
-## `kyberTyrKeypair`) so all four can be imported side by side without
+## `mlkemTyrKeypair`) so all four can be imported side by side without
 ## ever colliding.
 ##
 ## A fifth shape: typed material
@@ -55,7 +55,7 @@
 ## Where things live
 ## -----------------
 ##
-##   tyr/kems         key agreement      Kyber McEliece Frodo BIKE NTRU SABER
+##   tyr/kems         key agreement      ML-KEM McEliece Frodo BIKE NTRU SABER
 ##   tyr/signatures   proving authorship Dilithium Falcon SPHINCS+ Ed25519
 ##   tyr/hashes       fingerprints       BLAKE3 SHA-256 SHA-512 SHA-3
 ##   tyr/macs         keyed fingerprints BLAKE3-keyed Gimli Poly1305 HMAC-SHA3

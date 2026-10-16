@@ -142,12 +142,12 @@ suite "primitives api":
     check verify(saEd25519, msg, sig, kp.publicKey)
 
   when defined(hasLibsodium) and defined(hasLibOqs):
-    test "kyber tier mapping roundtrip":
+    test "mlkem tier mapping roundtrip":
       var
         kp: AsymKeypair
         cipher: AsymCipher
         shared: seq[byte] = @[]
-      kp = genKeypair(kaKyber0)
-      cipher = encaps(kaKyber0, kp.publicKey)
-      shared = decaps(kaKyber0, kp.secretKey, cipher)
+      kp = genKeypair(kaMlKem0)
+      cipher = encaps(kaMlKem0, kp.publicKey)
+      shared = decaps(kaMlKem0, kp.secretKey, cipher)
       check shared == cipher.sharedSecret

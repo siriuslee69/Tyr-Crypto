@@ -164,11 +164,11 @@ proc otterEd25519*() {.otterUiTest: ("Ed25519", "Tyr", "functional, classical", 
 proc otterEd25519Wasm*() {.otterUiTest: ("Ed25519", "Tyr", "functional, classical, wasm", "WASM").} =
   runCatalogWasmTest("ed25519")
 
-proc otterKyber*() {.otterUiTest: ("Kyber", "Tyr", "functional, pq-kem, kat", "Native").} =
-  runDesktopGroup("kyber")
+proc otterMlKem*() {.otterUiTest: ("ML-KEM", "Tyr", "functional, pq-kem, kat", "Native").} =
+  runDesktopGroup("mlkem")
 
-proc otterKyberWasm*() {.otterUiTest: ("Kyber", "Tyr", "functional, pq-kem, kat, wasm", "WASM").} =
-  runCatalogWasmTest("kyber")
+proc otterMlKemWasm*() {.otterUiTest: ("ML-KEM", "Tyr", "functional, pq-kem, kat, wasm", "WASM").} =
+  runCatalogWasmTest("mlkem")
 
 proc otterFrodo*() {.otterUiTest: ("FrodoKEM", "Tyr", "functional, pq-kem, kat", "Native").} =
   runDesktopGroup("frodo")
@@ -254,8 +254,8 @@ proc otterBenchSigmaCore*() {.otterUiTest: ("Otter comparisons", "Tyr benchmarks
 proc otterBenchSigmaPq*() {.otterUiTest: ("Otter comparisons", "Tyr benchmarks", "benchmark, pq-kem, pq-signature", "Post-quantum").} =
   runTask("perf_sigma_pq")
 
-proc otterBenchSigmaKyber*() {.otterUiTest: ("Otter comparisons", "Tyr benchmarks", "benchmark, pq-kem", "Kyber").} =
-  runTask("perf_sigma_kyber")
+proc otterBenchSigmaMlKem*() {.otterUiTest: ("Otter comparisons", "Tyr benchmarks", "benchmark, pq-kem", "ML-KEM").} =
+  runTask("perf_sigma_mlkem")
 
 proc otterBenchSigmaDilithium*() {.otterUiTest: ("Otter comparisons", "Tyr benchmarks", "benchmark, pq-signature", "Dilithium").} =
   runTask("perf_sigma_dilithium")
@@ -266,8 +266,8 @@ proc otterBenchSigmaFalcon*() {.otterUiTest: ("Otter comparisons", "Tyr benchmar
 proc otterProfilePq*() {.otterUiTest: ("Otter timing", "Tyr benchmarks", "benchmark, profile, pq-kem, pq-signature", "Post-quantum").} =
   runTask("perf_otter_pq")
 
-proc otterProfileKyber*() {.otterUiTest: ("Otter timing", "Tyr benchmarks", "benchmark, profile, pq-kem", "Kyber").} =
-  runTask("perf_otter_kyber")
+proc otterProfileMlKem*() {.otterUiTest: ("Otter timing", "Tyr benchmarks", "benchmark, profile, pq-kem", "ML-KEM").} =
+  runTask("perf_otter_mlkem")
 
 proc otterTlsPrimitives*() {.otterUiTest: ("SHA-256 and TLS KDF", "Tyr retained catalog", "functional, vectors, hash", "Native").} =
   runCatalogTest("sha256")

@@ -128,9 +128,9 @@ proc buildCatalog*(): seq[TestCatalogEntry] {.role: {truthBuilder}.} =
     ["evaluation/tests/test_x25519_custom.nim", "evaluation/tests/test_x25519_simd.nim"])
   addEntry(result, "ed25519", "Ed25519", "classical",
     ["functional", "vectors", "edge"], ["evaluation/tests/test_ed25519_custom.nim"])
-  addEntry(result, "kyber", "Kyber-768 / 1024", "pq-kem",
+  addEntry(result, "mlkem", "ML-KEM-768 / 1024", "pq-kem",
     ["functional", "vectors", "kat", "simd", "edge"],
-    ["evaluation/tests/test_kyber_tyr.nim", "evaluation/tests/test_kyber_kat.nim"])
+    ["evaluation/tests/test_mlkem_tyr.nim", "evaluation/tests/test_mlkem_kat.nim"])
   addEntry(result, "frodo", "FrodoKEM", "pq-kem",
     ["functional", "vectors", "kat", "simd", "edge"],
     ["evaluation/tests/test_frodo_tyr.nim", "evaluation/tests/test_frodo_kat.nim"])
@@ -205,8 +205,8 @@ proc buildCatalog*(): seq[TestCatalogEntry] {.role: {truthBuilder}.} =
     ["evaluation/benchmarks/bench_sigma_blake3_chacha_compare.nim"])
   addEntry(result, "bench-sigma-pq", "PQ backend comparison", "benchmark",
     ["benchmark", "pq-kem", "pq-signature"], ["evaluation/benchmarks/bench_sigma_pq.nim"])
-  addEntry(result, "bench-sigma-kyber", "Kyber backend comparison", "benchmark",
-    ["benchmark", "pq-kem"], ["evaluation/benchmarks/bench_sigma_kyber_only.nim"])
+  addEntry(result, "bench-sigma-mlkem", "ML-KEM backend comparison", "benchmark",
+    ["benchmark", "pq-kem"], ["evaluation/benchmarks/bench_sigma_mlkem_only.nim"])
   addEntry(result, "bench-sigma-frodo", "Frodo profile comparison", "benchmark",
     ["benchmark", "pq-kem"], ["evaluation/benchmarks/bench_sigma_frodo_profile.nim"])
   addEntry(result, "bench-sigma-dilithium", "Dilithium phase comparison", "benchmark",
@@ -222,9 +222,9 @@ proc buildCatalog*(): seq[TestCatalogEntry] {.role: {truthBuilder}.} =
   addEntry(result, "bench-otter-x25519", "Otter X25519 profiling", "benchmark",
     ["benchmark", "profile", "classical", "simd"],
     ["evaluation/benchmarks/bench_otter_x25519.nim"])
-  addEntry(result, "bench-otter-kyber", "Otter Kyber profiling", "benchmark",
+  addEntry(result, "bench-otter-mlkem", "Otter ML-KEM profiling", "benchmark",
     ["benchmark", "profile", "pq-kem"],
-    ["evaluation/benchmarks/bench_otter_kyber_only.nim"])
+    ["evaluation/benchmarks/bench_otter_mlkem_only.nim"])
   addEntry(result, "bench-otter-dilithium", "Otter Dilithium profiling", "benchmark",
     ["benchmark", "profile", "pq-signature"],
     ["evaluation/benchmarks/bench_otter_dilithium.nim"])

@@ -29,7 +29,7 @@ proc patternSeed(n, base: int): seq[uint8] {.role: {helper}.} =
 
 const
   libraryTiers: array[13, KemAlgorithm] = [
-    kaKyber0, kaKyber1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
+    kaMlKem0, kaMlKem1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
     kaFrodo0Aes, kaFrodo0Shake, kaFrodo1Aes, kaFrodo1Shake,
     kaFrodo2Aes, kaFrodo2Shake, kaNtruPrime0, kaBike0
   ]
@@ -63,27 +63,27 @@ suite "kem seed contract":
       S = patternSeed(32, 37)
       pk = newSeq[uint8](1184)
     expect ValueError:
-      discard encaps(kaKyber0, pk, seed = S)
+      discard encaps(kaMlKem0, pk, seed = S)
 
   when defined(hasLibOqs):
     # {.testKind: tkUnit, covers: "genKeypair, encaps".}
     test "extra entropy is accepted and stays unpredictable":
       var
         E = patternSeed(48, 53)
-        a = genKeypair(kaKyber0, extraEntropy = E)
-        b = genKeypair(kaKyber0, extraEntropy = E)
-        c0 = encaps(kaKyber0, a.publicKey, extraEntropy = E)
-        c1 = encaps(kaKyber0, a.publicKey, extraEntropy = E)
+        a = genKeypair(kaMlKem0, extraEntropy = E)
+        b = genKeypair(kaMlKem0, extraEntropy = E)
+        c0 = encaps(kaMlKem0, a.publicKey, extraEntropy = E)
+        c1 = encaps(kaMlKem0, a.publicKey, extraEntropy = E)
       check a.publicKey != b.publicKey
       check c0.envelope.ciphertext != c1.envelope.ciphertext
       # Both envelopes must still open to their own secret.
-      check decaps(kaKyber0, a.secretKey, c0.envelope) == c0.sharedSecret
-      check decaps(kaKyber0, a.secretKey, c1.envelope) == c1.sharedSecret
+      check decaps(kaMlKem0, a.secretKey, c0.envelope) == c0.sharedSecret
+      check decaps(kaMlKem0, a.secretKey, c1.envelope) == c1.sharedSecret
 
     # {.testKind: tkEdgeCase, covers: "genKeypair".}
     test "an empty seed is not a seed":
       var
         empty: seq[uint8] = @[]
-        kp = genKeypair(kaKyber0, empty)
+        kp = genKeypair(kaMlKem0, empty)
       check kp.publicKey.len > 0
       check kp.secretKey.len > 0

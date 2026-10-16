@@ -8,8 +8,8 @@ const interopAlgorithms = [
   { kind: "sym", algo: "aesCtr", title: "AES-256-CTR", family: "stream / 16 byte nonce", glyph: "[]" },
   { kind: "sym", algo: "gimliStream", title: "Gimli Stream", family: "sponge stream / 24 byte nonce", glyph: "{}" },
   { kind: "kem", algo: "x25519", title: "X25519", family: "elliptic key exchange", glyph: "()" },
-  { kind: "kem", algo: "kyber768", title: "Kyber-768", family: "post-quantum KEM", glyph: "<>" },
-  { kind: "kem", algo: "kyber1024", title: "Kyber-1024", family: "post-quantum KEM", glyph: "##" },
+  { kind: "kem", algo: "mlkem768", title: "ML-KEM-768", family: "post-quantum KEM", glyph: "<>" },
+  { kind: "kem", algo: "mlkem1024", title: "ML-KEM-1024", family: "post-quantum KEM", glyph: "##" },
 ];
 const messages = ["amber signal", "quiet comet", "north star relay"];
 let binding;

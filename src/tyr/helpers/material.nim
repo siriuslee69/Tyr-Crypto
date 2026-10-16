@@ -5,7 +5,7 @@
 ##
 ## What the material surface is
 ## ----------------------------
-## Beside the family tiers (`keypair(kyber768)`, `digest(hfBlake3, data)`)
+## Beside the family tiers (`keypair(mlkem768)`, `digest(hfBlake3, data)`)
 ## Tyr offers a second, stricter way to name an algorithm: a MATERIAL
 ## TYPE that carries the exact key and nonce sizes in the type itself.
 ##
@@ -24,7 +24,7 @@
 ##   tyr/macs/material         blake3hmacM poly1305hmacM ...
 ##   tyr/ciphers/material      xchacha20cipherM aesCtrcipherM ...
 ##   tyr/signatures/material   ed25519SignM falcon0VerifyM ...
-##   tyr/kems/material         kyber0SendM mceliece0OpenM ...
+##   tyr/kems/material         mlkem0SendM mceliece0OpenM ...
 ##
 ## THIS FILE holds only what all five need in common, and nothing that
 ## belongs to one algorithm. It imports nothing.
@@ -100,14 +100,14 @@ type
     akSphincsHaraka128fSimpleTyrVerify,
     akX25519Send,
     akX25519Open,
-    akKyber0Send,
-    akKyber0Open,
-    akKyber1Send,
-    akKyber1Open,
-    akKyber0TyrSend,
-    akKyber0TyrOpen,
-    akKyber1TyrSend,
-    akKyber1TyrOpen,
+    akMlKem0Send,
+    akMlKem0Open,
+    akMlKem1Send,
+    akMlKem1Open,
+    akMlKem0TyrSend,
+    akMlKem0TyrOpen,
+    akMlKem1TyrSend,
+    akMlKem1TyrOpen,
     akMcEliece0Send,
     akMcEliece0Open,
     akMcEliece1Send,
@@ -270,14 +270,14 @@ const algorithmLayouts*: array[AlgorithmKind, AlgorithmLayout] = [
   buildLayout(akSphincsHaraka128fSimpleTyrVerify, okVerify, 1, kkPublicKey -> 32, kkSignature -> 17088),
   buildLayout(akX25519Send, okKemSend, 32, kkPublicKey -> 32),
   buildLayout(akX25519Open, okKemOpen, 32, kkSecretKey -> 32),
-  buildLayout(akKyber0Send, okKemSend, 32, kkPublicKey -> 1184),
-  buildLayout(akKyber0Open, okKemOpen, 32, kkSecretKey -> 2400),
-  buildLayout(akKyber1Send, okKemSend, 32, kkPublicKey -> 1568),
-  buildLayout(akKyber1Open, okKemOpen, 32, kkSecretKey -> 3168),
-  buildLayout(akKyber0TyrSend, okKemSend, 32, kkPublicKey -> 1184),
-  buildLayout(akKyber0TyrOpen, okKemOpen, 32, kkSecretKey -> 2400),
-  buildLayout(akKyber1TyrSend, okKemSend, 32, kkPublicKey -> 1568),
-  buildLayout(akKyber1TyrOpen, okKemOpen, 32, kkSecretKey -> 3168),
+  buildLayout(akMlKem0Send, okKemSend, 32, kkPublicKey -> 1184),
+  buildLayout(akMlKem0Open, okKemOpen, 32, kkSecretKey -> 2400),
+  buildLayout(akMlKem1Send, okKemSend, 32, kkPublicKey -> 1568),
+  buildLayout(akMlKem1Open, okKemOpen, 32, kkSecretKey -> 3168),
+  buildLayout(akMlKem0TyrSend, okKemSend, 32, kkPublicKey -> 1184),
+  buildLayout(akMlKem0TyrOpen, okKemOpen, 32, kkSecretKey -> 2400),
+  buildLayout(akMlKem1TyrSend, okKemSend, 32, kkPublicKey -> 1568),
+  buildLayout(akMlKem1TyrOpen, okKemOpen, 32, kkSecretKey -> 3168),
   buildLayout(akMcEliece0Send, okKemSend, 32, kkPublicKey -> 1044992),
   buildLayout(akMcEliece0Open, okKemOpen, 32, kkSecretKey -> 13932),
   buildLayout(akMcEliece1Send, okKemSend, 32, kkPublicKey -> 1047319),

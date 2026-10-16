@@ -12,7 +12,7 @@ type
 
   BenchSuite = enum
     bsPq,
-    bsKyber,
+    bsMlKem,
     bsFrodo,
     bsDilithium,
     bsFalcon512,
@@ -37,7 +37,7 @@ type
     exitCode: int
 
 const
-  minimalBuildArg = "KEM_kyber_768;KEM_kyber_1024;KEM_frodokem_976_aes;" &
+  minimalBuildArg = "KEM_mlkem_768;KEM_mlkem_1024;KEM_frodokem_976_aes;" &
     "KEM_bike_l1;KEM_classic_mceliece_6688128f;SIG_ml_dsa_44;" &
     "SIG_ml_dsa_65;SIG_ml_dsa_87;SIG_falcon_512;SIG_falcon_1024;" &
     "SIG_sphincs_shake_128f_simple"
@@ -112,8 +112,8 @@ proc suiteName(a: BenchSuite): string =
   case a
   of bsPq:
     result = "pq"
-  of bsKyber:
-    result = "kyber"
+  of bsMlKem:
+    result = "mlkem"
   of bsFrodo:
     result = "frodo"
   of bsDilithium:
@@ -128,8 +128,8 @@ proc suiteTestPath(a: BenchSuite): string =
   case a
   of bsPq:
     result = "evaluation/benchmarks/bench_sigma_pq.nim"
-  of bsKyber:
-    result = "evaluation/benchmarks/bench_sigma_kyber_only.nim"
+  of bsMlKem:
+    result = "evaluation/benchmarks/bench_sigma_mlkem_only.nim"
   of bsFrodo:
     result = "evaluation/benchmarks/bench_sigma_frodo_profile.nim"
   of bsDilithium:
@@ -188,8 +188,8 @@ proc profileHasLib(a: BenchMode): bool =
   result = false
 
 proc scalarExtraCmakeArgs(): string =
-  result = "-DOQS_ENABLE_KEM_kyber_768_x86_64=OFF " &
-    "-DOQS_ENABLE_KEM_kyber_1024_x86_64=OFF " &
+  result = "-DOQS_ENABLE_KEM_mlkem_768_x86_64=OFF " &
+    "-DOQS_ENABLE_KEM_mlkem_1024_x86_64=OFF " &
     "-DOQS_ENABLE_KEM_ml_kem_768_x86_64=OFF " &
     "-DOQS_ENABLE_KEM_ml_kem_1024_x86_64=OFF " &
     "-DOQS_USE_AES_INSTRUCTIONS=OFF " &
@@ -256,7 +256,7 @@ proc addSuiteToken(S: var seq[BenchSuite], a: string) =
     return
   if t == "all":
     appendSuite(S, bsPq)
-    appendSuite(S, bsKyber)
+    appendSuite(S, bsMlKem)
     appendSuite(S, bsFrodo)
     appendSuite(S, bsDilithium)
     appendSuite(S, bsFalcon512)
@@ -265,8 +265,8 @@ proc addSuiteToken(S: var seq[BenchSuite], a: string) =
   if t == "pq":
     appendSuite(S, bsPq)
     return
-  if t == "kyber":
-    appendSuite(S, bsKyber)
+  if t == "mlkem":
+    appendSuite(S, bsMlKem)
     return
   if t == "frodo":
     appendSuite(S, bsFrodo)
@@ -291,7 +291,7 @@ proc setDefaultSuites(S: var seq[BenchSuite]) =
   if S.len > 0:
     return
   appendSuite(S, bsPq)
-  appendSuite(S, bsKyber)
+  appendSuite(S, bsMlKem)
   appendSuite(S, bsFrodo)
   appendSuite(S, bsDilithium)
   appendSuite(S, bsFalcon512)
@@ -303,7 +303,7 @@ proc printHelp() =
   echo ""
   echo "Options:"
   echo "  --mode=scalar|avx2|all"
-  echo "  --suite=pq|kyber|frodo|dilithium|falcon|falcon512|falcon1024|all"
+  echo "  --suite=pq|mlkem|frodo|dilithium|falcon|falcon512|falcon1024|all"
   echo "  --no-rebuild"
   echo "  --dry-run"
   echo "  --logs-dir=<dir>"

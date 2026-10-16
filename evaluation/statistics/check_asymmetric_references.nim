@@ -89,8 +89,8 @@ proc ruleFor(path: string): ReferenceRule {.role: {parser}.} =
   if p.contains("/signatures/ed25519"):
     result = ReferenceRule(id: "RFC-8032", part: "sections 5.1.1-5.1.7, Ed25519 arithmetic, encoding, signing, and verification")
     return
-  if p.contains("/kems/kyber/"):
-    result = ReferenceRule(id: "KYBER-R3-20210804", part: "version 3.02 sections 1.3 and 4, algorithms 1-9")
+  if p.contains("/kems/mlkem/"):
+    result = ReferenceRule(id: "FIPS-203", part: "sections 4-7 and algorithms 1-21")
     return
   if p.contains("/signatures/dilithium/"):
     result = ReferenceRule(id: "FIPS-204", part: "sections 6-7 and algorithms 1-33")

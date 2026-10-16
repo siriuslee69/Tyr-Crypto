@@ -1,12 +1,12 @@
 # ============================================================
-# | Sigma Kyber Benchmark Test                              |
-# | -> Compare Tyr Kyber vs liboqs without unrelated PQ     |
+# | Sigma ML-KEM Benchmark Test                              |
+# | -> Compare Tyr ML-KEM vs liboqs without unrelated PQ     |
 # |    modules so optimization loops stay focused/reliable  |
 # ============================================================
 
 import std/unittest
 
-import ../../src/tyr/kems/kyber as custom_kyber
+import ../../src/tyr/kems/mlkem as custom_mlkem
 import otter_repo_evaluation
 
 when defined(hasLibOqs):
@@ -39,12 +39,12 @@ proc printGroup(g: BenchGroup, results: openArray[BenchResult]) =
   echo "## ", g.title, " loops=", g.loops, " warmup=", g.warmup
   echo formatBenchResults(results)
 
-proc buildCustomKyberRoundtrip(name: string, v: custom_kyber.KyberVariant): BenchAlgo =
+proc buildCustomMlKemRoundtrip(name: string, v: custom_mlkem.MlKemVariant): BenchAlgo =
   result.name = name
   result.run = proc() =
-    let kp = custom_kyber.kyberTyrKeypair(v)
-    let env = custom_kyber.kyberTyrEncaps(v, kp.publicKey)
-    let shared = custom_kyber.kyberTyrDecaps(v, kp.secretKey, env.ciphertext)
+    let kp = custom_mlkem.mlkemTyrKeypair(v)
+    let env = custom_mlkem.mlkemTyrEncaps(v, kp.publicKey)
+    let shared = custom_mlkem.mlkemTyrDecaps(v, kp.secretKey, env.ciphertext)
     doAssert shared == env.sharedSecret
 
 when defined(hasLibOqs):
@@ -76,10 +76,10 @@ proc runGroup(g: BenchGroup) =
     check r.avgTicks >= 0
   printGroup(g, results)
 
-suite "Sigma Kyber performance":
-  test "compare pure-Nim Kyber against liboqs":
+suite "Sigma ML-KEM performance":
+  test "compare pure-Nim ML-KEM against liboqs":
     when not defined(hasLibOqs):
-      checkpoint("Sigma Kyber benchmark requires -d:hasLibOqs")
+      checkpoint("Sigma ML-KEM benchmark requires -d:hasLibOqs")
     else:
       var
         kemHolders: seq[ptr OqsKem] = @[]
@@ -87,7 +87,7 @@ suite "Sigma Kyber performance":
         kemAlgos: seq[BenchAlgo] = @[]
         i: int = 0
       if not ensureLibOqsLoaded():
-        checkpoint("liboqs runtime unavailable; skipping Sigma Kyber benchmark")
+        checkpoint("liboqs runtime unavailable; skipping Sigma ML-KEM benchmark")
       else:
         defer:
           i = 0
@@ -97,16 +97,16 @@ suite "Sigma Kyber performance":
             i = i + 1
 
         kemAlgos = @[
-          buildCustomKyberRoundtrip("tyr_kyber768_roundtrip", custom_kyber.kyber768),
-          buildOqsKemRoundtrip("oqs_kyber768_roundtrip", oqsAlgKyber768, kemHolders)
+          buildCustomMlKemRoundtrip("tyr_mlkem768_roundtrip", custom_mlkem.mlkem768),
+          buildOqsKemRoundtrip("oqs_mlkem768_roundtrip", oqsAlgMlKem768, kemHolders)
         ]
-        appendGroup(groups, "Kyber768 KEM Roundtrip", fastLoops, warmFast, kemAlgos)
+        appendGroup(groups, "ML-KEM-768 KEM Roundtrip", fastLoops, warmFast, kemAlgos)
 
         kemAlgos = @[
-          buildCustomKyberRoundtrip("tyr_kyber1024_roundtrip", custom_kyber.kyber1024),
-          buildOqsKemRoundtrip("oqs_kyber1024_roundtrip", oqsAlgKyber1024, kemHolders)
+          buildCustomMlKemRoundtrip("tyr_mlkem1024_roundtrip", custom_mlkem.mlkem1024),
+          buildOqsKemRoundtrip("oqs_mlkem1024_roundtrip", oqsAlgMlKem1024, kemHolders)
         ]
-        appendGroup(groups, "Kyber1024 KEM Roundtrip", fastLoops, warmFast, kemAlgos)
+        appendGroup(groups, "ML-KEM-1024 KEM Roundtrip", fastLoops, warmFast, kemAlgos)
 
         check groups.len == 2
         for g in groups:

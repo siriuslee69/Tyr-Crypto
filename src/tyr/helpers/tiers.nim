@@ -3,10 +3,10 @@
 ## ------------------------------------------------
 
 type
-  ## KyberTier: concrete Kyber variant tier.
-  KyberTier* = enum
-    kyber0
-    kyber1
+  ## MlKemTier: concrete ML-KEM variant tier.
+  MlKemTier* = enum
+    mlkem0
+    mlkem1
 
   ## McElieceTier: concrete McEliece variant tier.
   McElieceTier* = enum
@@ -42,8 +42,8 @@ type
   ## KemAlgorithm: primitive KEM or ECDH selection.
   KemAlgorithm* = enum
     kaX25519
-    kaKyber0
-    kaKyber1
+    kaMlKem0
+    kaMlKem1
     kaMcEliece0
     kaMcEliece1
     kaMcEliece2

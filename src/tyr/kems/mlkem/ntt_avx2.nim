@@ -1,5 +1,5 @@
 when defined(avx2):
-  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `nttButterflyChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; finite-field, ring, and transform arithmetic for `nttButterflyChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc nttButterflyChunk8(aPtr, bPtr: ptr int16, zeta: int16) {.inline.} =
     var
       aVec: navx.M256i = loadI16x8AsI32x8(aPtr)
@@ -9,7 +9,7 @@ when defined(avx2):
     packStoreI32x8ToI16x8(aPtr, navx2.mm256_add_epi32(aVec, tVec))
     packStoreI32x8ToI16x8(bPtr, navx2.mm256_sub_epi32(aVec, tVec))
 
-  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `nttButterflyInterleavedChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; finite-field, ring, and transform arithmetic for `nttButterflyInterleavedChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc nttButterflyInterleavedChunk8(aPtr, bPtr, cPtr, dPtr: ptr int16,
       zetaUpper, zetaLower0, zetaLower1: int16) {.inline.} =
     var
@@ -41,7 +41,7 @@ when defined(avx2):
     packStoreI32x8ToI16x8(cPtr, navx2.mm256_add_epi32(hi0, lower1))
     packStoreI32x8ToI16x8(dPtr, navx2.mm256_sub_epi32(hi0, lower1))
 
-  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `invNttButterflyChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; finite-field, ring, and transform arithmetic for `invNttButterflyChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc invNttButterflyChunk8(aPtr, bPtr: ptr int16, zeta: int16) {.inline.} =
     var
       aVec: navx.M256i = loadI16x8AsI32x8(aPtr)
@@ -53,7 +53,7 @@ when defined(avx2):
     packStoreI32x8ToI16x8(aPtr, sumVec)
     packStoreI32x8ToI16x8(bPtr, diffVec)
 
-  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `invNttButterflyInterleavedChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; finite-field, ring, and transform arithmetic for `invNttButterflyInterleavedChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc invNttButterflyInterleavedChunk8(aPtr, bPtr, cPtr, dPtr: ptr int16,
       zetaLower0, zetaLower1, zetaUpper: int16) {.inline.} =
     var
@@ -89,4 +89,4 @@ when defined(avx2):
     packStoreI32x8ToI16x8(cPtr, upperSum1)
     packStoreI32x8ToI16x8(dPtr, upperDiff1)
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `ntt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; finite-field, ring, and transform arithmetic for `ntt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.

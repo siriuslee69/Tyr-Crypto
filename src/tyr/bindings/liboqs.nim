@@ -418,9 +418,8 @@ else:
 const
   ## Algorithm identifiers used across the project.
   oqsRandAlgSystem* = "system"
-  oqsAlgKyber768* = "Kyber768"
-  oqsAlgKyber1024* = "Kyber1024"
-  oqsAlgKyber768_90s* = "Kyber768-90s"
+  oqsAlgMlKem768* = "ML-KEM-768"
+  oqsAlgMlKem1024* = "ML-KEM-1024"
   oqsAlgFrodoKEM640Aes* = "FrodoKEM-640-AES"
   oqsAlgFrodoKEM640Shake* = "FrodoKEM-640-SHAKE"
   oqsAlgFrodoKEM976Aes* = "FrodoKEM-976-AES"

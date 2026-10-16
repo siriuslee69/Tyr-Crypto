@@ -4,7 +4,7 @@
 ## `hqc1`, `hqc3` and `hqc5`; the digit is the NIST security category,
 ## not a key length.
 ##
-## HQC rests on a different hard problem from Kyber and Frodo: decoding a
+## HQC rests on a different hard problem from ML-KEM and Frodo: decoding a
 ## random linear code rather than anything about lattices. That makes it
 ## the sensible second half of a hybrid, because one advance in lattice
 ## cryptanalysis cannot take both halves at once.

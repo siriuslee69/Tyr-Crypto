@@ -1,4 +1,4 @@
-proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
+proc invNtt*(R: var array[mlkemN, int16]) {.inline.} =
   ## Inverse NTT back to standard order and Montgomery scale factor.
   var
     start: int = 0
@@ -14,16 +14,16 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
   const f = 1441'i16 ## mont^2 / 128
   when defined(avx2):
     j = 0
-    while j + 8 <= kyberN:
+    while j + 8 <= mlkemN:
       montgomeryMulChunk8(unsafeAddr R[j], unsafeAddr R[j], f)
       j = j + 8
-    while j < kyberN:
+    while j < mlkemN:
       R[j] = fqMul(R[j], f)
       j = j + 1
     len = 2
     while len <= 4:
       start = 0
-      while start < kyberN:
+      while start < mlkemN:
         zeta = zetas[k]
         k = k - 1
         j = start
@@ -36,7 +36,7 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
         start = j + len
       len = len shl 1
     start = 0
-    while start < kyberN:
+    while start < mlkemN:
       blockIdx = start shr 5
       zetaUpper = zetas[15 - blockIdx]
       zetaLower0 = zetas[31 - 2 * blockIdx]
@@ -49,7 +49,7 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
         zetaLower0, zetaLower1, zetaUpper)
       start = start + 32
     start = 0
-    while start < kyberN:
+    while start < mlkemN:
       blockIdx = start shr 7
       zetaUpper = zetas[3 - blockIdx]
       zetaLower0 = zetas[7 - 2 * blockIdx]
@@ -77,13 +77,13 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
       j = j + 1
   else:
     j = 0
-    while j < kyberN:
+    while j < mlkemN:
       R[j] = fqMul(R[j], f)
       j = j + 1
     len = 2
     while len <= 128:
       start = 0
-      while start < kyberN:
+      while start < mlkemN:
         zeta = zetas[k]
         k = k - 1
         j = start
@@ -96,7 +96,7 @@ proc invNtt*(R: var array[kyberN, int16]) {.inline.} =
         start = j + len
       len = len shl 1
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; finite-field, ring, and transform arithmetic for `baseMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; finite-field, ring, and transform arithmetic for `baseMul`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc baseMul*(R: var array[2, int16], A, B: array[2, int16], zeta: int16) {.inline.} =
   ## Multiply two degree-1 polynomials in Z_q[X]/(X^2 - zeta).
   R[0] = fqMul(A[1], B[1])

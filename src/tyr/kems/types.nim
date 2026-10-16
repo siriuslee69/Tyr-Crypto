@@ -28,7 +28,7 @@ type
   ## Which family produced the material. Used by the runtime tier in
   ## `dynamic.nim` to pick a code path from a stored value.
   KemFamily* = enum
-    kfKyber,
+    kfMlKem,
     kfMcEliece,
     kfFrodo,
     kfBike,
@@ -54,7 +54,7 @@ proc familyName*(f: KemFamily): string =
   ## f: which KEM family.
   ## Short stable text name, safe to store in a config or log line.
   case f
-  of kfKyber:    result = "kyber"
+  of kfMlKem:    result = "mlkem"
   of kfMcEliece: result = "mceliece"
   of kfFrodo:    result = "frodo"
   of kfBike:     result = "bike"
@@ -67,7 +67,7 @@ proc parseKemFamily*(s: string): KemFamily =
   ## Turn stored text back into a family. Raises on anything unknown, so a
   ## damaged config can never silently select a different algorithm.
   case s
-  of "kyber":    result = kfKyber
+  of "mlkem":    result = kfMlKem
   of "mceliece": result = kfMcEliece
   of "frodo":    result = kfFrodo
   of "bike":     result = kfBike

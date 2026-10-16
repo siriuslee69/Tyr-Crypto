@@ -5,14 +5,14 @@ import ../../src/tyr
 
 suite "multi kex triple":
   when defined(hasLibOqs):
-    test "Kyber + McEliece + X25519 shared secrets match via quick api":
+    test "ML-KEM + McEliece + X25519 shared secrets match via quick api":
       let receiverX = genKeypair(kaX25519)
-      let receiverK = genKeypair(kaKyber1)
+      let receiverK = genKeypair(kaMlKem1)
       let receiverM = genKeypair(kaMcEliece2)
       var sendX: x25519SendM
       var openX: x25519OpenM
-      var sendK: kyber1SendM
-      var openK: kyber1OpenM
+      var sendK: mlkem1SendM
+      var openK: mlkem1OpenM
       var sendM: mceliece2SendM
       var openM: mceliece2OpenM
       for i in 0 ..< 32:
@@ -34,12 +34,12 @@ suite "multi kex triple":
 
     test "hybrid kex can still be composed without helper suites":
       let receiverX = genKeypair(kaX25519)
-      let receiverK = genKeypair(kaKyber1)
+      let receiverK = genKeypair(kaMlKem1)
       let receiverM = genKeypair(kaMcEliece2)
       var sendX: x25519SendM
       var openX: x25519OpenM
-      var sendK: kyber1SendM
-      var openK: kyber1OpenM
+      var sendK: mlkem1SendM
+      var openK: mlkem1OpenM
       var sendM: mceliece2SendM
       var openM: mceliece2OpenM
       for i in 0 ..< 32:
@@ -59,12 +59,12 @@ suite "multi kex triple":
 
     test "custom hybrid variants roundtrip":
       let receiverX = genKeypair(kaX25519)
-      let receiverK = genKeypair(kaKyber1)
+      let receiverK = genKeypair(kaMlKem1)
       let receiverM = genKeypair(kaMcEliece2)
       var sendX: x25519SendM
       var openX: x25519OpenM
-      var sendK: kyber1SendM
-      var openK: kyber1OpenM
+      var sendK: mlkem1SendM
+      var openK: mlkem1OpenM
       var sendM: mceliece2SendM
       var openM: mceliece2OpenM
       for i in 0 ..< 32:
@@ -87,4 +87,4 @@ suite "multi kex triple":
   else:
     test "hybrid kex unavailable raises descriptive error":
       expect LibraryUnavailableError:
-        discard genKeypair(kaKyber0)
+        discard genKeypair(kaMlKem0)

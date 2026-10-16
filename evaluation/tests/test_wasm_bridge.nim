@@ -126,7 +126,7 @@ suite "wasm JSON bridge":
     check sharedResponse["ok"].getBool()
     check sharedResponse["sharedSecret"].getStr() == cipherResponse["sharedSecret"].getStr()
 
-  test "Kyber-768 KEM crosses the JSON bridge":
+  test "ML-KEM-768 KEM crosses the JSON bridge":
     var
       keypairResponse: JsonNode
       cipherResponse: JsonNode
@@ -138,18 +138,18 @@ suite "wasm JSON bridge":
       encSeed = newSeq[uint8](32)
     keySeed[0] = 11
     encSeed[0] = 27
-    keypairRequest = %*{"algo": "kyber768", "seed": wasmEncodeBytes(keySeed)}
+    keypairRequest = %*{"algo": "mlkem768", "seed": wasmEncodeBytes(keySeed)}
     keypairResponse = parseJson(kemKeypairJson($keypairRequest))
     check keypairResponse["ok"].getBool()
     encapsRequest = %*{
-      "algo": "kyber768",
+      "algo": "mlkem768",
       "receiverPublicKey": keypairResponse["publicKey"].getStr(),
       "seed": wasmEncodeBytes(encSeed)
     }
     cipherResponse = parseJson(kemEncapsJson($encapsRequest))
     check cipherResponse["ok"].getBool()
     decapsRequest = %*{
-      "algo": "kyber768",
+      "algo": "mlkem768",
       "receiverSecretKey": keypairResponse["secretKey"].getStr(),
       "ciphertext": cipherResponse["ciphertext"].getStr()
     }

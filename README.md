@@ -24,10 +24,10 @@ import tyr
 var d = blake3Hash(@[byte 1, 2, 3])
 doAssert d.len == 32
 
-# ---- KEM (Kyber768) ----
-var kp = kyberTyrKeypair(kyber768)
-var ct = kyberTyrEncaps(kyber768, kp.publicKey)
-var shared = kyberTyrDecaps(kyber768, kp.secretKey, ct.ciphertext)
+# ---- KEM (ML-KEM-768) ----
+var kp = mlkemTyrKeypair(mlkem768)
+var ct = mlkemTyrEncaps(mlkem768, kp.publicKey)
+var shared = mlkemTyrDecaps(mlkem768, kp.secretKey, ct.ciphertext)
 doAssert shared == ct.sharedSecret
 
 # ---- Sign (Dilithium65) ----
@@ -80,12 +80,12 @@ Curated benchmark snapshots currently focus on the asymmetric and key-agreement 
 
 | Category | Algorithms | SIMD coverage | Benchmark-guided profile |
 |----------|------------|---------------|--------------------------|
-| **KEM** | CRYSTALS-Kyber round 3 (512/768/1024; not FIPS 203 ML-KEM) | SSE2/NEON four-pair and AVX2 eight-pair polynomial accumulation; coefficient helpers | Fastest PQ KEM family in the current curated snapshots; sub-ms on desktop and the measured phones |
+| **KEM** | FIPS 203 ML-KEM (512/768/1024) | SSE2/NEON four-pair and AVX2 eight-pair polynomial accumulation; coefficient helpers | Fastest PQ KEM family in the current curated snapshots; sub-ms on desktop and the measured phones |
 | **KEM** | FrodoKEM (640/976/1344, AES + SHAKE) | Streamed matrix generation; SSE2/NEON 128-bit and AVX2 256-bit matrix products; optional Tyr-native AES-NI | Conservative, high-bandwidth path; AES-NI makes AES variants substantially faster, while streamed SHAKE avoids the full matrix allocation |
 | **KEM** | BIKE-L1 | SSE2/NEON 128-bit decoder word helpers; multiplication remains scalar/Karatsuba | Tens-of-ms KEM in the current snapshots |
 | **KEM** | HQC (HQC-1/3/5, 2025-08-22 specification) | None yet; multiplication is scalar Karatsuba and both decoders are scalar | Tens-of-ms KEM. Code-based like BIKE and McEliece, so it shares none of the lattice assumptions; keys stay small but ciphertexts are roughly three times the key |
 | **KEM** | NTRU (HPS-509/677/821, HRSS-701) | AVX2 16-lane and SSE2/NEON 8-lane cyclic multiplication selected automatically; scalar builds retain Toom-4 + K2 | Mid-latency KEM; current local AVX2 A/B is about 8-13% faster than K2 and needs refreshed cross-device snapshots |
-| **KEM** | SABER (LightSaber/Saber/FireSaber) | AVX2 16-lane and NEON 8-lane schoolbook multiplication; SSE2 reduction-only path | Same low-latency class as Kyber in the curated snapshots; current SIMD core needs refreshed cross-device snapshots |
+| **KEM** | SABER (LightSaber/Saber/FireSaber) | AVX2 16-lane and NEON 8-lane schoolbook multiplication; SSE2 reduction-only path | Same low-latency class as ML-KEM in the curated snapshots; current SIMD core needs refreshed cross-device snapshots |
 | **KEM** | Classic McEliece (6688128f/6960119f/8192128f) | AVX2 matrix fill, AVX2/SSE2/NEON masked keygen row XOR, and 8-lane AVX2 or 4-lane SSE2/NEON decoder root evaluation | Slowest measured KEM here; key generation dominates, but ciphertexts stay very small |
 | **Sign** | Dilithium (ML-DSA-44/65/87) | AVX2 polynomial products and SSE2/NEON coefficient/hash batching | Fastest measured PQ signature family in the current curated snapshots |
 | **Sign** | Falcon (512/1024) | Optional two-lane native-float FFT and norm helpers; the default integer-emulated backend remains scalar for portable timing | Smallest PQ signatures here; key generation remains its largest phase, but no longer takes seconds on the current desktop path |
@@ -173,7 +173,7 @@ These numbers are not protocol guarantees. They are README-level guidance taken 
 
 | Family | Desktop guidance | ARM64 phone guidance | Notes |
 |--------|------------------|----------------------|-------|
-| Kyber | about `0.06-0.13 ms` | about `0.33-0.91 ms` | Lowest-latency PQ KEM family in the current curated set |
+| ML-KEM | about `0.06-0.13 ms` | about `0.33-0.91 ms` | Lowest-latency PQ KEM family in the current curated set |
 | SABER | historical snapshot: about `0.14-0.27 ms` | historical snapshot: about `0.29-0.75 ms` | Predates the new AVX2/NEON multiplication core; use a fresh local benchmark for current numbers |
 | NTRU | historical snapshot: about `2.34-4.57 ms` | historical snapshot: about `6.54-20.85 ms` | Predates automatic AVX2/SSE2/NEON cyclic multiplication; local AVX2 A/B improved 8-13% over K2 |
 | FrodoKEM | current local native-fast: about `0.98-3.16 ms` AES and `5.01-19.50 ms` SHAKE | historical snapshots: about `21-133 ms` | AES requires AES-NI plus the C AES target flag; normal capable native builds now select both automatically; same-source A/B shows SHAKE row streaming about 18-23% faster |
@@ -221,9 +221,9 @@ The typed material surface is split per module - [hashes](src/tyr/hashes/materia
 - `genKeypair` / `encaps` / `decaps`
 - `cryptoRand`
 
-Local pure-Nim implementations use `Tyr` suffixed names (e.g. `kyberTyrKeypair`, `blake3TyrHashM`). Unsuffixed names may resolve to native backend paths when available.
+Local pure-Nim implementations use `Tyr` suffixed names (e.g. `mlkemTyrKeypair`, `blake3TyrHashM`). Unsuffixed names may resolve to native backend paths when available.
 
-Typed KEM material exists for X25519, Kyber, McEliece, Frodo and BIKE (both the library-backed and the `Tyr` route), and for NTRU, SABER and HQC (`Tyr` route only: `ntru0TyrSendM`..`ntru2TyrSendM`, `ntruHrss0TyrSendM`, `saber0TyrSendM`..`saber2TyrSendM`, `hqc0TyrSendM`..`hqc2TyrSendM`, each with its `OpenM` twin). The tier number counts up from the smallest size, so `hqc0Tyr` is HQC-1 and `hqc2Tyr` is HQC-5; the full table is at the top of that section in [src/tyr/kems/material.nim](src/tyr/kems/material.nim).
+Typed KEM material exists for X25519, ML-KEM, McEliece, Frodo and BIKE (both the library-backed and the `Tyr` route), and for NTRU, SABER and HQC (`Tyr` route only: `ntru0TyrSendM`..`ntru2TyrSendM`, `ntruHrss0TyrSendM`, `saber0TyrSendM`..`saber2TyrSendM`, `hqc0TyrSendM`..`hqc2TyrSendM`, each with its `OpenM` twin). The tier number counts up from the smallest size, so `hqc0Tyr` is HQC-1 and `hqc2Tyr` is HQC-5; the full table is at the top of that section in [src/tyr/kems/material.nim](src/tyr/kems/material.nim).
 
 `import tyr` is the supported all-in-one import. It re-exports every family
 module - `tyr/hashes`, `tyr/macs`, `tyr/ciphers`, `tyr/aeads`, `tyr/kdfs`,
@@ -274,7 +274,7 @@ The derived material is never stronger than SHAKE256: a 2048-bit target is a
 | [docs/NUGIMLI_CASCADE_VECTORS.md](docs/NUGIMLI_CASCADE_VECTORS.md) | Cascade format, input recipe, complete vector source, and 512-bit human-readable vector |
 | [docs/NUGIMLI_REVIEW.md](docs/NUGIMLI_REVIEW.md) | NuGimli design review: exact specification, diffusion, trails, zero-sums, key layer, derivation, findings and reserve per width |
 | [docs/HQC.md](docs/HQC.md) | HQC byte layouts, the two stacked codes, the module map, and the known-answer procedure |
-| [docs/research/pq_non_ntru_saber/README.md](docs/research/pq_non_ntru_saber/README.md) | Papers: Kyber, Dilithium, Falcon, Frodo, BIKE, HQC, McEliece, SPHINCS+ |
+| [docs/research/pq_non_ntru_saber/README.md](docs/research/pq_non_ntru_saber/README.md) | Papers: ML-KEM, Dilithium, Falcon, Frodo, BIKE, HQC, McEliece, SPHINCS+ |
 | [docs/research/ntru_saber/README.md](docs/research/ntru_saber/README.md) | Papers: NTRU, SABER — includes full optimization history with benchmark tables |
 | [agents/PROGRESS.md](agents/PROGRESS.md) | Full implementation history: bugs found/fixed, performance changes, decisions |
 | [docs/benchmarks/](docs/benchmarks/) | Curated benchmark JSON snapshots (desktop + 3 phones) |
@@ -290,7 +290,7 @@ The derived material is never stronger than SHAKE256: a 2048-bit target is a
 | Backend | Algorithms | Define |
 |---------|-----------|--------|
 | **libsodium** | X25519, Ed25519, AEAD helpers | `-d:hasLibsodium` |
-| **liboqs** | Kyber, Frodo, NTRU, BIKE, Dilithium, Falcon, SPHINCS+, McEliece | `-d:hasLibOqs` (HQC is pure-Nim only; its vectors are checked against the pinned liboqs corpus, not its runtime) |
+| **liboqs** | ML-KEM, Frodo, NTRU, BIKE, Dilithium, Falcon, SPHINCS+, McEliece | `-d:hasLibOqs` (HQC is pure-Nim only; its vectors are checked against the pinned liboqs corpus, not its runtime) |
 | **OpenSSL** | Ed448, RSA/ECDSA verify, X.509 checks, optional Frodo public AES matrix generation | `-d:hasOpenSSL3` |
 | **nimcrypto** | AES-GCM | (import-time) |
 
@@ -323,7 +323,7 @@ Frodo does not probe or load `libcrypto` unless `-d:hasOpenSSL3` is present.
 | `nimble bench_custom_crypto` | Tyr-only primitive report |
 | `nimble bench_pq_profiles` | PQ benchmark profiles |
 | `nimble build_android_harness` | Android native test harness |
-| `nimble build_android_harness_asymmetric_fast` | Android harness with Kyber + Dilithium |
+| `nimble build_android_harness_asymmetric_fast` | Android harness with ML-KEM + Dilithium |
 | `nimble build_android_harness_asymmetric_full` | Android harness with the full PQ bundle |
 | `nimble build_wasm` | Release Emscripten wasm/JS build |
 | `nimble build_wasm_debug` | Debug Emscripten wasm/JS build |
@@ -390,9 +390,9 @@ Generated TOML files are for downstream consumers. Tyr itself does not read them
 
 ## Wasm / JS Bridge
 
-Basic cipher, hash, and pure-Nim X25519/Kyber KEM operations are exported for
-wasm/JS targets. The KEM names `kyber768` and `kyber1024` identify the pinned
-CRYSTALS-Kyber round-3 implementation, not FIPS 203 ML-KEM.
+Basic cipher, hash, and pure-Nim X25519/ML-KEM KEM operations are exported for
+wasm/JS targets. The KEM names `mlkem768` and `mlkem1024` identify FIPS 203
+ML-KEM-768 and ML-KEM-1024.
 
 ### Build It Yourself
 
@@ -491,8 +491,8 @@ If Nim's library path is not auto-detected on your machine, set `NIM_LIB_DIR` be
 | `abiVersion` | Return wasm ABI version |
 | `capabilities` | Return supported wasm bridge features |
 | `basic.encrypt` / `basic.decrypt` | JSON bridge for basic cipher operations |
-| `basic.kemKeypair` | Create deterministic or random X25519/Kyber keypairs |
-| `basic.kemEncaps` / `basic.kemDecaps` | Create and open X25519/Kyber KEM exchanges |
+| `basic.kemKeypair` | Create deterministic or random X25519/ML-KEM keypairs |
+| `basic.kemEncaps` / `basic.kemDecaps` | Create and open X25519/ML-KEM KEM exchanges |
 | `basic.blake3Hash` / `basic.blake3KeyedHash` | BLAKE3 hashing helpers |
 | `basic.gimliHash` | Gimli hashing helper |
 | `basic.sha3Hash` | SHA3 hashing helper |
@@ -510,11 +510,11 @@ const message = new TextEncoder().encode("browser message");
 const cipher = tyr.basic.encrypt({ algo: "xchacha20", key, nonce, message });
 const plain = tyr.basic.decrypt({ algo: "xchacha20", key, nonce, payload: cipher.payload });
 
-// `cipher.ciphertext` is sent to the remote X25519/Kyber key owner.
-const receiver = tyr.basic.kemKeypair({ algo: "kyber768" });
-const kem = tyr.basic.kemEncaps({ algo: "kyber768", receiverPublicKey: receiver.publicKey });
+// `cipher.ciphertext` is sent to the remote X25519/ML-KEM key owner.
+const receiver = tyr.basic.kemKeypair({ algo: "mlkem768" });
+const kem = tyr.basic.kemEncaps({ algo: "mlkem768", receiverPublicKey: receiver.publicKey });
 const shared = tyr.basic.kemDecaps({
-  algo: "kyber768", receiverSecretKey: receiver.secretKey, ciphertext: kem.ciphertext,
+  algo: "mlkem768", receiverSecretKey: receiver.secretKey, ciphertext: kem.ciphertext,
 });
 ```
 

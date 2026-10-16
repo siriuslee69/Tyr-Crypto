@@ -107,23 +107,23 @@ proc kemBackends*(alg: KemAlgorithm): seq[AlgoInfo] =
         requiresFlag: "hasLibsodium"
       )
     ]
-  of kaKyber0:
+  of kaMlKem0:
     result = @[
       AlgoInfo(
         provider: "liboqs",
         source: "https://github.com/open-quantum-safe/liboqs",
-        algorithmId: oqsAlgKyber768,
-        notes: "Kyber768 KEM.",
+        algorithmId: oqsAlgMlKem768,
+        notes: "ML-KEM-768 KEM.",
         requiresFlag: "hasLibOqs"
       )
     ]
-  of kaKyber1:
+  of kaMlKem1:
     result = @[
       AlgoInfo(
         provider: "liboqs",
         source: "https://github.com/open-quantum-safe/liboqs",
-        algorithmId: oqsAlgKyber1024,
-        notes: "Kyber1024 KEM.",
+        algorithmId: oqsAlgMlKem1024,
+        notes: "ML-KEM-1024 KEM.",
         requiresFlag: "hasLibOqs"
       )
     ]

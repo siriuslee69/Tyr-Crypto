@@ -1,4 +1,4 @@
-proc ntt*(R: var array[kyberN, int16]) {.inline.} =
+proc ntt*(R: var array[mlkemN, int16]) {.inline.} =
   ## Forward NTT from standard order to bit-reversed order.
   var
     len: int = 0
@@ -29,7 +29,7 @@ proc ntt*(R: var array[kyberN, int16]) {.inline.} =
       j = j + 8
 
     start = 0
-    while start < kyberN:
+    while start < mlkemN:
       zeta = zetas[k32]
       k32 = k32 + 1
       zeta16Lo = zetas[k16]
@@ -50,7 +50,7 @@ proc ntt*(R: var array[kyberN, int16]) {.inline.} =
     k = 16
     len = 8
     start = 0
-    while start < kyberN:
+    while start < mlkemN:
       zeta = zetas[k]
       k = k + 1
       j = start
@@ -66,7 +66,7 @@ proc ntt*(R: var array[kyberN, int16]) {.inline.} =
     len = 4
   while len >= 2:
     start = 0
-    while start < kyberN:
+    while start < mlkemN:
       zeta = zetas[k]
       k = k + 1
       j = start

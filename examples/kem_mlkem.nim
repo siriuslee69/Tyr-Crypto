@@ -6,11 +6,11 @@ proc toHex(b: openArray[byte]): string =
   for x in b:
     result.add strutils.toHex(x, 2)
 
-let kp = kyberTyrKeypair(kyber768)
+let kp = mlkemTyrKeypair(mlkem768)
 
-let ct = kyberTyrEncaps(kyber768, kp.publicKey)
+let ct = mlkemTyrEncaps(mlkem768, kp.publicKey)
 
-let shared = kyberTyrDecaps(kyber768, kp.secretKey, ct.ciphertext)
+let shared = mlkemTyrDecaps(mlkem768, kp.secretKey, ct.ciphertext)
 
 assert shared == ct.sharedSecret, "KEM decapsulation mismatch"
-echo "Kyber768 shared secret (first 8 bytes): ", shared[0..7].toHex
+echo "ML-KEM-768 shared secret (first 8 bytes): ", shared[0..7].toHex

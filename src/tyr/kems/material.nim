@@ -2,9 +2,9 @@
 ## | KEM Material <- typed key-exchange material, sizes in the type     |
 ## ---------------------------------------------------------------------
 ##
-##   var kp  = genKeypair(kyber0TyrSendM)
-##   var c   = seal(kyber0TyrSendM(receiverPublicKey: kp.publicKey))
-##   var key = open(c.envelope, kyber0TyrOpenM(receiverSecretKey: kp.secretKey))
+##   var kp  = genKeypair(mlkem0TyrSendM)
+##   var c   = seal(mlkem0TyrSendM(receiverPublicKey: kp.publicKey))
+##   var key = open(c.envelope, mlkem0TyrOpenM(receiverSecretKey: kp.secretKey))
 ##
 ## `seal` and `open` name the two halves of a key exchange. Sealing
 ## produces two things and they must not be confused:
@@ -21,8 +21,8 @@
 ##
 ## Two routes per family
 ## ---------------------
-##   kyber0SendM      the library-backed route (liboqs)
-##   kyber0TyrSendM   Tyr's own pure-Nim implementation
+##   mlkem0SendM      the library-backed route (liboqs)
+##   mlkem0TyrSendM   Tyr's own pure-Nim implementation
 ##
 ## Composing several at once
 ## -------------------------
@@ -45,7 +45,7 @@ import ../bindings/liboqs
 import ./x25519 as customX25519
 import ./bike as customBike
 import ./frodo as customFrodo
-import ./kyber as customKyber
+import ./mlkem as customMlKem
 import ./mceliece as customMcEliece
 import ./ntru as customNtru
 import ./saber as customSaber
@@ -63,29 +63,29 @@ type
   ## Material for opening an X25519-derived shared secret.
   x25519OpenM* = object
     receiverSecretKey*: array[32, byte]
-  ## Material for Kyber tier-0 encapsulation.
-  kyber0SendM* = object
+  ## Material for ML-KEM tier-0 encapsulation.
+  mlkem0SendM* = object
     receiverPublicKey*: array[1184, byte]
-  ## Material for Kyber tier-0 decapsulation.
-  kyber0OpenM* = object
+  ## Material for ML-KEM tier-0 decapsulation.
+  mlkem0OpenM* = object
     receiverSecretKey*: array[2400, byte]
-  ## Material for Kyber tier-1 encapsulation.
-  kyber1SendM* = object
+  ## Material for ML-KEM tier-1 encapsulation.
+  mlkem1SendM* = object
     receiverPublicKey*: array[1568, byte]
-  ## Material for Kyber tier-1 decapsulation.
-  kyber1OpenM* = object
+  ## Material for ML-KEM tier-1 decapsulation.
+  mlkem1OpenM* = object
     receiverSecretKey*: array[3168, byte]
-  ## Material for the pure-Nim Tyr Kyber tier-0 encapsulation path.
-  kyber0TyrSendM* = object
+  ## Material for the pure-Nim Tyr ML-KEM tier-0 encapsulation path.
+  mlkem0TyrSendM* = object
     receiverPublicKey*: array[1184, byte]
-  ## Material for the pure-Nim Tyr Kyber tier-0 decapsulation path.
-  kyber0TyrOpenM* = object
+  ## Material for the pure-Nim Tyr ML-KEM tier-0 decapsulation path.
+  mlkem0TyrOpenM* = object
     receiverSecretKey*: array[2400, byte]
-  ## Material for the pure-Nim Tyr Kyber tier-1 encapsulation path.
-  kyber1TyrSendM* = object
+  ## Material for the pure-Nim Tyr ML-KEM tier-1 encapsulation path.
+  mlkem1TyrSendM* = object
     receiverPublicKey*: array[1568, byte]
-  ## Material for the pure-Nim Tyr Kyber tier-1 decapsulation path.
-  kyber1TyrOpenM* = object
+  ## Material for the pure-Nim Tyr ML-KEM tier-1 decapsulation path.
+  mlkem1TyrOpenM* = object
     receiverSecretKey*: array[3168, byte]
   ## Material for McEliece tier-0 encapsulation.
   mceliece0SendM* = object
@@ -279,14 +279,14 @@ type
 
 proc algorithmOf*(T: typedesc[x25519SendM]): AlgorithmKind = akX25519Send
 proc algorithmOf*(T: typedesc[x25519OpenM]): AlgorithmKind = akX25519Open
-proc algorithmOf*(T: typedesc[kyber0SendM]): AlgorithmKind = akKyber0Send
-proc algorithmOf*(T: typedesc[kyber0OpenM]): AlgorithmKind = akKyber0Open
-proc algorithmOf*(T: typedesc[kyber1SendM]): AlgorithmKind = akKyber1Send
-proc algorithmOf*(T: typedesc[kyber1OpenM]): AlgorithmKind = akKyber1Open
-proc algorithmOf*(T: typedesc[kyber0TyrSendM]): AlgorithmKind = akKyber0TyrSend
-proc algorithmOf*(T: typedesc[kyber0TyrOpenM]): AlgorithmKind = akKyber0TyrOpen
-proc algorithmOf*(T: typedesc[kyber1TyrSendM]): AlgorithmKind = akKyber1TyrSend
-proc algorithmOf*(T: typedesc[kyber1TyrOpenM]): AlgorithmKind = akKyber1TyrOpen
+proc algorithmOf*(T: typedesc[mlkem0SendM]): AlgorithmKind = akMlKem0Send
+proc algorithmOf*(T: typedesc[mlkem0OpenM]): AlgorithmKind = akMlKem0Open
+proc algorithmOf*(T: typedesc[mlkem1SendM]): AlgorithmKind = akMlKem1Send
+proc algorithmOf*(T: typedesc[mlkem1OpenM]): AlgorithmKind = akMlKem1Open
+proc algorithmOf*(T: typedesc[mlkem0TyrSendM]): AlgorithmKind = akMlKem0TyrSend
+proc algorithmOf*(T: typedesc[mlkem0TyrOpenM]): AlgorithmKind = akMlKem0TyrOpen
+proc algorithmOf*(T: typedesc[mlkem1TyrSendM]): AlgorithmKind = akMlKem1TyrSend
+proc algorithmOf*(T: typedesc[mlkem1TyrOpenM]): AlgorithmKind = akMlKem1TyrOpen
 proc algorithmOf*(T: typedesc[mceliece0SendM]): AlgorithmKind = akMcEliece0Send
 proc algorithmOf*(T: typedesc[mceliece0OpenM]): AlgorithmKind = akMcEliece0Open
 proc algorithmOf*(T: typedesc[mceliece1SendM]): AlgorithmKind = akMcEliece1Send
@@ -389,12 +389,12 @@ discard block:
   initLock(oqsEntropyLock)
   true
 
-proc kyberAlgId(variant: KyberTier): string =
+proc mlkemAlgId(variant: MlKemTier): string =
   case variant
-  of kyber0:
-    result = oqsAlgKyber768
-  of kyber1:
-    result = oqsAlgKyber1024
+  of mlkem0:
+    result = oqsAlgMlKem768
+  of mlkem1:
+    result = oqsAlgMlKem1024
 
 proc mcElieceAlgId(variant: McElieceTier): string =
   case variant
@@ -606,14 +606,14 @@ proc x25519Shared(secretKey, publicKey: openArray[uint8]): seq[uint8] =
     raise newException(ValueError, "invalid X25519 key length")
   result = customX25519.x25519TyrShared(secretKey, publicKey)
 
-proc kyberVariantForTier(alg: KemAlgorithm): KyberTier =
+proc mlkemVariantForTier(alg: KemAlgorithm): MlKemTier =
   case alg
-  of kaKyber0:
-    result = kyber0
-  of kaKyber1:
-    result = kyber1
+  of kaMlKem0:
+    result = mlkem0
+  of kaMlKem1:
+    result = mlkem1
   else:
-    raise newException(ValueError, "algorithm is not a kyber tier")
+    raise newException(ValueError, "algorithm is not a mlkem tier")
 
 proc mcElieceVariantForTier(alg: KemAlgorithm): McElieceTier =
   case alg
@@ -645,8 +645,8 @@ proc frodoAlgIdForTier(alg: KemAlgorithm): string =
 
 proc kemAlgIdForDispatch(alg: KemAlgorithm): string =
   case alg
-  of kaKyber0, kaKyber1:
-    result = kyberAlgId(kyberVariantForTier(alg))
+  of kaMlKem0, kaMlKem1:
+    result = mlkemAlgId(mlkemVariantForTier(alg))
   of kaMcEliece0, kaMcEliece1, kaMcEliece2:
     result = mcElieceAlgId(mcElieceVariantForTier(alg))
   of kaFrodo0Aes, kaFrodo0Shake, kaFrodo1Aes, kaFrodo1Shake, kaFrodo2Aes, kaFrodo2Shake:
@@ -703,7 +703,7 @@ proc genKeypair*(alg: KemAlgorithm, seed: seq[uint8] = @[],
       kp0 = x25519Keypair()
     result.publicKey = kp0.pk
     result.secretKey = kp0.sk
-  of kaKyber0, kaKyber1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
+  of kaMlKem0, kaMlKem1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
       kaFrodo0Aes, kaFrodo0Shake, kaFrodo1Aes, kaFrodo1Shake, kaFrodo2Aes,
       kaFrodo2Shake, kaNtruPrime0, kaBike0:
     refuseSeedForLibraryTier(alg, seed)
@@ -718,25 +718,25 @@ proc genKeypair*(T: typedesc[mceliece0TyrSendM]): AsymKeypair =
   result.publicKey = kp.publicKey
   result.secretKey = kp.secretKey
 
-proc genKeypair*(T: typedesc[kyber0TyrSendM]): AsymKeypair =
-  ## Build a pure-Nim Tyr Kyber tier-0 keypair.
-  var kp = customKyber.kyberTyrKeypair(customKyber.kyber768)
+proc genKeypair*(T: typedesc[mlkem0TyrSendM]): AsymKeypair =
+  ## Build a pure-Nim Tyr ML-KEM tier-0 keypair.
+  var kp = customMlKem.mlkemTyrKeypair(customMlKem.mlkem768)
   result.publicKey = kp.publicKey
   result.secretKey = kp.secretKey
 
-proc genKeypair*(T: typedesc[kyber0TyrOpenM]): AsymKeypair =
-  ## Build a pure-Nim Tyr Kyber tier-0 keypair.
-  result = genKeypair(kyber0TyrSendM)
+proc genKeypair*(T: typedesc[mlkem0TyrOpenM]): AsymKeypair =
+  ## Build a pure-Nim Tyr ML-KEM tier-0 keypair.
+  result = genKeypair(mlkem0TyrSendM)
 
-proc genKeypair*(T: typedesc[kyber1TyrSendM]): AsymKeypair =
-  ## Build a pure-Nim Tyr Kyber tier-1 keypair.
-  var kp = customKyber.kyberTyrKeypair(customKyber.kyber1024)
+proc genKeypair*(T: typedesc[mlkem1TyrSendM]): AsymKeypair =
+  ## Build a pure-Nim Tyr ML-KEM tier-1 keypair.
+  var kp = customMlKem.mlkemTyrKeypair(customMlKem.mlkem1024)
   result.publicKey = kp.publicKey
   result.secretKey = kp.secretKey
 
-proc genKeypair*(T: typedesc[kyber1TyrOpenM]): AsymKeypair =
-  ## Build a pure-Nim Tyr Kyber tier-1 keypair.
-  result = genKeypair(kyber1TyrSendM)
+proc genKeypair*(T: typedesc[mlkem1TyrOpenM]): AsymKeypair =
+  ## Build a pure-Nim Tyr ML-KEM tier-1 keypair.
+  result = genKeypair(mlkem1TyrSendM)
 
 proc genKeypair*(T: typedesc[mceliece0TyrOpenM]): AsymKeypair =
   ## Build a pure-Nim Tyr McEliece tier-0 keypair.
@@ -846,7 +846,7 @@ proc encaps*(alg: KemAlgorithm, receiverPublicKey: seq[uint8],
       raise newException(ValueError,
         "x25519 dispatch requires both senderPublicKey and senderSecretKey, or neither")
     result = initAsymCipher(@[], kp0.pk, x25519Shared(kp0.sk, receiverPublicKey))
-  of kaKyber0, kaKyber1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
+  of kaMlKem0, kaMlKem1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
       kaFrodo0Aes, kaFrodo0Shake, kaFrodo1Aes, kaFrodo1Shake, kaFrodo2Aes,
       kaFrodo2Shake, kaNtruPrime0, kaBike0:
     refuseSeedForLibraryTier(alg, seed)
@@ -861,7 +861,7 @@ proc decaps*(alg: KemAlgorithm, receiverSecretKey: seq[uint8],
   case alg
   of kaX25519:
     result = x25519Shared(receiverSecretKey, cipher.senderPublicKey)
-  of kaKyber0, kaKyber1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
+  of kaMlKem0, kaMlKem1, kaMcEliece0, kaMcEliece1, kaMcEliece2,
       kaFrodo0Aes, kaFrodo0Shake, kaFrodo1Aes, kaFrodo1Shake, kaFrodo2Aes,
       kaFrodo2Shake, kaNtruPrime0, kaBike0:
     algId = kemAlgIdForDispatch(alg)

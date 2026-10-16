@@ -5,7 +5,7 @@
 import std/[base64, json, strutils]
 
 import runePragmas
-import ../../../src/tyr/kems/kyber as kyber
+import ../../../src/tyr/kems/mlkem as mlkem
 import ../../../src/tyr/kems/x25519 as x25519
 import ../../../src/tyr
 import ../../../src/tyr/helpers/tiers
@@ -143,16 +143,16 @@ proc processKem(R: InteropRequest): string {.role: {actor}.} =
     sharedSecret: seq[uint8] = @[]
     ciphertext: seq[uint8] = @[]
     kp: X25519TyrKeypair
-    kyberCipher: KyberTyrCipher
+    mlkemCipher: MlKemTyrCipher
   case R.action
   of "kemDecaps":
     case R.algo
     of "x25519":
       sharedSecret = x25519TyrShared(R.secretKey, R.payload)
-    of "kyber768":
-      sharedSecret = kyberTyrDecaps(kyber768, R.secretKey, R.payload)
-    of "kyber1024":
-      sharedSecret = kyberTyrDecaps(kyber1024, R.secretKey, R.payload)
+    of "mlkem768":
+      sharedSecret = mlkemTyrDecaps(mlkem768, R.secretKey, R.payload)
+    of "mlkem1024":
+      sharedSecret = mlkemTyrDecaps(mlkem1024, R.secretKey, R.payload)
     else:
       raise newException(ValueError, "unsupported KEM algorithm: " & R.algo)
     result = buildBytesResponse(R.action, R.algo, sharedSecret)
@@ -162,14 +162,14 @@ proc processKem(R: InteropRequest): string {.role: {actor}.} =
       kp = if R.seed.len == 0: x25519TyrKeypair() else: x25519TyrKeypairFromSeed(R.seed)
       ciphertext = kp.publicKey
       sharedSecret = x25519TyrShared(kp.secretKey, R.publicKey)
-    of "kyber768":
-      kyberCipher = kyberTyrEncaps(kyber768, R.publicKey, R.seed)
-      ciphertext = kyberCipher.ciphertext
-      sharedSecret = kyberCipher.sharedSecret
-    of "kyber1024":
-      kyberCipher = kyberTyrEncaps(kyber1024, R.publicKey, R.seed)
-      ciphertext = kyberCipher.ciphertext
-      sharedSecret = kyberCipher.sharedSecret
+    of "mlkem768":
+      mlkemCipher = mlkemTyrEncaps(mlkem768, R.publicKey, R.seed)
+      ciphertext = mlkemCipher.ciphertext
+      sharedSecret = mlkemCipher.sharedSecret
+    of "mlkem1024":
+      mlkemCipher = mlkemTyrEncaps(mlkem1024, R.publicKey, R.seed)
+      ciphertext = mlkemCipher.ciphertext
+      sharedSecret = mlkemCipher.sharedSecret
     else:
       raise newException(ValueError, "unsupported KEM algorithm: " & R.algo)
     result = buildKemResponse(R.action, R.algo, ciphertext, sharedSecret)

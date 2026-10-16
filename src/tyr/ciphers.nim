@@ -23,8 +23,8 @@
 ## The "Tyr" in the middle means "this repo's own version of it". Tyr can
 ## expose its own ChaCha20 and a library-backed one at the same time, so a
 ## caller needs a way to say which it wants. The same split exists one
-## level down in the algorithm enums, where `akKyber0Send` is the library
-## route and `akKyber0TyrSend` is Tyr's.
+## level down in the algorithm enums, where `akMlKem0Send` is the library
+## route and `akMlKem0TyrSend` is Tyr's.
 ##
 ## Each ALGORITHM SURFACE keeps its own public names, so a single-algorithm
 ## import reaches them too: `tyr/ciphers/chacha20` gives `chacha20TyrXor`,

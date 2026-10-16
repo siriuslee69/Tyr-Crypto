@@ -8,7 +8,7 @@ import ../../../ciphers/gimli_sponge
 import ../../../macs/hmac as hmacImpl
 import ../../../hashes/sha3 as sha3Impl
 import ../../../kems/x25519 as x25519Impl
-import ../../../kems/kyber as kyberImpl
+import ../../../kems/mlkem as mlkemImpl
 import ../level0/types
 import ../level1/json_codec
 
@@ -79,11 +79,11 @@ proc kemKeypairJson*(reqJson: string): string =
       var kp = if req.seed.len == 0: x25519Impl.x25519TyrKeypair()
         else: x25519Impl.x25519TyrKeypairFromSeed(req.seed)
       result = buildKemKeypairJson(req.algo, kp.publicKey, kp.secretKey)
-    of "kyber768":
-      var kp = kyberImpl.kyberTyrKeypair(kyberImpl.kyber768, req.seed)
+    of "mlkem768":
+      var kp = mlkemImpl.mlkemTyrKeypair(mlkemImpl.mlkem768, req.seed)
       result = buildKemKeypairJson(req.algo, kp.publicKey, kp.secretKey)
-    of "kyber1024":
-      var kp = kyberImpl.kyberTyrKeypair(kyberImpl.kyber1024, req.seed)
+    of "mlkem1024":
+      var kp = mlkemImpl.mlkemTyrKeypair(mlkemImpl.mlkem1024, req.seed)
       result = buildKemKeypairJson(req.algo, kp.publicKey, kp.secretKey)
     else:
       result = buildErrorJson("unsupported wasm KEM algorithm")
@@ -100,12 +100,12 @@ proc kemEncapsJson*(reqJson: string): string =
         else: x25519Impl.x25519TyrKeypairFromSeed(req.seed)
       var shared = x25519Impl.x25519TyrShared(kp.secretKey, req.receiverPublicKey)
       result = buildKemCipherJson(req.algo, kp.publicKey, shared)
-    of "kyber768":
-      var cipher = kyberImpl.kyberTyrEncaps(kyberImpl.kyber768,
+    of "mlkem768":
+      var cipher = mlkemImpl.mlkemTyrEncaps(mlkemImpl.mlkem768,
         req.receiverPublicKey, req.seed)
       result = buildKemCipherJson(req.algo, cipher.ciphertext, cipher.sharedSecret)
-    of "kyber1024":
-      var cipher = kyberImpl.kyberTyrEncaps(kyberImpl.kyber1024,
+    of "mlkem1024":
+      var cipher = mlkemImpl.mlkemTyrEncaps(mlkemImpl.mlkem1024,
         req.receiverPublicKey, req.seed)
       result = buildKemCipherJson(req.algo, cipher.ciphertext, cipher.sharedSecret)
     else:
@@ -121,12 +121,12 @@ proc kemDecapsJson*(reqJson: string): string =
     of "x25519":
       var shared = x25519Impl.x25519TyrShared(req.receiverSecretKey, req.ciphertext)
       result = buildKemSecretJson(req.algo, shared)
-    of "kyber768":
-      var shared = kyberImpl.kyberTyrDecaps(kyberImpl.kyber768,
+    of "mlkem768":
+      var shared = mlkemImpl.mlkemTyrDecaps(mlkemImpl.mlkem768,
         req.receiverSecretKey, req.ciphertext)
       result = buildKemSecretJson(req.algo, shared)
-    of "kyber1024":
-      var shared = kyberImpl.kyberTyrDecaps(kyberImpl.kyber1024,
+    of "mlkem1024":
+      var shared = mlkemImpl.mlkemTyrDecaps(mlkemImpl.mlkem1024,
         req.receiverSecretKey, req.ciphertext)
       result = buildKemSecretJson(req.algo, shared)
     else:

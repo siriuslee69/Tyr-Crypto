@@ -1,5 +1,5 @@
 ## ------------------------------------------------------
-## Kyber PolyVec <- vector serialization and arithmetic
+## ML-KEM PolyVec <- vector serialization and arithmetic
 ## ------------------------------------------------------
 
 import ./params
@@ -21,14 +21,14 @@ when defined(neon) or defined(arm64) or defined(aarch64):
 type
   ## Cached twiddle-scaled odd coefficients for one NTT-domain polynomial.
   ## Paper note: the cache is the local Nim analogue of the mul-cache style used
-  ## in optimized Kyber implementations; see
+  ## in optimized ML-KEM implementations; see
   ## `2021-0986_neon_ntt_dilithium_kyber_saber.pdf` and
   ## `2018-0039_vectorized_ntt_implementations.pdf`.
-  PolyMulCache* = array[kyberN div 2, int16]
-  ## Cached twiddle-scaled odd coefficients for one Kyber vector.
-  PolyVecMulCache* = array[kyberMaxK, PolyMulCache]
+  PolyMulCache* = array[mlkemN div 2, int16]
+  ## Cached twiddle-scaled odd coefficients for one ML-KEM vector.
+  PolyVecMulCache* = array[mlkemMaxK, PolyMulCache]
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `storeBaseMulAccReducedChunk4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `storeBaseMulAccReducedChunk4`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc storeBaseMulAccReducedChunk4(dst: ptr int16, evenTerms, oddTerms: array[4, int32]) {.inline.} =
   var
     dstData = cast[ptr UncheckedArray[int16]](dst)
@@ -43,7 +43,7 @@ when defined(sse2):
   ## Paper note: this SSE2 path fuses cached twiddle terms with pairwise
   ## multiply-add lanes, differing from clean PQClean by avoiding repeated
   ## odd-coefficient twiddle multiplication in the hot polyvec accumulator.
-  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `baseMulCachedTermsChunk4Sse2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `baseMulCachedTermsChunk4Sse2`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc baseMulCachedTermsChunk4Sse2(aPtr, bPtr, cachePtr: ptr int16,
       acc0, acc1: var array[4, int32]) {.inline.} =
     var
@@ -81,19 +81,19 @@ when defined(neon) or defined(arm64) or defined(aarch64):
     NeonI16x4 {.importc: "int16x4_t", header: "arm_neon.h".} = object
     NeonI16x8 {.importc: "int16x8_t", header: "arm_neon.h".} = object
 
-  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `vld1q_s16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `vld1q_s16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   func vld1q_s16(p: pointer): NeonI16x8 {.importc, header: "arm_neon.h".}
-  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `vget_low_s16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `vget_low_s16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   func vget_low_s16(a: NeonI16x8): NeonI16x4 {.importc, header: "arm_neon.h".}
-  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `vget_high_s16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `vget_high_s16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   func vget_high_s16(a: NeonI16x8): NeonI16x4 {.importc, header: "arm_neon.h".}
-  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `vmull_s16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `vmull_s16`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   func vmull_s16(a, b: NeonI16x4): int32x4 {.importc, header: "arm_neon.h".}
 
   ## Paper note: NEON uses signed widening multiplies for the same cached
   ## base-multiply accumulator idea documented for ARM in
   ## `2021-0986_neon_ntt_dilithium_kyber_saber.pdf`.
-  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `maddPairwiseChunk4Neon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `maddPairwiseChunk4Neon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc maddPairwiseChunk4Neon(aVec, bVec: NeonI16x8, acc: var array[4, int32]) {.inline.} =
     var
       lo: int32x4 = vmull_s16(vget_low_s16(aVec), vget_low_s16(bVec))
@@ -107,7 +107,7 @@ when defined(neon) or defined(arm64) or defined(aarch64):
     acc[2] = acc[2] + hiLanes[0] + hiLanes[1]
     acc[3] = acc[3] + hiLanes[2] + hiLanes[3]
 
-  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `baseMulCachedTermsChunk4Neon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
+  ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `baseMulCachedTermsChunk4Neon`; pitfall: match scalar ranges, reductions, lane order, and fixed public loop bounds.
   proc baseMulCachedTermsChunk4Neon(aPtr, bPtr, cachePtr: ptr int16,
       acc0, acc1: var array[4, int32]) {.inline.} =
     var
@@ -136,7 +136,7 @@ when defined(avx2):
   ## Paper note: AVX2 packs four NTT base multiplications into one cached
   ## multiply-add chunk; this is the vectorized-NTT/mulcache idea applied at
   ## Tyr's Nim polyvec boundary instead of copying the upstream C layout.
-  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `baseMulCachedTermsChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `baseMulCachedTermsChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc baseMulCachedTermsChunk8(aPtr, bPtr, cachePtr: ptr int16, acc0, acc1: var navx.M256i) {.inline.} =
     var
       aVec: navx.M256i = navx2.mm256_loadu_si256(cast[pointer](aPtr))
@@ -152,7 +152,7 @@ when defined(avx2):
     acc0 = navx2.mm256_add_epi32(acc0, navx2.mm256_madd_epi16(aVec, evenCacheVec))
     acc1 = navx2.mm256_add_epi32(acc1, navx2.mm256_madd_epi16(aVec, oddEvenVec))
 
-  ## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `storeBaseMulAccReducedChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+  ## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `storeBaseMulAccReducedChunk8`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
   proc storeBaseMulAccReducedChunk8(dstLo, dstHi: ptr int16, evenTerms, oddTerms: navx.M256i) {.inline.} =
     var
       evenReduced: navx.M256i = montgomeryReduceVec8(evenTerms)
@@ -170,89 +170,90 @@ when defined(avx2):
     nsse2.mm_storeu_si128(cast[pointer](dstLo), interleavedLo)
     nsse2.mm_storeu_si128(cast[pointer](dstHi), interleavedHi)
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecCompressInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecCompressInto*(dst: var openArray[byte], p: KyberParams, a: PolyVec) =
-  ## Compress and serialize a Kyber polynomial vector into a caller-provided buffer.
+## Reference: [FIPS-203] algorithm 4 ByteEncode_11 with Compress_11; packing rules for `compress11Block`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
+proc compress11Block(dst: var openArray[byte], o: int, P: Poly, c: int) {.inline.} =
+  ## dst/o: output and byte offset. P/c: polynomial and first of 8 coefficients.
+  ##   8 numbers x 11 bits = 88 bits = 11 bytes
+  var
+    t8 {.noinit.}: array[8, uint16]
+    k: int = 0
+    u: int32 = 0
+    d0: uint64 = 0
+  while k < 8:
+    u = int32(P.coeffs[c + k])
+    u = u + ((u shr 15) and mlkemQ)
+    d0 = ((uint64(u) shl 11) + 1664'u64) * 645084'u64
+    t8[k] = uint16((d0 shr 31) and 0x7ff'u64)
+    k = k + 1
+  dst[o + 0] = byte(t8[0] shr 0)
+  dst[o + 1] = byte((t8[0] shr 8) or (t8[1] shl 3))
+  dst[o + 2] = byte((t8[1] shr 5) or (t8[2] shl 6))
+  dst[o + 3] = byte(t8[2] shr 2)
+  dst[o + 4] = byte((t8[2] shr 10) or (t8[3] shl 1))
+  dst[o + 5] = byte((t8[3] shr 7) or (t8[4] shl 4))
+  dst[o + 6] = byte((t8[4] shr 4) or (t8[5] shl 7))
+  dst[o + 7] = byte(t8[5] shr 1)
+  dst[o + 8] = byte((t8[5] shr 9) or (t8[6] shl 2))
+  dst[o + 9] = byte((t8[6] shr 6) or (t8[7] shl 5))
+  dst[o + 10] = byte(t8[7] shr 3)
+
+## Reference: [FIPS-203] algorithm 4 ByteEncode_10 with Compress_10; packing rules for `compress10Block`; pitfall: emit the unique canonical wire representation and enforce exact bounds.
+proc compress10Block(dst: var openArray[byte], o: int, P: Poly, c: int) {.inline.} =
+  ## dst/o: output and byte offset. P/c: polynomial and first of 4 coefficients.
+  ##   4 numbers x 10 bits = 40 bits = 5 bytes
+  var
+    t4 {.noinit.}: array[4, uint16]
+    k: int = 0
+    u: int32 = 0
+    d0: uint64 = 0
+  while k < 4:
+    u = int32(P.coeffs[c + k])
+    u = u + ((u shr 15) and mlkemQ)
+    d0 = ((uint64(u) shl 10) + 1665'u64) * 1290167'u64
+    t4[k] = uint16((d0 shr 32) and 0x3ff'u64)
+    k = k + 1
+  dst[o + 0] = byte(t4[0] shr 0)
+  dst[o + 1] = byte((t4[0] shr 8) or (t4[1] shl 2))
+  dst[o + 2] = byte((t4[1] shr 6) or (t4[2] shl 4))
+  dst[o + 3] = byte((t4[2] shr 4) or (t4[3] shl 6))
+  dst[o + 4] = byte(t4[3] shr 2)
+
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecCompressInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecCompressInto*(dst: var openArray[byte], p: MlKemParams, a: PolyVec) =
+  ## Compress and serialize a ML-KEM polynomial vector into a caller-provided buffer.
+  ##   11 bits per number (ML-KEM-1024) or 10 bits (512 / 768)
   var
     i: int = 0
     j: int = 0
-    k: int = 0
-    o: int = 0
-    d0: uint64 = 0
-    t8 {.noinit.}: array[8, uint16]
-    t4 {.noinit.}: array[4, uint16]
-    u: int32 = 0
   if dst.len != p.polyVecCompressedBytes:
-    raise newException(ValueError, "invalid Kyber compressed polyvec length")
+    raise newException(ValueError, "invalid ML-KEM compressed polyvec length")
   if p.polyVecCompressedBytes == p.k * 352:
-    i = 0
     while i < p.k:
       j = 0
-      while j < kyberN div 8:
-        k = 0
-        while k < 8:
-          u = int32(a.vec[i].coeffs[8 * j + k])
-          u = u + ((u shr 15) and kyberQ)
-          d0 = uint64(u)
-          d0 = d0 shl 11
-          d0 = d0 + 1664'u64
-          d0 = d0 * 645084'u64
-          d0 = d0 shr 31
-          t8[k] = uint16(d0 and 0x7ff'u64)
-          k = k + 1
-        o = i * (kyberN div 8) * 11 + j * 11
-        dst[o + 0] = byte(t8[0] shr 0)
-        dst[o + 1] = byte((t8[0] shr 8) or (t8[1] shl 3))
-        dst[o + 2] = byte((t8[1] shr 5) or (t8[2] shl 6))
-        dst[o + 3] = byte(t8[2] shr 2)
-        dst[o + 4] = byte((t8[2] shr 10) or (t8[3] shl 1))
-        dst[o + 5] = byte((t8[3] shr 7) or (t8[4] shl 4))
-        dst[o + 6] = byte((t8[4] shr 4) or (t8[5] shl 7))
-        dst[o + 7] = byte(t8[5] shr 1)
-        dst[o + 8] = byte((t8[5] shr 9) or (t8[6] shl 2))
-        dst[o + 9] = byte((t8[6] shr 6) or (t8[7] shl 5))
-        dst[o + 10] = byte(t8[7] shr 3)
+      while j < mlkemN div 8:
+        compress11Block(dst, i * 352 + j * 11, a.vec[i], 8 * j)
         j = j + 1
       i = i + 1
     return
-
   if p.polyVecCompressedBytes == p.k * 320:
-    i = 0
     while i < p.k:
       j = 0
-      while j < kyberN div 4:
-        k = 0
-        while k < 4:
-          u = int32(a.vec[i].coeffs[4 * j + k])
-          u = u + ((u shr 15) and kyberQ)
-          d0 = uint64(u)
-          d0 = d0 shl 10
-          d0 = d0 + 1665'u64
-          d0 = d0 * 1290167'u64
-          d0 = d0 shr 32
-          t4[k] = uint16(d0 and 0x3ff'u64)
-          k = k + 1
-        o = i * (kyberN div 4) * 5 + j * 5
-        dst[o + 0] = byte(t4[0] shr 0)
-        dst[o + 1] = byte((t4[0] shr 8) or (t4[1] shl 2))
-        dst[o + 2] = byte((t4[1] shr 6) or (t4[2] shl 4))
-        dst[o + 3] = byte((t4[2] shr 4) or (t4[3] shl 6))
-        dst[o + 4] = byte(t4[3] shr 2)
+      while j < mlkemN div 4:
+        compress10Block(dst, i * 320 + j * 5, a.vec[i], 4 * j)
         j = j + 1
       i = i + 1
     return
+  raise newException(ValueError, "unsupported ML-KEM polyvec compression size")
 
-  raise newException(ValueError, "unsupported Kyber polyvec compression size")
-
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecCompress`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecCompress*(p: KyberParams, a: PolyVec): seq[byte] =
-  ## Compress and serialize a Kyber polynomial vector.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecCompress`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecCompress*(p: MlKemParams, a: PolyVec): seq[byte] =
+  ## Compress and serialize a ML-KEM polynomial vector.
   result = newSeq[byte](p.polyVecCompressedBytes)
   polyvecCompressInto(result, p, a)
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecDecompressInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecDecompressInto*(r: var PolyVec, p: KyberParams, A: openArray[byte]) =
-  ## Decompress and deserialize a Kyber polynomial vector into a caller-provided vector.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecDecompressInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecDecompressInto*(r: var PolyVec, p: MlKemParams, A: openArray[byte]) =
+  ## Decompress and deserialize a ML-KEM polynomial vector into a caller-provided vector.
   var
     i: int = 0
     j: int = 0
@@ -261,13 +262,13 @@ proc polyvecDecompressInto*(r: var PolyVec, p: KyberParams, A: openArray[byte]) 
     t8 {.noinit.}: array[8, uint16]
     t4 {.noinit.}: array[4, uint16]
   if A.len != p.polyVecCompressedBytes:
-    raise newException(ValueError, "invalid Kyber compressed polyvec length")
+    raise newException(ValueError, "invalid ML-KEM compressed polyvec length")
   if p.polyVecCompressedBytes == p.k * 352:
     i = 0
     while i < p.k:
       j = 0
-      while j < kyberN div 8:
-        o = i * (kyberN div 8) * 11 + j * 11
+      while j < mlkemN div 8:
+        o = i * (mlkemN div 8) * 11 + j * 11
         t8[0] = (uint16(A[o + 0]) shr 0) or (uint16(A[o + 1]) shl 8)
         t8[1] = (uint16(A[o + 1]) shr 3) or (uint16(A[o + 2]) shl 5)
         t8[2] = (uint16(A[o + 2]) shr 6) or (uint16(A[o + 3]) shl 2) or (uint16(A[o + 4]) shl 10)
@@ -279,7 +280,7 @@ proc polyvecDecompressInto*(r: var PolyVec, p: KyberParams, A: openArray[byte]) 
         k = 0
         while k < 8:
           r.vec[i].coeffs[8 * j + k] =
-            int16(((uint32(t8[k] and 0x7ff'u16) * uint32(kyberQ)) + 1024'u32) shr 11)
+            int16(((uint32(t8[k] and 0x7ff'u16) * uint32(mlkemQ)) + 1024'u32) shr 11)
           k = k + 1
         j = j + 1
       i = i + 1
@@ -289,8 +290,8 @@ proc polyvecDecompressInto*(r: var PolyVec, p: KyberParams, A: openArray[byte]) 
     i = 0
     while i < p.k:
       j = 0
-      while j < kyberN div 4:
-        o = i * (kyberN div 4) * 5 + j * 5
+      while j < mlkemN div 4:
+        o = i * (mlkemN div 4) * 5 + j * 5
         t4[0] = (uint16(A[o + 0]) shr 0) or (uint16(A[o + 1]) shl 8)
         t4[1] = (uint16(A[o + 1]) shr 2) or (uint16(A[o + 2]) shl 6)
         t4[2] = (uint16(A[o + 2]) shr 4) or (uint16(A[o + 3]) shl 4)
@@ -298,88 +299,88 @@ proc polyvecDecompressInto*(r: var PolyVec, p: KyberParams, A: openArray[byte]) 
         k = 0
         while k < 4:
           r.vec[i].coeffs[4 * j + k] =
-            int16(((uint32(t4[k] and 0x3ff'u16) * uint32(kyberQ)) + 512'u32) shr 10)
+            int16(((uint32(t4[k] and 0x3ff'u16) * uint32(mlkemQ)) + 512'u32) shr 10)
           k = k + 1
         j = j + 1
       i = i + 1
     return
 
-  raise newException(ValueError, "unsupported Kyber polyvec compression size")
+  raise newException(ValueError, "unsupported ML-KEM polyvec compression size")
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecDecompress`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecDecompress*(p: KyberParams, A: openArray[byte]): PolyVec =
-  ## Decompress and deserialize a Kyber polynomial vector.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecDecompress`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecDecompress*(p: MlKemParams, A: openArray[byte]): PolyVec =
+  ## Decompress and deserialize a ML-KEM polynomial vector.
   polyvecDecompressInto(result, p, A)
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecToBytesInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecToBytesInto*(dst: var openArray[byte], p: KyberParams, a: PolyVec) {.inline.} =
-  ## Serialize a Kyber polynomial vector into a caller-provided buffer.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecToBytesInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecToBytesInto*(dst: var openArray[byte], p: MlKemParams, a: PolyVec) {.inline.} =
+  ## Serialize a ML-KEM polynomial vector into a caller-provided buffer.
   var
     i: int = 0
     o: int = 0
-  if dst.len != p.k * kyberPolyBytes:
-    raise newException(ValueError, "invalid Kyber polyvec byte length")
+  if dst.len != p.k * mlkemPolyBytes:
+    raise newException(ValueError, "invalid ML-KEM polyvec byte length")
   case p.k
   of 2:
-    polyToBytesInto(dst.toOpenArray(0, kyberPolyBytes - 1), a.vec[0])
-    polyToBytesInto(dst.toOpenArray(kyberPolyBytes, 2 * kyberPolyBytes - 1), a.vec[1])
+    polyToBytesInto(dst.toOpenArray(0, mlkemPolyBytes - 1), a.vec[0])
+    polyToBytesInto(dst.toOpenArray(mlkemPolyBytes, 2 * mlkemPolyBytes - 1), a.vec[1])
   of 3:
-    polyToBytesInto(dst.toOpenArray(0, kyberPolyBytes - 1), a.vec[0])
-    polyToBytesInto(dst.toOpenArray(kyberPolyBytes, 2 * kyberPolyBytes - 1), a.vec[1])
-    polyToBytesInto(dst.toOpenArray(2 * kyberPolyBytes, 3 * kyberPolyBytes - 1), a.vec[2])
+    polyToBytesInto(dst.toOpenArray(0, mlkemPolyBytes - 1), a.vec[0])
+    polyToBytesInto(dst.toOpenArray(mlkemPolyBytes, 2 * mlkemPolyBytes - 1), a.vec[1])
+    polyToBytesInto(dst.toOpenArray(2 * mlkemPolyBytes, 3 * mlkemPolyBytes - 1), a.vec[2])
   of 4:
-    polyToBytesInto(dst.toOpenArray(0, kyberPolyBytes - 1), a.vec[0])
-    polyToBytesInto(dst.toOpenArray(kyberPolyBytes, 2 * kyberPolyBytes - 1), a.vec[1])
-    polyToBytesInto(dst.toOpenArray(2 * kyberPolyBytes, 3 * kyberPolyBytes - 1), a.vec[2])
-    polyToBytesInto(dst.toOpenArray(3 * kyberPolyBytes, 4 * kyberPolyBytes - 1), a.vec[3])
+    polyToBytesInto(dst.toOpenArray(0, mlkemPolyBytes - 1), a.vec[0])
+    polyToBytesInto(dst.toOpenArray(mlkemPolyBytes, 2 * mlkemPolyBytes - 1), a.vec[1])
+    polyToBytesInto(dst.toOpenArray(2 * mlkemPolyBytes, 3 * mlkemPolyBytes - 1), a.vec[2])
+    polyToBytesInto(dst.toOpenArray(3 * mlkemPolyBytes, 4 * mlkemPolyBytes - 1), a.vec[3])
   else:
     i = 0
     while i < p.k:
-      o = i * kyberPolyBytes
-      polyToBytesInto(dst.toOpenArray(o, o + kyberPolyBytes - 1), a.vec[i])
+      o = i * mlkemPolyBytes
+      polyToBytesInto(dst.toOpenArray(o, o + mlkemPolyBytes - 1), a.vec[i])
       i = i + 1
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecToBytes*(p: KyberParams, a: PolyVec): seq[byte] =
-  ## Serialize a Kyber polynomial vector.
-  result = newSeq[byte](p.k * kyberPolyBytes)
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecToBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecToBytes*(p: MlKemParams, a: PolyVec): seq[byte] =
+  ## Serialize a ML-KEM polynomial vector.
+  result = newSeq[byte](p.k * mlkemPolyBytes)
   polyvecToBytesInto(result, p, a)
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecFromBytesInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecFromBytesInto*(r: var PolyVec, p: KyberParams, A: openArray[byte]) {.inline.} =
-  ## Deserialize a Kyber polynomial vector into a caller-provided vector.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecFromBytesInto`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecFromBytesInto*(r: var PolyVec, p: MlKemParams, A: openArray[byte]) {.inline.} =
+  ## Deserialize a ML-KEM polynomial vector into a caller-provided vector.
   var
     i: int = 0
     o: int = 0
-  if A.len != p.k * kyberPolyBytes:
-    raise newException(ValueError, "invalid Kyber polyvec byte length")
+  if A.len != p.k * mlkemPolyBytes:
+    raise newException(ValueError, "invalid ML-KEM polyvec byte length")
   case p.k
   of 2:
-    polyFromBytesInto(r.vec[0], A.toOpenArray(0, kyberPolyBytes - 1))
-    polyFromBytesInto(r.vec[1], A.toOpenArray(kyberPolyBytes, 2 * kyberPolyBytes - 1))
+    polyFromBytesInto(r.vec[0], A.toOpenArray(0, mlkemPolyBytes - 1))
+    polyFromBytesInto(r.vec[1], A.toOpenArray(mlkemPolyBytes, 2 * mlkemPolyBytes - 1))
   of 3:
-    polyFromBytesInto(r.vec[0], A.toOpenArray(0, kyberPolyBytes - 1))
-    polyFromBytesInto(r.vec[1], A.toOpenArray(kyberPolyBytes, 2 * kyberPolyBytes - 1))
-    polyFromBytesInto(r.vec[2], A.toOpenArray(2 * kyberPolyBytes, 3 * kyberPolyBytes - 1))
+    polyFromBytesInto(r.vec[0], A.toOpenArray(0, mlkemPolyBytes - 1))
+    polyFromBytesInto(r.vec[1], A.toOpenArray(mlkemPolyBytes, 2 * mlkemPolyBytes - 1))
+    polyFromBytesInto(r.vec[2], A.toOpenArray(2 * mlkemPolyBytes, 3 * mlkemPolyBytes - 1))
   of 4:
-    polyFromBytesInto(r.vec[0], A.toOpenArray(0, kyberPolyBytes - 1))
-    polyFromBytesInto(r.vec[1], A.toOpenArray(kyberPolyBytes, 2 * kyberPolyBytes - 1))
-    polyFromBytesInto(r.vec[2], A.toOpenArray(2 * kyberPolyBytes, 3 * kyberPolyBytes - 1))
-    polyFromBytesInto(r.vec[3], A.toOpenArray(3 * kyberPolyBytes, 4 * kyberPolyBytes - 1))
+    polyFromBytesInto(r.vec[0], A.toOpenArray(0, mlkemPolyBytes - 1))
+    polyFromBytesInto(r.vec[1], A.toOpenArray(mlkemPolyBytes, 2 * mlkemPolyBytes - 1))
+    polyFromBytesInto(r.vec[2], A.toOpenArray(2 * mlkemPolyBytes, 3 * mlkemPolyBytes - 1))
+    polyFromBytesInto(r.vec[3], A.toOpenArray(3 * mlkemPolyBytes, 4 * mlkemPolyBytes - 1))
   else:
     i = 0
     while i < p.k:
-      o = i * kyberPolyBytes
-      polyFromBytesInto(r.vec[i], A.toOpenArray(o, o + kyberPolyBytes - 1))
+      o = i * mlkemPolyBytes
+      polyFromBytesInto(r.vec[i], A.toOpenArray(o, o + mlkemPolyBytes - 1))
       i = i + 1
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecFromBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecFromBytes*(p: KyberParams, A: openArray[byte]): PolyVec =
-  ## Deserialize a Kyber polynomial vector.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecFromBytes`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecFromBytes*(p: MlKemParams, A: openArray[byte]): PolyVec =
+  ## Deserialize a ML-KEM polynomial vector.
   polyvecFromBytesInto(result, p, A)
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecNtt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecNtt*(p: KyberParams, r: var PolyVec) {.inline.} =
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecNtt`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecNtt*(p: MlKemParams, r: var PolyVec) {.inline.} =
   ## Apply forward NTT to each vector element.
   case p.k
   of 2:
@@ -401,8 +402,8 @@ proc polyvecNtt*(p: KyberParams, r: var PolyVec) {.inline.} =
       polyNtt(r.vec[i])
       i = i + 1
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecInvNttToMont`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecInvNttToMont*(p: KyberParams, r: var PolyVec) {.inline.} =
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecInvNttToMont`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecInvNttToMont*(p: MlKemParams, r: var PolyVec) {.inline.} =
   ## Apply inverse NTT to each vector element.
   case p.k
   of 2:
@@ -424,9 +425,9 @@ proc polyvecInvNttToMont*(p: KyberParams, r: var PolyVec) {.inline.} =
       polyInvNttToMont(r.vec[i])
       i = i + 1
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecBaseMulAccMontgomery`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecBaseMulAccMontgomery*(p: KyberParams, r: var Poly, a, b: PolyVec) {.inline.} =
-  ## Multiply and accumulate two Kyber polynomial vectors.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecBaseMulAccMontgomery`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecBaseMulAccMontgomery*(p: MlKemParams, r: var Poly, a, b: PolyVec) {.inline.} =
+  ## Multiply and accumulate two ML-KEM polynomial vectors.
   var
     i: int = 1
     t {.noinit.}: Poly
@@ -438,20 +439,20 @@ proc polyvecBaseMulAccMontgomery*(p: KyberParams, r: var Poly, a, b: PolyVec) {.
     i = i + 1
   polyReduce(r)
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyMulCacheCompute`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyMulCacheCompute`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
 proc polyMulCacheCompute*(x: var PolyMulCache, a: Poly) {.inline.} =
   ## Precompute the twiddle-scaled odd coefficients used in NTT base multiplication.
   var
     i: int = 0
   i = 0
-  while i < kyberN div 4:
+  while i < mlkemN div 4:
     x[2 * i + 0] = montgomeryReduce(int32(a.coeffs[4 * i + 1]) * int32(zetas[64 + i]))
     x[2 * i + 1] = montgomeryReduce(int32(a.coeffs[4 * i + 3]) * int32(-zetas[64 + i]))
     i = i + 1
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecMulCacheCompute`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecMulCacheCompute*(p: KyberParams, x: var PolyVecMulCache, a: PolyVec) {.inline.} =
-  ## Precompute twiddle-scaled odd coefficients for a Kyber polynomial vector.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecMulCacheCompute`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecMulCacheCompute*(p: MlKemParams, x: var PolyVecMulCache, a: PolyVec) {.inline.} =
+  ## Precompute twiddle-scaled odd coefficients for a ML-KEM polynomial vector.
   case p.k
   of 2:
     polyMulCacheCompute(x[0], a.vec[0])
@@ -472,10 +473,10 @@ proc polyvecMulCacheCompute*(p: KyberParams, x: var PolyVecMulCache, a: PolyVec)
       polyMulCacheCompute(x[i], a.vec[i])
       i = i + 1
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecBaseMulAccMontgomeryCached`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyVec,
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecBaseMulAccMontgomeryCached`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecBaseMulAccMontgomeryCached*(p: MlKemParams, r: var Poly, a, b: PolyVec,
     bCache: var PolyVecMulCache) {.inline.} =
-  ## Multiply and accumulate two Kyber polynomial vectors using a cached second operand.
+  ## Multiply and accumulate two ML-KEM polynomial vectors using a cached second operand.
   ## Paper note: this differs from the clean reference accumulator by consuming
   ## `PolyVecMulCache` across fixed public `k` cases, then reducing once.
   var
@@ -490,7 +491,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
   case p.k
   of 2:
     when defined(avx2):
-      while i + 8 <= kyberN div 2:
+      while i + 8 <= mlkemN div 2:
         acc0 = navx2.mm256_setzero_si256()
         acc1 = navx2.mm256_setzero_si256()
         baseMulCachedTermsChunk8(unsafeAddr a.vec[0].coeffs[2 * i], unsafeAddr b.vec[0].coeffs[2 * i],
@@ -500,7 +501,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
         storeBaseMulAccReducedChunk8(unsafeAddr r.coeffs[2 * i], unsafeAddr r.coeffs[2 * i + 8], acc0, acc1)
         i = i + 8
     when defined(sse2):
-      while i + 4 <= kyberN div 2:
+      while i + 4 <= mlkemN div 2:
         var
           acc0x4: array[4, int32] = default(array[4, int32])
           acc1x4: array[4, int32] = default(array[4, int32])
@@ -511,7 +512,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
         storeBaseMulAccReducedChunk4(unsafeAddr r.coeffs[2 * i], acc0x4, acc1x4)
         i = i + 4
     when defined(neon) or defined(arm64) or defined(aarch64):
-      while i + 4 <= kyberN div 2:
+      while i + 4 <= mlkemN div 2:
         var
           acc0x4: array[4, int32] = default(array[4, int32])
           acc1x4: array[4, int32] = default(array[4, int32])
@@ -521,7 +522,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
           unsafeAddr bCache[1][i], acc0x4, acc1x4)
         storeBaseMulAccReducedChunk4(unsafeAddr r.coeffs[2 * i], acc0x4, acc1x4)
         i = i + 4
-    while i < kyberN div 2:
+    while i < mlkemN div 2:
       t0 =
         int32(a.vec[0].coeffs[2 * i + 1]) * int32(bCache[0][i]) +
         int32(a.vec[0].coeffs[2 * i + 0]) * int32(b.vec[0].coeffs[2 * i + 0]) +
@@ -537,7 +538,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
       i = i + 1
   of 3:
     when defined(avx2):
-      while i + 8 <= kyberN div 2:
+      while i + 8 <= mlkemN div 2:
         acc0 = navx2.mm256_setzero_si256()
         acc1 = navx2.mm256_setzero_si256()
         baseMulCachedTermsChunk8(unsafeAddr a.vec[0].coeffs[2 * i], unsafeAddr b.vec[0].coeffs[2 * i],
@@ -549,7 +550,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
         storeBaseMulAccReducedChunk8(unsafeAddr r.coeffs[2 * i], unsafeAddr r.coeffs[2 * i + 8], acc0, acc1)
         i = i + 8
     when defined(sse2):
-      while i + 4 <= kyberN div 2:
+      while i + 4 <= mlkemN div 2:
         var
           acc0x4: array[4, int32] = default(array[4, int32])
           acc1x4: array[4, int32] = default(array[4, int32])
@@ -562,7 +563,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
         storeBaseMulAccReducedChunk4(unsafeAddr r.coeffs[2 * i], acc0x4, acc1x4)
         i = i + 4
     when defined(neon) or defined(arm64) or defined(aarch64):
-      while i + 4 <= kyberN div 2:
+      while i + 4 <= mlkemN div 2:
         var
           acc0x4: array[4, int32] = default(array[4, int32])
           acc1x4: array[4, int32] = default(array[4, int32])
@@ -574,7 +575,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
           unsafeAddr bCache[2][i], acc0x4, acc1x4)
         storeBaseMulAccReducedChunk4(unsafeAddr r.coeffs[2 * i], acc0x4, acc1x4)
         i = i + 4
-    while i < kyberN div 2:
+    while i < mlkemN div 2:
       t0 =
         int32(a.vec[0].coeffs[2 * i + 1]) * int32(bCache[0][i]) +
         int32(a.vec[0].coeffs[2 * i + 0]) * int32(b.vec[0].coeffs[2 * i + 0]) +
@@ -594,7 +595,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
       i = i + 1
   of 4:
     when defined(avx2):
-      while i + 8 <= kyberN div 2:
+      while i + 8 <= mlkemN div 2:
         acc0 = navx2.mm256_setzero_si256()
         acc1 = navx2.mm256_setzero_si256()
         baseMulCachedTermsChunk8(unsafeAddr a.vec[0].coeffs[2 * i], unsafeAddr b.vec[0].coeffs[2 * i],
@@ -608,7 +609,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
         storeBaseMulAccReducedChunk8(unsafeAddr r.coeffs[2 * i], unsafeAddr r.coeffs[2 * i + 8], acc0, acc1)
         i = i + 8
     when defined(sse2):
-      while i + 4 <= kyberN div 2:
+      while i + 4 <= mlkemN div 2:
         var
           acc0x4: array[4, int32] = default(array[4, int32])
           acc1x4: array[4, int32] = default(array[4, int32])
@@ -623,7 +624,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
         storeBaseMulAccReducedChunk4(unsafeAddr r.coeffs[2 * i], acc0x4, acc1x4)
         i = i + 4
     when defined(neon) or defined(arm64) or defined(aarch64):
-      while i + 4 <= kyberN div 2:
+      while i + 4 <= mlkemN div 2:
         var
           acc0x4: array[4, int32] = default(array[4, int32])
           acc1x4: array[4, int32] = default(array[4, int32])
@@ -637,7 +638,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
           unsafeAddr bCache[3][i], acc0x4, acc1x4)
         storeBaseMulAccReducedChunk4(unsafeAddr r.coeffs[2 * i], acc0x4, acc1x4)
         i = i + 4
-    while i < kyberN div 2:
+    while i < mlkemN div 2:
       t0 =
         int32(a.vec[0].coeffs[2 * i + 1]) * int32(bCache[0][i]) +
         int32(a.vec[0].coeffs[2 * i + 0]) * int32(b.vec[0].coeffs[2 * i + 0]) +
@@ -662,7 +663,7 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
   else:
     var
       k: int = 0
-    while i < kyberN div 2:
+    while i < mlkemN div 2:
       t0 = 0
       t1 = 0
       k = 0
@@ -677,8 +678,8 @@ proc polyvecBaseMulAccMontgomeryCached*(p: KyberParams, r: var Poly, a, b: PolyV
       i = i + 1
   polyReduce(r)
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecReduce*(p: KyberParams, r: var PolyVec) {.inline.} =
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecReduce`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecReduce*(p: MlKemParams, r: var PolyVec) {.inline.} =
   ## Apply Barrett reduction to all coefficients of all vector elements.
   case p.k
   of 2:
@@ -700,9 +701,9 @@ proc polyvecReduce*(p: KyberParams, r: var PolyVec) {.inline.} =
       polyReduce(r.vec[i])
       i = i + 1
 
-## Reference: [KYBER-R3-20210804] version 3.02 sections 1.3 and 4, algorithms 1-9; polynomial arithmetic and internal algorithm steps for `polyvecAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
-proc polyvecAdd*(p: KyberParams, r: var PolyVec, a, b: PolyVec) {.inline.} =
-  ## Add two Kyber polynomial vectors.
+## Reference: [FIPS-203] sections 4-7 and algorithms 1-21; polynomial arithmetic and internal algorithm steps for `polyvecAdd`; pitfall: preserve the cited equations, fixed bounds, and representation invariants.
+proc polyvecAdd*(p: MlKemParams, r: var PolyVec, a, b: PolyVec) {.inline.} =
+  ## Add two ML-KEM polynomial vectors.
   case p.k
   of 2:
     polyAdd(r.vec[0], a.vec[0], b.vec[0])

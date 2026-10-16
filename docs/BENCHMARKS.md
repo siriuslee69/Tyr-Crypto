@@ -8,10 +8,10 @@
 | `nimble bench_custom_kdf` | Custom KDF tail/full-memory round table |
 | `nimble bench_pq_profiles` | Matched scalar/AVX2 liboqs profile builds |
 | `nimble perf_sigma_pq` | Sigma comparison against current liboqs |
-| `nimble perf_sigma_kyber` | Focused Kyber comparison |
+| `nimble perf_sigma_mlkem` | Focused ML-KEM comparison |
 | `nimble perf_sigma_falcon` | Falcon split phase comparison |
 | `nimble perf_otter_pq` | Otter timing spans for PQ wrapper hot paths |
-| `nimble perf_otter_kyber` | Focused Otter timing for Kyber |
+| `nimble perf_otter_mlkem` | Focused Otter timing for ML-KEM |
 
 The unified report accepts section arguments. A focused post-fix Falcon run can
 be built and executed without the unrelated byte/KEM tables:
@@ -74,7 +74,7 @@ Benchmark runs are promoted to `docs/benchmarks/` only when they explain an impl
 ```
 docs/benchmarks/
   asymmetric_desktop.json          All PQ algorithms (desktop)
-  kyber_{phone,infinix,moto_g56}.json    Kyber on 3 devices
+  kyber_{phone,infinix,moto_g56}.json    round-3 Kyber on 3 devices (measured before the ML-KEM switch)
   dilithium_{phone,infinix,moto_g56}.json
   falcon_{phone,infinix,moto_g56}.json   + falcon512/1024 desktop split
   frodo_{phone,infinix,moto_g56}.json    + deep final profiles

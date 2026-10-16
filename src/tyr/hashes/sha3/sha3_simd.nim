@@ -30,7 +30,7 @@ else:
 
 const
   sha3SimdDomainSuffix = 0x06'u8
-  ## Shared with Kyber's batched SHAKE-based matrix/noise generation.
+  ## Shared with ML-KEM's batched SHAKE-based matrix/noise generation.
   shakeSimdDomainSuffix = 0x1f'u8
   sha3SimdLaneBytes = 8
   keccakRoundConstantsSimd: array[24, uint64] = [

@@ -1,14 +1,14 @@
 # ============================================================
-# | Otter Kyber Timing Test                                 |
-# | -> Profile Tyr Kyber hotspots without unrelated PQ      |
+# | Otter ML-KEM Timing Test                                 |
+# | -> Profile Tyr ML-KEM hotspots without unrelated PQ      |
 # |    modules so optimization loops stay focused/reliable  |
 # ============================================================
 
 import std/[algorithm, tables, unittest]
 
-import ../../src/tyr/kems/kyber as kyber
-import ../../src/tyr/kems/kyber/params
-import ../../src/tyr/kems/kyber/indcpa
+import ../../src/tyr/kems/mlkem as mlkem
+import ../../src/tyr/kems/mlkem/params
+import ../../src/tyr/kems/mlkem/indcpa
 import otter_repo_evaluation
 
 const
@@ -89,23 +89,23 @@ proc runTimedGroup(title: string, body: proc ()) =
   stats = aggregateTimings(entries)
   printTopTimings(title, stats)
 
-proc kyber768BenchGenMatrixImpl() =
+proc mlkem768BenchGenMatrixImpl() =
   var
-    p = params(kyber768)
+    p = params(mlkem768)
     seed: array[32, byte]
   fillPattern(seed, 0x11)
   discard genMatrix(p, seed, false)
 
-proc kyber768BenchIndcpaKeypairImpl() =
+proc mlkem768BenchIndcpaKeypairImpl() =
   var
-    p = params(kyber768)
+    p = params(mlkem768)
     seed = newSeq[byte](32)
   fillPattern(seed, 0x21)
   discard indcpaKeypair(p, seed)
 
-proc kyber768BenchIndcpaEncDecImpl() =
+proc mlkem768BenchIndcpaEncDecImpl() =
   var
-    p = params(kyber768)
+    p = params(mlkem768)
     seed = newSeq[byte](32)
     coins = newSeq[byte](32)
     msg = newSeq[byte](32)
@@ -120,37 +120,37 @@ proc kyber768BenchIndcpaEncDecImpl() =
   dec = indcpaDec(p, ct, kp.sk)
   doAssert dec == msg
 
-proc kyber768BenchRoundtripImpl() =
-  let kp = kyberTyrKeypair(kyber768)
-  let env = kyberTyrEncaps(kyber768, kp.publicKey)
-  let shared = kyberTyrDecaps(kyber768, kp.secretKey, env.ciphertext)
+proc mlkem768BenchRoundtripImpl() =
+  let kp = mlkemTyrKeypair(mlkem768)
+  let env = mlkemTyrEncaps(mlkem768, kp.publicKey)
+  let shared = mlkemTyrDecaps(mlkem768, kp.secretKey, env.ciphertext)
   doAssert shared == env.sharedSecret
 
 otterInstrument:
-  proc kyber768BenchGenMatrix() =
-    kyber768BenchGenMatrixImpl()
+  proc mlkem768BenchGenMatrix() =
+    mlkem768BenchGenMatrixImpl()
 
-  proc kyber768BenchIndcpaKeypair() =
-    kyber768BenchIndcpaKeypairImpl()
+  proc mlkem768BenchIndcpaKeypair() =
+    mlkem768BenchIndcpaKeypairImpl()
 
-  proc kyber768BenchIndcpaEncDec() =
-    kyber768BenchIndcpaEncDecImpl()
+  proc mlkem768BenchIndcpaEncDec() =
+    mlkem768BenchIndcpaEncDecImpl()
 
-  proc kyber768BenchRoundtrip() =
-    kyber768BenchRoundtripImpl()
+  proc mlkem768BenchRoundtrip() =
+    mlkem768BenchRoundtripImpl()
 
-suite "Otter Kyber timing":
-  test "report top expensive Tyr Kyber functions":
+suite "Otter ML-KEM timing":
+  test "report top expensive Tyr ML-KEM functions":
     var
       i: int = 0
-    setLogPath("build/otter_kyber_timings.log")
+    setLogPath("build/otter_mlkem_timings.log")
 
-    runTimedGroup("Kyber768 Roundtrip Hotspots", proc () =
+    runTimedGroup("ML-KEM-768 Roundtrip Hotspots", proc () =
       i = 0
       while i < 5:
-        kyber768BenchGenMatrix()
-        kyber768BenchIndcpaKeypair()
-        kyber768BenchIndcpaEncDec()
-        kyber768BenchRoundtrip()
+        mlkem768BenchGenMatrix()
+        mlkem768BenchIndcpaKeypair()
+        mlkem768BenchIndcpaEncDec()
+        mlkem768BenchRoundtrip()
         i = i + 1
     )

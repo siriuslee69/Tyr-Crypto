@@ -363,7 +363,7 @@ reproduce byte for byte.
   scheme up several times over, and is the obvious next step.
 - **No `material.nim` entry.** HQC is reachable from the default,
   dynamic and single tiers, but not yet from the typed-material surface,
-  which currently covers X25519, Kyber, Frodo, BIKE and McEliece.
+  which currently covers X25519, ML-KEM, Frodo, BIKE and McEliece.
 - **No liboqs runtime cross-check.** HQC is checked against the published
   vectors, not against a running liboqs, because the liboqs build used
   elsewhere in this repository predates this HQC revision.

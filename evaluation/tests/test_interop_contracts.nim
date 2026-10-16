@@ -240,7 +240,7 @@ if commandMode(commandLineParams()).len == 0:
       check payload["ok"].getBool()
       check payload["entries"].len >= 49
       check catalogHasId(payload["entries"], "sha256")
-      check catalogHasId(payload["entries"], "kyber")
+      check catalogHasId(payload["entries"], "mlkem")
       check catalogHasId(payload["entries"], "bench-asymmetric")
       while i < payload["entries"].len:
         j = 0

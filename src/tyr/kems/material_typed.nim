@@ -12,40 +12,40 @@ proc open*(env: AsymEnvelope, m: x25519OpenM): seq[byte] =
   ## Recover a shared secret using typed X25519 open material.
   result = decaps(kaX25519, toSeqBytes(m.receiverSecretKey), env)
 
-proc seal*(m: kyber0SendM): AsymCipher =
-  result = encaps(kaKyber0, toSeqBytes(m.receiverPublicKey))
+proc seal*(m: mlkem0SendM): AsymCipher =
+  result = encaps(kaMlKem0, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymEnvelope, m: kyber0OpenM): seq[byte] =
-  result = decaps(kaKyber0, toSeqBytes(m.receiverSecretKey), env)
+proc open*(env: AsymEnvelope, m: mlkem0OpenM): seq[byte] =
+  result = decaps(kaMlKem0, toSeqBytes(m.receiverSecretKey), env)
 
-proc seal*(m: kyber1SendM): AsymCipher =
-  result = encaps(kaKyber1, toSeqBytes(m.receiverPublicKey))
+proc seal*(m: mlkem1SendM): AsymCipher =
+  result = encaps(kaMlKem1, toSeqBytes(m.receiverPublicKey))
 
-proc open*(env: AsymEnvelope, m: kyber1OpenM): seq[byte] =
-  result = decaps(kaKyber1, toSeqBytes(m.receiverSecretKey), env)
+proc open*(env: AsymEnvelope, m: mlkem1OpenM): seq[byte] =
+  result = decaps(kaMlKem1, toSeqBytes(m.receiverSecretKey), env)
 
-proc seal*(m: kyber0TyrSendM): AsymCipher =
-  ## Encapsulate with the pure-Nim Tyr Kyber tier-0 backend.
-  var env = customKyber.kyberTyrEncaps(customKyber.kyber768, toSeqBytes(m.receiverPublicKey))
+proc seal*(m: mlkem0TyrSendM): AsymCipher =
+  ## Encapsulate with the pure-Nim Tyr ML-KEM tier-0 backend.
+  var env = customMlKem.mlkemTyrEncaps(customMlKem.mlkem768, toSeqBytes(m.receiverPublicKey))
   result.envelope.ciphertext = env.ciphertext
   result.envelope.senderPublicKey = @[]
   result.sharedSecret = env.sharedSecret
 
-proc open*(env: AsymEnvelope, m: kyber0TyrOpenM): seq[byte] =
-  ## Decapsulate with the pure-Nim Tyr Kyber tier-0 backend.
-  result = customKyber.kyberTyrDecaps(customKyber.kyber768,
+proc open*(env: AsymEnvelope, m: mlkem0TyrOpenM): seq[byte] =
+  ## Decapsulate with the pure-Nim Tyr ML-KEM tier-0 backend.
+  result = customMlKem.mlkemTyrDecaps(customMlKem.mlkem768,
     toSeqBytes(m.receiverSecretKey), env.ciphertext)
 
-proc seal*(m: kyber1TyrSendM): AsymCipher =
-  ## Encapsulate with the pure-Nim Tyr Kyber tier-1 backend.
-  var env = customKyber.kyberTyrEncaps(customKyber.kyber1024, toSeqBytes(m.receiverPublicKey))
+proc seal*(m: mlkem1TyrSendM): AsymCipher =
+  ## Encapsulate with the pure-Nim Tyr ML-KEM tier-1 backend.
+  var env = customMlKem.mlkemTyrEncaps(customMlKem.mlkem1024, toSeqBytes(m.receiverPublicKey))
   result.envelope.ciphertext = env.ciphertext
   result.envelope.senderPublicKey = @[]
   result.sharedSecret = env.sharedSecret
 
-proc open*(env: AsymEnvelope, m: kyber1TyrOpenM): seq[byte] =
-  ## Decapsulate with the pure-Nim Tyr Kyber tier-1 backend.
-  result = customKyber.kyberTyrDecaps(customKyber.kyber1024,
+proc open*(env: AsymEnvelope, m: mlkem1TyrOpenM): seq[byte] =
+  ## Decapsulate with the pure-Nim Tyr ML-KEM tier-1 backend.
+  result = customMlKem.mlkemTyrDecaps(customMlKem.mlkem1024,
     toSeqBytes(m.receiverSecretKey), env.ciphertext)
 
 proc seal*(m: mceliece0SendM): AsymCipher =

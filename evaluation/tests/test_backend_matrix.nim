@@ -8,7 +8,7 @@ import ./helpers
 
 const
   loopsLibsodium = 200
-  loopsKyber = 32
+  loopsMlKem = 32
   loopsDilithium = 16
   loopsBike = 8
   loopsFrodo = 4
@@ -29,7 +29,7 @@ proc oqsAvailable(): bool =
   try:
     if not ensureLibOqsLoaded():
       return false
-    kem = OQS_KEM_new(oqsAlgKyber768)
+    kem = OQS_KEM_new(oqsAlgMlKem768)
     result = kem != nil
   except LibraryUnavailableError, OSError, IOError:
     result = false
@@ -162,14 +162,14 @@ proc runOqsSigRoundtrip(algId: string, msg: openArray[byte]) =
   requireSuccess(OQS_SIG_verify(sigObj, unsafeAddr msg[0], csize_t(msg.len),
     addr sig[0], csize_t(sig.len), addr pk[0]), "oqs verify " & algId)
 
-proc runKyberRoundtrip(v: KyberVariant) =
+proc runMlKemRoundtrip(v: MlKemVariant) =
   var
-    kp: KyberTyrKeypair
-    env: KyberTyrCipher
+    kp: MlKemTyrKeypair
+    env: MlKemTyrCipher
     shared: seq[byte] = @[]
-  kp = kyberTyrKeypair(v)
-  env = kyberTyrEncaps(v, kp.publicKey)
-  shared = kyberTyrDecaps(v, kp.secretKey, env.ciphertext)
+  kp = mlkemTyrKeypair(v)
+  env = mlkemTyrEncaps(v, kp.publicKey)
+  shared = mlkemTyrDecaps(v, kp.secretKey, env.ciphertext)
   check shared == env.sharedSecret
 
 proc runFrodoRoundtrip(v: FrodoVariant) =
@@ -238,8 +238,8 @@ suite "backend matrix":
     else:
       checkpoint("libsodium unavailable; skipping libsodium/material classical backend bench")
 
-    benchCase("tyr_kyber768_roundtrip", loopsKyber, proc() = runKyberRoundtrip(kyber768))
-    benchCase("tyr_kyber1024_roundtrip", loopsKyber, proc() = runKyberRoundtrip(kyber1024))
+    benchCase("tyr_mlkem768_roundtrip", loopsMlKem, proc() = runMlKemRoundtrip(mlkem768))
+    benchCase("tyr_mlkem1024_roundtrip", loopsMlKem, proc() = runMlKemRoundtrip(mlkem1024))
     benchCase("tyr_frodo976aes_roundtrip", loopsFrodo, proc() = runFrodoRoundtrip(frodo976aes))
     benchCase("tyr_bike_l1_roundtrip", loopsBike, proc() = runBikeRoundtrip(bikeL1))
     benchCase("tyr_mceliece6688128f_roundtrip", loopsMcEliece,
@@ -258,16 +258,16 @@ suite "backend matrix":
       proc() = runSphincsRoundtrip(sphincsShake128fSimple, msgShort))
 
     if hasOqs:
-      if oqsKemSupported(oqsAlgKyber768):
-        benchCase("oqs_kyber768_roundtrip", loopsKyber,
-          proc() = runOqsKemRoundtrip(oqsAlgKyber768))
+      if oqsKemSupported(oqsAlgMlKem768):
+        benchCase("oqs_mlkem768_roundtrip", loopsMlKem,
+          proc() = runOqsKemRoundtrip(oqsAlgMlKem768))
       else:
-        checkpoint("liboqs missing KEM " & oqsAlgKyber768)
-      if oqsKemSupported(oqsAlgKyber1024):
-        benchCase("oqs_kyber1024_roundtrip", loopsKyber,
-          proc() = runOqsKemRoundtrip(oqsAlgKyber1024))
+        checkpoint("liboqs missing KEM " & oqsAlgMlKem768)
+      if oqsKemSupported(oqsAlgMlKem1024):
+        benchCase("oqs_mlkem1024_roundtrip", loopsMlKem,
+          proc() = runOqsKemRoundtrip(oqsAlgMlKem1024))
       else:
-        checkpoint("liboqs missing KEM " & oqsAlgKyber1024)
+        checkpoint("liboqs missing KEM " & oqsAlgMlKem1024)
       if oqsKemSupported(oqsAlgFrodoKEM976):
         benchCase("oqs_frodo976aes_roundtrip", loopsFrodo,
           proc() = runOqsKemRoundtrip(oqsAlgFrodoKEM976))
