@@ -335,6 +335,56 @@ task run_tyr_avx_stress, "Build and run the threaded Tyr AVX2 custom-crypto stre
   exec "nimble build_tyr_avx_stress"
   exec repoToolExe("tyr-avx-stress")
 
+## CPU stress, three load rounds (low / medium / full), 2 minutes each.
+## One source, two programs: scalar (plain code) and simd (AVX2 + AES-NI).
+## The static build is one file per mode with no libraries needed (zig + musl),
+## for a portable NixOS stick: copy build/stress-stick/ and run the files.
+const
+  stressSource = "evaluation/benchmarks/stress_batches.nim"
+  stressStickDir = "build/stress-stick"
+
+proc stressBuildCmd(mode: string, portable: bool): string =
+  ## mode: "scalar" or "simd"; portable: true -> zig + musl, one static file.
+  var
+    simd: string = "scalar"
+    cc: string = ""
+    name: string = "tyr-" & mode & "-stress"
+    flags: string = "--passC:-fno-tree-vectorize"
+  if mode == "simd":
+    simd = "avx2,aesni"
+    flags = ""
+  if portable:
+    name = name & "-static"
+    cc = " --cc:clang --clang.exe:" & repoToolExe("zigcc_linux_x86_64") &
+      " --clang.linkerexe:" & repoToolExe("zigcc_linux_x86_64")
+    if mode == "scalar":
+      flags = "--passC:-fno-vectorize --passC:-fno-slp-vectorize"
+  result = withRepoCaches("nim c --threads:on -d:release -d:danger -d:tyrSimd=" &
+    simd & cc & " " & flags & " --hints:off --warnings:off --nimcache:" &
+    repoNimcacheDir("nimcache_" & name).replace('\\', '/') & " --out:" &
+    repoToolExe(name) & " " & stressSource)
+
+task build_tyr_stress, "Build the scalar and simd CPU stress programs for this machine":
+  exec stressBuildCmd("scalar", false)
+  exec stressBuildCmd("simd", false)
+
+task build_tyr_stress_static, "Build static (no libraries) stress programs into build/stress-stick/":
+  discard buildToolExe("zigcc_linux_x86_64")
+  exec stressBuildCmd("scalar", true)
+  exec stressBuildCmd("simd", true)
+  mkDir(stressStickDir)
+  cpFile(repoToolExe("tyr-scalar-stress-static"), stressStickDir & "/tyr-scalar-stress")
+  cpFile(repoToolExe("tyr-simd-stress-static"), stressStickDir & "/tyr-simd-stress")
+  echo "Copy ", stressStickDir, " to the stick. Run ./tyr-scalar-stress and ./tyr-simd-stress there."
+
+task run_tyr_stress_scalar, "Build and run the scalar CPU stress (3 rounds x 2 min)":
+  exec stressBuildCmd("scalar", false)
+  exec repoToolExe("tyr-scalar-stress")
+
+task run_tyr_stress_simd, "Build and run the simd CPU stress (3 rounds x 2 min)":
+  exec stressBuildCmd("simd", false)
+  exec repoToolExe("tyr-simd-stress")
+
 task bench_curve25519_ed25519, "Benchmark pure Nim X25519 and Ed25519 implementations":
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_bench_x25519").replace('\\', '/') & " -d:release -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r evaluation/benchmarks/bench_x25519.nim")
   exec withRepoCaches("nim c --nimcache:" & repoNimcacheDir("nimcache_bench_ed25519").replace('\\', '/') & " -d:release -d:sse2 -d:avx2 --passC:\"-msse4.1 -mavx2\" --passL:\"-msse4.1 -mavx2\" -r evaluation/benchmarks/bench_ed25519.nim")

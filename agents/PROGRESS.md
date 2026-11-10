@@ -1,4 +1,4 @@
-Commit Message: Nesting: flatten every depth-4+ site with inlined helpers (75 -> 0)
+Commit Message: CPU stress: scalar + simd programs, 3 load rounds, checked answers, static stick build
 
 - Stable high-level crypto wrapper API with predictable inputs/outputs.
 - Pure Nim implementations for common primitives (XChaCha20, BLAKE3, etc.).
@@ -1825,3 +1825,22 @@ domain (deriveCascade), scalar_box, simd_box.
 - Nim note: overloaded procs whose return type uses a `static[int]`
   parameter fail with "cannot evaluate at compile time" (Nim 2.2.12), so
   the target width is passed as a type: deriveCascade(NuGimli2048, ...).
+
+## 2026-11-10 CPU Stress (scalar + simd)
+
+evaluation/benchmarks/stress_batches.nim: one source, two programs.
+- Modes by build flag: scalar (`-d:tyrSimd=scalar`, plain code) and simd
+  (`-d:tyrSimd=avx2,aesni`). A wrong flag set is a compile error.
+- Three rounds (low = 1/4, medium = 1/2, full = all logical CPUs), 120 s
+  each (`--seconds:N`, `--round:low|medium|full`). Threads are pinned; one
+  thread per physical core comes first (13900K: 8 / 16 / 32 threads).
+- Every repeat of the fixed work must give the same 64-bit digest as the one
+  made before round 1; a mismatch is an error, exit code 1.
+- Log lines are printed and appended (with time) to tyr-<mode>-stress.log
+  next to the program.
+- Tasks: build_tyr_stress, build_tyr_stress_static (zig + musl, files in
+  build/stress-stick/), run_tyr_stress_scalar, run_tyr_stress_simd.
+- Static files run on any x86-64 Linux with no libraries (NixOS stick). The
+  simd file needs AVX2 + AES-NI. Windows pinning is written but untested.
+- Old single-run AVX2 benchmark (bench_custom_crypto_stress, tyr-avx-stress)
+  is unchanged.
