@@ -348,9 +348,7 @@ elif defined(windows):
       return false
     result = SetThreadAffinityMask(GetCurrentThread(), uint(1) shl uint(cpu)) != 0
 else:
-  proc pinToCpu(cpu: int): bool {.role: {helper}.} =
-    ## cpu: ignored on this system -> always false.
-    result = false
+  {.error: "stress_batches pins threads on Linux and Windows only".}
 
 proc readSysText(path: string): string {.role: {dataFetcher}.} =
   ## path: a tiny text file -> its content, or "" when it cannot be read.
