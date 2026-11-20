@@ -107,3 +107,10 @@ docs/research/pq_non_ntru_saber/papers/*.pdf
 !docs/research/pq_non_ntru_saber/papers/2024-0500_side_channel_resistant_sphincs.pdf
 !docs/research/pq_non_ntru_saber/papers/2024-1149_dilithium_sampling_implementation_analysis.pdf
 !docs/research/pq_non_ntru_saber/papers/2025-0214_dilithium_rejection_sampling_side_channel.pdf
+
+# migration top-up 2026-11-20
+builds/
+nimcache*/
+*.trash
+.otter/
+.local/
